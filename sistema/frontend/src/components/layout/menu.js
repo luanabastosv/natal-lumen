@@ -4,7 +4,10 @@
  * confere a permissao em cada rota.
  */
 export const ITENS_MENU = [
-  { para: "/painel", rotulo: "Painel", permissao: "ver_painel" },
+  // Sem permissao: o painel e a porta de entrada de todo mundo. Quem tem
+  // ver_painel encontra os numeros da edicao ali; quem nao tem, so os
+  // atalhos para o que alcanca.
+  { para: "/painel", rotulo: "Painel" },
   { para: "/criancas", rotulo: "Crianças", permissao: "ver_criancas" },
   { para: "/padrinhos", rotulo: "Padrinhos", permissao: "ver_padrinhos" },
   { para: "/pagamentos", rotulo: "Pagamentos", permissao: "registrar_pagamentos" },
@@ -19,7 +22,9 @@ export const ITENS_MENU = [
 ];
 
 export function itensVisiveis(pode, admin = false) {
-  return ITENS_MENU.filter((item) =>
-    item.apenasAdmin ? admin : pode(item.permissao),
-  );
+  return ITENS_MENU.filter((item) => {
+    if (item.apenasAdmin) return admin;
+    if (!item.permissao) return true;
+    return pode(item.permissao);
+  });
 }

@@ -19,6 +19,7 @@ from app.routers import (
     instituicoes,
     logistica,
     padrinhos,
+    painel,
     perfis,
     usuarios,
 )
@@ -66,6 +67,7 @@ for router in (
     instituicoes.router,
     logistica.router,
     padrinhos.router,
+    painel.router,
     perfis.router,
     usuarios.router,
 ):

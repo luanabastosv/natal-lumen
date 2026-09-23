@@ -18,7 +18,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 6 | Padrinhos, apadrinhamentos e pagamentos | **pronta** |
 | 7 | Cartões: digitalização, OCR e envio | **pronta** |
 | 8 | Kits, compras e check-in | **pronta** |
-| 9 | Painel e relatórios | a fazer |
+| 9 | Painel e relatórios | **pronta** |
 | 10 | Publicação em /acesso | a fazer |
 
 ---
@@ -100,6 +100,7 @@ cd backend
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
+./.venv/bin/python -m tests.test_painel         # 29 verificações
 ```
 
 > `test_cartoes` carrega o EasyOCR na primeira execução e demora bem mais.
@@ -347,6 +348,24 @@ que qualquer inconsistência. O que estiver estranho volta como aviso na tela:
 `GET /checkin/qrcode/{crianca_id}` gera o QR para imprimir no crachá. Ele traz
 `edicao:codigo`, e a tela aceita os dois formatos — colado do leitor ou digitado
 à mão.
+
+### Painel
+
+`GET /painel/{edicao_id}` devolve os números da edição: crianças, apadrinhamentos
+(feitos sobre possíveis, que são dois por criança), quantas crianças já têm os
+dois padrinhos, valores combinado e pago, cartões digitalizados e enviados,
+kits, compras e check-ins — mais a quebra por instituição e por dia.
+
+**Os números respeitam o mesmo filtro das telas.** Quem só alcança algumas
+instituições vê os números dessas instituições, não os da edição inteira. Um
+relatório que vazasse o total geral para quem não pode ver as crianças seria uma
+brecha silenciosa.
+
+> A permissão `ver_painel` é, pela especificação, só da Coordenação. Por isso a
+> página `/acesso/painel` funciona para todo mundo — é a porta de entrada, com os
+> atalhos do que cada um alcança — mas **os números só aparecem para quem tem a
+> permissão**. Para abrir os números a outros perfis, basta acrescentar
+> `ver_painel` ao perfil na base, sem mexer no código.
 
 ### Arquivos enviados
 

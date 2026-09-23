@@ -376,3 +376,63 @@
   font-weight: 700;
   color: var(--text-on-light-primary);
 }
+
+/* ---------- Numeros do painel ---------- */
+.numeros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.numero {
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  background: var(--surface-card);
+}
+
+.numero__rotulo {
+  display: block;
+  font-family: var(--font-condensed);
+  font-size: var(--size-caption);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-on-light-muted);
+  margin-bottom: var(--space-2);
+}
+
+.numero__valor {
+  display: block;
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.numero__nota {
+  display: block;
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+  margin-top: var(--space-2);
+}
+
+/* Barra de progresso simples, sem biblioteca. */
+.barra {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--navy-100);
+  overflow: hidden;
+  margin-top: var(--space-3);
+}
+
+.barra__preenchida {
+  height: 100%;
+  background: var(--color-cta);
+  border-radius: var(--radius-pill);
+}
+
+.barra__preenchida--completa {
+  background: var(--color-primary);
+}
