@@ -12,10 +12,19 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Crianca, DiaEvento, Edicao
-from app.schemas.cadastros import DiaIn, DiaOut, EdicaoEditar, EdicaoIn, EdicaoOut
+from app.models import Crianca, DiaEvento, Edicao, Instituicao
+from app.schemas.cadastros import (
+    DiaDaInstituicaoIn,
+    DiaDaInstituicaoOut,
+    DiaIn,
+    DiaOut,
+    EdicaoEditar,
+    EdicaoIn,
+    EdicaoOut,
+)
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral, exige_permissao
+from app.servicos import dias
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/edicoes", tags=["cadastros"])
@@ -181,6 +190,66 @@ def criar_dia(
     return DiaOut(
         id=dia.id, edicao_id=dia.edicao_id, data=dia.data,
         descricao=dia.descricao, total_criancas=0,
+    )
+
+
+@router.put("/{edicao_id}/instituicoes/{instituicao_id}/dia", response_model=DiaDaInstituicaoOut)
+def definir_dia_da_instituicao(
+    edicao_id: int,
+    instituicao_id: int,
+    dados: DiaDaInstituicaoIn,
+    db: BD,
+    ctx: Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_cadastros"))],
+):
+    """Marca em que dia esta instituicao vai, e leva as criancas dela junto.
+
+    O dia e da instituicao: se a Escolinha Sol vai no sabado, todas as criancas
+    dela vao no sabado. Nao ha como marcar uma crianca num dia diferente.
+    """
+    _buscar_edicao(db, ctx, edicao_id)
+
+    if not ctx.alcanca_edicao(edicao_id, "gerenciar_cadastros"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Voce nao gerencia os cadastros desta edicao."
+        )
+
+    instituicao = db.get(Instituicao, instituicao_id)
+    if instituicao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+
+    edicao = db.get(Edicao, edicao_id)
+    if instituicao.cidade_id != edicao.cidade_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Esta instituicao nao e da cidade desta edicao.",
+        )
+
+    if dados.dia_evento_id is not None:
+        dia = db.get(DiaEvento, dados.dia_evento_id)
+        if dia is None or dia.edicao_id != edicao_id:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "Este dia nao e desta edicao."
+            )
+
+    quantas = dias.definir(db, edicao_id, instituicao_id, dados.dia_evento_id)
+
+    registrar(
+        db, "dia_da_instituicao", usuario_id=ctx.usuario.id,
+        tabela="instituicao_dia",
+        detalhes={
+            "edicao_id": edicao_id,
+            "instituicao_id": instituicao_id,
+            "dia_evento_id": dados.dia_evento_id,
+            "criancas": quantas,
+        },
+    )
+    db.commit()
+
+    return DiaDaInstituicaoOut(
+        instituicao_id=instituicao_id,
+        instituicao=instituicao.nome,
+        dia_evento_id=dados.dia_evento_id,
+        criancas_atualizadas=quantas,
     )
 
 

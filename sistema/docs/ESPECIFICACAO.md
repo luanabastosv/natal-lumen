@@ -30,6 +30,7 @@ Operação:
 - cidades: id, nome, uf, ativo
 - edicoes: id, cidade_id, ano, nome, valor_cesta, valor_festa, ativa — único (cidade_id, ano)
 - dias_evento: id, edicao_id, data, descricao
+- instituicao_dia: id, edicao_id, instituicao_id, dia_evento_id — único (edicao_id, instituicao_id). O dia do evento é da INSTITUIÇÃO: todas as crianças dela vão no mesmo dia.
 - instituicoes: id, cidade_id, nome, responsavel, telefone, endereco, ativo
 - criancas: id, edicao_id, instituicao_id, dia_evento_id (opcional), codigo, nome, idade, sexo, observacoes, checkin_em, checkin_por (usuario) — único (edicao_id, instituicao_id, codigo)
 - padrinhos: id, edicao_id, nome, whatsapp, email, observacoes, criado_por, criado_em (padrinhos pertencem a uma edição — cidade + ano; não persistem entre anos: todo ano são padrinhos novos)
@@ -141,3 +142,26 @@ permissão de nome errado.
 
 Cidades e edições continuam restritas ao `admin_geral`, sem permissão própria,
 como a especificação define.
+
+### 2026-09-23 — O dia do evento é da instituição, não da criança
+
+Decidido pela Luana. A divisão dos dias é feita por instituição: se a Escolinha
+Sol vai no sábado, **todas** as crianças dela vão no sábado.
+
+| | Versão inicial | Agora |
+| --- | --- | --- |
+| Onde o dia é definido | por criança (`criancas.dia_evento_id`) | por instituição, em `instituicao_dia` |
+| Duas crianças da mesma escola em dias diferentes | possível | impossível |
+
+`criancas.dia_evento_id` continua existindo — kit, check-in e painel filtram por
+ele — mas passa a ser **derivado**: só `app/servicos/dias.py` o grava. Editar o
+dia de uma criança isolada foi removido da API e da tela; quem muda é a
+instituição, e todas as crianças dela vão junto.
+
+Crianças criadas ou importadas depois herdam o dia que a instituição já tem.
+
+### 2026-09-23 — Códigos gerados pela aplicação
+
+As planilhas passam a vir sem código (nome, idade, sexo, instituição). A
+aplicação numera com a sigla da instituição mais um sequencial, na ordem:
+meninas primeiro, depois idade crescente, depois ordem alfabética.

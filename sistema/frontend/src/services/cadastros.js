@@ -16,6 +16,12 @@ export const criarDia = (edicaoId, dados) => api.post(`/edicoes/${edicaoId}/dias
 export const apagarDia = (edicaoId, diaId) =>
   api.delete(`/edicoes/${edicaoId}/dias/${diaId}`);
 
+/** O dia e da instituicao: definir aqui move todas as criancas dela. */
+export const definirDiaDaInstituicao = (edicaoId, instituicaoId, diaEventoId) =>
+  api.put(`/edicoes/${edicaoId}/instituicoes/${instituicaoId}/dia`, {
+    dia_evento_id: diaEventoId,
+  });
+
 // Instituicoes
 export const listarInstituicoes = () => api.get("/instituicoes");
 export const criarInstituicao = (dados) => api.post("/instituicoes", dados);

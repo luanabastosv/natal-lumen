@@ -110,6 +110,38 @@ class Instituicao(Base):
     criancas: Mapped[list["Crianca"]] = relationship(back_populates="instituicao")
 
 
+class InstituicaoDia(Base):
+    """Em que dia da edicao esta instituicao vai.
+
+    O dia e da INSTITUICAO, nao da crianca: se a Escolinha Sol vai no sabado,
+    todas as criancas dela vao no sabado. Guardar por crianca deixaria duas
+    da mesma escola caindo em dias diferentes.
+
+    criancas.dia_evento_id continua existindo e e mantido em dia a partir daqui
+    — as telas de kit, check-in e painel filtram por ele.
+    """
+
+    __tablename__ = "instituicao_dia"
+    __table_args__ = (
+        UniqueConstraint("edicao_id", "instituicao_id", name="uq_instituicao_dia"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    edicao_id: Mapped[int] = mapped_column(
+        ForeignKey("edicoes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    instituicao_id: Mapped[int] = mapped_column(
+        ForeignKey("instituicoes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    dia_evento_id: Mapped[int] = mapped_column(
+        ForeignKey("dias_evento.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    edicao: Mapped["Edicao"] = relationship()
+    instituicao: Mapped["Instituicao"] = relationship()
+    dia_evento: Mapped["DiaEvento"] = relationship()
+
+
 class Crianca(Base):
     """Dado sensivel (LGPD): acesso sempre autenticado, isolado e registrado em log."""
 
@@ -129,7 +161,8 @@ class Crianca(Base):
     instituicao_id: Mapped[int] = mapped_column(
         ForeignKey("instituicoes.id"), nullable=False, index=True
     )
-    # Opcional: a crianca pode ainda nao ter sido distribuida num dia.
+    # Vem do dia da INSTITUICAO (ver InstituicaoDia), nao e editado crianca a
+    # crianca. Fica gravado aqui porque kit, check-in e painel filtram por ele.
     dia_evento_id: Mapped[int | None] = mapped_column(
         ForeignKey("dias_evento.id", ondelete="SET NULL"), index=True
     )

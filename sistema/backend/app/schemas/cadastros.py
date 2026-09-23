@@ -66,6 +66,18 @@ class DiaOut(BaseModel):
     total_criancas: int = 0
 
 
+class DiaDaInstituicaoIn(BaseModel):
+    # None desmarca o dia da instituicao.
+    dia_evento_id: int | None = None
+
+
+class DiaDaInstituicaoOut(BaseModel):
+    instituicao_id: int
+    instituicao: str
+    dia_evento_id: int | None
+    criancas_atualizadas: int
+
+
 class InstituicaoIn(BaseModel):
     cidade_id: int
     nome: str = Field(min_length=2, max_length=180)

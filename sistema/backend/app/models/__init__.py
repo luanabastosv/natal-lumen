@@ -13,7 +13,14 @@ from app.models.acesso import (
 )
 from app.models.apadrinhamento import Apadrinhamento, Padrinho, Pagamento
 from app.models.logistica import Cartao, Compra, Kit
-from app.models.operacao import Cidade, Crianca, DiaEvento, Edicao, Instituicao
+from app.models.operacao import (
+    Cidade,
+    Crianca,
+    DiaEvento,
+    Edicao,
+    Instituicao,
+    InstituicaoDia,
+)
 
 __all__ = [
     # operacao
@@ -21,6 +28,7 @@ __all__ = [
     "Edicao",
     "DiaEvento",
     "Instituicao",
+    "InstituicaoDia",
     "Crianca",
     # apadrinhamento
     "Padrinho",

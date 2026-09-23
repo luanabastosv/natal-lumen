@@ -23,6 +23,7 @@ from app.models import (
     DiaEvento,
     Edicao,
     Instituicao,
+    InstituicaoDia,
     Kit,
     Padrinho,
 )
@@ -43,7 +44,7 @@ from app.schemas.criancas import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
-from app.servicos import codigos, importador
+from app.servicos import codigos, dias, importador
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
@@ -220,7 +221,6 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
             func.count(Crianca.id),
             func.count(case((~com_padrinho, Crianca.id))),
             func.count(case((~com_cartao, Crianca.id))),
-            func.count(case((Crianca.dia_evento_id.is_(None), Crianca.id))),
         )
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
         .where(alcance)
@@ -228,12 +228,24 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
         .order_by(Instituicao.nome)
     ).all()
 
+    # O dia e da instituicao: uma consulta para todas, em vez de uma por aba.
+    dias_marcados = {
+        instituicao_id: (dia_id, data)
+        for instituicao_id, dia_id, data in db.execute(
+            select(InstituicaoDia.instituicao_id, InstituicaoDia.dia_evento_id, DiaEvento.data)
+            .join(DiaEvento, DiaEvento.id == InstituicaoDia.dia_evento_id)
+            .where(InstituicaoDia.edicao_id == edicao_id)
+        ).all()
+    }
+
     return [
         ResumoInstituicao(
             instituicao_id=i, instituicao=nome, criancas=total,
-            sem_padrinho=sp, sem_cartao=sc, sem_dia=sd,
+            sem_padrinho=sp, sem_cartao=sc,
+            dia_evento_id=dias_marcados.get(i, (None, None))[0],
+            dia_evento=dias_marcados.get(i, (None, None))[1],
         )
-        for i, nome, total, sp, sc, sd in linhas
+        for i, nome, total, sp, sc in linhas
     ]
 
 
@@ -255,18 +267,6 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
             status.HTTP_404_NOT_FOUND, "Ha criancas que voce nao alcanca ou que nao existem."
         )
 
-    if dados.definir_dia and dados.dia_evento_id is not None:
-        dia = db.get(DiaEvento, dados.dia_evento_id)
-        if dia is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Dia nao encontrado.")
-        # Um dia de outra edicao deixaria a crianca marcada num evento que nao
-        # e o dela.
-        if any(dia.edicao_id != c.edicao_id for c in criancas):
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Este dia nao e da mesma edicao das criancas.",
-            )
-
     if dados.instituicao_id is not None:
         instituicao = db.get(Instituicao, dados.instituicao_id)
         if instituicao is None:
@@ -280,11 +280,12 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
 
     mudou = []
     for crianca in criancas:
-        if dados.definir_dia:
-            crianca.dia_evento_id = dados.dia_evento_id
-            mudou.append("dia_evento_id")
         if dados.instituicao_id is not None:
             crianca.instituicao_id = dados.instituicao_id
+            # Mudou de escola: o dia passa a ser o da escola nova.
+            crianca.dia_evento_id = dias.dia_da_instituicao(
+                db, crianca.edicao_id, dados.instituicao_id
+            )
             mudou.append("instituicao_id")
 
     try:
@@ -487,6 +488,10 @@ def criar(dados: CriancaIn, db: BD, ctx: Editar):
 
     crianca = Crianca(**dados.model_dump())
     crianca.nome = " ".join(crianca.nome.split())
+    # O dia vem da instituicao, nunca do formulario.
+    crianca.dia_evento_id = dias.dia_da_instituicao(
+        db, dados.edicao_id, dados.instituicao_id
+    )
     db.add(crianca)
 
     try:
@@ -747,6 +752,13 @@ def importar_confirmar(id_previa: str, db: BD, ctx: Importar):
             "Alguma crianca desta lista ja foi cadastrada enquanto voce conferia. "
             "Envie a planilha de novo.",
         )
+
+    # As que acabaram de entrar herdam o dia que a instituicao ja tinha.
+    dias.aplicar_a_novas(
+        db,
+        guardado["edicao_id"],
+        {l["instituicao_id"] for l in guardado["linhas"] if l["valida"] and l["instituicao_id"]},
+    )
 
     registrar(
         db, "importacao_confirmada", usuario_id=ctx.usuario.id,

@@ -7,6 +7,7 @@ Rodar com:  python -m tests.test_criancas
 """
 
 import io
+from datetime import date
 
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -404,6 +405,91 @@ def main() -> None:
         # caminho, e prender o total aqui quebraria a cada teste novo.
         verifica("devolve o total geral, maior que a pagina",
                  total_agora > 2, str(total_agora))
+
+        print("\nO dia e da INSTITUICAO, nao da crianca")
+        from app.models import DiaEvento
+
+        sabado = DiaEvento(edicao_id=edicao.id, data=date(2026, 12, 20), descricao="Sabado")
+        domingo = DiaEvento(edicao_id=edicao.id, data=date(2026, 12, 21), descricao="Domingo")
+        db.add_all([sabado, domingo]); db.commit()
+
+        r = cc.put(f"/edicoes/{edicao.id}/instituicoes/{inst_a.id}/dia",
+                   json={"dia_evento_id": sabado.id})
+        verifica("marca o dia da instituicao", r.status_code == 200, r.text[:140])
+        if r.status_code == 200:
+            verifica("leva as criancas dela junto", r.json()["criancas_atualizadas"] >= 1,
+                     str(r.json()["criancas_atualizadas"]))
+
+        r = cc.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 50})
+        dias_da_escola = {c["dia_evento"] for c in r.json()["itens"]}
+        verifica("TODAS as criancas da instituicao ficam no mesmo dia",
+                 len(dias_da_escola) == 1 and "2026-12-20" in dias_da_escola,
+                 str(dias_da_escola))
+
+        # A outra instituicao nao foi tocada.
+        r = cc.get("/criancas", params={"instituicao_id": inst_b.id, "por_pagina": 50})
+        verifica("a outra instituicao continua sem dia",
+                 all(c["dia_evento"] is None for c in r.json()["itens"]))
+
+        # Nao existe mais como mudar o dia de UMA crianca.
+        uma = db.scalar(select(Crianca).where(Crianca.instituicao_id == inst_a.id))
+        r = cc.patch(f"/criancas/{uma.id}", json={"dia_evento_id": domingo.id})
+        db.expire_all()
+        verifica("mudar o dia de uma crianca so nao tem efeito",
+                 db.get(Crianca, uma.id).dia_evento_id == sabado.id,
+                 str(db.get(Crianca, uma.id).dia_evento_id))
+
+        r = cc.post("/criancas/lote", json={"criancas": [uma.id], "dia_evento_id": domingo.id,
+                                            "definir_dia": True})
+        db.expire_all()
+        verifica("o lote tambem nao muda o dia de uma crianca",
+                 db.get(Crianca, uma.id).dia_evento_id == sabado.id,
+                 str(db.get(Crianca, uma.id).dia_evento_id))
+
+        # Trocar a instituicao inteira de dia
+        r = cc.put(f"/edicoes/{edicao.id}/instituicoes/{inst_a.id}/dia",
+                   json={"dia_evento_id": domingo.id})
+        r = cc.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 50})
+        verifica("trocar o dia da instituicao move todas de uma vez",
+                 {c["dia_evento"] for c in r.json()["itens"]} == {"2026-12-21"},
+                 str({c["dia_evento"] for c in r.json()["itens"]}))
+
+        # Uma crianca nova entra ja no dia da instituicao
+        r = cc.post("/criancas", json={
+            "edicao_id": edicao.id, "instituicao_id": inst_a.id,
+            "codigo": "NOVA1", "nome": "Nova Crianca Teste", "idade": 7, "sexo": "F",
+        })
+        verifica("crianca nova entra ja no dia da instituicao",
+                 r.status_code == 201 and r.json()["dia_evento"] == "2026-12-21",
+                 f"{r.status_code} {r.json().get('dia_evento')}")
+
+        # Dia de OUTRA edicao, aplicado na edicao que o usuario alcanca.
+        outra = Edicao(cidade_id=cidade.id, ano=2027, nome=f"{MARCA} Outra",
+                       valor_cesta=1, valor_festa=1)
+        db.add(outra); db.flush()
+        dia_de_outra = DiaEvento(edicao_id=outra.id, data=date(2027, 12, 19))
+        db.add(dia_de_outra); db.commit()
+
+        r = cc.put(f"/edicoes/{edicao.id}/instituicoes/{inst_a.id}/dia",
+                   json={"dia_evento_id": dia_de_outra.id})
+        verifica("recusa dia que e de outra edicao", r.status_code == 422, str(r.status_code))
+
+        # E a edicao em que o usuario nao tem vinculo responde 404.
+        r = cc.put(f"/edicoes/{outra.id}/instituicoes/{inst_a.id}/dia",
+                   json={"dia_evento_id": dia_de_outra.id})
+        verifica("edicao fora do alcance responde 404", r.status_code == 404, str(r.status_code))
+
+        r = cc.get("/criancas/resumo-instituicoes", params={"edicao_id": edicao.id})
+        aba = next(a for a in r.json() if a["instituicao_id"] == inst_a.id)
+        verifica("a aba mostra o dia da instituicao", aba["dia_evento"] == "2026-12-21",
+                 str(aba.get("dia_evento")))
+
+        # Desmarcar
+        r = cc.put(f"/edicoes/{edicao.id}/instituicoes/{inst_a.id}/dia",
+                   json={"dia_evento_id": None})
+        r = cc.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 50})
+        verifica("desmarcar tira o dia de todas",
+                 all(c["dia_evento"] is None for c in r.json()["itens"]))
 
         print("\nFicha da crianca")
         r = cc.get(f"/criancas/{ana['id']}")

@@ -162,7 +162,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 66 verificações
+./.venv/bin/python -m tests.test_criancas       # 78 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
@@ -403,6 +403,19 @@ irmãos com nomes parecidos existem; quem confere decide. A comparação usa
   distribuir 1500 crianças uma a uma não é trabalho que alguém faça;
 - **ficha da criança** no ícone de olho: uma janela pequena com tudo o que se
   sabe dela — padrinhos com nome e contato, cartões, kit e check-in.
+
+### O dia do evento é da instituição
+
+Se a Escolinha Sol vai no sábado, **todas** as crianças dela vão no sábado. Por
+isso o dia não é editado criança a criança: ele é definido na aba da
+instituição, e todas as crianças dela mudam junto.
+
+Editar o dia de uma criança isolada foi **removido** da API e da tela — não é
+uma restrição de interface que dá para contornar pelo backend. `app/servicos/
+dias.py` é o único lugar que grava `criancas.dia_evento_id`.
+
+Crianças criadas ou importadas depois herdam o dia que a instituição já tem, e
+mudar uma criança de instituição leva junto o dia da nova.
 
 > O **contato do padrinho só aparece para quem tem `ver_padrinhos`**. Um monitor
 > abre a mesma ficha e vê *que* a criança tem padrinho de cesta e de festa, mas

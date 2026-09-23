@@ -13,8 +13,8 @@ class CriancaIn(BaseModel):
     nome: str = Field(min_length=3, max_length=180)
     idade: int = Field(ge=0, le=21)
     sexo: str = Field(pattern="^[MF]$")
-    dia_evento_id: int | None = None
     observacoes: str | None = None
+    # Sem dia aqui: ele vem da instituicao (ver InstituicaoDia).
 
 
 class CriancaEditar(BaseModel):
@@ -22,8 +22,9 @@ class CriancaEditar(BaseModel):
     nome: str | None = Field(default=None, min_length=3, max_length=180)
     idade: int | None = Field(default=None, ge=0, le=21)
     sexo: str | None = Field(default=None, pattern="^[MF]$")
-    dia_evento_id: int | None = None
     observacoes: str | None = None
+    # Sem dia aqui de proposito: mudar o dia de UMA crianca deixaria duas da
+    # mesma escola em dias diferentes. O dia se muda na instituicao.
 
 
 class CriancaOut(BaseModel):
@@ -86,12 +87,13 @@ class ResultadoImportacao(BaseModel):
 
 
 class CriancasEmLote(BaseModel):
-    """Mudanca aplicada a varias criancas de uma vez."""
+    """Mudanca aplicada a varias criancas de uma vez.
+
+    O dia nao entra aqui: ele e da instituicao, e se muda em
+    PUT /edicoes/{id}/instituicoes/{id}/dia.
+    """
 
     criancas: list[int] = Field(min_length=1)
-    # None e um valor legitimo: tira a crianca do dia.
-    dia_evento_id: int | None = None
-    definir_dia: bool = False
     instituicao_id: int | None = None
 
 
@@ -103,7 +105,9 @@ class ResumoInstituicao(BaseModel):
     criancas: int
     sem_padrinho: int
     sem_cartao: int
-    sem_dia: int
+    # O dia marcado para esta instituicao nesta edicao.
+    dia_evento_id: int | None = None
+    dia_evento: date | None = None
 
 
 class RenumerarIn(BaseModel):

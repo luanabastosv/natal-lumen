@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
@@ -7,12 +7,16 @@ import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarDias, listarEdicoes, listarInstituicoes } from "../services/cadastros.js";
+import {
+  definirDiaDaInstituicao,
+  listarDias,
+  listarEdicoes,
+  listarInstituicoes,
+} from "../services/cadastros.js";
 import {
   apagarCrianca,
   criarCrianca,
   editarCrianca,
-  editarEmLote,
   listarCriancas,
   renumerar,
   resumoInstituicoes,
@@ -49,7 +53,6 @@ export default function Criancas() {
   const [sucesso, definirSucesso] = useState("");
 
   const [marcadas, definirMarcadas] = useState([]);
-  const [diaDoLote, definirDiaDoLote] = useState("");
 
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(NOVA);
@@ -146,20 +149,19 @@ export default function Criancas() {
     }
   }
 
-  async function aplicarDiaEmLote() {
+  async function salvarDiaDaInstituicao(valor) {
     definirErro("");
     try {
-      await editarEmLote({
-        criancas: marcadas,
-        dia_evento_id: diaDoLote ? Number(diaDoLote) : null,
-        definir_dia: true,
-      });
-      definirSucesso(
-        diaDoLote
-          ? `${marcadas.length} criança(s) marcada(s) no dia.`
-          : `${marcadas.length} criança(s) sem dia.`,
+      const r = await definirDiaDaInstituicao(
+        Number(edicaoId),
+        Number(abaAtiva),
+        valor ? Number(valor) : null,
       );
-      definirMarcadas([]);
+      definirSucesso(
+        valor
+          ? `${r.instituicao} vai no dia escolhido. ${r.criancas_atualizadas} criança(s) atualizada(s).`
+          : `${r.instituicao} ficou sem dia.`,
+      );
       buscar();
       recarregarAbas();
     } catch (e) {
@@ -213,14 +215,8 @@ export default function Criancas() {
   const edicao = edicoes.find((e) => String(e.id) === String(edicaoId));
   const instituicoesDaCidade = instituicoes.filter((i) => i.cidade_id === edicao?.cidade_id);
 
-  const opcoesDia = useMemo(
-    () => [
-      { valor: "", rotulo: "sem dia" },
-      ...dias.map((d) => ({ valor: d.id, rotulo: formatarData(d.data) })),
-    ],
-    [dias],
-  );
-
+  const abaSelecionada = abas.find((a) => String(a.instituicao_id) === String(abaAtiva));
+  const podeGerenciarCadastros = pode("gerenciar_cadastros");
   const totalGeral = abas.reduce((soma, a) => soma + a.criancas, 0);
   const totalPaginas = Math.max(1, Math.ceil(criancas.total / POR_PAGINA));
 
@@ -366,17 +362,44 @@ export default function Criancas() {
                 definirPagina(1);
                 definirMarcadas([]);
               }}
-              title={`${a.sem_padrinho} sem padrinho · ${a.sem_cartao} sem cartão · ${a.sem_dia} sem dia`}
+              title={`${a.sem_padrinho} sem padrinho · ${a.sem_cartao} sem cartão`}
             >
               <span>
                 {a.instituicao}
-                {(a.sem_padrinho > 0 || a.sem_dia > 0) && <span className="aba__alerta" />}
+                {(a.sem_padrinho > 0 || !a.dia_evento) && <span className="aba__alerta" />}
               </span>
               <span className="aba__contagem">
-                {a.criancas} · {a.sem_padrinho} sem padrinho
+                {a.criancas} ·{" "}
+                {a.dia_evento ? formatarData(a.dia_evento) : "sem dia"}
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {abaAtiva !== TODAS && (
+        <div className="painel">
+          <div className="linha-campos">
+            <Selecao
+              rotulo="Dia do evento desta instituição"
+              value={abaSelecionada?.dia_evento_id ?? ""}
+              onChange={(e) => salvarDiaDaInstituicao(e.target.value)}
+              disabled={!podeGerenciarCadastros}
+              dica={
+                dias.length === 0
+                  ? "Esta edição ainda não tem dias cadastrados."
+                  : "Todas as crianças desta instituição vão no mesmo dia."
+              }
+            >
+              <option value="">Sem dia definido</option>
+              {dias.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {formatarData(d.data)}
+                  {d.descricao ? ` · ${d.descricao}` : ""}
+                </option>
+              ))}
+            </Selecao>
+          </div>
         </div>
       )}
 
@@ -569,17 +592,16 @@ export default function Criancas() {
                       )}
                     </td>
                     <td>
-                      {podeEditar ? (
-                        <CelulaEditavel
-                          valor={c.dia_evento_id}
-                          opcoes={opcoesDia}
-                          aoSalvar={(v) => salvarCampo(c, "dia_evento_id", v ? Number(v) : null)}
-                        />
-                      ) : (
-                        <span className="celula">
-                          {c.dia_evento ? formatarData(c.dia_evento) : "—"}
-                        </span>
-                      )}
+                      {/* Somente leitura: o dia e da instituicao, e se muda na
+                          aba dela. Editar por crianca deixaria duas da mesma
+                          escola em dias diferentes. */}
+                      <span
+                        className={`celula ${c.dia_evento ? "" : "celula--vazia"}`}
+                        style={{ cursor: "default" }}
+                        title="O dia vem da instituição"
+                      >
+                        {c.dia_evento ? formatarData(c.dia_evento) : "sem dia"}
+                      </span>
                     </td>
                     <td>
                       <span className="celula" title={c.instituicao}>
@@ -687,17 +709,6 @@ export default function Criancas() {
           {podeEditar && marcadas.length > 0 && (
             <div className="lote">
               <span className="lote__texto">{marcadas.length} marcada(s)</span>
-              <select
-                value={diaDoLote}
-                onChange={(e) => definirDiaDoLote(e.target.value)}
-                aria-label="Dia do evento"
-              >
-                <option value="">Sem dia</option>
-                {dias.map((d) => (
-                  <option key={d.id} value={d.id}>{formatarData(d.data)}</option>
-                ))}
-              </select>
-              <Button size="sm" onClick={aplicarDiaEmLote}>Aplicar dia</Button>
               <Button size="sm" variant="ghost" onClick={() => definirMarcadas([])}>
                 Desmarcar
               </Button>
