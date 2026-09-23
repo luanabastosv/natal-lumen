@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+*.db
+cartoes_temp/
+cartoes_digitalizados/

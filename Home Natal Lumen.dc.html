@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/natal-lumen-design-system-a3147e6a-501b-4fb0-b605-54f46f483ebc/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/natal-lumen-design-system-a3147e6a-501b-4fb0-b605-54f46f483ebc/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/natal-lumen-design-system-a3147e6a-501b-4fb0-b605-54f46f483ebc/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/natal-lumen-design-system-a3147e6a-501b-4fb0-b605-54f46f483ebc/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/natal-lumen-design-system-a3147e6a-501b-4fb0-b605-54f46f483ebc/styles.css">
+  <script src="_ds/natal-lumen-design-system-a3147e6a-501b-4fb0-b605-54f46f483ebc/_ds_bundle.js"></script>
+  <style>
+    body{margin:0;background:var(--navy-100);}
+    a{color:var(--text-link);}
+    a:hover{color:var(--text-link-hover);}
+  </style>
+</helmet>
+
+<div style="background:var(--navy-100);padding:56px 40px;display:flex;flex-direction:column;gap:48px;align-items:flex-start;min-height:100vh;box-sizing:border-box;font-family:var(--font-condensed);">
+
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    <div style="font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--navy-500);text-transform:uppercase;">Mockup v4 — Home · Desktop 1440px</div>
+
+    <x-import component-from-global-scope="ChromeWindow" from="./browser-window.jsx" width="1440" height="1040" url="natallumen.org.br" hint-size="1440px,1040px">
+      <div style="width:1440px;background:var(--white);font-family:var(--font-body);">
+
+        <!-- HEADER -->
+        <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.SiteHeader" store-open="{{ true }}" hint-size="100%,64px"></x-import>
+
+        <!-- HERO -->
+        <div style="background:var(--navy-700);display:grid;grid-template-columns:1fr 520px;align-items:end;min-height:520px;">
+          <div style="padding:96px 0 96px 64px;">
+            <div style="font-family:var(--font-condensed);font-weight:700;font-size:13px;letter-spacing:.14em;color:var(--navy-300);text-transform:uppercase;margin-bottom:40px;">Edição 2026 · Fortaleza</div>
+            <div style="font-family:var(--font-display);color:var(--white);font-size:132px;line-height:0.88;white-space:nowrap;">natal lumen</div>
+            <p style="color:var(--navy-200);font-size:18px;line-height:1.6;margin:32px 0 40px;max-width:420px;font-weight:450;">Um dia de brincadeiras, comida boa e presentes para milhares de crianças em Fortaleza e em outras cidades.</p>
+            <a href="#" style="display:inline-flex;align-items:center;background:var(--white);color:var(--navy-700);padding:15px 34px;border-radius:999px;font-weight:700;font-size:15px;text-decoration:none;font-family:var(--font-body);">Como ajudar</a>
+          </div>
+          <div style="align-self:stretch;overflow:hidden;height:520px;">
+            <div style="height:100%;">
+              <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.DuotonePhoto" src="assets-placeholder/city-photo.jpg" alt="Crianças na edição do Natal Lumen" tone="navy" radius="none" hint-size="520px,520px"></x-import>
+            </div>
+          </div>
+        </div>
+
+        <!-- O QUE É -->
+        <div style="background:var(--white);padding:112px 64px;display:grid;grid-template-columns:300px 1fr;gap:80px;align-items:start;">
+          <div style="font-family:var(--font-condensed);font-weight:700;font-size:13px;letter-spacing:.14em;color:var(--navy-500);text-transform:uppercase;padding-top:8px;">Sobre o projeto</div>
+          <div style="max-width:680px;">
+            <h2 style="font-family:var(--font-body);font-weight:700;font-size:38px;color:var(--navy-700);margin:0 0 24px;line-height:1.2;">Trinta anos de Natal para quem mais precisa</h2>
+            <p style="font-size:17px;line-height:1.75;color:var(--text-on-light-secondary);margin:0 0 20px;font-weight:450;">O Natal Lumen é um projeto social ligado à Obra Lumen Ser Feliz. Há mais de 30 anos, leva um dia de brincadeiras, alimentação e presentes a crianças em situação de vulnerabilidade em Fortaleza, em outras cidades do Brasil e na Guiné-Bissau.</p>
+            <p style="font-size:17px;line-height:1.75;color:var(--text-on-light-secondary);margin:0 0 36px;font-weight:450;">Cada edição é feita por voluntários, famílias e empresas parceiras.</p>
+            <a href="#" style="display:inline-flex;align-items:center;padding:14px 32px;border-radius:999px;border:1.5px solid var(--navy-700);color:var(--navy-700);font-weight:700;font-size:15px;text-decoration:none;font-family:var(--font-body);">Conhecer a história</a>
+          </div>
+        </div>
+
+        <!-- FOTO LARGA -->
+        <div style="background:var(--white);padding:0 64px 112px;">
+          <div style="height:360px;overflow:hidden;border-radius:22px;">
+            <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.DuotonePhoto" src="assets-placeholder/about-photo.jpg" alt="Voluntários e crianças em uma edição do Natal Lumen" tone="navy" radius="lg" hint-size="100%,360px"></x-import>
+          </div>
+        </div>
+
+        <!-- PROPÓSITOS -->
+        <div style="background:var(--white);border-top:1.5px solid var(--border-default);padding:96px 64px;display:grid;grid-template-columns:300px 1fr;gap:80px;align-items:start;">
+          <div style="font-family:var(--font-condensed);font-weight:700;font-size:13px;letter-spacing:.14em;color:var(--navy-500);text-transform:uppercase;padding-top:8px;">Nossos propósitos</div>
+          <div style="display:flex;flex-direction:column;">
+            <div style="display:grid;grid-template-columns:56px 1fr;gap:24px;padding:0 0 36px;">
+              <div style="font-family:var(--font-condensed);font-weight:700;font-size:22px;color:var(--navy-300);">01</div>
+              <div>
+                <h3 style="font-family:var(--font-body);font-weight:700;font-size:22px;margin:0 0 10px;color:var(--navy-700);">Um dia inesquecível</h3>
+                <p style="font-size:16px;line-height:1.7;color:var(--text-on-light-secondary);margin:0;max-width:560px;font-weight:450;">Transformar um único dia em uma lembrança de alegria para cada criança.</p>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:56px 1fr;gap:24px;padding:36px 0;border-top:1.5px solid var(--border-light);">
+              <div style="font-family:var(--font-condensed);font-weight:700;font-size:22px;color:var(--navy-300);">02</div>
+              <div>
+                <h3 style="font-family:var(--font-body);font-weight:700;font-size:22px;margin:0 0 10px;color:var(--navy-700);">Solidariedade em prática</h3>
+                <p style="font-size:16px;line-height:1.7;color:var(--text-on-light-secondary);margin:0;max-width:560px;font-weight:450;">Aproximar voluntários, famílias e empresas em torno de uma causa comum.</p>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:56px 1fr;gap:24px;padding:36px 0 0;border-top:1.5px solid var(--border-light);">
+              <div style="font-family:var(--font-condensed);font-weight:700;font-size:22px;color:var(--navy-300);">03</div>
+              <div>
+                <h3 style="font-family:var(--font-body);font-weight:700;font-size:22px;margin:0 0 10px;color:var(--navy-700);">Dignidade no Natal</h3>
+                <p style="font-size:16px;line-height:1.7;color:var(--text-on-light-secondary);margin:0;max-width:560px;font-weight:450;">Garantir que nenhuma criança fique sem presente, comida e diversão no Natal.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ONDE JÁ CHEGAMOS -->
+        <div style="background:var(--white);border-top:1.5px solid var(--border-default);padding:96px 64px 112px;">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:48px;">
+            <div>
+              <div style="font-family:var(--font-condensed);font-weight:700;font-size:13px;letter-spacing:.14em;color:var(--navy-500);text-transform:uppercase;margin-bottom:18px;">Edições</div>
+              <h2 style="font-family:var(--font-body);font-weight:700;font-size:38px;color:var(--navy-700);margin:0;">Onde já chegamos</h2>
+            </div>
+            <a href="#" style="display:inline-flex;align-items:center;padding:14px 32px;border-radius:999px;border:1.5px solid var(--navy-700);color:var(--navy-700);font-weight:700;font-size:15px;text-decoration:none;font-family:var(--font-body);">Ver todas as cidades</a>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+            <div style="background:var(--navy-700);border-radius:22px;padding:36px 32px;display:flex;flex-direction:column;justify-content:space-between;min-height:280px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+                <div style="font-family:var(--font-body);font-weight:700;font-size:56px;line-height:1;color:var(--white);">20</div>
+                <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.12em;color:var(--navy-300);text-transform:uppercase;padding-top:8px;">Dez · 2025</div>
+              </div>
+              <div>
+                <h3 style="font-family:var(--font-body);font-weight:700;font-size:24px;margin:0 0 10px;color:var(--white);">Fortaleza, CE</h3>
+                <p style="font-size:15px;line-height:1.6;color:var(--navy-200);margin:0;font-weight:450;">Mais de 3.200 crianças participaram da edição na capital cearense.</p>
+              </div>
+            </div>
+            <div style="background:var(--white);border:1.5px solid var(--border-default);border-radius:22px;padding:36px 32px;display:flex;flex-direction:column;justify-content:space-between;min-height:280px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+                <div style="font-family:var(--font-body);font-weight:700;font-size:56px;line-height:1;color:var(--navy-700);">13</div>
+                <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.12em;color:var(--navy-500);text-transform:uppercase;padding-top:8px;">Dez · 2025</div>
+              </div>
+              <div>
+                <h3 style="font-family:var(--font-body);font-weight:700;font-size:24px;margin:0 0 10px;color:var(--navy-700);">Caucaia, CE</h3>
+                <p style="font-size:15px;line-height:1.6;color:var(--text-on-light-secondary);margin:0;font-weight:450;">Uma tarde de brincadeiras e presentes para famílias da região metropolitana.</p>
+              </div>
+            </div>
+            <div style="background:var(--white);border:1.5px solid var(--border-default);border-radius:22px;padding:36px 32px;display:flex;flex-direction:column;justify-content:space-between;min-height:280px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+                <div style="font-family:var(--font-body);font-weight:700;font-size:56px;line-height:1;color:var(--navy-700);">06</div>
+                <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.12em;color:var(--navy-500);text-transform:uppercase;padding-top:8px;">Dez · 2025</div>
+              </div>
+              <div>
+                <h3 style="font-family:var(--font-body);font-weight:700;font-size:24px;margin:0 0 10px;color:var(--navy-700);">Guiné-Bissau</h3>
+                <p style="font-size:15px;line-height:1.6;color:var(--text-on-light-secondary);margin:0;font-weight:450;">O projeto chegou à África pela parceria com a Obra Lumen Ser Feliz.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LOJA -->
+        <div style="background:var(--navy-700);padding:22px 64px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+          <div style="display:flex;align-items:center;gap:20px;">
+            <span style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--navy-300);text-transform:uppercase;">Loja aberta</span>
+            <span style="font-size:15px;color:var(--white);font-weight:450;">Camisetas e produtos da edição 2025 já estão disponíveis.</span>
+          </div>
+          <a href="#" style="font-size:15px;font-weight:700;color:var(--white);text-decoration:underline;text-underline-offset:4px;">Visitar loja</a>
+        </div>
+
+        <!-- CTA FINAL -->
+        <div style="background:var(--white);padding:112px 64px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;">
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:56px;line-height:1;color:var(--navy-700);margin:0 0 24px;">participe</h3>
+            <p style="font-size:17px;line-height:1.7;color:var(--text-on-light-secondary);margin:0;max-width:420px;font-weight:450;">Cada contribuição leva brincadeiras, comida e presentes para mais crianças neste Natal.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <a href="#" style="display:flex;align-items:center;justify-content:space-between;background:var(--navy-700);color:var(--white);padding:22px 32px;border-radius:999px;font-weight:700;font-size:17px;text-decoration:none;font-family:var(--font-body);">Apadrinhar agora<span style="font-weight:450;">→</span></a>
+            <a href="#" style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--navy-700);color:var(--navy-700);padding:22px 32px;border-radius:999px;font-weight:700;font-size:17px;text-decoration:none;font-family:var(--font-body);">Quero doar<span style="font-weight:450;">→</span></a>
+            <a href="#" style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--navy-700);color:var(--navy-700);padding:22px 32px;border-radius:999px;font-weight:700;font-size:17px;text-decoration:none;font-family:var(--font-body);">Ser voluntário<span style="font-weight:450;">→</span></a>
+          </div>
+        </div>
+
+        <!-- FOOTER -->
+        <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.SiteFooter" hint-size="100%,260px"></x-import>
+        <div style="background:var(--navy-900);padding:16px 64px 32px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border-dark);">
+          <div style="font-family:var(--font-display);color:var(--white);font-size:22px;">natal lumen</div>
+          <div style="font-size:12px;color:var(--navy-300);font-weight:450;">CNPJ 00.000.000/0001-00 · contato@natallumen.org.br · @natallumen</div>
+        </div>
+
+      </div>
+    </x-import>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    <div style="font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--navy-500);text-transform:uppercase;">Mockup v4 — Home · Mobile 390px</div>
+
+    <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" width="{{ 390 }}" height="{{ 844 }}" hint-size="390px,844px">
+      <div style="width:390px;background:var(--white);font-family:var(--font-body);padding-top:54px;">
+
+        <!-- HEADER -->
+        <div style="overflow-x:auto;">
+          <div style="min-width:760px;">
+            <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.SiteHeader" store-open="{{ true }}" hint-size="760px,64px"></x-import>
+          </div>
+        </div>
+
+        <!-- HERO -->
+        <div style="background:var(--navy-700);">
+          <div style="padding:48px 24px 40px;">
+            <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--navy-300);text-transform:uppercase;margin-bottom:28px;">Edição 2026 · Fortaleza</div>
+            <div style="font-family:var(--font-display);color:var(--white);font-size:62px;line-height:0.9;">natal<br>lumen</div>
+            <p style="color:var(--navy-200);font-size:16px;line-height:1.6;margin:24px 0 28px;font-weight:450;">Um dia de brincadeiras, comida boa e presentes para milhares de crianças em Fortaleza e em outras cidades.</p>
+            <a href="#" style="display:inline-flex;align-items:center;background:var(--white);color:var(--navy-700);padding:14px 30px;border-radius:999px;font-weight:700;font-size:15px;text-decoration:none;font-family:var(--font-body);">Como ajudar</a>
+          </div>
+          <div style="height:220px;overflow:hidden;">
+            <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.DuotonePhoto" src="assets-placeholder/city-photo.jpg" alt="Crianças na edição do Natal Lumen" tone="navy" radius="none" hint-size="390px,220px"></x-import>
+          </div>
+        </div>
+
+        <!-- O QUE É -->
+        <div style="background:var(--white);padding:56px 24px;">
+          <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--navy-500);text-transform:uppercase;margin-bottom:20px;">Sobre o projeto</div>
+          <h2 style="font-family:var(--font-body);font-weight:700;font-size:28px;color:var(--navy-700);margin:0 0 18px;line-height:1.22;">Trinta anos de Natal para quem mais precisa</h2>
+          <p style="font-size:16px;line-height:1.7;color:var(--text-on-light-secondary);margin:0 0 16px;font-weight:450;">O Natal Lumen é um projeto social ligado à Obra Lumen Ser Feliz. Há mais de 30 anos, leva um dia de brincadeiras, alimentação e presentes a crianças em situação de vulnerabilidade em Fortaleza, em outras cidades do Brasil e na Guiné-Bissau.</p>
+          <p style="font-size:16px;line-height:1.7;color:var(--text-on-light-secondary);margin:0 0 28px;font-weight:450;">Cada edição é feita por voluntários, famílias e empresas parceiras.</p>
+          <a href="#" style="display:inline-flex;align-items:center;padding:13px 28px;border-radius:999px;border:1.5px solid var(--navy-700);color:var(--navy-700);font-weight:700;font-size:15px;text-decoration:none;font-family:var(--font-body);">Conhecer a história</a>
+        </div>
+
+        <!-- FOTO -->
+        <div style="background:var(--white);padding:0 24px 56px;">
+          <div style="height:220px;overflow:hidden;border-radius:22px;">
+            <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.DuotonePhoto" src="assets-placeholder/about-photo.jpg" alt="Voluntários e crianças em uma edição do Natal Lumen" tone="navy" radius="lg" hint-size="100%,220px"></x-import>
+          </div>
+        </div>
+
+        <!-- PROPÓSITOS -->
+        <div style="background:var(--white);border-top:1.5px solid var(--border-default);padding:48px 24px;">
+          <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--navy-500);text-transform:uppercase;margin-bottom:28px;">Nossos propósitos</div>
+          <div style="display:grid;grid-template-columns:40px 1fr;gap:16px;padding-bottom:28px;">
+            <div style="font-family:var(--font-condensed);font-weight:700;font-size:18px;color:var(--navy-300);">01</div>
+            <div>
+              <h3 style="font-family:var(--font-body);font-weight:700;font-size:19px;margin:0 0 8px;color:var(--navy-700);">Um dia inesquecível</h3>
+              <p style="font-size:15px;line-height:1.65;color:var(--text-on-light-secondary);margin:0;font-weight:450;">Transformar um único dia em uma lembrança de alegria para cada criança.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:40px 1fr;gap:16px;padding:28px 0;border-top:1.5px solid var(--border-light);">
+            <div style="font-family:var(--font-condensed);font-weight:700;font-size:18px;color:var(--navy-300);">02</div>
+            <div>
+              <h3 style="font-family:var(--font-body);font-weight:700;font-size:19px;margin:0 0 8px;color:var(--navy-700);">Solidariedade em prática</h3>
+              <p style="font-size:15px;line-height:1.65;color:var(--text-on-light-secondary);margin:0;font-weight:450;">Aproximar voluntários, famílias e empresas em torno de uma causa comum.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:40px 1fr;gap:16px;padding-top:28px;border-top:1.5px solid var(--border-light);">
+            <div style="font-family:var(--font-condensed);font-weight:700;font-size:18px;color:var(--navy-300);">03</div>
+            <div>
+              <h3 style="font-family:var(--font-body);font-weight:700;font-size:19px;margin:0 0 8px;color:var(--navy-700);">Dignidade no Natal</h3>
+              <p style="font-size:15px;line-height:1.65;color:var(--text-on-light-secondary);margin:0;font-weight:450;">Garantir que nenhuma criança fique sem presente, comida e diversão no Natal.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ONDE JÁ CHEGAMOS -->
+        <div style="background:var(--white);border-top:1.5px solid var(--border-default);padding:48px 24px 56px;">
+          <div style="font-family:var(--font-condensed);font-weight:700;font-size:12px;letter-spacing:.14em;color:var(--navy-500);text-transform:uppercase;margin-bottom:16px;">Edições</div>
+          <h2 style="font-family:var(--font-body);font-weight:700;font-size:28px;color:var(--navy-700);margin:0 0 28px;">Onde já chegamos</h2>
+          <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:28px;">
+            <div style="background:var(--navy-700);border-radius:22px;padding:28px 24px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+                <div style="font-family:var(--font-body);font-weight:700;font-size:44px;line-height:1;color:var(--white);">20</div>
+                <div style="font-family:var(--font-condensed);font-weight:700;font-size:11px;letter-spacing:.12em;color:var(--navy-300);text-transform:uppercase;padding-top:6px;">Dez · 2025</div>
+              </div>
+              <h3 style="font-family:var(--font-body);font-weight:700;font-size:21px;margin:0 0 8px;color:var(--white);">Fortaleza, CE</h3>
+              <p style="font-size:14px;line-height:1.6;color:var(--navy-200);margin:0;font-weight:450;">Mais de 3.200 crianças participaram da edição na capital cearense.</p>
+            </div>
+            <div style="background:var(--white);border:1.5px solid var(--border-default);border-radius:22px;padding:28px 24px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+                <div style="font-family:var(--font-body);font-weight:700;font-size:44px;line-height:1;color:var(--navy-700);">13</div>
+                <div style="font-family:var(--font-condensed);font-weight:700;font-size:11px;letter-spacing:.12em;color:var(--navy-500);text-transform:uppercase;padding-top:6px;">Dez · 2025</div>
+              </div>
+              <h3 style="font-family:var(--font-body);font-weight:700;font-size:21px;margin:0 0 8px;color:var(--navy-700);">Caucaia, CE</h3>
+              <p style="font-size:14px;line-height:1.6;color:var(--text-on-light-secondary);margin:0;font-weight:450;">Uma tarde de brincadeiras e presentes para famílias da região metropolitana.</p>
+            </div>
+            <div style="background:var(--white);border:1.5px solid var(--border-default);border-radius:22px;padding:28px 24px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+                <div style="font-family:var(--font-body);font-weight:700;font-size:44px;line-height:1;color:var(--navy-700);">06</div>
+                <div style="font-family:var(--font-condensed);font-weight:700;font-size:11px;letter-spacing:.12em;color:var(--navy-500);text-transform:uppercase;padding-top:6px;">Dez · 2025</div>
+              </div>
+              <h3 style="font-family:var(--font-body);font-weight:700;font-size:21px;margin:0 0 8px;color:var(--navy-700);">Guiné-Bissau</h3>
+              <p style="font-size:14px;line-height:1.6;color:var(--text-on-light-secondary);margin:0;font-weight:450;">O projeto chegou à África pela parceria com a Obra Lumen Ser Feliz.</p>
+            </div>
+          </div>
+          <a href="#" style="display:flex;align-items:center;justify-content:center;padding:14px 28px;border-radius:999px;border:1.5px solid var(--navy-700);color:var(--navy-700);font-weight:700;font-size:15px;text-decoration:none;font-family:var(--font-body);">Ver todas as cidades</a>
+        </div>
+
+        <!-- LOJA -->
+        <div style="background:var(--navy-700);padding:24px;display:flex;flex-direction:column;gap:10px;">
+          <span style="font-family:var(--font-condensed);font-weight:700;font-size:11px;letter-spacing:.14em;color:var(--navy-300);text-transform:uppercase;">Loja aberta</span>
+          <span style="font-size:15px;color:var(--white);font-weight:450;">Camisetas e produtos da edição 2025 já estão disponíveis.</span>
+          <a href="#" style="font-size:15px;font-weight:700;color:var(--white);text-decoration:underline;text-underline-offset:4px;">Visitar loja</a>
+        </div>
+
+        <!-- CTA FINAL -->
+        <div style="background:var(--white);padding:56px 24px;">
+          <h3 style="font-family:var(--font-display);font-size:44px;line-height:1;color:var(--navy-700);margin:0 0 18px;">participe</h3>
+          <p style="font-size:16px;line-height:1.7;color:var(--text-on-light-secondary);margin:0 0 28px;font-weight:450;">Cada contribuição leva brincadeiras, comida e presentes para mais crianças neste Natal.</p>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <a href="#" style="display:flex;align-items:center;justify-content:space-between;background:var(--navy-700);color:var(--white);padding:18px 26px;border-radius:999px;font-weight:700;font-size:16px;text-decoration:none;font-family:var(--font-body);">Apadrinhar agora<span style="font-weight:450;">→</span></a>
+            <a href="#" style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--navy-700);color:var(--navy-700);padding:18px 26px;border-radius:999px;font-weight:700;font-size:16px;text-decoration:none;font-family:var(--font-body);">Quero doar<span style="font-weight:450;">→</span></a>
+            <a href="#" style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--navy-700);color:var(--navy-700);padding:18px 26px;border-radius:999px;font-weight:700;font-size:16px;text-decoration:none;font-family:var(--font-body);">Ser voluntário<span style="font-weight:450;">→</span></a>
+          </div>
+        </div>
+
+        <!-- FOOTER -->
+        <x-import component-from-global-scope="NatalLumenDesignSystem_a3147e.SiteFooter" hint-size="100%,420px"></x-import>
+        <div style="background:var(--navy-900);padding:16px 24px 32px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border-dark);">
+          <div style="font-family:var(--font-display);color:var(--white);font-size:20px;">natal lumen</div>
+          <div style="font-size:11px;color:var(--navy-300);font-weight:450;">CNPJ 00.000.000/0001-00 · contato@natallumen.org.br · @natallumen</div>
+        </div>
+
+      </div>
+    </x-import>
+  </div>
+
+</div>
+
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#ffffff"/><rect width="100" height="52" fill="#153377"/><text x="50" y="78" font-size="26" text-anchor="middle" fill="#153377" font-family="serif">NL</text></svg>
+</template>
+
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,68 @@
+:root{
+/* Brand base */
+--navy-900:#0d2352;
+--navy-800:#122c67;
+--navy-700:#153377;
+--navy-600:#204490;
+--navy-500:#3a61a5;
+--navy-400:#6688bd;
+--navy-300:#9db2d6;
+--navy-200:#c7d3e9;
+--navy-100:#e6ecf6;
+
+--amber-900:#8f6301;
+--amber-800:#b17701;
+--amber-700:#cc8902;
+--amber-600:#e69c00;
+--amber-500:#ffb000;
+--amber-400:#ffc23d;
+--amber-300:#ffd166;
+--amber-200:#ffe3a3;
+--amber-100:#fff3d6;
+
+--cream-500:#f2e7d1;
+--cream-300:#f7f0e3;
+--cream-100:#fbf7ee;
+
+--white:#ffffff;
+--black:#000000;
+
+/* Semantic: brand roles */
+--color-primary:var(--navy-700);
+--color-primary-hover:var(--navy-800);
+--color-primary-active:var(--navy-900);
+--color-cta:var(--amber-500);
+--color-cta-hover:var(--amber-600);
+--color-cta-active:var(--amber-700);
+--color-accent:var(--amber-700);
+--color-support:var(--navy-500);
+
+/* Semantic: surfaces */
+/* White is the default light-mode page background — navy is the dominant brand color for dark/institutional sections. Amber is reserved for small details (icons, underlines, thin outlines, dots, a single small pill per section) — never large color blocks. */
+--surface-page:var(--white);
+--surface-card:var(--white);
+--surface-card-alt:var(--cream-100);
+--surface-dark:var(--navy-700);
+--surface-dark-alt:var(--navy-800);
+/* Cream is now a secondary/tertiary neutral only — for a barely-there tint differentiating a block from white, not a page background. */
+--surface-tint-warm:var(--cream-100);
+
+/* Semantic: text */
+--text-on-light-primary:var(--navy-700);
+--text-on-light-secondary:#4a5872;
+--text-on-light-muted:#7c86a0;
+--text-on-dark-primary:var(--white);
+--text-on-dark-secondary:var(--cream-500);
+--text-on-dark-muted:var(--navy-300);
+--text-link:var(--navy-600);
+--text-link-hover:var(--navy-800);
+
+/* Semantic: borders */
+--border-light:var(--navy-100);
+--border-default:var(--navy-200);
+--border-dark:rgba(255,255,255,.24);
+
+/* Disabled */
+--color-disabled-bg:var(--navy-100);
+--color-disabled-text:var(--navy-300);
+}

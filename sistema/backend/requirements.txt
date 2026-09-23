@@ -1,0 +1,33 @@
+# API
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32
+
+# Base de dados
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
+
+# Configuracao e validacao
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+
+# Seguranca
+PyJWT==2.14.0
+pwdlib[argon2]==0.3.1
+argon2-cffi==25.1.0
+
+# Importacao de planilhas
+openpyxl==3.1.5
+pandas==3.0.6
+RapidFuzz==3.14.6
+
+# Check-in
+qrcode[pil]==8.2
+
+# Digitalizacao e OCR dos cartoes (fase 7)
+opencv-python==5.0.0.93
+easyocr==1.7.2
+pillow==12.3.0

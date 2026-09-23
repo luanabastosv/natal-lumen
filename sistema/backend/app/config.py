@@ -1,0 +1,72 @@
+"""Configuracao lida do .env (nada de valores sensiveis no codigo)."""
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class Config(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # --- Base de dados ---
+    database_url: str
+
+    # --- Arquivos enviados ---
+    # Fica fora das pastas publicas do frontend: nada aqui e servido diretamente,
+    # so por rota autenticada que confere permissao e edicao.
+    arquivos_dir: Path = Path("../arquivos")
+
+    # --- Sessao e seguranca ---
+    jwt_secret: str
+    jwt_algoritmo: str = "HS256"
+    sessao_horas: int = 8
+    token_primeiro_acesso_horas: int = 72
+    max_tentativas_falhas: int = 5
+    bloqueio_minutos: int = 15
+
+    cookie_nome: str = "nl_sessao"
+    cookie_path: str = "/acesso"
+
+    # --- Publicacao ---
+    ambiente: str = "desenvolvimento"
+    root_path: str = "/acesso/api"
+
+    @property
+    def em_producao(self) -> bool:
+        return self.ambiente == "producao"
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Secure exige HTTPS, o que quebraria o desenvolvimento em localhost."""
+        return self.em_producao
+
+    @property
+    def origens_permitidas(self) -> list[str]:
+        """Em producao o frontend e servido do mesmo dominio: nao precisa de CORS."""
+        if self.em_producao:
+            return []
+        return ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+    @property
+    def caminho_arquivos(self) -> Path:
+        """arquivos_dir resolvido a partir da pasta do backend."""
+        caminho = self.arquivos_dir
+        if not caminho.is_absolute():
+            caminho = (BASE_DIR / caminho).resolve()
+        return caminho
+
+
+@lru_cache
+def obter_config() -> Config:
+    """Cache para o .env ser lido uma unica vez."""
+    return Config()  # type: ignore[call-arg]
+
+
+config = obter_config()
