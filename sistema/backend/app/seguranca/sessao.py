@@ -20,6 +20,8 @@ class Sessao:
     usuario_id: int
     csrf: str
     expira_em: datetime
+    # Identificador deste token. E o que permite encerra-lo antes da hora.
+    jti: str
 
 
 def criar_token(usuario_id: int) -> tuple[str, str]:
@@ -30,6 +32,7 @@ def criar_token(usuario_id: int) -> tuple[str, str]:
     payload = {
         "sub": str(usuario_id),
         "csrf": csrf,
+        "jti": secrets.token_urlsafe(24),
         "iat": agora,
         "exp": agora + timedelta(hours=config.sessao_horas),
     }
@@ -45,9 +48,20 @@ def ler_token(token: str) -> Sessao | None:
             usuario_id=int(payload["sub"]),
             csrf=payload["csrf"],
             expira_em=datetime.fromtimestamp(payload["exp"], UTC),
+            jti=payload["jti"],
         )
     except (jwt.InvalidTokenError, KeyError, ValueError):
         return None
+
+
+def perto_de_expirar(sessao: Sessao) -> bool:
+    """Se falta pouco para o token expirar, vale renova-lo.
+
+    E o que deixa a sessao ser curta sem incomodar: quem esta usando o sistema
+    ganha um token novo sozinho; quem parou, expira.
+    """
+    falta = sessao.expira_em - datetime.now(UTC)
+    return falta < timedelta(minutes=config.renovar_faltando_minutos)
 
 
 def gravar_cookies(resposta: Response, token: str, csrf: str) -> None:

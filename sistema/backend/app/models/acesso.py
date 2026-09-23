@@ -188,6 +188,30 @@ class TokenAcesso(Base):
     usuario: Mapped[Usuario] = relationship(back_populates="tokens")
 
 
+class SessaoRevogada(Base):
+    """Sessoes encerradas antes de o token expirar.
+
+    O JWT e conferido sozinho, sem consultar a base — e por isso que ele e
+    rapido, e tambem por isso que um logout nao o invalidava: o token continuava
+    valido nas maos de quem o tivesse copiado. Esta tabela e a excecao: guarda
+    os tokens encerrados ate a data em que expirariam, e a partir dai eles caem
+    sozinhos.
+
+    Fica pequena de proposito: so os encerrados, e so ate expirarem.
+    """
+
+    __tablename__ = "sessoes_revogadas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # jti: identificador unico daquele token, nao do usuario.
+    jti: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"), index=True
+    )
+    expira_em: Mapped[datetime] = mapped_column(nullable=False, index=True)
+    revogada_em: Mapped[CriadoEm]
+
+
 class LogAtividade(Base):
     """Registro de acoes sensiveis (LGPD).
 

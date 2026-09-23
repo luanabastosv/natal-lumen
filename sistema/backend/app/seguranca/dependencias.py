@@ -11,14 +11,15 @@ O frontend apenas esconde menus; quem decide e sempre isto aqui.
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import config
 from app.database import get_db
 from app.models import Usuario
 from app.seguranca.contexto import ContextoAcesso, montar_contexto
-from app.seguranca.sessao import ler_token
+from app.seguranca.sessao import criar_token, gravar_cookies, ler_token, perto_de_expirar
+from app.servicos.sessoes import esta_revogada
 
 METODOS_QUE_ALTERAM = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -28,7 +29,9 @@ NAO_AUTENTICADO = HTTPException(
 
 
 def usuario_atual(
-    request: Request, db: Annotated[Session, Depends(get_db)]
+    request: Request,
+    resposta: Response,
+    db: Annotated[Session, Depends(get_db)],
 ) -> Usuario:
     """Le a sessao do cookie httpOnly e devolve o usuario."""
     token = request.cookies.get(config.cookie_nome)
@@ -39,9 +42,23 @@ def usuario_atual(
     if sessao is None:
         raise NAO_AUTENTICADO
 
+    # Encerrada por um logout, mesmo que o token ainda nao tenha expirado.
+    if esta_revogada(db, sessao):
+        raise NAO_AUTENTICADO
+
     usuario = db.get(Usuario, sessao.usuario_id)
     if usuario is None or not usuario.ativo:
         raise NAO_AUTENTICADO
+
+    # Quem esta usando o sistema ganha um token novo antes de o atual expirar.
+    # E o que permite a sessao ser curta sem obrigar a entrar de novo no meio
+    # do trabalho.
+    if perto_de_expirar(sessao):
+        novo_token, novo_csrf = criar_token(usuario.id)
+        gravar_cookies(resposta, novo_token, novo_csrf)
+        # O CSRF muda junto; o cabecalho do pedido ATUAL ainda e o antigo.
+        request.state.csrf_da_sessao = sessao.csrf
+        return usuario
 
     # O CSRF do token e comparado com o cabecalho nos metodos que alteram dados.
     request.state.csrf_da_sessao = sessao.csrf

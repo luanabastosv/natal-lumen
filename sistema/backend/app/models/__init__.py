@@ -5,6 +5,7 @@ from app.models.acesso import (
     Perfil,
     PerfilPermissao,
     Permissao,
+    SessaoRevogada,
     TokenAcesso,
     Usuario,
     UsuarioEdicao,
@@ -37,5 +38,6 @@ __all__ = [
     "UsuarioEdicao",
     "UsuarioInstituicao",
     "TokenAcesso",
+    "SessaoRevogada",
     "LogAtividade",
 ]

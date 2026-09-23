@@ -107,6 +107,7 @@ atacar** o sistema. Cada verificação é um ataque que falhou:
 | Upload de 20 MB, arquivo vazio, executável com nome de foto | 413 / 400 |
 | Enumerar quem tem conta pelo login ou pelo "esqueci a senha" | Mesma resposta sempre |
 | Usar sessão de conta desativada | 401 |
+| Usar token copiado **depois** de o dono sair | 401 |
 
 Também auditados:
 
@@ -166,7 +167,7 @@ cd backend
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
 ./.venv/bin/python -m tests.test_painel         # 29 verificações
-./.venv/bin/python -m tests.test_seguranca      # 42 ataques barrados
+./.venv/bin/python -m tests.test_seguranca      # 44 ataques barrados
 ```
 
 > `test_cartoes` carrega o EasyOCR na primeira execução e demora bem mais.
@@ -244,9 +245,31 @@ anterior. Ele também solta a conta de um bloqueio por tentativas falhas.
 
 ### Como funciona o acesso
 
-**Sessão.** JWT de 8 horas num cookie `httpOnly`, `SameSite=Strict`, com
+**Sessão.** JWT de **4 horas** num cookie `httpOnly`, `SameSite=Strict`, com
 `path=/acesso` — e `Secure` quando `AMBIENTE=producao`. O token nunca vai para o
-`localStorage`. Cinco tentativas falhas bloqueiam a conta por 15 minutos.
+`localStorage`.
+
+A sessão é curta de propósito, e **isso não incomoda quem está trabalhando**:
+faltando menos de uma hora para expirar, qualquer requisição renova o token
+sozinha. Quem está usando o sistema nunca é interrompido; quem parou, expira.
+
+**O logout encerra a sessão de verdade.** Um JWT se valida sozinho, sem tocar na
+base — rápido, mas significa que apagar o cookie só resolvia no navegador de
+quem clicou: uma cópia do token continuaria valendo até expirar. Agora o token
+vai para a tabela `sessoes_revogadas`, e quem tiver uma cópia perde o acesso
+junto. A tabela guarda cada token só até a data em que ele expiraria, e é
+limpa no próprio logout — nunca cresce sem limite.
+
+**Contra adivinhação de senha, duas camadas:**
+
+- a **conta** trava por 15 minutos após 5 tentativas falhas — protege quem tem
+  senha fraca;
+- o **IP** é limitado a 10 tentativas por minuto no nginx — protege contra o
+  ataque que a primeira camada não pega: testar uma senha comum contra mil
+  emails diferentes, em que nenhuma conta chega a travar.
+
+Testado: da sétima tentativa em diante, o nginx responde 429 e a API normal
+segue respondendo.
 
 **CSRF.** O JWT carrega um valor aleatório que também é gravado num segundo
 cookie, `nl_csrf`, esse legível pelo JavaScript. Em todo `POST`, `PUT`, `PATCH`

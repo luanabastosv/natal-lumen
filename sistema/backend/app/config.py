@@ -26,7 +26,10 @@ class Config(BaseSettings):
     # --- Sessao e seguranca ---
     jwt_secret: str
     jwt_algoritmo: str = "HS256"
-    sessao_horas: int = 8
+    # Sessao curta de proposito. Quem esta usando o sistema nao percebe: o
+    # token e renovado sozinho quando falta pouco (ver renovar_faltando_minutos).
+    sessao_horas: int = 4
+    renovar_faltando_minutos: int = 60
     token_primeiro_acesso_horas: int = 72
     max_tentativas_falhas: int = 5
     bloqueio_minutos: int = 15

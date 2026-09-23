@@ -366,7 +366,25 @@ def main() -> None:
         atacante_db.ativo = True
         db.commit()
 
-        print("\n13. Senha e segredo nunca aparecem na resposta")
+        print("\n13. Token roubado continua valendo depois do logout?")
+        c9 = TestClient(app)
+        entrar(c9, atacante.email)
+        # O "ladrao" copia o cookie da sessao, como quem pega um celular
+        # desbloqueado ou le o trafego.
+        roubado = next(ck.value for ck in c9.cookies.jar if ck.name == config.cookie_nome)
+        ladrao = TestClient(app)
+        ladrao.cookies.set(config.cookie_nome, roubado, path="/")
+
+        bloqueado("antes do logout, o token copiado funciona (esperado)",
+                  ladrao.get("/auth/eu").status_code == 200)
+
+        c9.post("/auth/logout")
+
+        r = ladrao.get("/auth/eu")
+        bloqueado("DEPOIS do logout, o token copiado para de valer",
+                  r.status_code == 401, str(r.status_code))
+
+        print("\n14. Senha e segredo nunca aparecem na resposta")
         c8 = TestClient(app)
         r = entrar(c8, atacante.email)
         corpo = r.text.lower()

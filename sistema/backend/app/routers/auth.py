@@ -22,8 +22,8 @@ from app.schemas.auth import (
 from app.seguranca.contexto import ContextoAcesso, montar_contexto
 from app.seguranca.dependencias import Contexto
 from app.seguranca.senhas import conferir, gerar_hash, senha_fraca
-from app.seguranca.sessao import apagar_cookies, criar_token, gravar_cookies
-from app.servicos import tokens_acesso
+from app.seguranca.sessao import apagar_cookies, criar_token, gravar_cookies, ler_token
+from app.servicos import sessoes, tokens_acesso
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/auth", tags=["autenticacao"])
@@ -136,7 +136,17 @@ def login(dados: LoginIn, resposta: Response, request: Request, db: BD):
 
 
 @router.post("/logout", response_model=MensagemOut)
-def logout(resposta: Response, db: BD, ctx: Contexto):
+def logout(request: Request, resposta: Response, db: BD, ctx: Contexto):
+    """Encerra a sessao — de verdade.
+
+    Apagar o cookie so resolve no navegador de quem clicou. O token vai para a
+    lista de encerrados, entao quem tiver uma copia dele tambem perde o acesso.
+    """
+    token = request.cookies.get(config.cookie_nome)
+    sessao = ler_token(token) if token else None
+    if sessao is not None:
+        sessoes.revogar(db, sessao)
+
     apagar_cookies(resposta)
     registrar(db, "logout", usuario_id=ctx.usuario.id)
     db.commit()
