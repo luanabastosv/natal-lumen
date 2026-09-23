@@ -15,7 +15,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 3 | Fundação do frontend | **pronta** |
 | 4 | Cadastros base (cidades, edições, instituições, usuários) | **pronta** |
 | 5 | Crianças e importação de listas | **pronta** |
-| 6 | Padrinhos, apadrinhamentos e pagamentos | a fazer |
+| 6 | Padrinhos, apadrinhamentos e pagamentos | **pronta** |
 | 7 | Cartões: digitalização, OCR e envio | a fazer |
 | 8 | Kits, compras e check-in | a fazer |
 | 9 | Painel e relatórios | a fazer |
@@ -97,6 +97,7 @@ cd backend
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
 ./.venv/bin/python -m tests.test_criancas       # 35 verificações
+./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ```
 
 `test_cadastros` cobre quem pode o quê nos cadastros: só a administração geral
@@ -251,6 +252,34 @@ das edições do usuário — necessária porque apadrinhamento entre cidades é
 permitido. Todo uso dela vai para `log_atividades` com a ação
 `busca_por_codigo`. Listagens e buscas por nome nunca escapam do filtro.
 
+### Apadrinhamento
+
+Um padrinho pertence a uma **edição** (cidade + ano) e não persiste entre anos —
+o mesmo doador em 2027 é um registro novo. Ele pode apadrinhar **várias
+crianças**; o que é único é o par (criança, tipo): cada criança tem no máximo um
+padrinho de cesta e um de festa.
+
+**Entre cidades é permitido.** Quando acontece, o valor vem da edição da
+**criança** (é ela que define quanto custa a cesta e a festa daquele evento), e o
+registro fica visível pelos dois lados: para quem alcança a edição do padrinho e
+para quem alcança a da criança.
+
+O valor é **copiado** no momento do registro. Se a edição mudar os valores
+depois, o que já foi combinado com o padrinho não muda.
+
+Do lado do padrinho, a criança aparece apenas pelo **primeiro nome e idade**,
+como a especificação exige.
+
+### Pagamentos
+
+Um pagamento pertence a um padrinho e pode **quitar vários apadrinhamentos** de
+uma vez — é o caso comum de quem apadrinha duas ou três crianças e paga tudo
+junto. Ao registrar, marque quais ele cobre; o valor em branco usa a soma do que
+foi marcado.
+
+Um apadrinhamento já quitado não pode ser apagado nem quitado por outro
+pagamento. Apagar o pagamento solta os apadrinhamentos de volta para "a pagar".
+
 ### Arquivos enviados
 
 Ficam em `ARQUIVOS_DIR` (por padrão `sistema/arquivos/`), **fora** das pastas
@@ -293,7 +322,9 @@ npm run preview  # serve o build
 | `/acesso/instituicoes` | Instituições da cidade | `gerenciar_cadastros` |
 | `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
 | `/acesso/criancas` | Lista, cadastro e importação de listas | `ver_criancas` |
-| `/acesso/padrinhos` e demais | Espaços reservados das próximas fases | conforme o perfil |
+| `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
+| `/acesso/pagamentos` | Pagamentos e o que cada um quita | `registrar_pagamentos` |
+| `/acesso/cartoes` e demais | Espaços reservados das próximas fases | conforme o perfil |
 
 `/acesso` sem sessão cai no login; com sessão, vai para o painel.
 

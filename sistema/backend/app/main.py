@@ -8,7 +8,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import config
-from app.routers import auth, cidades, criancas, edicoes, instituicoes, perfis, usuarios
+from app.routers import (
+    auth,
+    cidades,
+    criancas,
+    edicoes,
+    instituicoes,
+    padrinhos,
+    perfis,
+    usuarios,
+)
 
 app = FastAPI(
     title="Sistema Natal Lumen",
@@ -34,6 +43,7 @@ for router in (
     criancas.router,
     edicoes.router,
     instituicoes.router,
+    padrinhos.router,
     perfis.router,
     usuarios.router,
 ):

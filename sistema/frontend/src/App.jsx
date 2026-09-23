@@ -8,6 +8,8 @@ import EsqueciSenha from "./pages/EsqueciSenha.jsx";
 import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
 import Criancas from "./pages/Criancas.jsx";
+import Padrinhos from "./pages/Padrinhos.jsx";
+import Pagamentos from "./pages/Pagamentos.jsx";
 import CidadesEdicoes from "./pages/CidadesEdicoes.jsx";
 import Instituicoes from "./pages/Instituicoes.jsx";
 import Painel from "./pages/Painel.jsx";
@@ -17,6 +19,8 @@ import RotaProtegida from "./routes/RotaProtegida.jsx";
 // Telas ja construidas. O resto do menu ainda mostra "em construcao".
 const PRONTAS = {
   "/criancas": <Criancas />,
+  "/padrinhos": <Padrinhos />,
+  "/pagamentos": <Pagamentos />,
   "/usuarios": <Usuarios />,
   "/instituicoes": <Instituicoes />,
   "/cidades-edicoes": <CidadesEdicoes />,

@@ -4,6 +4,7 @@ import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import { dinheiro, formatarData } from "../utils/dinheiro.js";
 import {
   apagarDia,
   criarCidade,
@@ -16,15 +17,6 @@ import {
 
 const CIDADE_VAZIA = { nome: "", uf: "" };
 const EDICAO_VAZIA = { cidade_id: "", ano: new Date().getFullYear(), nome: "", valor_cesta: "120.00", valor_festa: "60.00" };
-
-function formatarData(iso) {
-  const [ano, mes, dia] = iso.split("-");
-  return `${dia}/${mes}/${ano}`;
-}
-
-function dinheiro(valor) {
-  return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default function CidadesEdicoes() {
   const [cidades, definirCidades] = useState([]);
