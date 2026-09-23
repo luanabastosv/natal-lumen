@@ -8,6 +8,9 @@ import EsqueciSenha from "./pages/EsqueciSenha.jsx";
 import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
 import Cartoes from "./pages/Cartoes.jsx";
+import Checkin from "./pages/Checkin.jsx";
+import Compras from "./pages/Compras.jsx";
+import Kits from "./pages/Kits.jsx";
 import Criancas from "./pages/Criancas.jsx";
 import Padrinhos from "./pages/Padrinhos.jsx";
 import Pagamentos from "./pages/Pagamentos.jsx";
@@ -21,6 +24,9 @@ import RotaProtegida from "./routes/RotaProtegida.jsx";
 const PRONTAS = {
   "/criancas": <Criancas />,
   "/cartoes": <Cartoes />,
+  "/kits": <Kits />,
+  "/compras": <Compras />,
+  "/checkin": <Checkin />,
   "/padrinhos": <Padrinhos />,
   "/pagamentos": <Pagamentos />,
   "/usuarios": <Usuarios />,

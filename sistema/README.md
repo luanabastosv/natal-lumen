@@ -17,7 +17,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 5 | Crianças e importação de listas | **pronta** |
 | 6 | Padrinhos, apadrinhamentos e pagamentos | **pronta** |
 | 7 | Cartões: digitalização, OCR e envio | **pronta** |
-| 8 | Kits, compras e check-in | a fazer |
+| 8 | Kits, compras e check-in | **pronta** |
 | 9 | Painel e relatórios | a fazer |
 | 10 | Publicação em /acesso | a fazer |
 
@@ -99,6 +99,7 @@ cd backend
 ./.venv/bin/python -m tests.test_criancas       # 35 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
+./.venv/bin/python -m tests.test_logistica      # 26 verificações
 ```
 
 > `test_cartoes` carrega o EasyOCR na primeira execução e demora bem mais.
@@ -320,6 +321,33 @@ acontece no arranque; em desenvolvimento, sob demanda, para cada reload do
 uvicorn não custar meio minuto. Para forçar, use `CARREGAR_OCR_AO_INICIAR` no
 `.env`.
 
+### Kits
+
+A lista de kits parte das **crianças**, não dos kits: a criança existe desde a
+importação e o kit só ganha registro quando alguém mexe nele. Sem isso a equipe
+de estrutura não veria quem ainda falta — e é justamente essa a informação que
+ela precisa.
+
+Os estados mudam em lote (a equipe monta dezenas de uma vez). Voltar de
+"entregue" para "montado" limpa a hora de entrega, para não sobrar data de
+entrega num kit que voltou para a bancada.
+
+### Check-in
+
+No dia do evento, quem está na porta lê o QR do crachá — ou digita o código. O
+check-in **nunca é recusado**: deixar a criança esperando na porta seria pior do
+que qualquer inconsistência. O que estiver estranho volta como aviso na tela:
+
+- a criança já tinha feito check-in;
+- o dia dela não é hoje, ou ela não está marcada em nenhum dia;
+- o kit ainda não está montado;
+- ela não tem padrinho;
+- faltam cartões digitalizados.
+
+`GET /checkin/qrcode/{crianca_id}` gera o QR para imprimir no crachá. Ele traz
+`edicao:codigo`, e a tela aceita os dois formatos — colado do leitor ou digitado
+à mão.
+
 ### Arquivos enviados
 
 Ficam em `ARQUIVOS_DIR` (por padrão `sistema/arquivos/`), **fora** das pastas
@@ -378,7 +406,9 @@ npm run preview  # serve o build
 | `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
 | `/acesso/pagamentos` | Pagamentos e o que cada um quita | `registrar_pagamentos` |
 | `/acesso/cartoes` | Digitalização, conferência e envio | `ver_criancas` |
-| `/acesso/kits` e demais | Espaços reservados das próximas fases | conforme o perfil |
+| `/acesso/kits` | Montagem e entrega dos kits | `gerenciar_kits` |
+| `/acesso/compras` | Compras da edição, com total por categoria | `gerenciar_compras` |
+| `/acesso/checkin` | Entrada das crianças no dia | `fazer_checkin` |
 
 `/acesso` sem sessão cai no login; com sessão, vai para o painel.
 
