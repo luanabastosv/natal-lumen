@@ -7,6 +7,7 @@ import EmBreve from "./pages/EmBreve.jsx";
 import EsqueciSenha from "./pages/EsqueciSenha.jsx";
 import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
+import Cartoes from "./pages/Cartoes.jsx";
 import Criancas from "./pages/Criancas.jsx";
 import Padrinhos from "./pages/Padrinhos.jsx";
 import Pagamentos from "./pages/Pagamentos.jsx";
@@ -19,6 +20,7 @@ import RotaProtegida from "./routes/RotaProtegida.jsx";
 // Telas ja construidas. O resto do menu ainda mostra "em construcao".
 const PRONTAS = {
   "/criancas": <Criancas />,
+  "/cartoes": <Cartoes />,
   "/padrinhos": <Padrinhos />,
   "/pagamentos": <Pagamentos />,
   "/usuarios": <Usuarios />,

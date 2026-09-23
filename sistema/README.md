@@ -16,7 +16,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 4 | Cadastros base (cidades, edições, instituições, usuários) | **pronta** |
 | 5 | Crianças e importação de listas | **pronta** |
 | 6 | Padrinhos, apadrinhamentos e pagamentos | **pronta** |
-| 7 | Cartões: digitalização, OCR e envio | a fazer |
+| 7 | Cartões: digitalização, OCR e envio | **pronta** |
 | 8 | Kits, compras e check-in | a fazer |
 | 9 | Painel e relatórios | a fazer |
 | 10 | Publicação em /acesso | a fazer |
@@ -98,7 +98,10 @@ cd backend
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
 ./.venv/bin/python -m tests.test_criancas       # 35 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
+./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ```
+
+> `test_cartoes` carrega o EasyOCR na primeira execução e demora bem mais.
 
 `test_cadastros` cobre quem pode o quê nos cadastros: só a administração geral
 cria cidades, edições e coordenadores; a coordenação só mexe na própria cidade;
@@ -280,12 +283,62 @@ foi marcado.
 Um apadrinhamento já quitado não pode ser apagado nem quitado por outro
 pagamento. Apagar o pagamento solta os apadrinhamentos de volta para "a pagar".
 
+### Cartões
+
+Cada criança escreve dois cartões, um para cada padrinho. A digitalização tem
+duas etapas, como a importação:
+
+1. `POST /cartoes/analisar` recebe a foto e o **código da criança**. Corrige a
+   perspectiva (escala de cinza → blur → Canny → contornos → `warpPerspective`),
+   roda o OCR e devolve o nome sugerido, os outros textos detectados e a imagem
+   para conferência. Nada é gravado.
+2. `POST /cartoes/confirmar` guarda o arquivo e grava o cartão.
+
+Se as bordas não forem encontradas, a foto é usada como está e a resposta traz o
+aviso `bordas não detectadas` — uma foto torta ainda serve, e travar o monitor no
+dia do evento seria pior.
+
+A orientação EXIF é corrigida: foto de celular guarda a rotação na tag em vez de
+girar os pixels.
+
+**O destinatário não fica gravado no cartão.** É encontrado por
+criança + tipo → apadrinhamento → padrinho. Assim o cartão pode ser digitalizado
+antes de a criança ter padrinho — que é o que acontece na prática.
+
+Um cartão só pode ser marcado como enviado quando já existe padrinho para
+recebê-lo.
+
+**Ajustar o OCR.** A escolha do nome está isolada em `escolher_nome_sugerido()`,
+em `app/servicos/scanner.py`. As regras: se o cartão tiver "Nome:", usa o que vem
+depois; senão, a linha com a maior altura de letra. Caixas da mesma linha são
+juntadas antes (o EasyOCR parte "BRUNO LIMA" em duas). Os parâmetros —
+`CONFIANCA_MINIMA`, `TAMANHO_MINIMO`, `TOLERANCIA_MESMA_LINHA` e
+`AREA_MINIMA_DO_CARTAO` — ficam no topo do arquivo.
+
+**Carregamento do OCR.** O EasyOCR leva ~30s para carregar. Em produção isso
+acontece no arranque; em desenvolvimento, sob demanda, para cada reload do
+uvicorn não custar meio minuto. Para forçar, use `CARREGAR_OCR_AO_INICIAR` no
+`.env`.
+
 ### Arquivos enviados
 
 Ficam em `ARQUIVOS_DIR` (por padrão `sistema/arquivos/`), **fora** das pastas
-públicas do frontend. Nunca são servidos diretamente: só por rota autenticada
-que confere a permissão e a edição do usuário. A pasta está no `.gitignore` —
-são dados sensíveis (LGPD).
+públicas do frontend. Nunca são servidos diretamente: só por
+`GET /cartoes/{id}/imagem`, que confere permissão e alcance antes de devolver o
+arquivo. A pasta está no `.gitignore` — são dados sensíveis (LGPD).
+
+Organização e nomes, como a especificação define:
+
+```
+{ARQUIVOS_DIR}/cartoes/{CIDADE}/{ano}/{INSTITUICAO}_{NOME}_{TIPO}.jpg
+```
+
+Tudo em maiúsculas, sem acento, espaços viram `_`, só A-Z 0-9 e `_`. Se o nome
+já existir, ganha `_2`, `_3` e assim por diante.
+
+Caminhos vindos da base passam por `dentro_da_pasta()`, que recusa qualquer um
+que escape de `ARQUIVOS_DIR` — sem isso, um caminho como `../../etc/passwd`
+gravado na base viraria leitura de arquivo do servidor.
 
 ---
 
@@ -324,7 +377,8 @@ npm run preview  # serve o build
 | `/acesso/criancas` | Lista, cadastro e importação de listas | `ver_criancas` |
 | `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
 | `/acesso/pagamentos` | Pagamentos e o que cada um quita | `registrar_pagamentos` |
-| `/acesso/cartoes` e demais | Espaços reservados das próximas fases | conforme o perfil |
+| `/acesso/cartoes` | Digitalização, conferência e envio | `ver_criancas` |
+| `/acesso/kits` e demais | Espaços reservados das próximas fases | conforme o perfil |
 
 `/acesso` sem sessão cai no login; com sessão, vai para o painel.
 

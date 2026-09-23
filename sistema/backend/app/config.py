@@ -36,6 +36,12 @@ class Config(BaseSettings):
     cookie_csrf: str = "nl_csrf"
     cookie_path: str = "/acesso"
 
+    # --- OCR dos cartoes ---
+    # Carregar o EasyOCR leva ~30s. Em producao vale a pena fazer isso no
+    # arranque, para o primeiro monitor do dia nao esperar. Em desenvolvimento
+    # fica sob demanda, senao cada reload do uvicorn custaria meio minuto.
+    carregar_ocr_ao_iniciar: bool | None = None
+
     # --- Publicacao ---
     ambiente: str = "desenvolvimento"
     root_path: str = "/acesso/api"
@@ -43,6 +49,12 @@ class Config(BaseSettings):
     @property
     def em_producao(self) -> bool:
         return self.ambiente == "producao"
+
+    @property
+    def aquecer_ocr(self) -> bool:
+        if self.carregar_ocr_ao_iniciar is not None:
+            return self.carregar_ocr_ao_iniciar
+        return self.em_producao
 
     @property
     def cookie_secure(self) -> bool:
