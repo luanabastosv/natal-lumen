@@ -12,7 +12,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | --- | --- | --- |
 | 1 | Fundação do backend: 19 tabelas, migrations, seed de perfis | **pronta** |
 | 2 | Autenticação e autorização | **pronta** |
-| 3 | Fundação do frontend | a fazer |
+| 3 | Fundação do frontend | **pronta** |
 | 4 | Cadastros base (cidades, edições, instituições, usuários) | a fazer |
 | 5 | Crianças e importação de listas | a fazer |
 | 6 | Padrinhos, apadrinhamentos e pagamentos | a fazer |
@@ -206,15 +206,98 @@ são dados sensíveis (LGPD).
 
 ## Frontend
 
-Ainda não existe: chega na fase 3, em `sistema/frontend`.
+React 19 + Vite, JavaScript (sem TypeScript), como o site.
 
-Será um projeto React + Vite com `base: "/acesso/"`, React Router com
-`basename="/acesso"` e proxy de `/acesso/api` para `http://localhost:8000` em
-desenvolvimento. A identidade visual vem de
-[docs/IDENTIDADE_VISUAL.md](docs/IDENTIDADE_VISUAL.md): os arquivos visuais são
-**copiados** do site, nunca importados de `site/`.
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Abre em <http://localhost:5173/acesso/>. **O backend precisa estar rodando**: o
+Vite encaminha `/acesso/api` para `http://localhost:8000`, removendo o prefixo —
+igual ao que o nginx fará em produção.
+
+```bash
+npm run lint     # oxlint
+npm run build    # build de produção em dist/
+npm run preview  # serve o build
+```
+
+### Telas
+
+| Rota | O que é |
+| --- | --- |
+| `/acesso/entrar` | Login |
+| `/acesso/definir-senha?token=...` | Primeiro acesso e redefinição de senha |
+| `/acesso/esqueci-senha` | Pede o link de redefinição |
+| `/acesso/painel` | Painel inicial, com atalhos do que o perfil alcança |
+| `/acesso/criancas` e demais | Espaços reservados das próximas fases |
+
+`/acesso` sem sessão cai no login; com sessão, vai para o painel.
+
+### Organização
+
+| Pasta | Responsabilidade |
+| --- | --- |
+| `src/services/` | `api.js` (fetch com cookie e CSRF) e `auth.js` |
+| `src/contexts/` | sessão: usuário, permissões e edição ativa |
+| `src/routes/` | `RotaProtegida` — exige sessão e, se pedido, permissão |
+| `src/components/core/` | `Button` (portado do site), `Campo` |
+| `src/components/layout/` | cabeçalho, menu, rodapé e a casca |
+| `src/components/feedback/` | `EmptyState` (portado), `Carregando`, `Mensagem` |
+| `src/styles/` | `tokens.css` (cópia do site), `base.css`, `layout.css` |
+| `src/pages/` | as telas |
+
+### Identidade visual
+
+Os arquivos visuais foram **copiados** de `site/`, nunca importados — 11 fontes,
+o mascote, a textura de estrelinhas e o `tokens.css` inteiro, sem alterar um
+valor. O que o site não tinha (campos, tabelas, mensagens, carregamento,
+navegação de aplicação) foi criado aqui sobre os mesmos tokens. Ver
+[docs/IDENTIDADE_VISUAL.md](docs/IDENTIDADE_VISUAL.md).
+
+**Celular.** O site público esconde o menu abaixo de 860px. Aqui não dá: muitos
+voluntários usam o sistema pelo telefone. No mesmo ponto de quebra, o menu vira
+uma gaveta de verdade — com botão, fundo escurecido, fecho por Esc e ao navegar.
+
+### Como o frontend conversa com a API
+
+O cookie de sessão é `httpOnly`: o JavaScript não consegue lê-lo, só perguntar
+ao backend quem está na sessão (`GET /auth/eu`, feito uma vez ao abrir a
+página). Todo pedido vai com `credentials: "include"`, e nos métodos que alteram
+dados o `api.js` copia sozinho o cookie `nl_csrf` para o cabeçalho
+`X-CSRF-Token` — nenhuma tela precisa se lembrar disso.
+
+O `pode(permissao)` do contexto **apenas esconde menus**. Quem decide o acesso é
+o backend, em cada rota.
 
 ---
+
+## Rodando tudo junto
+
+Dois terminais:
+
+```bash
+# terminal 1 — API
+cd backend && ./.venv/bin/python -m uvicorn app.main:app --reload --port 8000
+
+# terminal 2 — telas
+cd frontend && npm run dev
+```
+
+Depois abra <http://localhost:5173/acesso/>.
+
+Na primeira vez, crie sua conta e abra o link que o comando imprime:
+
+```bash
+cd backend
+./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
+```
+
+> Se a porta 5173 estiver ocupada, o Vite sobe noutra e avisa no terminal — mas
+> aí o endereço muda. Confira a linha `Local:` antes de abrir o navegador.
 
 ## Publicação em /acesso
 

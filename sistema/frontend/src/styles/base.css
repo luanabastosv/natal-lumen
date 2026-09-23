@@ -1,0 +1,234 @@
+/* Primitivos da aplicacao: formularios, mensagens, carregamento e tabelas.
+   O site publico e institucional e nao tem nenhum destes — foram criados aqui,
+   sobre os mesmos tokens, para combinar com os botoes que vieram de la. */
+
+/* ---------- Campos ---------- */
+.campo {
+  display: block;
+  margin-bottom: var(--space-5);
+}
+
+.campo__rotulo {
+  display: block;
+  font-size: var(--size-label);
+  font-weight: var(--weight-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-on-light-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.campo__controle {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--size-body-md);
+  font-weight: var(--weight-body-md);
+  color: var(--text-on-light-primary);
+  background: var(--white);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: border-color 0.15s ease;
+}
+
+.campo__controle:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.campo__controle:disabled {
+  background: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+
+.campo__controle--erro {
+  border-color: #c0392b;
+}
+
+.campo__controle--selecao {
+  cursor: pointer;
+  appearance: none;
+  /* Seta em CSS puro, para nao depender de imagem nem de biblioteca. */
+  background-image: linear-gradient(45deg, transparent 50%, var(--navy-500) 50%),
+    linear-gradient(135deg, var(--navy-500) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 55%, calc(100% - 14px) 55%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 40px;
+}
+
+.campo__dica,
+.campo__erro {
+  display: block;
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  margin-top: var(--space-2);
+}
+
+.campo__dica {
+  color: var(--text-on-light-muted);
+}
+
+.campo__erro {
+  color: #c0392b;
+  font-weight: 700;
+}
+
+/* ---------- Mensagens ---------- */
+.mensagem {
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: var(--space-5);
+}
+
+.mensagem--erro {
+  background: #fdecec;
+  border: var(--stroke-hairline) solid #e8b4b4;
+  color: #8f2c2c;
+}
+
+.mensagem--aviso {
+  background: var(--amber-100);
+  border: var(--stroke-hairline) solid var(--amber-300);
+  color: var(--amber-900);
+}
+
+.mensagem--sucesso {
+  background: var(--navy-100);
+  border: var(--stroke-hairline) solid var(--navy-200);
+  color: var(--color-primary);
+}
+
+/* ---------- Carregando ---------- */
+.carregando {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-secondary);
+}
+
+.carregando__roda {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--navy-200);
+  border-top-color: var(--color-cta);
+  border-radius: 50%;
+  animation: roda-gira 0.7s linear infinite;
+  flex: none;
+}
+
+@keyframes roda-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carregando__roda {
+    animation-duration: 2.5s;
+  }
+}
+
+.carregando-tela {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- Tabelas ---------- */
+.tabela-rolagem {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--size-body-sm);
+}
+
+.tabela th {
+  text-align: left;
+  font-family: var(--font-condensed);
+  font-size: var(--size-caption);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-on-light-muted);
+  padding: 0 var(--space-4) var(--space-3) 0;
+  border-bottom: 2px solid var(--border-default);
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: var(--space-4) var(--space-4) var(--space-4) 0;
+  border-bottom: var(--stroke-hairline) solid var(--border-light);
+  color: var(--text-on-light-secondary);
+  vertical-align: top;
+}
+
+.tabela td:first-child {
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+/* ---------- Titulos de pagina ---------- */
+.pagina__eyebrow {
+  font-family: var(--font-condensed);
+  font-weight: var(--weight-eyebrow);
+  font-size: var(--size-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: var(--space-3);
+}
+
+.pagina__titulo {
+  font-size: var(--size-h2);
+  line-height: var(--lh-h2);
+  font-weight: var(--weight-h2);
+  color: var(--text-on-light-primary);
+  margin: 0 0 var(--space-3);
+}
+
+.pagina__lede {
+  font-size: var(--size-body-md);
+  line-height: var(--lh-body-md);
+  color: var(--text-on-light-secondary);
+  max-width: 62ch;
+  margin: 0 0 var(--space-6);
+}
+
+/* ---------- Atalhos do painel ---------- */
+.atalhos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.atalho {
+  display: flex;
+  align-items: center;
+  min-height: 84px;
+  padding: var(--space-5);
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.atalho:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.atalho__rotulo {
+  font-size: var(--size-h5);
+  font-weight: var(--weight-h5);
+  color: var(--color-primary);
+}

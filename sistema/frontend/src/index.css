@@ -1,0 +1,28 @@
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/layout.css";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--white);
+  font-family: var(--font-body);
+  color: var(--text-on-light-primary);
+}
+
+a {
+  color: var(--text-link);
+}
+
+a:hover {
+  color: var(--text-link-hover);
+}
+
+/* Foco visivel para quem navega pelo teclado. */
+:focus-visible {
+  outline: 3px solid var(--amber-500);
+  outline-offset: 2px;
+}

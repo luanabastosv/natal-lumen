@@ -1,0 +1,94 @@
+/* Telas de fora da sessao: login, definir senha, esqueci senha. */
+.acesso {
+  position: relative;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--space-4);
+  background: var(--navy-700);
+  overflow: hidden;
+}
+
+/* A textura de estrelinhas entra numa camada propria para poder recuar em
+   opacidade — 0.18, como o design system define. Aplicada direto no fundo ela
+   fica forte demais e compete com o cartao. */
+.acesso::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/acesso/images/sparkle-pattern.svg");
+  background-size: 320px;
+  background-repeat: repeat;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.acesso__cartao {
+  position: relative;
+}
+
+.acesso__cartao {
+  width: 100%;
+  max-width: 420px;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-7) var(--space-6);
+}
+
+.acesso__marca {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: var(--space-6);
+}
+
+.acesso__mascote {
+  height: 34px;
+}
+
+.acesso__nome {
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--color-primary);
+}
+
+.acesso__titulo {
+  font-size: var(--size-h4);
+  line-height: var(--lh-h4);
+  font-weight: var(--weight-h4);
+  color: var(--text-on-light-primary);
+  margin: 0 0 var(--space-2);
+  text-align: center;
+}
+
+.acesso__lede {
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+  color: var(--text-on-light-secondary);
+  text-align: center;
+  margin: 0 0 var(--space-6);
+}
+
+.acesso__rodape {
+  margin-top: var(--space-5);
+  text-align: center;
+  font-size: var(--size-caption);
+}
+
+.acesso__rodape a {
+  color: var(--text-link);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.acesso__rodape a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .acesso__cartao {
+    padding: var(--space-6) var(--space-5);
+  }
+}
