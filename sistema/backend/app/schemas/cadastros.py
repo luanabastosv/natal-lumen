@@ -108,6 +108,11 @@ class InstituicaoOut(BaseModel):
     telefone: str | None
     endereco: str | None
     ativo: bool
+    # Preenchidos quando a listagem recebe edicao_id: o dia do evento e por
+    # edicao, entao fora de uma edicao a pergunta nao tem resposta.
+    dia_evento_id: int | None = None
+    dia_evento: date | None = None
+    criancas: int = 0
 
 
 class PerfilOut(BaseModel):

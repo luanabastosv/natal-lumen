@@ -3,12 +3,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Cidade, Edicao, Instituicao
+from app.models import Cidade, Crianca, DiaEvento, Edicao, Instituicao, InstituicaoDia
 from app.schemas.cadastros import InstituicaoEditar, InstituicaoIn, InstituicaoOut
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
@@ -21,7 +21,8 @@ BD = Annotated[Session, Depends(get_db)]
 Cadastros = Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_cadastros"))]
 
 
-def _saida(inst: Instituicao) -> InstituicaoOut:
+def _saida(inst: Instituicao, extra: dict | None = None) -> InstituicaoOut:
+    extra = extra or {}
     return InstituicaoOut(
         id=inst.id,
         cidade_id=inst.cidade_id,
@@ -32,6 +33,9 @@ def _saida(inst: Instituicao) -> InstituicaoOut:
         telefone=inst.telefone,
         endereco=inst.endereco,
         ativo=inst.ativo,
+        dia_evento_id=extra.get("dia_evento_id"),
+        dia_evento=extra.get("dia_evento"),
+        criancas=extra.get("criancas", 0),
     )
 
 
@@ -54,7 +58,12 @@ def _conferir_cidade(db: Session, ctx: ContextoAcesso, cidade_id: int) -> None:
 
 
 @router.get("", response_model=list[InstituicaoOut])
-def listar(db: BD, ctx: Contexto, cidade_id: int | None = None):
+def listar(
+    db: BD,
+    ctx: Contexto,
+    cidade_id: int | None = None,
+    edicao_id: int | None = None,
+):
     """Lista as instituicoes das cidades que o usuario alcanca.
 
     Nao filtra pelas instituicoes atribuidas em usuario_instituicao: o nome da
@@ -76,7 +85,37 @@ def listar(db: BD, ctx: Contexto, cidade_id: int | None = None):
     if cidade_id is not None:
         consulta = consulta.where(Instituicao.cidade_id == cidade_id)
 
-    return [_saida(i) for i in db.scalars(consulta).all()]
+    if edicao_id is not None:
+        # Com uma edicao escolhida, so as instituicoes da cidade dela fazem
+        # sentido: as outras nao podem ter dia nesta edicao, e mostra-las so
+        # levaria a um erro na cara do usuario.
+        edicao = db.get(Edicao, edicao_id)
+        if edicao is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
+        consulta = consulta.where(Instituicao.cidade_id == edicao.cidade_id)
+
+    instituicoes = db.scalars(consulta).all()
+
+    # Com uma edicao escolhida, a listagem traz o dia marcado e quantas
+    # criancas ha nela — e o que a tela de cadastro precisa mostrar.
+    extras: dict[int, dict] = {}
+    if edicao_id is not None:
+        for inst_id, dia_id, data in db.execute(
+            select(InstituicaoDia.instituicao_id, InstituicaoDia.dia_evento_id, DiaEvento.data)
+            .join(DiaEvento, DiaEvento.id == InstituicaoDia.dia_evento_id)
+            .where(InstituicaoDia.edicao_id == edicao_id)
+        ).all():
+            extras.setdefault(inst_id, {})["dia_evento_id"] = dia_id
+            extras[inst_id]["dia_evento"] = data
+
+        for inst_id, quantas in db.execute(
+            select(Crianca.instituicao_id, func.count())
+            .where(Crianca.edicao_id == edicao_id)
+            .group_by(Crianca.instituicao_id)
+        ).all():
+            extras.setdefault(inst_id, {})["criancas"] = quantas
+
+    return [_saida(i, extras.get(i.id)) for i in instituicoes]
 
 
 @router.post("", response_model=InstituicaoOut, status_code=status.HTTP_201_CREATED)

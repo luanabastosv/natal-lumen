@@ -23,7 +23,14 @@ export const definirDiaDaInstituicao = (edicaoId, instituicaoId, diaEventoId) =>
   });
 
 // Instituicoes
-export const listarInstituicoes = () => api.get("/instituicoes");
+export const listarInstituicoes = (filtros = {}) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(filtros)) {
+    if (v !== "" && v !== null && v !== undefined) p.set(k, v);
+  }
+  const consulta = p.toString();
+  return api.get(`/instituicoes${consulta ? `?${consulta}` : ""}`);
+};
 export const criarInstituicao = (dados) => api.post("/instituicoes", dados);
 export const editarInstituicao = (id, dados) => api.patch(`/instituicoes/${id}`, dados);
 

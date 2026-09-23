@@ -407,8 +407,12 @@ irmãos com nomes parecidos existem; quem confere decide. A comparação usa
 ### O dia do evento é da instituição
 
 Se a Escolinha Sol vai no sábado, **todas** as crianças dela vão no sábado. Por
-isso o dia não é editado criança a criança: ele é definido na aba da
-instituição, e todas as crianças dela mudam junto.
+isso o dia não é editado criança a criança: é um **campo do cadastro da
+instituição**, preenchido em Instituições — ao criar ou ao editar — e todas as
+crianças dela mudam junto.
+
+Como o dia é por edição, a tela de Instituições tem um seletor de edição no
+topo, e a lista passa a mostrar só as instituições da cidade daquela edição.
 
 Editar o dia de uma criança isolada foi **removido** da API e da tela — não é
 uma restrição de interface que dá para contornar pelo backend. `app/servicos/
