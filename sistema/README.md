@@ -162,7 +162,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 50 verificações
+./.venv/bin/python -m tests.test_criancas       # 66 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
@@ -400,7 +400,14 @@ irmãos com nomes parecidos existem; quem confere decide. A comparação usa
 - **marcadores de estado** em cada linha: padrinho de cesta e de festa, cartões
   (de 2), kit e check-in. O panorama inteiro da criança numa olhada;
 - **edição em lote**: marque várias e aplique o dia do evento de uma vez —
-  distribuir 1500 crianças uma a uma não é trabalho que alguém faça.
+  distribuir 1500 crianças uma a uma não é trabalho que alguém faça;
+- **ficha da criança** no ícone de olho: uma janela pequena com tudo o que se
+  sabe dela — padrinhos com nome e contato, cartões, kit e check-in.
+
+> O **contato do padrinho só aparece para quem tem `ver_padrinhos`**. Um monitor
+> abre a mesma ficha e vê *que* a criança tem padrinho de cesta e de festa, mas
+> não o nome nem o telefone: contato de doador é dado de quem doa, não da
+> criança. O WhatsApp vira link `wa.me` para abrir a conversa direto.
 
 O panorama de todas as linhas vem em **3 consultas**, não uma por criança: numa
 edição de 1500, o jeito ingênuo custaria 4500 consultas e a tela nunca abriria.

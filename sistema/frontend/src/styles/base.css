@@ -708,3 +708,146 @@
     display: none;
   }
 }
+
+/* ---------- Janela pequena sobre a tela ---------- */
+.modal-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(13, 35, 82, 0.45);
+}
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.modal__topo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: var(--stroke-hairline) solid var(--border-light);
+}
+
+.modal__titulo {
+  flex: 1;
+  font-size: var(--size-h5);
+  line-height: var(--lh-h5);
+  font-weight: var(--weight-h5);
+  color: var(--text-on-light-primary);
+  margin: 0;
+}
+
+.modal__fechar {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-on-light-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal__fechar:hover {
+  background: var(--navy-100);
+  color: var(--color-primary);
+}
+
+.modal__corpo {
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.modal__rodape {
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--stroke-hairline) solid var(--border-light);
+  background: var(--cream-100);
+}
+
+/* ---------- Lista de dados dentro da janela ---------- */
+.ficha {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  font-size: 13px;
+  margin: 0;
+}
+
+.ficha dt {
+  color: var(--text-on-light-muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ficha dd {
+  margin: 0;
+  color: var(--text-on-light-primary);
+}
+
+.ficha__secao {
+  margin: var(--space-4) 0 var(--space-2);
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.ficha__padrinho {
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+}
+
+.ficha__padrinho strong {
+  display: block;
+  color: var(--text-on-light-primary);
+  margin-bottom: 2px;
+}
+
+.ficha__padrinho a {
+  color: var(--text-link);
+  text-decoration: none;
+}
+
+.ficha__padrinho a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Icone de olho na planilha ---------- */
+.ver {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--navy-300);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ver:hover {
+  background: var(--navy-100);
+  color: var(--color-primary);
+}

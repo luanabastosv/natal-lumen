@@ -16,14 +16,26 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import config
 from app.database import get_db
-from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Edicao, Instituicao, Kit
+from app.models import (
+    Apadrinhamento,
+    Cartao,
+    Crianca,
+    DiaEvento,
+    Edicao,
+    Instituicao,
+    Kit,
+    Padrinho,
+)
 from app.schemas.criancas import (
     CriancaEditar,
     CriancaIn,
+    CriancaDetalhe,
     CriancaOut,
     CriancasEmLote,
     RenumerarIn,
+    CartaoDaCrianca,
     LinhaImportada,
+    PadrinhoDaCrianca,
     PaginaCriancas,
     PreviaImportacao,
     ResultadoImportacao,
@@ -391,9 +403,77 @@ def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
     return [_saida(c, panorama.get(c.id)) for c in atualizadas]
 
 
-@router.get("/{crianca_id}", response_model=CriancaOut)
+@router.get("/{crianca_id}", response_model=CriancaDetalhe)
 def detalhe(crianca_id: int, db: BD, ctx: Ver):
-    return _saida(_buscar(db, ctx, crianca_id, "ver_criancas"))
+    """Ficha da crianca: apadrinhamento, cartoes e kit numa consulta so."""
+    crianca = db.scalar(
+        select(Crianca)
+        .where(Crianca.id == crianca_id, ctx.filtro_criancas("ver_criancas"))
+        .options(
+            joinedload(Crianca.instituicao),
+            joinedload(Crianca.dia_evento),
+            joinedload(Crianca.edicao),
+        )
+    )
+    if crianca is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
+
+    # O contato do padrinho e dado de quem doa, nao da crianca: quem so tem
+    # ver_criancas fica sabendo QUE ha padrinho, mas nao quem e nem o telefone.
+    pode_contato = ctx.pode("ver_padrinhos")
+
+    apadrinhamentos = db.execute(
+        select(Apadrinhamento, Padrinho)
+        .join(Padrinho, Padrinho.id == Apadrinhamento.padrinho_id)
+        .where(Apadrinhamento.crianca_id == crianca.id)
+        .order_by(Apadrinhamento.tipo)
+    ).all()
+
+    padrinhos = [
+        PadrinhoDaCrianca(
+            apadrinhamento_id=a.id,
+            tipo=a.tipo,
+            valor=a.valor,
+            pago=a.pagamento_id is not None,
+            padrinho_id=p.id,
+            nome=p.nome if pode_contato else "(sem permissao para ver)",
+            whatsapp=p.whatsapp if pode_contato else None,
+            email=p.email if pode_contato else None,
+        )
+        for a, p in apadrinhamentos
+    ]
+
+    cartoes = db.scalars(
+        select(Cartao).where(Cartao.crianca_id == crianca.id).order_by(Cartao.tipo)
+    ).all()
+
+    kit = db.scalar(select(Kit).where(Kit.crianca_id == crianca.id))
+
+    return CriancaDetalhe(
+        id=crianca.id,
+        edicao_id=crianca.edicao_id,
+        edicao=crianca.edicao.nome,
+        instituicao_id=crianca.instituicao_id,
+        instituicao=crianca.instituicao.nome,
+        codigo=crianca.codigo,
+        nome=crianca.nome,
+        idade=crianca.idade,
+        sexo=crianca.sexo,
+        dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+        observacoes=crianca.observacoes,
+        checkin_em=crianca.checkin_em,
+        padrinhos=padrinhos,
+        cartoes=[
+            CartaoDaCrianca(
+                id=c.id, tipo=c.tipo, status=c.status,
+                criado_em=c.criado_em, enviado_em=c.enviado_em,
+            )
+            for c in cartoes
+        ],
+        kit_status=kit.status if kit else "pendente",
+        kit_entregue_em=kit.entregue_em if kit else None,
+        pode_ver_contato=pode_contato,
+    )
 
 
 @router.post("", response_model=CriancaOut, status_code=status.HTTP_201_CREATED)

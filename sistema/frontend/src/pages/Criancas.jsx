@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
+import FichaCrianca from "../components/dados/FichaCrianca.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
@@ -55,6 +56,7 @@ export default function Criancas() {
   const [salvando, definirSalvando] = useState(false);
   const [importando, definirImportando] = useState(false);
   const [renumerando, definirRenumerando] = useState(false);
+  const [fichaAberta, definirFichaAberta] = useState(null);
   const [sigla, definirSigla] = useState("");
 
   const podeEditar = pode("editar_criancas");
@@ -448,6 +450,10 @@ export default function Criancas() {
         </form>
       )}
 
+      {fichaAberta && (
+        <FichaCrianca criancaId={fichaAberta} aoFechar={() => definirFichaAberta(null)} />
+      )}
+
       {carregando ? (
         <Carregando>Carregando crianças...</Carregando>
       ) : criancas.itens.length === 0 ? (
@@ -477,7 +483,7 @@ export default function Criancas() {
                 <col style={{ width: 72 }} />
                 <col style={{ width: 72 }} />
                 <col style={{ width: 82 }} />
-                {podeEditar && <col style={{ width: 44 }} />}
+                {podeEditar && <col style={{ width: 66 }} />}
               </colgroup>
               <thead>
                 <tr>
@@ -631,6 +637,22 @@ export default function Criancas() {
                     </td>
                     {podeEditar && (
                       <td className="planilha__acoes">
+                        <button
+                          type="button"
+                          className="ver"
+                          onClick={() => definirFichaAberta(c.id)}
+                          title={`Ver ${c.nome}`}
+                          aria-label={`Ver ficha de ${c.nome}`}
+                        >
+                          {/* Olho desenhado em SVG: nao depende de fonte de icones. */}
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path
+                              d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12Z"
+                              stroke="currentColor" strokeWidth="2" strokeLinejoin="round"
+                            />
+                            <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="2" />
+                          </svg>
+                        </button>
                         <button
                           type="button"
                           className="remover"

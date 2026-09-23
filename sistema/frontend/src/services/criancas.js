@@ -17,6 +17,7 @@ export const resumoInstituicoes = (edicaoId) =>
   api.get(`/criancas/resumo-instituicoes?edicao_id=${edicaoId}`);
 export const editarEmLote = (dados) => api.post("/criancas/lote", dados);
 export const renumerar = (dados) => api.post("/criancas/renumerar", dados);
+export const detalharCrianca = (id) => api.get(`/criancas/${id}`);
 export const editarCrianca = (id, dados) => api.patch(`/criancas/${id}`, dados);
 export const apagarCrianca = (id) => api.delete(`/criancas/${id}`);
 

@@ -405,6 +405,69 @@ def main() -> None:
         verifica("devolve o total geral, maior que a pagina",
                  total_agora > 2, str(total_agora))
 
+        print("\nFicha da crianca")
+        r = cc.get(f"/criancas/{ana['id']}")
+        verifica("abre a ficha", r.status_code == 200, r.text[:130])
+        ficha = r.json() if r.status_code == 200 else {}
+
+        if ficha:
+            verifica("traz os dados da crianca", ficha["nome"] == "Ana Clara Avila")
+            verifica("traz a edicao e a instituicao",
+                     ficha["instituicao"] and ficha["edicao"])
+            verifica("traz kit e cartoes", "kit_status" in ficha and "cartoes" in ficha)
+            verifica("sem padrinho, a lista vem vazia", ficha["padrinhos"] == [],
+                     str(ficha["padrinhos"]))
+
+        # Agora com padrinho, para conferir nome e contato.
+        from app.models import Apadrinhamento, Padrinho
+
+        padrinho = Padrinho(edicao_id=edicao.id, nome=f"{MARCA} Jose Doador",
+                            whatsapp="85999990000", email="jose@exemplo.org")
+        db.add(padrinho); db.flush()
+        db.add(Apadrinhamento(crianca_id=ana["id"], padrinho_id=padrinho.id,
+                              tipo="cesta", valor=120))
+        db.commit()
+
+        r = cc.get(f"/criancas/{ana['id']}")
+        ficha = r.json()
+        verifica("com padrinho, a ficha lista o apadrinhamento",
+                 len(ficha["padrinhos"]) == 1, str(len(ficha["padrinhos"])))
+        if ficha["padrinhos"]:
+            p0 = ficha["padrinhos"][0]
+            verifica("coordenacao ve o nome do padrinho", p0["nome"] == f"{MARCA} Jose Doador", p0["nome"])
+            verifica("coordenacao ve o WhatsApp", p0["whatsapp"] == "85999990000", str(p0["whatsapp"]))
+            verifica("mostra o tipo e se esta pago",
+                     p0["tipo"] == "cesta" and p0["pago"] is False)
+
+        # O monitor tem ver_criancas mas NAO ver_padrinhos.
+        monitor = Usuario(nome=f"{MARCA} Monitor", email=f"{MARCA.lower()}.mon@exemplo.org",
+                          senha_hash=gerar_hash(SENHA))
+        db.add(monitor); db.flush()
+        vm = UsuarioEdicao(usuario_id=monitor.id, edicao_id=edicao.id,
+                           perfil_id=perfis["Monitor"].id)
+        db.add(vm); db.flush()
+        db.add(UsuarioInstituicao(usuario_edicao_id=vm.id, instituicao_id=inst_a.id))
+        db.commit()
+
+        cmon = TestClient(app); entrar(cmon, monitor.email)
+        r = cmon.get(f"/criancas/{ana['id']}")
+        verifica("monitor abre a ficha", r.status_code == 200, str(r.status_code))
+        do_monitor = r.json() if r.status_code == 200 else {}
+
+        if do_monitor.get("padrinhos"):
+            pm = do_monitor["padrinhos"][0]
+            verifica("monitor SABE que ha padrinho", pm["tipo"] == "cesta")
+            verifica("monitor NAO ve o nome do padrinho",
+                     f"{MARCA} Jose Doador" not in pm["nome"], pm["nome"])
+            verifica("monitor NAO ve o WhatsApp", pm["whatsapp"] is None, str(pm["whatsapp"]))
+            verifica("monitor NAO ve o email", pm["email"] is None, str(pm["email"]))
+            verifica("a ficha avisa que o contato esta oculto",
+                     do_monitor["pode_ver_contato"] is False)
+
+        r = cmon.get(f"/criancas/{bruno['id']}")
+        verifica("monitor nao abre ficha de crianca fora do alcance",
+                 r.status_code == 404, str(r.status_code))
+
         print("\nRemocao")
         r = cc.delete(f"/criancas/{bruno['id']}")
         verifica("coordenacao apaga crianca", r.status_code == 204, str(r.status_code))

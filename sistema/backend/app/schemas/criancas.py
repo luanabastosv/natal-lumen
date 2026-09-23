@@ -1,6 +1,7 @@
 """Entrada e saida de criancas e da importacao de listas."""
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -112,3 +113,51 @@ class RenumerarIn(BaseModel):
     instituicao_id: int
     # Em branco mantem a sigla atual da instituicao.
     sigla: str | None = Field(default=None, min_length=1, max_length=6)
+
+
+class PadrinhoDaCrianca(BaseModel):
+    """Um padrinho desta crianca, para a ficha."""
+
+    apadrinhamento_id: int
+    tipo: str
+    valor: Decimal
+    pago: bool
+    padrinho_id: int
+    nome: str
+    # So preenchidos para quem tem ver_padrinhos.
+    whatsapp: str | None = None
+    email: str | None = None
+
+
+class CartaoDaCrianca(BaseModel):
+    id: int
+    tipo: str
+    status: str
+    criado_em: datetime
+    enviado_em: datetime | None
+
+
+class CriancaDetalhe(BaseModel):
+    """Ficha da crianca: tudo o que se sabe dela, numa tela so."""
+
+    id: int
+    edicao_id: int
+    edicao: str
+    instituicao_id: int
+    instituicao: str
+    codigo: str
+    nome: str
+    idade: int
+    sexo: str
+    dia_evento: date | None
+    observacoes: str | None
+    checkin_em: datetime | None
+
+    padrinhos: list[PadrinhoDaCrianca]
+    cartoes: list[CartaoDaCrianca]
+    kit_status: str
+    kit_entregue_em: datetime | None
+
+    # O contato do padrinho so aparece para quem tem ver_padrinhos. Sem isto,
+    # um monitor veria o telefone de todos os doadores.
+    pode_ver_contato: bool
