@@ -8,10 +8,11 @@ Nada e gravado nesta etapa. A conferencia acontece na tela, e so depois a
 importacao e confirmada.
 """
 
+import csv
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from io import BytesIO
+from io import BytesIO, StringIO
 
 import pandas as pd
 from rapidfuzz import fuzz, process
@@ -180,41 +181,154 @@ def _mapear_colunas(colunas: list[str]) -> tuple[dict[str, str], list[str]]:
     return encontradas, ignoradas
 
 
+# Separadores que aparecem de verdade. O ponto e virgula vem primeiro porque e
+# o que o Excel brasileiro usa.
+SEPARADORES = (";", ",", "\t", "|")
+
+
 def _ler_csv(conteudo: bytes):
-    """Le o CSV tentando as codificacoes que aparecem na pratica.
+    """Le o CSV tentando as codificacoes e separadores que aparecem na pratica.
 
     utf-8-sig e o utf-8 que descarta o BOM do Excel. Se o arquivo veio de um
     Excel mais antigo em portugues, costuma estar em Windows-1252 — e ai os
     acentos quebram em utf-8.
 
-    sep=None deixa o pandas descobrir sozinho se o separador e virgula ou
-    ponto e virgula (o padrao no Brasil).
+    O separador e testado um a um, e nao adivinhado pelo pandas: com sep=None
+    ele olha a PRIMEIRA linha, e numa planilha que comeca com um titulo
+    ("Relatorio da instituicao") ele acaba cortando por espacos.
+
+    Vence o parse em que da para achar um cabecalho com mais campos.
     """
+    texto = None
     ultimo_erro: Exception | None = None
 
     for codificacao in ("utf-8-sig", "cp1252", "latin-1"):
         try:
-            return pd.read_csv(
-                BytesIO(conteudo),
-                dtype=str,
-                sep=None,
-                engine="python",
-                keep_default_na=False,
-                encoding=codificacao,
-            )
+            texto = conteudo.decode(codificacao)
+            break
         except (UnicodeDecodeError, LookupError) as erro:
             ultimo_erro = erro
-            continue
-        except Exception as erro:
-            raise ValueError(
-                "Nao foi possivel ler o arquivo. Confira se e mesmo uma planilha "
-                "e se tem uma linha de cabecalho."
-            ) from erro
 
-    raise ValueError(
-        "Nao foi possivel ler o arquivo: a codificacao nao foi reconhecida. "
-        "No Excel, use Salvar como > CSV UTF-8."
-    ) from ultimo_erro
+    if texto is None:
+        raise ValueError(
+            "Nao foi possivel ler o arquivo: a codificacao nao foi reconhecida. "
+            "No Excel, use Salvar como > CSV UTF-8."
+        ) from ultimo_erro
+
+    melhor = None
+    melhor_nota = -1
+
+    for separador in SEPARADORES:
+        tentativa = _linhas_do_csv(texto, separador)
+        if tentativa is None:
+            continue
+
+        nota = _nota_do_parse(tentativa)
+        if nota > melhor_nota:
+            melhor_nota, melhor = nota, tentativa
+
+    if melhor is None:
+        raise ValueError(
+            "Nao foi possivel ler o arquivo. Confira se e mesmo uma planilha "
+            "e se tem uma linha de cabecalho."
+        )
+
+    return melhor
+
+
+def _linhas_do_csv(texto: str, separador: str):
+    """Le o CSV com o modulo csv e iguala a largura das linhas.
+
+    O pandas decide o numero de colunas pela PRIMEIRA linha. Numa planilha que
+    comeca com um titulo — uma celula so — ele passa a esperar uma coluna, e
+    quebra ao encontrar tres na linha do cabecalho. Lendo aqui e preenchendo o
+    que falta, o titulo deixa de atrapalhar.
+    """
+    try:
+        linhas = [linha for linha in csv.reader(StringIO(texto), delimiter=separador)]
+    except csv.Error:
+        return None
+
+    linhas = [linha for linha in linhas if any(str(c).strip() for c in linha)]
+    if not linhas:
+        return None
+
+    largura = max(len(linha) for linha in linhas)
+    if largura < 1:
+        return None
+
+    emparelhadas = [linha + [""] * (largura - len(linha)) for linha in linhas]
+    return pd.DataFrame(emparelhadas, dtype=str)
+
+
+def _nota_do_parse(tabela) -> int:
+    """Quantos campos o melhor cabecalho deste parse reconhece.
+
+    E o criterio para escolher entre um separador e outro: o que "entende" mais
+    colunas e o certo.
+    """
+    melhor = 0
+    for i in range(min(LINHAS_PARA_PROCURAR_CABECALHO, len(tabela))):
+        candidata = [_limpar_celula(v) for v in tabela.iloc[i].tolist()]
+        reconhecidas, _ = _mapear_colunas([c for c in candidata if c])
+        if "nome" in reconhecidas:
+            melhor = max(melhor, len(reconhecidas))
+    return melhor
+
+
+# Ate onde procurar o cabecalho. Planilha com titulo, subtitulo, logo e linha
+# em branco antes da tabela e comum; dez linhas cobrem com folga.
+LINHAS_PARA_PROCURAR_CABECALHO = 10
+
+
+def _limpar_celula(valor) -> str:
+    return str(valor).translate(INVISIVEIS).replace("\xa0", " ").strip()
+
+
+def _com_cabecalho(bruto):
+    """Descobre em qual linha esta o cabecalho e devolve a tabela a partir dela.
+
+    Muita planilha comeca com "LISTA DE CRIANCAS 2026" na primeira linha, uma
+    linha em branco, e so entao os cabecalhos. Assumir a primeira linha faria o
+    titulo virar nome de coluna e a planilha inteira ser recusada.
+
+    A linha escolhida e a que reconhece mais campos — e que reconhece o nome,
+    sem o qual nao da para importar nada.
+    """
+    if bruto.empty:
+        return bruto
+
+    melhor_linha = None
+    melhor_nota = 0
+
+    for i in range(min(LINHAS_PARA_PROCURAR_CABECALHO, len(bruto))):
+        candidata = [_limpar_celula(v) for v in bruto.iloc[i].tolist()]
+        if not any(candidata):
+            continue
+
+        reconhecidas, _ = _mapear_colunas([c for c in candidata if c])
+        if "nome" not in reconhecidas:
+            continue
+
+        nota = len(reconhecidas)
+        if nota > melhor_nota:
+            melhor_nota, melhor_linha = nota, i
+
+    # Nenhuma linha parece cabecalho: fica a primeira, e a mensagem de erro
+    # mais adiante explica o que faltou.
+    if melhor_linha is None:
+        melhor_linha = 0
+
+    cabecalhos = [_limpar_celula(v) for v in bruto.iloc[melhor_linha].tolist()]
+    tabela = bruto.iloc[melhor_linha + 1 :].copy()
+    tabela.columns = cabecalhos
+    tabela = tabela.reset_index(drop=True)
+
+    # Colunas sem nome sobram de titulo em celula mesclada; nao servem.
+    tabela = tabela.loc[:, [bool(c) for c in cabecalhos]]
+    # Guardado para a numeracao das linhas bater com a que a pessoa ve no Excel.
+    tabela.attrs["linha_do_cabecalho"] = melhor_linha
+    return tabela
 
 
 def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
@@ -226,19 +340,18 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
     minusculo = nome_arquivo.lower()
 
     if minusculo.endswith(".csv"):
-        tabela = _ler_csv(conteudo)
+        bruto = _ler_csv(conteudo)
     else:
         try:
-            tabela = pd.read_excel(BytesIO(conteudo), dtype=str, keep_default_na=False)
+            bruto = pd.read_excel(
+                BytesIO(conteudo), dtype=str, keep_default_na=False, header=None
+            )
         except Exception as erro:
             raise ValueError(
                 "Nao foi possivel ler o arquivo. Envie uma planilha .xlsx ou .csv."
             ) from erro
 
-    # O strip tira espaco; o translate tira os invisiveis que sobrariam.
-    tabela.columns = [
-        str(c).translate(INVISIVEIS).replace("\xa0", " ").strip() for c in tabela.columns
-    ]
+    tabela = _com_cabecalho(bruto)
     encontradas, ignoradas = _mapear_colunas(list(tabela.columns))
 
     # O codigo deixou de ser obrigatorio: as instituicoes mandam a lista sem
@@ -268,7 +381,9 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
             continue
 
         linha = LinhaLida(
-            linha=int(indice) + 2,  # +2: a linha 1 e o cabecalho e o indice comeca em 0
+            # +2 sobre o indice do cabecalho encontrado: a planilha conta a
+            # partir de 1 e o cabecalho ocupa uma linha.
+            linha=int(indice) + 2 + tabela.attrs.get("linha_do_cabecalho", 0),
             codigo=codigo,
             nome=nome,
             idade=_normalizar_idade(pegar("idade")) if encontradas.get("idade") else None,

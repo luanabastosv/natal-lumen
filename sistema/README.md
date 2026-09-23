@@ -162,7 +162,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 83 verificações
+./.venv/bin/python -m tests.test_criancas       # 89 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
@@ -365,6 +365,18 @@ No segundo passe os campos são procurados numa ordem definida, com `nome` por
 lado a lado acerta as duas: a instituição é reconhecida antes, e sobra a
 criança para `nome`.
 
+**O cabeçalho não precisa estar na primeira linha.** Planilha que começa com
+título, subtítulo e linha em branco é comum. O importador procura nas dez
+primeiras linhas e escolhe a que reconhece mais colunas — exigindo, no mínimo,
+a de nome. A numeração das linhas na conferência continua batendo com a que
+aparece no Excel, para você achar o problema rápido.
+
+No CSV, o separador é testado um a um (`;` `,` tab `|`) em vez de adivinhado:
+com um título na primeira linha, o palpite automático do pandas corta por
+espaços. E as linhas são lidas com o módulo `csv` e igualadas em largura —
+senão um título de uma célula só faria o pandas esperar uma coluna e quebrar na
+linha do cabeçalho.
+
 **Formatos aceitos**, todos testados:
 
 | | |
@@ -372,6 +384,7 @@ criança para `nome`.
 | `.xlsx` | planilha do Excel |
 | `.csv` separado por `;` ou `,` | o separador é detectado sozinho |
 | sem coluna de código | o normal: a aplicação numera |
+| cabeçalho fora da primeira linha | título e subtítulo antes da tabela |
 | CSV UTF-8 **com BOM** | o que o Excel grava em "Salvar como > CSV UTF-8" |
 | CSV em Windows-1252 | Excel mais antigo em português |
 

@@ -7,12 +7,7 @@ import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useSessao } from "../contexts/useSessao.js";
-import {
-  definirDiaDaInstituicao,
-  listarDias,
-  listarEdicoes,
-  listarInstituicoes,
-} from "../services/cadastros.js";
+import { listarEdicoes, listarInstituicoes } from "../services/cadastros.js";
 import {
   apagarCrianca,
   criarCrianca,
@@ -39,7 +34,6 @@ export default function Criancas() {
   const [edicoes, definirEdicoes] = useState([]);
   const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [instituicoes, definirInstituicoes] = useState([]);
-  const [dias, definirDias] = useState([]);
   const [abas, definirAbas] = useState([]);
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
 
@@ -80,15 +74,14 @@ export default function Criancas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Abas e dias mudam quando a edicao muda.
+  // As abas mudam quando a edicao muda.
   useEffect(() => {
     if (!edicaoId) return;
     let vivo = true;
-    Promise.all([resumoInstituicoes(edicaoId), listarDias(edicaoId)])
-      .then(([resumo, ds]) => {
+    resumoInstituicoes(edicaoId)
+      .then((resumo) => {
         if (!vivo) return;
         definirAbas(resumo);
-        definirDias(ds);
       })
       .catch((e) => vivo && definirErro(e.message));
     return () => {
@@ -149,26 +142,6 @@ export default function Criancas() {
     }
   }
 
-  async function salvarDiaDaInstituicao(valor) {
-    definirErro("");
-    try {
-      const r = await definirDiaDaInstituicao(
-        Number(edicaoId),
-        Number(abaAtiva),
-        valor ? Number(valor) : null,
-      );
-      definirSucesso(
-        valor
-          ? `${r.instituicao} vai no dia escolhido. ${r.criancas_atualizadas} criança(s) atualizada(s).`
-          : `${r.instituicao} ficou sem dia.`,
-      );
-      buscar();
-      recarregarAbas();
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
   async function aplicarRenumerar() {
     definirErro("");
     try {
@@ -215,8 +188,6 @@ export default function Criancas() {
   const edicao = edicoes.find((e) => String(e.id) === String(edicaoId));
   const instituicoesDaCidade = instituicoes.filter((i) => i.cidade_id === edicao?.cidade_id);
 
-  const abaSelecionada = abas.find((a) => String(a.instituicao_id) === String(abaAtiva));
-  const podeGerenciarCadastros = pode("gerenciar_cadastros");
   const totalGeral = abas.reduce((soma, a) => soma + a.criancas, 0);
   const totalPaginas = Math.max(1, Math.ceil(criancas.total / POR_PAGINA));
 
@@ -374,32 +345,6 @@ export default function Criancas() {
               </span>
             </button>
           ))}
-        </div>
-      )}
-
-      {abaAtiva !== TODAS && (
-        <div className="painel">
-          <div className="linha-campos">
-            <Selecao
-              rotulo="Dia do evento desta instituição"
-              value={abaSelecionada?.dia_evento_id ?? ""}
-              onChange={(e) => salvarDiaDaInstituicao(e.target.value)}
-              disabled={!podeGerenciarCadastros}
-              dica={
-                dias.length === 0
-                  ? "Esta edição ainda não tem dias cadastrados."
-                  : "Todas as crianças desta instituição vão no mesmo dia."
-              }
-            >
-              <option value="">Sem dia definido</option>
-              {dias.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatarData(d.data)}
-                  {d.descricao ? ` · ${d.descricao}` : ""}
-                </option>
-              ))}
-            </Selecao>
-          </div>
         </div>
       )}
 

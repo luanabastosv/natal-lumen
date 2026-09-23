@@ -95,6 +95,13 @@ def planilha(linhas: list[dict]) -> bytes:
     return buf.getvalue()
 
 
+def planilha_crua(linhas: list[list]) -> bytes:
+    """Planilha linha a linha, para montar cabecalho fora da primeira linha."""
+    buf = io.BytesIO()
+    pd.DataFrame(linhas).to_excel(buf, index=False, header=False)
+    return buf.getvalue()
+
+
 def main() -> None:
     db = SessionLocal()
     log_inicial = db.scalar(select(func.max(LogAtividade.id))) or 0
@@ -429,6 +436,63 @@ def main() -> None:
         verifica("importa planilha com cabecalho em maiusculas",
                  r.status_code == 200 and r.json()["validas"] == 1,
                  f"{r.status_code} {r.text[:120]}")
+
+        print("\nCabecalho fora da primeira linha")
+        # Planilha com titulo, subtitulo e linha em branco antes da tabela e
+        # comum. Assumir a primeira linha faria o titulo virar nome de coluna.
+        com_titulo = planilha_crua([
+            ["OBRA LUMEN SER FELIZ", "", ""],
+            ["Lista de criancas 2026", "", ""],
+            ["", "", ""],
+            ["NOME COMPLETO", "IDADE", "SEXO"],
+            ["Titulo Deslocado Um", "4", "F"],
+            ["Titulo Deslocado Dois", "6", "M"],
+        ])
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("com_titulo.xlsx", com_titulo, "application/vnd.ms-excel")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        verifica("acha o cabecalho na 4a linha", r.status_code == 200, r.text[:140])
+        previa_titulo = r.json() if r.status_code == 200 else {}
+
+        if previa_titulo:
+            verifica("le so as 2 criancas, nao o titulo",
+                     previa_titulo["total"] == 2, str(previa_titulo["total"]))
+            verifica("reconhece as colunas do cabecalho deslocado",
+                     previa_titulo["colunas_reconhecidas"].get("nome") == "NOME COMPLETO",
+                     str(previa_titulo["colunas_reconhecidas"]))
+            # A numeracao tem de bater com a que a pessoa ve no Excel.
+            linhas_ditas = sorted(l["linha"] for l in previa_titulo["linhas"])
+            verifica("numera as linhas como o Excel mostra (5 e 6)",
+                     linhas_ditas == [5, 6], str(linhas_ditas))
+
+        # Cabecalho na segunda linha, o caso mais comum.
+        segunda = planilha_crua([
+            ["LISTA DE CRIANCAS - 2026", "", ""],
+            ["Nome", "Idade", "Sexo"],
+            ["Segunda Linha Teste", "5", "F"],
+        ])
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("segunda.xlsx", segunda, "application/vnd.ms-excel")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        verifica("acha o cabecalho na 2a linha",
+                 r.status_code == 200 and r.json()["total"] == 1,
+                 f"{r.status_code} {r.text[:110]}")
+
+        # Em CSV tambem.
+        csv_titulo = ("Relatorio da instituicao\n\nNome;Idade;Sexo\n"
+                      "Csv Deslocado Teste;7;M\n").encode("utf-8-sig")
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("desloc.csv", csv_titulo, "text/csv")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        verifica("funciona em CSV tambem",
+                 r.status_code == 200 and r.json()["total"] == 1,
+                 f"{r.status_code} {r.text[:110]}")
 
         print("\nPlanilha sem as colunas minimas")
         ruim = planilha([{"Alguma Coisa": "x", "Outra": "y"}])
