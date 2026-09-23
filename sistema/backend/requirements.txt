@@ -10,6 +10,7 @@ psycopg==3.3.6
 psycopg-binary==3.3.6
 
 # Configuracao e validacao
+email-validator==2.3.0
 pydantic==2.13.5
 pydantic-settings==2.15.0
 python-dotenv==1.2.3
@@ -31,3 +32,6 @@ qrcode[pil]==8.2
 opencv-python==5.0.0.93
 easyocr==1.7.2
 pillow==12.3.0
+
+# Testes
+httpx2==2.13.0

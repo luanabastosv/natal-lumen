@@ -32,6 +32,8 @@ class Config(BaseSettings):
     bloqueio_minutos: int = 15
 
     cookie_nome: str = "nl_sessao"
+    # Cookie legivel pelo frontend, com o token CSRF (o da sessao e httpOnly).
+    cookie_csrf: str = "nl_csrf"
     cookie_path: str = "/acesso"
 
     # --- Publicacao ---
