@@ -7,11 +7,20 @@ import EmBreve from "./pages/EmBreve.jsx";
 import EsqueciSenha from "./pages/EsqueciSenha.jsx";
 import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
+import CidadesEdicoes from "./pages/CidadesEdicoes.jsx";
+import Instituicoes from "./pages/Instituicoes.jsx";
 import Painel from "./pages/Painel.jsx";
+import Usuarios from "./pages/Usuarios.jsx";
 import RotaProtegida from "./routes/RotaProtegida.jsx";
 
-// As secoes que ainda nao existem: entram nas fases seguintes, uma a uma.
-const EM_CONSTRUCAO = ITENS_MENU.filter((i) => i.para !== "/painel");
+// Telas ja construidas. O resto do menu ainda mostra "em construcao".
+const PRONTAS = {
+  "/usuarios": <Usuarios />,
+  "/instituicoes": <Instituicoes />,
+  "/cidades-edicoes": <CidadesEdicoes />,
+};
+
+const SECOES = ITENS_MENU.filter((i) => i.para !== "/painel");
 
 export default function App() {
   return (
@@ -36,13 +45,13 @@ export default function App() {
             <Route index element={<Navigate to="/painel" replace />} />
             <Route path="/painel" element={<Painel />} />
 
-            {EM_CONSTRUCAO.map((item) => (
+            {SECOES.map((item) => (
               <Route
                 key={item.para}
                 path={item.para}
                 element={
-                  <RotaProtegida permissao={item.permissao}>
-                    <EmBreve />
+                  <RotaProtegida permissao={item.permissao} apenasAdmin={item.apenasAdmin}>
+                    {PRONTAS[item.para] ?? <EmBreve />}
                   </RotaProtegida>
                 }
               />

@@ -244,7 +244,13 @@ def main() -> None:
         verifica("login correto devolve 200", r.status_code == 200, r.text[:120])
 
         corpo = r.json()
-        verifica("resposta traz as permissoes do usuario", len(corpo["permissoes"]) == 13)
+        from app.seeds.perfis_permissoes import PERMISSOES
+
+        verifica(
+            "coordenacao recebe todas as permissoes",
+            len(corpo["permissoes"]) == len(PERMISSOES),
+            f'{len(corpo["permissoes"])} de {len(PERMISSOES)}',
+        )
         verifica("resposta traz o vinculo com a edicao", len(corpo["vinculos"]) == 1)
         verifica(
             "vinculo mostra cidade, ano e perfil",

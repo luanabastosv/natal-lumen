@@ -232,3 +232,147 @@
   font-weight: var(--weight-h5);
   color: var(--color-primary);
 }
+
+/* ---------- Paineis e barras de acao ---------- */
+.painel {
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  background: var(--surface-card);
+}
+
+.painel--destaque {
+  border-color: var(--amber-300);
+  background: var(--amber-100);
+}
+
+.painel__titulo {
+  font-size: var(--size-h5);
+  font-weight: var(--weight-h5);
+  color: var(--text-on-light-primary);
+  margin: 0 0 var(--space-4);
+}
+
+.barra-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.barra-acoes--fim {
+  margin-top: var(--space-4);
+  margin-bottom: 0;
+}
+
+/* Duas colunas que viram uma no celular. */
+.linha-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 var(--space-4);
+}
+
+/* ---------- Etiquetas de estado ---------- */
+.etiqueta {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.etiqueta--ok {
+  background: var(--navy-100);
+  color: var(--color-primary);
+}
+
+.etiqueta--espera {
+  background: var(--amber-100);
+  color: var(--amber-900);
+}
+
+.etiqueta--parado {
+  background: #fdecec;
+  color: #8f2c2c;
+}
+
+.etiqueta--neutra {
+  background: var(--cream-100);
+  color: var(--text-on-light-muted);
+}
+
+/* ---------- Lista de instituicoes marcaveis ---------- */
+.marcaveis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.marcavel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-secondary);
+  background: var(--white);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.marcavel--marcado {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--navy-100);
+}
+
+.marcavel input {
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* ---------- Link copiavel ---------- */
+.link-copiavel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.link-copiavel code {
+  flex: 1;
+  min-width: 240px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--white);
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  word-break: break-all;
+}
+
+/* ---------- Linhas de detalhe dentro da tabela ---------- */
+.detalhe-vinculo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.detalhe-vinculo:last-child {
+  margin-bottom: 0;
+}
+
+.detalhe-vinculo__edicao {
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}

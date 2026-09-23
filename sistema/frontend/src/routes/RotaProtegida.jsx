@@ -8,8 +8,8 @@ import { useSessao } from "../contexts/useSessao.js";
  * Esconder a rota e conveniencia de navegacao. A porta de verdade e o backend:
  * cada rota da API confere a permissao por conta propria.
  */
-export default function RotaProtegida({ permissao, children }) {
-  const { autenticado, carregando, pode } = useSessao();
+export default function RotaProtegida({ permissao, apenasAdmin = false, children }) {
+  const { autenticado, carregando, pode, usuario } = useSessao();
   const local = useLocation();
 
   if (carregando) {
@@ -19,6 +19,15 @@ export default function RotaProtegida({ permissao, children }) {
   if (!autenticado) {
     // Guarda de onde veio, para voltar para ca depois de entrar.
     return <Navigate to="/entrar" replace state={{ de: local.pathname }} />;
+  }
+
+  if (apenasAdmin && !usuario?.admin_geral) {
+    return (
+      <EmptyState
+        titulo="Seção da administração geral"
+        corpo="Cidades e edições são criadas pela administração geral do projeto."
+      />
+    );
   }
 
   if (permissao && !pode(permissao)) {

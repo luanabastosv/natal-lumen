@@ -43,8 +43,14 @@ class Usuario(Base):
     bloqueado_ate: Mapped[MomentoOpcional]
     criado_em: Mapped[CriadoEm]
 
-    edicoes: Mapped[list["UsuarioEdicao"]] = relationship(back_populates="usuario")
-    tokens: Mapped[list["TokenAcesso"]] = relationship(back_populates="usuario")
+    # passive_deletes deixa o CASCADE do banco fazer o trabalho. Sem isso o
+    # SQLAlchemy tenta anular usuario_id, que e NOT NULL, e a remocao quebra.
+    edicoes: Mapped[list["UsuarioEdicao"]] = relationship(
+        back_populates="usuario", cascade="all, delete-orphan", passive_deletes=True
+    )
+    tokens: Mapped[list["TokenAcesso"]] = relationship(
+        back_populates="usuario", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     @property
     def tem_senha(self) -> bool:
@@ -116,7 +122,7 @@ class UsuarioEdicao(Base):
     edicao: Mapped["Edicao"] = relationship(back_populates="usuarios")  # noqa: F821
     perfil: Mapped[Perfil] = relationship()
     instituicoes: Mapped[list["UsuarioInstituicao"]] = relationship(
-        back_populates="usuario_edicao", cascade="all, delete-orphan"
+        back_populates="usuario_edicao", cascade="all, delete-orphan", passive_deletes=True
     )
 
 

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import config
-from app.routers import auth
+from app.routers import auth, cidades, edicoes, instituicoes, perfis, usuarios
 
 app = FastAPI(
     title="Sistema Natal Lumen",
@@ -28,7 +28,15 @@ if config.origens_permitidas:
         allow_headers=["*"],
     )
 
-app.include_router(auth.router)
+for router in (
+    auth.router,
+    cidades.router,
+    edicoes.router,
+    instituicoes.router,
+    perfis.router,
+    usuarios.router,
+):
+    app.include_router(router)
 
 
 @app.get("/saude", tags=["infra"])

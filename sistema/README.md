@@ -13,7 +13,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 1 | Fundação do backend: 19 tabelas, migrations, seed de perfis | **pronta** |
 | 2 | Autenticação e autorização | **pronta** |
 | 3 | Fundação do frontend | **pronta** |
-| 4 | Cadastros base (cidades, edições, instituições, usuários) | a fazer |
+| 4 | Cadastros base (cidades, edições, instituições, usuários) | **pronta** |
 | 5 | Crianças e importação de listas | a fazer |
 | 6 | Padrinhos, apadrinhamentos e pagamentos | a fazer |
 | 7 | Cartões: digitalização, OCR e envio | a fazer |
@@ -95,6 +95,18 @@ alterados sem mexer no código.
 cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
+./.venv/bin/python -m tests.test_cadastros      # 33 verificações
+```
+
+`test_cadastros` cobre quem pode o quê nos cadastros: só a administração geral
+cria cidades, edições e coordenadores; a coordenação só mexe na própria cidade;
+e a instituição atribuída tem de ser da cidade da edição.
+
+Se algum teste for interrompido no meio, ou depois de mexer no sistema pelo
+navegador, limpe o que ficou:
+
+```bash
+./.venv/bin/python -m tests.limpar_dados_de_teste
 ```
 
 `test_esquema` valida as restrições do banco com dados reais (um padrinho em
@@ -128,6 +140,19 @@ cd backend
 ```
 
 Documentação interativa em <http://localhost:8000/docs> (desligada em produção).
+
+### Como a equipe entra no sistema
+
+1. A coordenação cadastra a pessoa em **Usuários**, escolhendo edição e perfil.
+   Para comissário e monitor, marca também as instituições pelas quais ela
+   responde.
+2. O sistema devolve um **link de primeiro acesso**, de uso único, válido por 72
+   horas. A coordenação o envia à pessoa — em geral por WhatsApp.
+3. A pessoa abre o link e define a própria senha. A senha nunca passa pela
+   coordenação.
+
+Se o link expirar ou se perder, o botão **Gerar link** cria outro e invalida o
+anterior. Ele também solta a conta de um bloqueio por tentativas falhas.
 
 ### Rotas de autenticação
 
@@ -227,13 +252,16 @@ npm run preview  # serve o build
 
 ### Telas
 
-| Rota | O que é |
-| --- | --- |
-| `/acesso/entrar` | Login |
-| `/acesso/definir-senha?token=...` | Primeiro acesso e redefinição de senha |
-| `/acesso/esqueci-senha` | Pede o link de redefinição |
-| `/acesso/painel` | Painel inicial, com atalhos do que o perfil alcança |
-| `/acesso/criancas` e demais | Espaços reservados das próximas fases |
+| Rota | O que é | Quem alcança |
+| --- | --- | --- |
+| `/acesso/entrar` | Login | qualquer um |
+| `/acesso/definir-senha?token=...` | Primeiro acesso e redefinição de senha | quem tem o link |
+| `/acesso/esqueci-senha` | Pede o link de redefinição | qualquer um |
+| `/acesso/painel` | Painel inicial, com atalhos do que o perfil alcança | com sessão |
+| `/acesso/usuarios` | Equipe, vínculos e instituições atribuídas | `gerenciar_usuarios` |
+| `/acesso/instituicoes` | Instituições da cidade | `gerenciar_cadastros` |
+| `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
+| `/acesso/criancas` e demais | Espaços reservados das próximas fases | conforme o perfil |
 
 `/acesso` sem sessão cai no login; com sessão, vai para o painel.
 

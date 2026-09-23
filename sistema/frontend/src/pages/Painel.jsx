@@ -11,7 +11,9 @@ export default function Painel() {
   const { usuario, pode, vinculoAtivo } = useSessao();
 
   // O proprio painel ja esta aberto: nao faz sentido apontar para ele.
-  const atalhos = itensVisiveis(pode).filter((i) => i.para !== "/painel");
+  const atalhos = itensVisiveis(pode, Boolean(usuario?.admin_geral)).filter(
+    (i) => i.para !== "/painel",
+  );
 
   return (
     <div>

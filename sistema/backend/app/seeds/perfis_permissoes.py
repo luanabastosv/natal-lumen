@@ -14,6 +14,9 @@ from app.database import SessionLocal
 from app.models import Perfil, Permissao
 
 # codigo -> descricao
+# gerenciar_cadastros nao estava na lista original da especificacao: foi
+# acrescentada porque instituicoes e dias do evento precisavam de dono. Vai
+# so para a Coordenacao, entao na pratica nada mudou de alcance.
 PERMISSOES: dict[str, str] = {
     "ver_painel": "Ver o painel inicial e os indicadores da edicao",
     "ver_criancas": "Ver a lista e os dados das criancas",
@@ -28,6 +31,7 @@ PERMISSOES: dict[str, str] = {
     "gerenciar_compras": "Registrar as compras da edicao",
     "fazer_checkin": "Fazer o check-in das criancas no dia do evento",
     "gerenciar_usuarios": "Criar usuarios e definir vinculos, perfis e instituicoes",
+    "gerenciar_cadastros": "Cadastrar instituicoes e os dias do evento da edicao",
 }
 
 # nome do perfil -> (descricao, permissoes)

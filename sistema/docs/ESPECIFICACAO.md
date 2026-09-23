@@ -50,7 +50,7 @@ Acesso:
 - log_atividades: id, usuario_id, acao, tabela, registro_id, detalhes (json), criado_em
 
 ## Perfis e permissões
-Permissões: importar_listas, editar_criancas, ver_criancas, gerenciar_usuarios, subir_cartoes, ver_padrinhos, editar_padrinhos, registrar_pagamentos, enviar_cartoes, gerenciar_kits, gerenciar_compras, fazer_checkin, ver_painel.
+Permissões: importar_listas, editar_criancas, ver_criancas, gerenciar_usuarios, subir_cartoes, ver_padrinhos, editar_padrinhos, registrar_pagamentos, enviar_cartoes, gerenciar_kits, gerenciar_compras, fazer_checkin, ver_painel, gerenciar_cadastros.
 - Coordenação da cidade: todas as permissões, limitadas às suas edições.
 - Comissário: ver_criancas, ver_padrinhos, editar_padrinhos, registrar_pagamentos, enviar_cartoes, fazer_checkin.
 - Monitor: ver_criancas, subir_cartoes, fazer_checkin.
@@ -123,3 +123,21 @@ permitia. A restrição única de `apadrinhamentos` é `(crianca_id, tipo)`, ist
 limita a criança a um padrinho de cesta e um de festa; não limita quantas vezes o
 mesmo `padrinho_id` aparece. O texto da tabela foi apenas explicitado para não
 deixar dúvida.
+
+### 2026-09-23 — Nova permissão: gerenciar_cadastros
+
+Decidido durante a fase 4. A lista original tinha 13 permissões e nenhuma cobria
+**instituições** e **dias do evento**, que a coordenação precisa gerenciar.
+
+| | Versão inicial | Agora |
+| --- | --- | --- |
+| Instituições e dias do evento | sem permissão definida | `gerenciar_cadastros`, só na Coordenação |
+| Total de permissões | 13 | 14 |
+
+Na prática nada mudou de alcance: a Coordenação já recebia todas as permissões,
+e os outros perfis não recebem esta. A mudança é de legibilidade — a rota passa
+a declarar `exige_permissao("gerenciar_cadastros")` em vez de pegar carona numa
+permissão de nome errado.
+
+Cidades e edições continuam restritas ao `admin_geral`, sem permissão própria,
+como a especificação define.

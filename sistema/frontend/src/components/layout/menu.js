@@ -13,8 +13,13 @@ export const ITENS_MENU = [
   { para: "/compras", rotulo: "Compras", permissao: "gerenciar_compras" },
   { para: "/checkin", rotulo: "Check-in", permissao: "fazer_checkin" },
   { para: "/usuarios", rotulo: "Usuários", permissao: "gerenciar_usuarios" },
+  { para: "/instituicoes", rotulo: "Instituições", permissao: "gerenciar_cadastros" },
+  // Cidades e edicoes nao tem permissao propria: sao da administracao geral.
+  { para: "/cidades-edicoes", rotulo: "Cidades e edições", apenasAdmin: true },
 ];
 
-export function itensVisiveis(pode) {
-  return ITENS_MENU.filter((item) => pode(item.permissao));
+export function itensVisiveis(pode, admin = false) {
+  return ITENS_MENU.filter((item) =>
+    item.apenasAdmin ? admin : pode(item.permissao),
+  );
 }
