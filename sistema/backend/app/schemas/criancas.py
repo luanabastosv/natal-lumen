@@ -38,9 +38,13 @@ class CriancaOut(BaseModel):
     dia_evento: date | None
     observacoes: str | None
     checkin_em: datetime | None
-    # Preenchidos nas fases seguintes; aqui ainda saem vazios.
+
+    # O panorama da crianca, para a tela ser um painel de controle e nao so
+    # uma lista de nomes.
     tem_padrinho_cesta: bool = False
     tem_padrinho_festa: bool = False
+    cartoes: int = 0
+    kit_status: str = "pendente"
 
 
 class PaginaCriancas(BaseModel):
@@ -78,3 +82,24 @@ class PreviaImportacao(BaseModel):
 class ResultadoImportacao(BaseModel):
     importadas: int
     ignoradas: int
+
+
+class CriancasEmLote(BaseModel):
+    """Mudanca aplicada a varias criancas de uma vez."""
+
+    criancas: list[int] = Field(min_length=1)
+    # None e um valor legitimo: tira a crianca do dia.
+    dia_evento_id: int | None = None
+    definir_dia: bool = False
+    instituicao_id: int | None = None
+
+
+class ResumoInstituicao(BaseModel):
+    """Uma aba da tela de criancas."""
+
+    instituicao_id: int
+    instituicao: str
+    criancas: int
+    sem_padrinho: int
+    sem_cartao: int
+    sem_dia: int

@@ -13,6 +13,9 @@ export function listarCriancas(filtros = {}) {
 }
 
 export const criarCrianca = (dados) => api.post("/criancas", dados);
+export const resumoInstituicoes = (edicaoId) =>
+  api.get(`/criancas/resumo-instituicoes?edicao_id=${edicaoId}`);
+export const editarEmLote = (dados) => api.post("/criancas/lote", dados);
 export const editarCrianca = (id, dados) => api.patch(`/criancas/${id}`, dados);
 export const apagarCrianca = (id) => api.delete(`/criancas/${id}`);
 

@@ -9,21 +9,23 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import config
 from app.database import get_db
-from app.models import Crianca, DiaEvento, Edicao, Instituicao
+from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Edicao, Instituicao, Kit
 from app.schemas.criancas import (
     CriancaEditar,
     CriancaIn,
     CriancaOut,
+    CriancasEmLote,
     LinhaImportada,
     PaginaCriancas,
     PreviaImportacao,
     ResultadoImportacao,
+    ResumoInstituicao,
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
@@ -41,7 +43,8 @@ Importar = Annotated[ContextoAcesso, Depends(exige_permissao("importar_listas"))
 PASTA_IMPORTACOES = config.caminho_arquivos / "importacoes"
 
 
-def _saida(crianca: Crianca) -> CriancaOut:
+def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
+    extra = panorama or {}
     return CriancaOut(
         id=crianca.id,
         edicao_id=crianca.edicao_id,
@@ -55,7 +58,43 @@ def _saida(crianca: Crianca) -> CriancaOut:
         dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
+        tem_padrinho_cesta=extra.get("cesta", False),
+        tem_padrinho_festa=extra.get("festa", False),
+        cartoes=extra.get("cartoes", 0),
+        kit_status=extra.get("kit", "pendente"),
     )
+
+
+def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
+    """Padrinhos, cartoes e kit de varias criancas, em 3 consultas.
+
+    Buscar isso crianca por crianca daria 4500 consultas numa edicao de 1500 —
+    a tela nunca abriria.
+    """
+    if not ids:
+        return {}
+
+    dados: dict[int, dict] = {i: {} for i in ids}
+
+    for crianca_id, tipo in db.execute(
+        select(Apadrinhamento.crianca_id, Apadrinhamento.tipo)
+        .where(Apadrinhamento.crianca_id.in_(ids))
+    ).all():
+        dados[crianca_id][tipo] = True
+
+    for crianca_id, quantos in db.execute(
+        select(Cartao.crianca_id, func.count())
+        .where(Cartao.crianca_id.in_(ids))
+        .group_by(Cartao.crianca_id)
+    ).all():
+        dados[crianca_id]["cartoes"] = quantos
+
+    for crianca_id, estado in db.execute(
+        select(Kit.crianca_id, Kit.status).where(Kit.crianca_id.in_(ids))
+    ).all():
+        dados[crianca_id]["kit"] = estado
+
+    return dados
 
 
 def _buscar(db: Session, ctx: ContextoAcesso, crianca_id: int, permissao: str) -> Crianca:
@@ -134,10 +173,130 @@ def listar(
         )
         db.commit()
 
+    panorama = _panorama(db, [c.id for c in itens])
+
     return PaginaCriancas(
         total=total, pagina=pagina, por_pagina=por_pagina,
-        itens=[_saida(c) for c in itens],
+        itens=[_saida(c, panorama.get(c.id)) for c in itens],
     )
+
+
+@router.get("/resumo-instituicoes", response_model=list[ResumoInstituicao])
+def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
+    """As abas da tela de criancas, com o que falta em cada instituicao.
+
+    Numa edicao de 20 instituicoes, a coordenacao precisa saber de longe onde
+    esta o atraso — nao abrir aba por aba para descobrir.
+    """
+    alcance = ctx.filtro_criancas("ver_criancas") & (Crianca.edicao_id == edicao_id)
+
+    com_padrinho = (
+        select(Apadrinhamento.crianca_id)
+        .where(Apadrinhamento.crianca_id == Crianca.id)
+        .exists()
+    )
+    com_cartao = (
+        select(Cartao.crianca_id).where(Cartao.crianca_id == Crianca.id).exists()
+    )
+
+    linhas = db.execute(
+        select(
+            Crianca.instituicao_id,
+            Instituicao.nome,
+            func.count(Crianca.id),
+            func.count(case((~com_padrinho, Crianca.id))),
+            func.count(case((~com_cartao, Crianca.id))),
+            func.count(case((Crianca.dia_evento_id.is_(None), Crianca.id))),
+        )
+        .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
+        .where(alcance)
+        .group_by(Crianca.instituicao_id, Instituicao.nome)
+        .order_by(Instituicao.nome)
+    ).all()
+
+    return [
+        ResumoInstituicao(
+            instituicao_id=i, instituicao=nome, criancas=total,
+            sem_padrinho=sp, sem_cartao=sc, sem_dia=sd,
+        )
+        for i, nome, total, sp, sc, sd in linhas
+    ]
+
+
+@router.post("/lote", response_model=list[CriancaOut])
+def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
+    """Muda varias criancas de uma vez.
+
+    Distribuir 1500 criancas pelos dias do evento uma a uma nao e trabalho que
+    alguem faca — por isso o lote.
+    """
+    criancas = db.scalars(
+        select(Crianca)
+        .where(Crianca.id.in_(dados.criancas), ctx.filtro_criancas("editar_criancas"))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+    ).all()
+
+    if len(criancas) != len(set(dados.criancas)):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Ha criancas que voce nao alcanca ou que nao existem."
+        )
+
+    if dados.definir_dia and dados.dia_evento_id is not None:
+        dia = db.get(DiaEvento, dados.dia_evento_id)
+        if dia is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Dia nao encontrado.")
+        # Um dia de outra edicao deixaria a crianca marcada num evento que nao
+        # e o dela.
+        if any(dia.edicao_id != c.edicao_id for c in criancas):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Este dia nao e da mesma edicao das criancas.",
+            )
+
+    if dados.instituicao_id is not None:
+        instituicao = db.get(Instituicao, dados.instituicao_id)
+        if instituicao is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+        for c in criancas:
+            if not ctx.alcanca_instituicao(c.edicao_id, dados.instituicao_id):
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN,
+                    "Esta instituicao nao esta sob sua responsabilidade.",
+                )
+
+    mudou = []
+    for crianca in criancas:
+        if dados.definir_dia:
+            crianca.dia_evento_id = dados.dia_evento_id
+            mudou.append("dia_evento_id")
+        if dados.instituicao_id is not None:
+            crianca.instituicao_id = dados.instituicao_id
+            mudou.append("instituicao_id")
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Mudar de instituicao esbarrou num codigo que ja existe la.",
+        )
+
+    registrar(
+        db, "criancas_em_lote", usuario_id=ctx.usuario.id,
+        tabela="criancas",
+        detalhes={"quantas": len(criancas), "campos": sorted(set(mudou))},
+    )
+    db.commit()
+
+    atualizadas = db.scalars(
+        select(Crianca)
+        .where(Crianca.id.in_([c.id for c in criancas]))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .order_by(Crianca.nome)
+    ).all()
+    panorama = _panorama(db, [c.id for c in atualizadas])
+    return [_saida(c, panorama.get(c.id)) for c in atualizadas]
 
 
 @router.get("/{crianca_id}", response_model=CriancaOut)

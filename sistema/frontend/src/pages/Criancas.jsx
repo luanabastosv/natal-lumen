@@ -1,26 +1,43 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes, listarInstituicoes } from "../services/cadastros.js";
-import { apagarCrianca, criarCrianca, listarCriancas } from "../services/criancas.js";
+import { listarDias, listarEdicoes, listarInstituicoes } from "../services/cadastros.js";
+import {
+  apagarCrianca,
+  criarCrianca,
+  editarCrianca,
+  editarEmLote,
+  listarCriancas,
+  resumoInstituicoes,
+} from "../services/criancas.js";
+import { formatarData } from "../utils/dinheiro.js";
 import ImportarLista from "./ImportarLista.jsx";
 
-const POR_PAGINA = 25;
+const POR_PAGINA = 100;
+const TODAS = "todas";
 const NOVA = { instituicao_id: "", codigo: "", nome: "", idade: "", sexo: "F" };
+
+const SEXOS = [
+  { valor: "F", rotulo: "F" },
+  { valor: "M", rotulo: "M" },
+];
 
 export default function Criancas() {
   const { pode, edicaoAtiva } = useSessao();
 
-  const [criancas, definirCriancas] = useState({ itens: [], total: 0 });
   const [edicoes, definirEdicoes] = useState([]);
-  const [instituicoes, definirInstituicoes] = useState([]);
-
   const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
-  const [instituicaoId, definirInstituicaoId] = useState("");
+  const [instituicoes, definirInstituicoes] = useState([]);
+  const [dias, definirDias] = useState([]);
+  const [abas, definirAbas] = useState([]);
+  const [abaAtiva, definirAbaAtiva] = useState(TODAS);
+
+  const [criancas, definirCriancas] = useState({ itens: [], total: 0 });
   const [busca, definirBusca] = useState("");
   const [codigo, definirCodigo] = useState("");
   const [pagina, definirPagina] = useState(1);
@@ -28,10 +45,16 @@ export default function Criancas() {
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
   const [sucesso, definirSucesso] = useState("");
+
+  const [marcadas, definirMarcadas] = useState([]);
+  const [diaDoLote, definirDiaDoLote] = useState("");
+
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(NOVA);
   const [salvando, definirSalvando] = useState(false);
   const [importando, definirImportando] = useState(false);
+
+  const podeEditar = pode("editar_criancas");
 
   useEffect(() => {
     let vivo = true;
@@ -49,14 +72,28 @@ export default function Criancas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Abas e dias mudam quando a edicao muda.
+  useEffect(() => {
+    if (!edicaoId) return;
+    let vivo = true;
+    Promise.all([resumoInstituicoes(edicaoId), listarDias(edicaoId)])
+      .then(([resumo, ds]) => {
+        if (!vivo) return;
+        definirAbas(resumo);
+        definirDias(ds);
+      })
+      .catch((e) => vivo && definirErro(e.message));
+    return () => {
+      vivo = false;
+    };
+  }, [edicaoId]);
+
   const buscar = useCallback(async () => {
-    definirCarregando(true);
-    definirErro("");
     try {
       definirCriancas(
         await listarCriancas({
           edicao_id: edicaoId,
-          instituicao_id: instituicaoId,
+          instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
           busca,
           codigo,
           pagina,
@@ -68,22 +105,64 @@ export default function Criancas() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId, instituicaoId, busca, codigo, pagina]);
+  }, [edicaoId, abaAtiva, busca, codigo, pagina]);
 
   useEffect(() => {
     if (edicaoId) buscar();
-  }, [edicaoId, instituicaoId, pagina, buscar]);
+  }, [edicaoId, abaAtiva, pagina, buscar]);
 
-  const edicao = edicoes.find((e) => String(e.id) === String(edicaoId));
-  const instituicoesDaCidade = instituicoes.filter((i) => i.cidade_id === edicao?.cidade_id);
-
-  function aoFiltrar(evento) {
-    evento.preventDefault();
-    definirPagina(1);
-    buscar();
+  async function recarregarAbas() {
+    try {
+      definirAbas(await resumoInstituicoes(edicaoId));
+    } catch {
+      // A planilha e o que importa; as abas atualizam na proxima troca.
+    }
   }
 
-  async function salvar(evento) {
+  /** Salva uma celula e atualiza só aquela linha, sem recarregar a tabela. */
+  async function salvarCampo(crianca, campo, valor) {
+    const atualizada = await editarCrianca(crianca.id, { [campo]: valor });
+    definirCriancas((atual) => ({
+      ...atual,
+      itens: atual.itens.map((c) => (c.id === crianca.id ? atualizada : c)),
+    }));
+    if (campo === "dia_evento_id") recarregarAbas();
+  }
+
+  async function remover(crianca) {
+    definirErro("");
+    try {
+      await apagarCrianca(crianca.id);
+      definirSucesso(`${crianca.nome} removida.`);
+      buscar();
+      recarregarAbas();
+    } catch (e) {
+      definirErro(e.message);
+    }
+  }
+
+  async function aplicarDiaEmLote() {
+    definirErro("");
+    try {
+      await editarEmLote({
+        criancas: marcadas,
+        dia_evento_id: diaDoLote ? Number(diaDoLote) : null,
+        definir_dia: true,
+      });
+      definirSucesso(
+        diaDoLote
+          ? `${marcadas.length} criança(s) marcada(s) no dia.`
+          : `${marcadas.length} criança(s) sem dia.`,
+      );
+      definirMarcadas([]);
+      buscar();
+      recarregarAbas();
+    } catch (e) {
+      definirErro(e.message);
+    }
+  }
+
+  async function salvarNova(evento) {
     evento.preventDefault();
     definirErro("");
     definirSalvando(true);
@@ -97,9 +176,10 @@ export default function Criancas() {
         sexo: campos.sexo,
       });
       definirSucesso(`${campos.nome.trim()} cadastrada.`);
-      definirFormAberto(false);
       definirCampos(NOVA);
+      definirFormAberto(false);
       buscar();
+      recarregarAbas();
     } catch (e) {
       definirErro(e.message);
     } finally {
@@ -107,18 +187,29 @@ export default function Criancas() {
     }
   }
 
-  async function remover(crianca) {
-    definirErro("");
-    try {
-      await apagarCrianca(crianca.id);
-      definirSucesso(`${crianca.nome} removida.`);
-      buscar();
-    } catch (e) {
-      definirErro(e.message);
-    }
+  const edicao = edicoes.find((e) => String(e.id) === String(edicaoId));
+  const instituicoesDaCidade = instituicoes.filter((i) => i.cidade_id === edicao?.cidade_id);
+
+  const opcoesDia = useMemo(
+    () => [
+      { valor: "", rotulo: "sem dia" },
+      ...dias.map((d) => ({ valor: d.id, rotulo: formatarData(d.data) })),
+    ],
+    [dias],
+  );
+
+  const totalGeral = abas.reduce((soma, a) => soma + a.criancas, 0);
+  const totalPaginas = Math.max(1, Math.ceil(criancas.total / POR_PAGINA));
+
+  function alternar(id) {
+    definirMarcadas((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
   }
 
-  const totalPaginas = Math.max(1, Math.ceil(criancas.total / POR_PAGINA));
+  function marcarTodas() {
+    definirMarcadas(
+      marcadas.length === criancas.itens.length ? [] : criancas.itens.map((c) => c.id),
+    );
+  }
 
   if (importando) {
     return (
@@ -129,6 +220,7 @@ export default function Criancas() {
           definirImportando(false);
           if (quantas) definirSucesso(`${quantas} criança(s) importada(s).`);
           buscar();
+          recarregarAbas();
         }}
       />
     );
@@ -139,77 +231,37 @@ export default function Criancas() {
       <div className="pagina__eyebrow">Dados sensíveis</div>
       <h1 className="pagina__titulo">Crianças</h1>
       <p className="pagina__lede">
-        A lista mostra apenas as crianças que o seu perfil alcança. Todo acesso fica
-        registrado.
+        Uma aba por instituição. Clique em qualquer célula para editar — Enter salva e
+        desce, Esc desfaz.
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
       <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
-      <form className="painel" onSubmit={aoFiltrar}>
-        <div className="linha-campos">
-          <Selecao
-            rotulo="Edição"
-            value={edicaoId}
-            onChange={(e) => {
-              definirEdicaoId(e.target.value);
-              definirInstituicaoId("");
-              definirPagina(1);
-            }}
-          >
-            {edicoes.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome}</option>
-            ))}
-          </Selecao>
-          <Selecao
-            rotulo="Instituição"
-            value={instituicaoId}
-            onChange={(e) => {
-              definirInstituicaoId(e.target.value);
-              definirPagina(1);
-            }}
-          >
-            <option value="">Todas que eu alcanço</option>
-            {instituicoesDaCidade.map((i) => (
-              <option key={i.id} value={i.id}>{i.nome}</option>
-            ))}
-          </Selecao>
-          <Entrada
-            rotulo="Buscar por nome"
-            value={busca}
-            onChange={(e) => definirBusca(e.target.value)}
-            dica="Procura só dentro do que você alcança."
-          />
-          <Entrada
-            rotulo="Buscar por código exato"
-            value={codigo}
-            onChange={(e) => definirCodigo(e.target.value)}
-            dica="Alcança qualquer instituição da edição. O uso fica registrado."
-          />
-        </div>
-        <div className="barra-acoes barra-acoes--fim">
-          <Button type="submit" size="sm">Filtrar</Button>
-          {(busca || codigo) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                definirBusca("");
-                definirCodigo("");
-                definirPagina(1);
-              }}
-            >
-              Limpar
-            </Button>
-          )}
-        </div>
-      </form>
-
       <div className="barra-acoes">
-        {pode("editar_criancas") && (
+        <Selecao
+          value={edicaoId}
+          onChange={(e) => {
+            definirEdicaoId(e.target.value);
+            definirAbaAtiva(TODAS);
+            definirPagina(1);
+            definirMarcadas([]);
+          }}
+        >
+          {edicoes.map((e) => (
+            <option key={e.id} value={e.id}>{e.nome}</option>
+          ))}
+        </Selecao>
+
+        {podeEditar && (
           <Button
+            size="sm"
             onClick={() => {
-              definirCampos({ ...NOVA, instituicao_id: instituicoesDaCidade[0]?.id ?? "" });
+              definirCampos({
+                ...NOVA,
+                instituicao_id:
+                  abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
+              });
               definirFormAberto(true);
             }}
             disabled={instituicoesDaCidade.length === 0}
@@ -218,17 +270,95 @@ export default function Criancas() {
           </Button>
         )}
         {pode("importar_listas") && (
-          <Button variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
+          <Button size="sm" variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
             Importar lista
           </Button>
         )}
-        <span className="campo__dica" style={{ marginTop: 0 }}>
-          {criancas.total} criança(s)
-        </span>
       </div>
 
+      {/* Abas: uma por instituição, com o que falta em cada uma. */}
+      {abas.length > 0 && (
+        <div className="abas" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={abaAtiva === TODAS}
+            className={`aba ${abaAtiva === TODAS ? "aba--ativa" : ""}`}
+            onClick={() => {
+              definirAbaAtiva(TODAS);
+              definirPagina(1);
+              definirMarcadas([]);
+            }}
+          >
+            <span>Todas</span>
+            <span className="aba__contagem">{totalGeral} crianças</span>
+          </button>
+
+          {abas.map((a) => (
+            <button
+              key={a.instituicao_id}
+              type="button"
+              role="tab"
+              aria-selected={String(abaAtiva) === String(a.instituicao_id)}
+              className={`aba ${String(abaAtiva) === String(a.instituicao_id) ? "aba--ativa" : ""}`}
+              onClick={() => {
+                definirAbaAtiva(a.instituicao_id);
+                definirPagina(1);
+                definirMarcadas([]);
+              }}
+              title={`${a.sem_padrinho} sem padrinho · ${a.sem_cartao} sem cartão · ${a.sem_dia} sem dia`}
+            >
+              <span>
+                {a.instituicao}
+                {(a.sem_padrinho > 0 || a.sem_dia > 0) && <span className="aba__alerta" />}
+              </span>
+              <span className="aba__contagem">
+                {a.criancas} · {a.sem_padrinho} sem padrinho
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <form
+        className="barra-acoes"
+        onSubmit={(e) => {
+          e.preventDefault();
+          definirPagina(1);
+          buscar();
+        }}
+      >
+        <Entrada
+          value={busca}
+          onChange={(e) => definirBusca(e.target.value)}
+          placeholder="Buscar por nome"
+        />
+        <Entrada
+          value={codigo}
+          onChange={(e) => definirCodigo(e.target.value)}
+          placeholder="Código exato"
+        />
+        <Button type="submit" size="sm" variant="ghost">Buscar</Button>
+        {(busca || codigo) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              definirBusca("");
+              definirCodigo("");
+              definirPagina(1);
+            }}
+          >
+            Limpar
+          </Button>
+        )}
+        <span className="campo__dica" style={{ marginTop: 0 }}>
+          {criancas.total} nesta aba
+        </span>
+      </form>
+
       {formAberto && (
-        <form className="painel" onSubmit={salvar}>
+        <form className="painel" onSubmit={salvarNova}>
           <h2 className="painel__titulo">Nova criança</h2>
           <div className="linha-campos">
             <Selecao
@@ -241,32 +371,14 @@ export default function Criancas() {
                 <option key={i.id} value={i.id}>{i.nome}</option>
               ))}
             </Selecao>
-            <Entrada
-              rotulo="Código"
-              value={campos.codigo}
-              onChange={(e) => definirCampos({ ...campos, codigo: e.target.value })}
-              required
-            />
-            <Entrada
-              rotulo="Nome"
-              value={campos.nome}
-              onChange={(e) => definirCampos({ ...campos, nome: e.target.value })}
-              required
-            />
-            <Entrada
-              rotulo="Idade"
-              tipo="number"
-              min="0"
-              max="21"
-              value={campos.idade}
-              onChange={(e) => definirCampos({ ...campos, idade: e.target.value })}
-              required
-            />
-            <Selecao
-              rotulo="Sexo"
-              value={campos.sexo}
-              onChange={(e) => definirCampos({ ...campos, sexo: e.target.value })}
-            >
+            <Entrada rotulo="Código" value={campos.codigo}
+              onChange={(e) => definirCampos({ ...campos, codigo: e.target.value })} required />
+            <Entrada rotulo="Nome" value={campos.nome}
+              onChange={(e) => definirCampos({ ...campos, nome: e.target.value })} required />
+            <Entrada rotulo="Idade" tipo="number" min="0" max="21" value={campos.idade}
+              onChange={(e) => definirCampos({ ...campos, idade: e.target.value })} required />
+            <Selecao rotulo="Sexo" value={campos.sexo}
+              onChange={(e) => definirCampos({ ...campos, sexo: e.target.value })}>
               <option value="F">Feminino</option>
               <option value="M">Masculino</option>
             </Selecao>
@@ -282,37 +394,172 @@ export default function Criancas() {
         <Carregando>Carregando crianças...</Carregando>
       ) : criancas.itens.length === 0 ? (
         <EmptyState
-          titulo="Nenhuma criança encontrada"
+          titulo="Nenhuma criança aqui"
           corpo={
             busca || codigo
               ? "Nenhum resultado para esta busca."
-              : "Importe a lista enviada pela instituição ou cadastre uma a uma."
+              : "Importe a lista que a instituição enviou."
           }
         />
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="tabela">
+            <table className="planilha">
               <thead>
                 <tr>
-                  <th>Nome</th>
+                  {podeEditar && (
+                    <th className="planilha__marcar">
+                      <input
+                        type="checkbox"
+                        checked={marcadas.length === criancas.itens.length}
+                        onChange={marcarTodas}
+                        aria-label="Marcar todas"
+                      />
+                    </th>
+                  )}
                   <th>Código</th>
+                  <th>Nome</th>
                   <th>Idade</th>
                   <th>Sexo</th>
-                  <th>Instituição</th>
-                  {pode("editar_criancas") && <th />}
+                  <th>Dia</th>
+                  {abaAtiva === TODAS && <th>Instituição</th>}
+                  <th title="Padrinho de cesta e de festa">Padrinhos</th>
+                  <th title="Cartões digitalizados, de 2">Cartões</th>
+                  <th>Kit</th>
+                  <th>Check-in</th>
+                  {podeEditar && <th className="planilha__acoes" />}
                 </tr>
               </thead>
               <tbody>
                 {criancas.itens.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.nome}</td>
-                    <td>{c.codigo}</td>
-                    <td>{c.idade}</td>
-                    <td>{c.sexo === "F" ? "Feminino" : "Masculino"}</td>
-                    <td>{c.instituicao}</td>
-                    {pode("editar_criancas") && (
-                      <td>
+                  <tr
+                    key={c.id}
+                    className={marcadas.includes(c.id) ? "planilha__linha--marcada" : ""}
+                  >
+                    {podeEditar && (
+                      <td className="planilha__marcar">
+                        <input
+                          type="checkbox"
+                          checked={marcadas.includes(c.id)}
+                          onChange={() => alternar(c.id)}
+                          aria-label={`Marcar ${c.nome}`}
+                        />
+                      </td>
+                    )}
+                    <td>
+                      {podeEditar ? (
+                        <CelulaEditavel
+                          valor={c.codigo}
+                          aoSalvar={(v) => salvarCampo(c, "codigo", v)}
+                          largura={90}
+                        />
+                      ) : (
+                        <span className="celula">{c.codigo}</span>
+                      )}
+                    </td>
+                    <td>
+                      {podeEditar ? (
+                        <CelulaEditavel
+                          valor={c.nome}
+                          aoSalvar={(v) => salvarCampo(c, "nome", v)}
+                          largura={240}
+                        />
+                      ) : (
+                        <span className="celula">{c.nome}</span>
+                      )}
+                    </td>
+                    <td>
+                      {podeEditar ? (
+                        <CelulaEditavel
+                          valor={c.idade}
+                          tipo="number"
+                          aoSalvar={(v) => salvarCampo(c, "idade", Number(v))}
+                          largura={70}
+                        />
+                      ) : (
+                        <span className="celula">{c.idade}</span>
+                      )}
+                    </td>
+                    <td>
+                      {podeEditar ? (
+                        <CelulaEditavel
+                          valor={c.sexo}
+                          opcoes={SEXOS}
+                          aoSalvar={(v) => salvarCampo(c, "sexo", v)}
+                          largura={70}
+                        />
+                      ) : (
+                        <span className="celula">{c.sexo}</span>
+                      )}
+                    </td>
+                    <td>
+                      {podeEditar ? (
+                        <CelulaEditavel
+                          valor={c.dia_evento_id}
+                          opcoes={opcoesDia}
+                          aoSalvar={(v) => salvarCampo(c, "dia_evento_id", v ? Number(v) : null)}
+                          largura={120}
+                        />
+                      ) : (
+                        <span className="celula">
+                          {c.dia_evento ? formatarData(c.dia_evento) : "—"}
+                        </span>
+                      )}
+                    </td>
+                    {abaAtiva === TODAS && (
+                      <td><span className="celula">{c.instituicao}</span></td>
+                    )}
+                    <td>
+                      <span className="celula" style={{ cursor: "default" }}>
+                        <span
+                          className={`marcador ${c.tem_padrinho_cesta ? "marcador--feito" : ""}`}
+                          title={c.tem_padrinho_cesta ? "Tem padrinho de cesta" : "Sem padrinho de cesta"}
+                        >
+                          C
+                        </span>
+                        <span
+                          className={`marcador ${c.tem_padrinho_festa ? "marcador--feito" : ""}`}
+                          title={c.tem_padrinho_festa ? "Tem padrinho de festa" : "Sem padrinho de festa"}
+                        >
+                          F
+                        </span>
+                      </span>
+                    </td>
+                    <td>
+                      <span className="celula" style={{ cursor: "default" }}>
+                        <span
+                          className={`marcador ${
+                            c.cartoes >= 2 ? "marcador--feito" : c.cartoes > 0 ? "marcador--parcial" : ""
+                          }`}
+                        >
+                          {c.cartoes}/2
+                        </span>
+                      </span>
+                    </td>
+                    <td>
+                      <span className="celula" style={{ cursor: "default" }}>
+                        <span
+                          className={`marcador ${
+                            c.kit_status === "entregue"
+                              ? "marcador--feito"
+                              : c.kit_status === "montado"
+                                ? "marcador--parcial"
+                                : ""
+                          }`}
+                        >
+                          {c.kit_status.slice(0, 4)}
+                        </span>
+                      </span>
+                    </td>
+                    <td>
+                      <span className="celula" style={{ cursor: "default" }}>
+                        <span className={`marcador ${c.checkin_em ? "marcador--feito" : ""}`}>
+                          {c.checkin_em ? "sim" : "não"}
+                        </span>
+                      </span>
+                    </td>
+                    {podeEditar && (
+                      <td className="planilha__acoes">
                         <Button size="sm" variant="ghost" onClick={() => remover(c)}>
                           Remover
                         </Button>
@@ -326,24 +573,34 @@ export default function Criancas() {
 
           {totalPaginas > 1 && (
             <div className="barra-acoes" style={{ marginTop: "var(--space-5)" }}>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => definirPagina((p) => p - 1)}
-                disabled={pagina <= 1}
-              >
+              <Button size="sm" variant="ghost" onClick={() => definirPagina((p) => p - 1)} disabled={pagina <= 1}>
                 Anterior
               </Button>
               <span className="campo__dica" style={{ marginTop: 0 }}>
                 Página {pagina} de {totalPaginas}
               </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => definirPagina((p) => p + 1)}
-                disabled={pagina >= totalPaginas}
-              >
+              <Button size="sm" variant="ghost" onClick={() => definirPagina((p) => p + 1)} disabled={pagina >= totalPaginas}>
                 Próxima
+              </Button>
+            </div>
+          )}
+
+          {podeEditar && marcadas.length > 0 && (
+            <div className="lote">
+              <span className="lote__texto">{marcadas.length} marcada(s)</span>
+              <select
+                value={diaDoLote}
+                onChange={(e) => definirDiaDoLote(e.target.value)}
+                aria-label="Dia do evento"
+              >
+                <option value="">Sem dia</option>
+                {dias.map((d) => (
+                  <option key={d.id} value={d.id}>{formatarData(d.data)}</option>
+                ))}
+              </select>
+              <Button size="sm" onClick={aplicarDiaEmLote}>Aplicar dia</Button>
+              <Button size="sm" variant="ghost" onClick={() => definirMarcadas([])}>
+                Desmarcar
               </Button>
             </div>
           )}

@@ -357,6 +357,31 @@ irmãos com nomes parecidos existem; quem confere decide. A comparação usa
 `rapidfuzz` com corte em 88 de semelhança, ajustável em
 `app/servicos/importador.py`.
 
+### A tela de crianças
+
+É o centro de controle da edição, não uma lista. Com 20+ instituições e mais de
+1500 crianças, ela funciona como planilha:
+
+- **uma aba por instituição**, com a contagem e quantas estão sem padrinho; um
+  ponto âmbar marca a aba que tem pendência, para a coordenação achar o atraso
+  sem abrir aba por aba;
+- **células editáveis** — clique para editar, Enter salva e desce para a linha
+  seguinte, Esc desfaz;
+- **marcadores de estado** em cada linha: padrinho de cesta e de festa, cartões
+  (de 2), kit e check-in. O panorama inteiro da criança numa olhada;
+- **edição em lote**: marque várias e aplique o dia do evento de uma vez —
+  distribuir 1500 crianças uma a uma não é trabalho que alguém faça.
+
+O panorama de todas as linhas vem em **3 consultas**, não uma por criança: numa
+edição de 1500, o jeito ingênuo custaria 4500 consultas e a tela nunca abriria.
+
+> ⚠️ O teste de navegador **nunca deve rodar contra dados reais** — ele edita
+> registros pela interface. Use `python -m tests.preparar_navegador`, que cria
+> cidade, edição, instituições, crianças e conta próprias com prefixo `ZZ`.
+> Identifique linhas pelo **código**, nunca pela posição: a lista reordena ao
+> editar um nome, e um teste que edita "a primeira linha" duas vezes acaba
+> mexendo em duas crianças diferentes.
+
 ### Busca por código: o escape do filtro
 
 Comissários e monitores só enxergam as crianças das instituições atribuídas a
