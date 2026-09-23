@@ -37,9 +37,18 @@ def _sem_acento(texto: str) -> str:
     return "".join(c for c in normalizado if not unicodedata.combining(c))
 
 
+# Caracteres invisiveis que planilha real carrega e que ninguem enxerga:
+# BOM (o Excel grava ao salvar como "CSV UTF-8"), espaco inquebravel e
+# marcadores de largura zero. Sem limpar, "Codigo" com BOM na frente nao casa
+# com "codigo" — e a mensagem de erro fica sem sentido, porque na tela os dois
+# parecem iguais.
+INVISIVEIS = dict.fromkeys(map(ord, "\ufeff\u200b\u200c\u200d\u2060"), None)
+
+
 def _chave(texto: str) -> str:
-    """Forma comparavel de um texto: sem acento, minusculo, sem espaco extra."""
-    return " ".join(_sem_acento(texto).lower().split())
+    """Forma comparavel de um texto: sem acento, sem invisiveis, minusculo."""
+    limpo = str(texto).translate(INVISIVEIS).replace("\xa0", " ")
+    return " ".join(_sem_acento(limpo).lower().split())
 
 
 def _normalizar_sexo(valor) -> str | None:
@@ -108,6 +117,43 @@ def _mapear_colunas(colunas: list[str]) -> tuple[dict[str, str], list[str]]:
     return encontradas, ignoradas
 
 
+def _ler_csv(conteudo: bytes):
+    """Le o CSV tentando as codificacoes que aparecem na pratica.
+
+    utf-8-sig e o utf-8 que descarta o BOM do Excel. Se o arquivo veio de um
+    Excel mais antigo em portugues, costuma estar em Windows-1252 — e ai os
+    acentos quebram em utf-8.
+
+    sep=None deixa o pandas descobrir sozinho se o separador e virgula ou
+    ponto e virgula (o padrao no Brasil).
+    """
+    ultimo_erro: Exception | None = None
+
+    for codificacao in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return pd.read_csv(
+                BytesIO(conteudo),
+                dtype=str,
+                sep=None,
+                engine="python",
+                keep_default_na=False,
+                encoding=codificacao,
+            )
+        except (UnicodeDecodeError, LookupError) as erro:
+            ultimo_erro = erro
+            continue
+        except Exception as erro:
+            raise ValueError(
+                "Nao foi possivel ler o arquivo. Confira se e mesmo uma planilha "
+                "e se tem uma linha de cabecalho."
+            ) from erro
+
+    raise ValueError(
+        "Nao foi possivel ler o arquivo: a codificacao nao foi reconhecida. "
+        "No Excel, use Salvar como > CSV UTF-8."
+    ) from ultimo_erro
+
+
 def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
     """Le o arquivo e devolve as linhas normalizadas.
 
@@ -116,28 +162,31 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
     """
     minusculo = nome_arquivo.lower()
 
-    try:
-        if minusculo.endswith(".csv"):
-            # sep=None deixa o pandas descobrir se e virgula ou ponto e virgula.
-            tabela = pd.read_csv(
-                BytesIO(conteudo), dtype=str, sep=None, engine="python", keep_default_na=False
-            )
-        else:
+    if minusculo.endswith(".csv"):
+        tabela = _ler_csv(conteudo)
+    else:
+        try:
             tabela = pd.read_excel(BytesIO(conteudo), dtype=str, keep_default_na=False)
-    except Exception as erro:
-        raise ValueError(
-            "Nao foi possivel ler o arquivo. Envie uma planilha .xlsx ou .csv."
-        ) from erro
+        except Exception as erro:
+            raise ValueError(
+                "Nao foi possivel ler o arquivo. Envie uma planilha .xlsx ou .csv."
+            ) from erro
 
-    tabela.columns = [str(c).strip() for c in tabela.columns]
+    # O strip tira espaco; o translate tira os invisiveis que sobrariam.
+    tabela.columns = [
+        str(c).translate(INVISIVEIS).replace("\xa0", " ").strip() for c in tabela.columns
+    ]
     encontradas, ignoradas = _mapear_colunas(list(tabela.columns))
 
     faltando = [c for c in ("codigo", "nome") if c not in encontradas]
     if faltando:
+        quais = " e ".join(f"'{c}'" for c in faltando)
+        achadas = ", ".join(f"'{c}'" for c in tabela.columns) or "(nenhuma)"
+        aceitos = {c: " ou ".join(COLUNAS[c]) for c in faltando}
         raise ValueError(
-            "A planilha precisa ter as colunas "
-            + " e ".join(faltando)
-            + f". Colunas encontradas: {', '.join(tabela.columns) or '(nenhuma)'}."
+            f"Nao encontrei a coluna {quais} na planilha. "
+            f"Colunas encontradas: {achadas}. "
+            + " ".join(f"Para {c}, aceito: {nomes}." for c, nomes in aceitos.items())
         )
 
     linhas: list[LinhaLida] = []

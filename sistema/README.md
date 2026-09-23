@@ -162,7 +162,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 35 verificações
+./.venv/bin/python -m tests.test_criancas       # 40 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
@@ -325,6 +325,21 @@ log de algo que acabou desfeito.
 As instituições mandam planilhas com o seu próprio jeito de nomear as colunas.
 O importador reconhece variações (`Matrícula`, `Cod`, `Nome Completo`, `Escola`,
 `Sexo` escrito por extenso), tira acentos e normaliza tudo antes de comparar.
+
+**Formatos aceitos**, todos testados:
+
+| | |
+| --- | --- |
+| `.xlsx` | planilha do Excel |
+| `.csv` separado por `;` ou `,` | o separador é detectado sozinho |
+| CSV UTF-8 **com BOM** | o que o Excel grava em "Salvar como > CSV UTF-8" |
+| CSV em Windows-1252 | Excel mais antigo em português |
+
+> O BOM já quebrou a importação em produção: são três bytes **invisíveis** no
+> começo do arquivo, e a mensagem de erro dizia que faltava a coluna `Codigo`
+> enquanto listava `Codigo` entre as encontradas — porque na tela as duas
+> pareciam idênticas. Hoje o BOM, o espaço inquebrável e os caracteres de
+> largura zero são removidos antes de comparar.
 
 A importação tem duas etapas, e **nada é gravado na primeira**:
 

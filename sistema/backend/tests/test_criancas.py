@@ -258,6 +258,47 @@ def main() -> None:
             r = cc.post(f"/criancas/importar/{previa['id']}/confirmar")
             verifica("a mesma previa nao pode ser confirmada duas vezes", r.status_code == 404)
 
+        print("\nFormatos de planilha que aparecem na vida real")
+        # Cada um destes ja quebrou de verdade. O BOM e o pior: sao tres bytes
+        # invisiveis que o Excel grava ao salvar como "CSV UTF-8", e a mensagem
+        # de erro ficava sem sentido porque na tela as colunas pareciam certas.
+        base_csv = (
+            "Codigo;Nome;Sexo;Idade\n"
+            "CSV1;Teste Um Sobrenome;F;5\n"
+            "CSV2;Teste Dois Sobrenome;M;6\n"
+        )
+
+        formatos = {
+            "csv utf-8 com BOM (Excel)": base_csv.encode("utf-8-sig"),
+            "csv utf-8 sem BOM": base_csv.encode("utf-8"),
+            "csv windows-1252 (Excel antigo)":
+                base_csv.replace("Sobrenome", "Assuncao").encode("cp1252"),
+            "csv separado por virgula": base_csv.replace(";", ",").encode("utf-8"),
+        }
+
+        for rotulo, dados in formatos.items():
+            r = cc.post(
+                "/criancas/importar",
+                files={"arquivo": ("lista.csv", dados, "text/csv")},
+                data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+            )
+            verifica(
+                f"le {rotulo}",
+                r.status_code == 200 and r.json()["total"] == 2,
+                f"{r.status_code} {r.text[:90]}",
+            )
+
+        # Cabecalho com espaco inquebravel, outro invisivel comum.
+        com_nbsp = "Codigo;Nome\u00a0;Sexo;Idade\nNB1;Teste Nbsp Sobrenome;F;5\n"
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("lista.csv", com_nbsp.encode("utf-8"), "text/csv")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        verifica("le cabecalho com espaco inquebravel",
+                 r.status_code == 200 and "nome" in r.json()["colunas_reconhecidas"],
+                 f"{r.status_code} {r.text[:90]}")
+
         print("\nPlanilha sem as colunas minimas")
         ruim = planilha([{"Alguma Coisa": "x", "Outra": "y"}])
         r = cc.post(
@@ -266,7 +307,9 @@ def main() -> None:
             data={"edicao_id": str(edicao.id)},
         )
         verifica("recusa planilha sem codigo e nome", r.status_code == 422, str(r.status_code))
-        verifica("a mensagem diz o que falta", "codigo" in r.text and "nome" in r.text)
+        verifica("a mensagem diz o que falta e o que ela aceita",
+                 "codigo" in r.text and "nome" in r.text and "matricula" in r.text,
+                 r.text[:160])
 
         print("\nPermissoes")
         r = ck.post(
