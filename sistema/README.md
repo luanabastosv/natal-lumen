@@ -162,7 +162,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 40 verificações
+./.venv/bin/python -m tests.test_criancas       # 50 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
@@ -320,6 +320,31 @@ log de algo que acabou desfeito.
 | `app/seeds/` | dados iniciais |
 | `alembic/versions/` | histórico de migrations |
 
+### Códigos das crianças
+
+As instituições mandam a lista **sem código** — nome, idade, sexo e instituição.
+Quem numera é a aplicação, e a ordem é sempre a mesma:
+
+1. **meninas primeiro**, depois meninos;
+2. dentro de cada grupo, da **menor para a maior idade**;
+3. dentro de cada idade, **ordem alfabética**.
+
+O código é a **sigla da instituição** mais um número: `ES00`, `ES01`, `ES02`. A
+sigla é sugerida a partir do nome (`Escolinha Sol` → `ES`, `Creche Lar da
+Criança` → `CL`) e pode ser trocada na tela de Instituições. Ela é única dentro
+da cidade, para dois códigos iguais nunca apontarem para instituições
+diferentes.
+
+Uma segunda lista da mesma instituição continua a numeração de onde a primeira
+parou, em vez de repetir códigos.
+
+**Renumerar.** Se a lista entrou fora de ordem, ou depois de corrigir idades e
+sexos que vieram errados da planilha, o botão *Renumerar códigos* refaz a
+instituição inteira pela regra. Os códigos **mudam** — crachás já impressos
+ficam desatualizados, e a tela avisa isso antes.
+
+Toda listagem de crianças sai ordenada por código.
+
 ### Importação de listas
 
 As instituições mandam planilhas com o seu próprio jeito de nomear as colunas.
@@ -332,6 +357,7 @@ O importador reconhece variações (`Matrícula`, `Cod`, `Nome Completo`, `Escol
 | --- | --- |
 | `.xlsx` | planilha do Excel |
 | `.csv` separado por `;` ou `,` | o separador é detectado sozinho |
+| sem coluna de código | o normal: a aplicação numera |
 | CSV UTF-8 **com BOM** | o que o Excel grava em "Salvar como > CSV UTF-8" |
 | CSV em Windows-1252 | Excel mais antigo em português |
 

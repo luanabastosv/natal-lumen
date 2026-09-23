@@ -2,10 +2,13 @@
 // variantes e tamanhos. Acrescentado: type, largura total e estado "carregando",
 // que uma aplicacao com formularios precisa e um site institucional nao.
 
+// Menores que os do site publico de proposito: aqui sao ferramentas de
+// trabalho numa tela cheia de dados, nao chamadas para acao numa pagina de
+// marketing.
 const SIZES = {
-  sm: { padding: "10px 18px", fontSize: 14 },
-  md: { padding: "14px 28px", fontSize: 16 },
-  lg: { padding: "18px 36px", fontSize: 18 },
+  sm: { padding: "6px 12px", fontSize: 13 },
+  md: { padding: "9px 18px", fontSize: 14 },
+  lg: { padding: "13px 26px", fontSize: 16 },
 };
 
 const VARIANTS = {
@@ -53,7 +56,7 @@ export default function Button({
     fontFamily: "var(--font-body)",
     fontWeight: 700,
     borderRadius: "var(--radius-pill)",
-    border: "2px solid transparent",
+    border: "1.5px solid transparent",
     cursor: inativo ? "not-allowed" : "pointer",
     transition:
       "background-color .15s ease, color .15s ease, border-color .15s ease, transform .1s ease",

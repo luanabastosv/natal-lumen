@@ -69,6 +69,8 @@ class DiaOut(BaseModel):
 class InstituicaoIn(BaseModel):
     cidade_id: int
     nome: str = Field(min_length=2, max_length=180)
+    # Em branco o sistema sugere a partir do nome.
+    sigla: str | None = Field(default=None, min_length=1, max_length=6)
     responsavel: str | None = Field(default=None, max_length=160)
     telefone: str | None = Field(default=None, max_length=30)
     endereco: str | None = Field(default=None, max_length=255)
@@ -77,6 +79,7 @@ class InstituicaoIn(BaseModel):
 
 class InstituicaoEditar(BaseModel):
     nome: str | None = Field(default=None, min_length=2, max_length=180)
+    sigla: str | None = Field(default=None, min_length=1, max_length=6)
     responsavel: str | None = Field(default=None, max_length=160)
     telefone: str | None = Field(default=None, max_length=30)
     endereco: str | None = Field(default=None, max_length=255)
@@ -88,6 +91,7 @@ class InstituicaoOut(BaseModel):
     cidade_id: int
     cidade: str
     nome: str
+    sigla: str | None
     responsavel: str | None
     telefone: str | None
     endereco: str | None

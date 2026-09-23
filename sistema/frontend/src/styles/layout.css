@@ -17,7 +17,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: 12px 24px;
+  padding: 9px 20px;
   background: var(--navy-700);
   color: var(--white);
   position: sticky;
@@ -140,7 +140,7 @@
 }
 
 .layout__menu {
-  width: 232px;
+  width: 196px;
   flex: none;
   border-right: var(--stroke-hairline) solid var(--border-default);
   padding: var(--space-5) var(--space-3);
@@ -150,8 +150,10 @@
 .layout__conteudo {
   flex: 1;
   min-width: 0;
-  padding: var(--space-6) var(--space-6) var(--space-8);
-  max-width: var(--container-max);
+  /* Sem max-width: o sistema e ferramenta de trabalho, e a planilha tem de
+     usar a tela inteira. O texto corrido continua legivel porque .pagina__lede
+     tem largura propria. */
+  padding: var(--space-5) var(--space-5) var(--space-7);
 }
 
 .layout__fundo {
@@ -169,11 +171,11 @@
 
 .menu__item {
   display: block;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-on-light-secondary);
   text-decoration: none;
-  padding: 11px 16px;
+  padding: 8px 14px;
   border-radius: var(--radius-pill);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -222,7 +224,7 @@
 @media (max-width: 860px) {
   :root {
     /* Medido no navegador em 390px de largura. */
-    --altura-cabecalho: 53px;
+    --altura-cabecalho: 48px;
   }
 
   .cabecalho {

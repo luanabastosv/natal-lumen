@@ -86,6 +86,7 @@ class Instituicao(Base):
     __tablename__ = "instituicoes"
     __table_args__ = (
         UniqueConstraint("cidade_id", "nome", name="uq_instituicoes_cidade_nome"),
+        UniqueConstraint("cidade_id", "sigla", name="uq_instituicoes_cidade_sigla"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -93,6 +94,11 @@ class Instituicao(Base):
         ForeignKey("cidades.id"), nullable=False, index=True
     )
     nome: Mapped[str] = mapped_column(String(180), nullable=False)
+
+    # Prefixo do codigo das criancas: "ES" gera ES00, ES01, ES02...
+    # Unica dentro da cidade, para dois codigos iguais nunca apontarem para
+    # instituicoes diferentes.
+    sigla: Mapped[str | None] = mapped_column(String(6))
     responsavel: Mapped[str | None] = mapped_column(String(160))
     telefone: Mapped[str | None] = mapped_column(String(30))
     endereco: Mapped[str | None] = mapped_column(String(255))

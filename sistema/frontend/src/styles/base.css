@@ -5,7 +5,7 @@
 /* ---------- Campos ---------- */
 .campo {
   display: block;
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .campo__rotulo {
@@ -21,13 +21,13 @@
 .campo__controle {
   width: 100%;
   font-family: var(--font-body);
-  font-size: var(--size-body-md);
+  font-size: var(--size-body-sm);
   font-weight: var(--weight-body-md);
   color: var(--text-on-light-primary);
   background: var(--white);
-  border: 2px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
   transition: border-color 0.15s ease;
 }
 
@@ -188,19 +188,25 @@
 }
 
 .pagina__titulo {
-  font-size: var(--size-h2);
-  line-height: var(--lh-h2);
-  font-weight: var(--weight-h2);
+  font-size: var(--size-h3);
+  line-height: var(--lh-h3);
+  font-weight: var(--weight-h3);
   color: var(--text-on-light-primary);
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-2);
 }
 
 .pagina__lede {
-  font-size: var(--size-body-md);
-  line-height: var(--lh-body-md);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
   color: var(--text-on-light-secondary);
-  max-width: 62ch;
-  margin: 0 0 var(--space-6);
+  /* Texto corrido continua estreito mesmo com a pagina inteira disponivel:
+     linha longa demais e cansativa de ler. */
+  max-width: 68ch;
+  margin: 0 0 var(--space-5);
+}
+
+.pagina__eyebrow {
+  margin-bottom: var(--space-2);
 }
 
 /* ---------- Atalhos do painel ---------- */
@@ -237,8 +243,8 @@
 .painel {
   border: var(--stroke-hairline) solid var(--border-default);
   border-radius: var(--radius-md);
-  padding: var(--space-5);
-  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
   background: var(--surface-card);
 }
 
@@ -259,7 +265,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .barra-acoes--fim {
@@ -277,13 +283,14 @@
 /* ---------- Etiquetas de estado ---------- */
 .etiqueta {
   display: inline-block;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  padding: 4px 10px;
+  padding: 2px 7px;
   border-radius: var(--radius-pill);
   white-space: nowrap;
+  line-height: 1.5;
 }
 
 .etiqueta--ok {
@@ -316,14 +323,14 @@
 .marcavel {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--size-body-sm);
+  gap: 6px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-on-light-secondary);
   background: var(--white);
-  border: 2px solid var(--border-default);
+  border: 1.5px solid var(--border-default);
   border-radius: var(--radius-pill);
-  padding: 8px 14px;
+  padding: 5px 11px;
   cursor: pointer;
 }
 
@@ -440,10 +447,10 @@
 /* ---------- Abas (uma por instituicao) ---------- */
 .abas {
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
   overflow-x: auto;
-  padding-bottom: var(--space-3);
-  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
   border-bottom: var(--stroke-hairline) solid var(--border-default);
   /* Com 20+ instituicoes a barra rola; a rolagem fica discreta. */
   scrollbar-width: thin;
@@ -453,16 +460,16 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   align-items: flex-start;
   font-family: var(--font-body);
-  font-size: var(--size-body-sm);
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-on-light-secondary);
   background: var(--white);
-  border: 2px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -479,7 +486,7 @@
 }
 
 .aba__contagem {
-  font-size: var(--size-caption);
+  font-size: 11px;
   font-weight: 450;
   opacity: 0.75;
 }
@@ -514,13 +521,13 @@
   background: var(--white);
   text-align: left;
   font-family: var(--font-condensed);
-  font-size: var(--size-caption);
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: var(--tracking-label);
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-on-light-muted);
-  padding: var(--space-3) var(--space-3);
-  border-bottom: 2px solid var(--border-default);
+  padding: 6px 8px;
+  border-bottom: 1.5px solid var(--border-default);
   white-space: nowrap;
 }
 
@@ -544,40 +551,29 @@
   text-align: center;
 }
 
-/* A coluna de acoes gruda na direita: com muitas colunas a tabela rola, e o
-   botao de remover ficava fora da tela. */
-.planilha__acoes {
-  position: sticky;
-  right: 0;
-  padding: 0 var(--space-3) !important;
+/* Colunas de texto nao quebram linha: uma linha por crianca mantem a densidade
+   que uma planilha precisa ter. */
+.planilha td,
+.planilha th {
   white-space: nowrap;
-  background: var(--white);
-  box-shadow: -6px 0 8px -6px rgba(21, 51, 119, 0.18);
 }
 
-.planilha tr:hover .planilha__acoes {
-  background: var(--cream-100);
-}
-
-.planilha tr.planilha__linha--marcada .planilha__acoes {
-  background: var(--navy-100);
-}
-
-.planilha th.planilha__acoes {
-  z-index: 3;
+.planilha__acoes {
+  padding: 0 8px !important;
+  text-align: right;
 }
 
 /* ---------- Celula que vira campo ao clicar ---------- */
 .celula {
   display: block;
   width: 100%;
-  min-height: 40px;
-  padding: 10px var(--space-3);
-  border: 2px solid transparent;
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1.5px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   font-family: var(--font-body);
-  font-size: var(--size-body-sm);
+  font-size: 13px;
   color: var(--text-on-light-primary);
   text-align: left;
   cursor: text;
@@ -613,11 +609,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 22px;
-  padding: 0 7px;
+  min-width: 20px;
+  height: 17px;
+  padding: 0 5px;
   border-radius: var(--radius-pill);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   background: var(--navy-100);
   color: var(--navy-400);
@@ -634,7 +630,7 @@
 }
 
 .marcador + .marcador {
-  margin-left: 4px;
+  margin-left: 3px;
 }
 
 /* ---------- Barra de acoes em lote ---------- */

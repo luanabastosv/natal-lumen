@@ -13,6 +13,7 @@ import {
   editarCrianca,
   editarEmLote,
   listarCriancas,
+  renumerar,
   resumoInstituicoes,
 } from "../services/criancas.js";
 import { formatarData } from "../utils/dinheiro.js";
@@ -53,6 +54,8 @@ export default function Criancas() {
   const [campos, definirCampos] = useState(NOVA);
   const [salvando, definirSalvando] = useState(false);
   const [importando, definirImportando] = useState(false);
+  const [renumerando, definirRenumerando] = useState(false);
+  const [sigla, definirSigla] = useState("");
 
   const podeEditar = pode("editar_criancas");
 
@@ -155,6 +158,24 @@ export default function Criancas() {
           : `${marcadas.length} criança(s) sem dia.`,
       );
       definirMarcadas([]);
+      buscar();
+      recarregarAbas();
+    } catch (e) {
+      definirErro(e.message);
+    }
+  }
+
+  async function aplicarRenumerar() {
+    definirErro("");
+    try {
+      await renumerar({
+        edicao_id: Number(edicaoId),
+        instituicao_id: Number(abaAtiva),
+        sigla: sigla.trim() || null,
+      });
+      definirSucesso("Códigos refeitos na ordem: meninas, idade, alfabética.");
+      definirRenumerando(false);
+      definirSigla("");
       buscar();
       recarregarAbas();
     } catch (e) {
@@ -274,7 +295,44 @@ export default function Criancas() {
             Importar lista
           </Button>
         )}
+        {podeEditar && abaAtiva !== TODAS && (
+          <Button size="sm" variant="ghost" onClick={() => definirRenumerando(true)}>
+            Renumerar códigos
+          </Button>
+        )}
       </div>
+
+      {renumerando && (
+        <div className="painel painel--destaque">
+          <h2 className="painel__titulo">
+            Renumerar {abas.find((a) => String(a.instituicao_id) === String(abaAtiva))?.instituicao}
+          </h2>
+          <p className="campo__dica" style={{ marginTop: 0 }}>
+            Os códigos são refeitos na ordem do projeto: <strong>meninas primeiro</strong>,
+            depois por idade, depois em ordem alfabética. Use depois de corrigir idades
+            ou sexos que vieram errados da planilha.
+          </p>
+          <Mensagem tipo="aviso">
+            Os códigos vão <strong>mudar</strong>. Crachás já impressos e listas já
+            distribuídas ficam desatualizados.
+          </Mensagem>
+          <div className="linha-campos">
+            <Entrada
+              rotulo="Sigla"
+              value={sigla}
+              onChange={(e) => definirSigla(e.target.value.toUpperCase())}
+              maxLength={6}
+              dica="Em branco mantém a sigla atual da instituição."
+            />
+          </div>
+          <div className="barra-acoes barra-acoes--fim">
+            <Button size="sm" onClick={aplicarRenumerar}>Renumerar</Button>
+            <Button size="sm" variant="ghost" onClick={() => definirRenumerando(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Abas: uma por instituição, com o que falta em cada uma. */}
       {abas.length > 0 && (
@@ -462,7 +520,7 @@ export default function Criancas() {
                         <CelulaEditavel
                           valor={c.nome}
                           aoSalvar={(v) => salvarCampo(c, "nome", v)}
-                          largura={240}
+                          largura={220}
                         />
                       ) : (
                         <span className="celula">{c.nome}</span>

@@ -6,6 +6,7 @@ limita por edicao e, para comissario e monitor, tambem por instituicao.
 
 import json
 import uuid
+from collections import defaultdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -21,6 +22,7 @@ from app.schemas.criancas import (
     CriancaIn,
     CriancaOut,
     CriancasEmLote,
+    RenumerarIn,
     LinhaImportada,
     PaginaCriancas,
     PreviaImportacao,
@@ -29,7 +31,7 @@ from app.schemas.criancas import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
-from app.servicos import importador
+from app.servicos import codigos, importador
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
@@ -160,7 +162,7 @@ def listar(
         select(Crianca)
         .where(condicao)
         .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
-        .order_by(Crianca.nome)
+        .order_by(Crianca.codigo)
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
     ).all()
@@ -299,6 +301,96 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
     return [_saida(c, panorama.get(c.id)) for c in atualizadas]
 
 
+@router.post("/renumerar", response_model=list[CriancaOut])
+def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
+    """Refaz os codigos de uma instituicao, na ordem do projeto.
+
+    Serve para listas que entraram antes da regra existir, ou depois de
+    corrigir idades e sexos que vieram errados da planilha.
+
+    Atencao: os codigos MUDAM. Crachas ja impressos e listas ja distribuidas
+    ficam desatualizados.
+    """
+    if not ctx.alcanca_edicao(dados.edicao_id, "editar_criancas"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Voce nao edita esta edicao.")
+    if not ctx.alcanca_instituicao(dados.edicao_id, dados.instituicao_id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Esta instituicao nao esta sob sua responsabilidade."
+        )
+
+    instituicao = db.get(Instituicao, dados.instituicao_id)
+    if instituicao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+
+    sigla = dados.sigla.strip().upper() if dados.sigla else instituicao.sigla
+    if not sigla:
+        usadas = set(
+            db.scalars(
+                select(Instituicao.sigla).where(
+                    Instituicao.cidade_id == instituicao.cidade_id,
+                    Instituicao.sigla.is_not(None),
+                )
+            ).all()
+        )
+        sigla = codigos.sugerir_sigla(instituicao.nome, usadas)
+
+    criancas = db.scalars(
+        select(Crianca)
+        .where(
+            Crianca.edicao_id == dados.edicao_id,
+            Crianca.instituicao_id == dados.instituicao_id,
+        )
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+    ).all()
+
+    if not criancas:
+        return []
+
+    # Codigo temporario primeiro: sem isto, atribuir ES00 a quem hoje e ES05
+    # esbarraria na restricao de unicidade no meio do caminho.
+    for i, crianca in enumerate(criancas):
+        crianca.codigo = f"~{i}"
+    db.flush()
+
+    for crianca, codigo in codigos.gerar_codigos(criancas, sigla):
+        crianca.codigo = codigo
+
+    instituicao.sigla = sigla
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Esta sigla ja esta em uso por outra instituicao da cidade.",
+        )
+
+    registrar(
+        db, "criancas_renumeradas", usuario_id=ctx.usuario.id,
+        tabela="criancas",
+        detalhes={
+            "edicao_id": dados.edicao_id,
+            "instituicao_id": dados.instituicao_id,
+            "sigla": sigla,
+            "quantas": len(criancas),
+        },
+    )
+    db.commit()
+
+    atualizadas = db.scalars(
+        select(Crianca)
+        .where(
+            Crianca.edicao_id == dados.edicao_id,
+            Crianca.instituicao_id == dados.instituicao_id,
+        )
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .order_by(Crianca.codigo)
+    ).all()
+    panorama = _panorama(db, [c.id for c in atualizadas])
+    return [_saida(c, panorama.get(c.id)) for c in atualizadas]
+
+
 @router.get("/{crianca_id}", response_model=CriancaOut)
 def detalhe(crianca_id: int, db: BD, ctx: Ver):
     return _saida(_buscar(db, ctx, crianca_id, "ver_criancas"))
@@ -375,6 +467,48 @@ def apagar(crianca_id: int, db: BD, ctx: Editar):
 
 # ---------------------------------------------------------------- importacao
 
+def _numerar(db: Session, linhas: list, edicao_id: int) -> None:
+    """Preenche o codigo das linhas que vieram sem ele.
+
+    Cada instituicao numera a propria sequencia, continuando de onde a ultima
+    importacao parou — duas listas da mesma escola nao colidem.
+    """
+    por_instituicao: dict[int, list] = defaultdict(list)
+    for linha in linhas:
+        if linha.instituicao_id is not None and not linha.codigo:
+            por_instituicao[linha.instituicao_id].append(linha)
+
+    for instituicao_id, do_grupo in por_instituicao.items():
+        instituicao = db.get(Instituicao, instituicao_id)
+        sigla = instituicao.sigla
+        if not sigla:
+            # Instituicao cadastrada antes da sigla existir: monta agora.
+            usadas = set(
+                db.scalars(
+                    select(Instituicao.sigla).where(
+                        Instituicao.cidade_id == instituicao.cidade_id,
+                        Instituicao.sigla.is_not(None),
+                    )
+                ).all()
+            )
+            sigla = codigos.sugerir_sigla(instituicao.nome, usadas)
+            instituicao.sigla = sigla
+            db.flush()
+
+        ja_usados = list(
+            db.scalars(
+                select(Crianca.codigo).where(
+                    Crianca.edicao_id == edicao_id,
+                    Crianca.instituicao_id == instituicao_id,
+                )
+            ).all()
+        )
+        inicio = codigos.proximo_numero(ja_usados, sigla)
+
+        for linha, codigo in codigos.gerar_codigos(do_grupo, sigla, inicio):
+            linha.codigo = codigo
+
+
 @router.post("/importar", response_model=PreviaImportacao)
 async def importar_previa(
     db: BD,
@@ -411,6 +545,12 @@ async def importar_previa(
     }
 
     importador.casar_instituicoes(leitura.linhas, instituicoes, instituicao_id)
+
+    # Planilha sem coluna de codigo: a aplicacao numera, na ordem do projeto —
+    # meninas primeiro, depois idade, depois ordem alfabetica.
+    if "codigo" not in leitura.colunas_encontradas:
+        _numerar(db, leitura.linhas, edicao_id)
+
     importador.marcar_repetidas_no_arquivo(leitura.linhas)
 
     ja_cadastrados = {

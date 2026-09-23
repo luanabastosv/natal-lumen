@@ -103,3 +103,12 @@ class ResumoInstituicao(BaseModel):
     sem_padrinho: int
     sem_cartao: int
     sem_dia: int
+
+
+class RenumerarIn(BaseModel):
+    """Refaz os codigos de uma instituicao inteira."""
+
+    edicao_id: int
+    instituicao_id: int
+    # Em branco mantem a sigla atual da instituicao.
+    sigla: str | None = Field(default=None, min_length=1, max_length=6)

@@ -12,6 +12,7 @@ from app.models import Cidade, Edicao, Instituicao
 from app.schemas.cadastros import InstituicaoEditar, InstituicaoIn, InstituicaoOut
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
+from app.servicos import codigos
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/instituicoes", tags=["cadastros"])
@@ -26,6 +27,7 @@ def _saida(inst: Instituicao) -> InstituicaoOut:
         cidade_id=inst.cidade_id,
         cidade=inst.cidade.nome,
         nome=inst.nome,
+        sigla=inst.sigla,
         responsavel=inst.responsavel,
         telefone=inst.telefone,
         endereco=inst.endereco,
@@ -86,6 +88,21 @@ def criar(dados: InstituicaoIn, db: BD, ctx: Cadastros):
 
     inst = Instituicao(**dados.model_dump())
     inst.nome = inst.nome.strip()
+
+    if inst.sigla:
+        inst.sigla = inst.sigla.strip().upper()
+    else:
+        # Sugerida a partir do nome, evitando as que a cidade ja usa.
+        usadas = set(
+            db.scalars(
+                select(Instituicao.sigla).where(
+                    Instituicao.cidade_id == inst.cidade_id,
+                    Instituicao.sigla.is_not(None),
+                )
+            ).all()
+        )
+        inst.sigla = codigos.sugerir_sigla(inst.nome, usadas)
+
     db.add(inst)
 
     try:
@@ -94,7 +111,7 @@ def criar(dados: InstituicaoIn, db: BD, ctx: Cadastros):
         db.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Esta cidade ja tem uma instituicao com este nome.",
+            "Esta cidade ja tem uma instituicao com este nome ou com esta sigla.",
         )
 
     registrar(
@@ -117,7 +134,11 @@ def editar(instituicao_id: int, dados: InstituicaoEditar, db: BD, ctx: Cadastros
 
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():
-        setattr(inst, campo, valor.strip() if campo == "nome" and valor else valor)
+        if campo == "nome" and valor:
+            valor = valor.strip()
+        if campo == "sigla" and valor:
+            valor = valor.strip().upper()
+        setattr(inst, campo, valor)
 
     try:
         db.flush()
@@ -125,7 +146,7 @@ def editar(instituicao_id: int, dados: InstituicaoEditar, db: BD, ctx: Cadastros
         db.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Esta cidade ja tem uma instituicao com este nome.",
+            "Esta cidade ja tem uma instituicao com este nome ou com esta sigla.",
         )
 
     registrar(

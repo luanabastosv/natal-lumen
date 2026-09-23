@@ -11,7 +11,7 @@ import {
   listarInstituicoes,
 } from "../services/cadastros.js";
 
-const VAZIO = { cidade_id: "", nome: "", responsavel: "", telefone: "", endereco: "" };
+const VAZIO = { cidade_id: "", nome: "", sigla: "", responsavel: "", telefone: "", endereco: "" };
 
 export default function Instituicoes() {
   const [instituicoes, definirInstituicoes] = useState([]);
@@ -53,6 +53,7 @@ export default function Instituicoes() {
     definirCampos({
       cidade_id: inst.cidade_id,
       nome: inst.nome,
+      sigla: inst.sigla ?? "",
       responsavel: inst.responsavel ?? "",
       telefone: inst.telefone ?? "",
       endereco: inst.endereco ?? "",
@@ -74,6 +75,7 @@ export default function Instituicoes() {
     // Campos opcionais vazios viram null, e nao "".
     const corpo = {
       nome: campos.nome.trim(),
+      sigla: campos.sigla.trim().toUpperCase() || null,
       responsavel: campos.responsavel.trim() || null,
       telefone: campos.telefone.trim() || null,
       endereco: campos.endereco.trim() || null,
@@ -169,6 +171,13 @@ export default function Instituicoes() {
               required
             />
             <Entrada
+              rotulo="Sigla"
+              value={campos.sigla}
+              onChange={(e) => mudar("sigla", e.target.value.toUpperCase())}
+              maxLength={6}
+              dica='Prefixo do código das crianças. "ES" gera ES00, ES01... Em branco, o sistema sugere.'
+            />
+            <Entrada
               rotulo="Responsável"
               value={campos.responsavel}
               onChange={(e) => mudar("responsavel", e.target.value)}
@@ -211,6 +220,7 @@ export default function Instituicoes() {
             <thead>
               <tr>
                 <th>Nome</th>
+                <th>Sigla</th>
                 <th>Cidade</th>
                 <th>Responsável</th>
                 <th>Telefone</th>
@@ -222,6 +232,9 @@ export default function Instituicoes() {
               {instituicoes.map((i) => (
                 <tr key={i.id}>
                   <td>{i.nome}</td>
+                  <td>
+                    <span className="etiqueta etiqueta--neutra">{i.sigla ?? "—"}</span>
+                  </td>
                   <td>{i.cidade}</td>
                   <td>{i.responsavel ?? "—"}</td>
                   <td>{i.telefone ?? "—"}</td>

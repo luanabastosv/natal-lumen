@@ -178,7 +178,9 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
     ]
     encontradas, ignoradas = _mapear_colunas(list(tabela.columns))
 
-    faltando = [c for c in ("codigo", "nome") if c not in encontradas]
+    # O codigo deixou de ser obrigatorio: as instituicoes mandam a lista sem
+    # ele, e quem monta e a aplicacao, pela ordem do projeto.
+    faltando = [c for c in ("nome",) if c not in encontradas]
     if faltando:
         quais = " e ".join(f"'{c}'" for c in faltando)
         achadas = ", ".join(f"'{c}'" for c in tabela.columns) or "(nenhuma)"
@@ -212,8 +214,6 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
             observacoes=pegar("observacoes") or None,
         )
 
-        if not linha.codigo:
-            linha.erros.append("sem codigo")
         if not linha.nome:
             linha.erros.append("sem nome")
         elif len(linha.nome) < 3:
@@ -230,7 +230,11 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
 
 
 def marcar_repetidas_no_arquivo(linhas: list[LinhaLida]) -> None:
-    """Aponta codigos repetidos dentro da propria planilha."""
+    """Aponta codigos repetidos dentro da propria planilha.
+
+    So vale quando a planilha traz codigo. Sem codigo, quem numera e a
+    aplicacao, e repeticao nao existe.
+    """
     vistos: dict[str, int] = {}
     for linha in linhas:
         if not linha.codigo:
