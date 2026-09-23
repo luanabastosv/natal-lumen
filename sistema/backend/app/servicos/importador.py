@@ -8,6 +8,7 @@ Nada e gravado nesta etapa. A conferencia acontece na tela, e so depois a
 importacao e confirmada.
 """
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -21,15 +22,41 @@ SEMELHANCA_MINIMA = 88
 
 IDADE_MAXIMA = 21
 
-# Cada campo e os nomes de coluna que ja vimos as instituicoes usarem.
+# Cada campo e os cabecalhos que as instituicoes usam. Tudo e comparado depois
+# de _chave(), que tira acento, baixa a caixa e normaliza espacos — entao
+# "NOME", "Nome" e "nome" sao a mesma coisa e nao precisam estar repetidos.
 COLUNAS = {
-    "codigo": ("codigo", "cod", "matricula", "numero", "n", "id"),
-    "nome": ("nome", "nome completo", "crianca", "aluno", "nome da crianca"),
-    "idade": ("idade", "anos"),
-    "sexo": ("sexo", "genero", "m/f", "sexo (m/f)"),
-    "instituicao": ("instituicao", "escola", "entidade", "creche", "instituição"),
-    "observacoes": ("observacoes", "observacao", "obs", "observações"),
+    "codigo": (
+        "codigo", "cod", "n", "no", "num", "numero", "matricula", "registro",
+        "id", "ordem", "item", "codigo da crianca", "cod crianca",
+        "numero de ordem", "n de ordem",
+    ),
+    "nome": (
+        "nome", "nome completo", "nome da crianca", "nome do aluno",
+        "nome da danca", "nome e sobrenome", "nome sobrenome",
+        "nome do beneficiario", "nome da beneficiaria", "nome completo da crianca",
+        "crianca", "aluno", "aluna", "beneficiario", "beneficiaria", "participante",
+    ),
+    "idade": ("idade", "anos", "idade anos", "idade em anos", "qtd anos"),
+    "sexo": (
+        "sexo", "genero", "m/f", "sexo (m/f)", "sexo m/f", "f/m",
+        "masculino/feminino", "menino/menina", "sexo da crianca",
+    ),
+    "instituicao": (
+        "instituicao", "escola", "entidade", "creche", "abrigo", "unidade",
+        "ong", "projeto", "local", "nome da instituicao", "nome da escola",
+        "instituicao/escola",
+    ),
+    "observacoes": (
+        "observacoes", "observacao", "obs", "obs.", "comentario", "comentarios",
+        "nota", "notas", "detalhes",
+    ),
 }
+
+# No segundo passe, os campos sao procurados nesta ordem. "nome" fica por
+# ultimo de proposito: uma coluna "Nome da Instituicao" tem de ser reconhecida
+# como instituicao, e nao como o nome da crianca.
+ORDEM_DO_SEGUNDO_PASSE = ("instituicao", "codigo", "idade", "sexo", "observacoes", "nome")
 
 
 def _sem_acento(texto: str) -> str:
@@ -99,18 +126,54 @@ class Leitura:
         return [l for l in self.linhas if l.valida]
 
 
+def _contem_termo(chave_coluna: str, termo: str) -> bool:
+    """Se o termo aparece no cabecalho como palavra inteira.
+
+    Palavra inteira, e nao pedaco: assim "codigo" nao casa com "codigos
+    postais", e "no" nao casa com "nome".
+    """
+    return re.search(rf"(^|\W){re.escape(termo)}($|\W)", chave_coluna) is not None
+
+
 def _mapear_colunas(colunas: list[str]) -> tuple[dict[str, str], list[str]]:
-    """Descobre qual coluna da planilha corresponde a cada campo."""
+    """Descobre qual coluna da planilha corresponde a cada campo.
+
+    Dois passes. O primeiro exige o cabecalho igual a um dos aceitos. O segundo
+    aceita o cabecalho que CONTENHA um deles — e o que resgata coisas como
+    "Nome Completo da Crianca (sem abreviar)", que nenhuma lista preveria.
+    """
     encontradas: dict[str, str] = {}
     usadas: set[str] = set()
+    chaves = {coluna: _chave(coluna) for coluna in colunas}
 
+    # 1. Cabecalho exatamente igual a um dos aceitos.
     for campo, aceitos in COLUNAS.items():
         for coluna in colunas:
             if coluna in usadas:
                 continue
-            if _chave(coluna) in aceitos:
+            if chaves[coluna] in aceitos:
                 encontradas[campo] = coluna
                 usadas.add(coluna)
+                break
+
+    # 2. Cabecalho que contem um dos aceitos. Do termo mais longo para o mais
+    # curto, para "nome da instituicao" ganhar de "nome".
+    for campo in ORDEM_DO_SEGUNDO_PASSE:
+        if campo in encontradas:
+            continue
+
+        candidatos = sorted(COLUNAS[campo], key=len, reverse=True)
+        achou = False
+        for termo in candidatos:
+            for coluna in colunas:
+                if coluna in usadas:
+                    continue
+                if _contem_termo(chaves[coluna], termo):
+                    encontradas[campo] = coluna
+                    usadas.add(coluna)
+                    achou = True
+                    break
+            if achou:
                 break
 
     ignoradas = [c for c in colunas if c not in usadas]

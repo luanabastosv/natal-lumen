@@ -162,7 +162,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 78 verificações
+./.venv/bin/python -m tests.test_criancas       # 83 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
@@ -348,8 +348,22 @@ Toda listagem de crianças sai ordenada por código.
 ### Importação de listas
 
 As instituições mandam planilhas com o seu próprio jeito de nomear as colunas.
-O importador reconhece variações (`Matrícula`, `Cod`, `Nome Completo`, `Escola`,
-`Sexo` escrito por extenso), tira acentos e normaliza tudo antes de comparar.
+O importador normaliza tudo antes de comparar — tira acento, ignora a caixa e
+os espaços — então `nome`, `Nome`, `NOME` e `  Nome  ` são a mesma coisa.
+
+O reconhecimento tem **dois passes**:
+
+1. **Cabeçalho igual** a um dos aceitos: `Nome`, `Nome Completo`, `Nome da
+   Criança`, `Nome do Aluno`, `Matrícula`, `Cod`, `Nº`, `Idade`, `Anos`,
+   `Sexo`, `Gênero`, `M/F`, `Escola`, `Creche`, `Entidade`, `Obs`…
+2. **Cabeçalho que contenha** um deles, como palavra inteira. É o que resgata
+   `Nome Completo da Criança (sem abreviar)` ou `Nome do Beneficiário`, que
+   nenhuma lista preveria.
+
+No segundo passe os campos são procurados numa ordem definida, com `nome` por
+**último**. Assim uma planilha com `Nome da Instituição` e `Nome da Criança`
+lado a lado acerta as duas: a instituição é reconhecida antes, e sobra a
+criança para `nome`.
 
 **Formatos aceitos**, todos testados:
 

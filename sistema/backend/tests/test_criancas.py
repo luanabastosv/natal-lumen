@@ -369,6 +369,67 @@ def main() -> None:
                  r.status_code == 200 and "nome" in r.json()["colunas_reconhecidas"],
                  f"{r.status_code} {r.text[:90]}")
 
+        print("\nCabecalhos que as instituicoes usam de verdade")
+        from app.servicos.importador import _mapear_colunas
+
+        variantes = [
+            (["nome", "idade", "sexo"], "nome"),
+            (["Nome", "Idade", "Sexo"], "Nome"),
+            (["NOME", "IDADE", "SEXO"], "NOME"),
+            (["Nome completo", "Idade", "Sexo"], "Nome completo"),
+            (["Nome Completo", "Idade", "Sexo"], "Nome Completo"),
+            (["NOME COMPLETO", "IDADE", "SEXO"], "NOME COMPLETO"),
+            (["  Nome  ", "Idade", "Sexo"], "  Nome  "),
+            (["Nome da Crianca", "Idade", "Sexo"], "Nome da Crianca"),
+            (["Nome do Aluno", "Anos", "Genero"], "Nome do Aluno"),
+            (["nome e sobrenome", "idade", "m/f"], "nome e sobrenome"),
+            (["Nome Completo da Crianca (sem abreviar)", "Idade", "Sexo"],
+             "Nome Completo da Crianca (sem abreviar)"),
+            (["NOME DO BENEFICIARIO", "IDADE", "SEXO"], "NOME DO BENEFICIARIO"),
+            (["Nome da crianca atendida", "Idade", "Sexo"], "Nome da crianca atendida"),
+        ]
+        erradas = [
+            (cols, esperado, _mapear_colunas(cols)[0].get("nome"))
+            for cols, esperado in variantes
+            if _mapear_colunas(cols)[0].get("nome") != esperado
+        ]
+        verifica(
+            f"reconhece a coluna de nome em {len(variantes)} escritas diferentes",
+            not erradas,
+            str(erradas[:2]),
+        )
+
+        # O caso perigoso: "nome" aparece duas vezes e uma delas e a instituicao.
+        mapa, _ = _mapear_colunas(["Nome da Instituicao", "Nome da Crianca", "Idade", "Sexo"])
+        verifica(
+            "com duas colunas 'Nome', a da crianca vai para nome",
+            mapa.get("nome") == "Nome da Crianca", str(mapa.get("nome")),
+        )
+        verifica(
+            "e a da instituicao vai para instituicao",
+            mapa.get("instituicao") == "Nome da Instituicao", str(mapa.get("instituicao")),
+        )
+
+        mapa2, _ = _mapear_colunas(["Nome", "Nome da Escola", "Idade", "Sexo"])
+        verifica(
+            "'Nome' sozinho continua sendo a crianca, mesmo com 'Nome da Escola' ao lado",
+            mapa2.get("nome") == "Nome" and mapa2.get("instituicao") == "Nome da Escola",
+            f"{mapa2.get('nome')} / {mapa2.get('instituicao')}",
+        )
+
+        # Pela API, de ponta a ponta, com o cabecalho todo em maiusculas.
+        maiusculas = planilha([
+            {"NOME COMPLETO": "Teste Maiusculas Sobrenome", "IDADE": "5", "SEXO": "F"},
+        ])
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("maiusculas.xlsx", maiusculas, "application/vnd.ms-excel")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        verifica("importa planilha com cabecalho em maiusculas",
+                 r.status_code == 200 and r.json()["validas"] == 1,
+                 f"{r.status_code} {r.text[:120]}")
+
         print("\nPlanilha sem as colunas minimas")
         ruim = planilha([{"Alguma Coisa": "x", "Outra": "y"}])
         r = cc.post(
