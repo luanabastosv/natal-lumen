@@ -7,28 +7,48 @@ import { useEffect, useRef } from "react";
  */
 export default function Modal({ titulo, aoFechar, children, rodape }) {
   const botaoFechar = useRef(null);
+  const caixa = useRef(null);
 
+  // O foco vai UMA vez, ao abrir. Sem esta separacao o efeito dependia de
+  // aoFechar — que chega como funcao nova a cada render — e roubava o foco a
+  // cada tecla digitada num campo do formulario.
   useEffect(() => {
-    botaoFechar.current?.focus();
+    // Num formulario, quem espera o foco e o primeiro campo, nao o botao de
+    // fechar. Numa janela so de leitura, cai no fechar mesmo.
+    const primeiro = caixa.current?.querySelector(
+      "input:not([type=hidden]), select, textarea",
+    );
+    (primeiro ?? botaoFechar.current)?.focus();
+  }, []);
 
+  // Trava a rolagem do fundo enquanto a janela esta aberta.
+  useEffect(() => {
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = antes;
+    };
+  }, []);
+
+  // Este pode reassinar a cada render sem incomodar ninguem: so troca o
+  // ouvinte de tecla.
+  useEffect(() => {
     const aoTeclar = (e) => {
       if (e.key === "Escape") aoFechar();
     };
     window.addEventListener("keydown", aoTeclar);
-
-    // Trava a rolagem do fundo enquanto a janela esta aberta.
-    const antes = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      window.removeEventListener("keydown", aoTeclar);
-      document.body.style.overflow = antes;
-    };
+    return () => window.removeEventListener("keydown", aoTeclar);
   }, [aoFechar]);
 
   return (
     <div className="modal-fundo" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={titulo}>
+      <div
+        ref={caixa}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
+      >
         <div className="modal__topo">
           <h2 className="modal__titulo">{titulo}</h2>
           <button
