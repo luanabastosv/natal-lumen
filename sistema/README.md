@@ -391,6 +391,10 @@ irmãos com nomes parecidos existem; quem confere decide. A comparação usa
 - **uma aba por instituição**, com a contagem e quantas estão sem padrinho; um
   ponto âmbar marca a aba que tem pendência, para a coordenação achar o atraso
   sem abrir aba por aba;
+- **as colunas não se mexem ao trocar de aba** — largura e posição vêm de um
+  `<colgroup>` com `table-layout: fixed`, e a coluna Instituição aparece sempre,
+  mesmo numa aba de instituição só. Informação que muda de lugar a cada clique
+  obriga a reencontrar tudo de novo;
 - **células editáveis** — clique para editar, Enter salva e desce para a linha
   seguinte, Esc desfaz;
 - **marcadores de estado** em cada linha: padrinho de cesta e de festa, cartões

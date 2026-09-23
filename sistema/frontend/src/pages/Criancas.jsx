@@ -463,6 +463,22 @@ export default function Criancas() {
         <>
           <div className="tabela-rolagem">
             <table className="planilha">
+              {/* As larguras ficam aqui, e nao no conteudo: trocar de aba nao
+                  move nenhuma coluna de lugar. */}
+              <colgroup>
+                {podeEditar && <col style={{ width: 34 }} />}
+                <col style={{ width: 92 }} />
+                <col />
+                <col style={{ width: 64 }} />
+                <col style={{ width: 58 }} />
+                <col style={{ width: 112 }} />
+                <col style={{ width: 190 }} />
+                <col style={{ width: 84 }} />
+                <col style={{ width: 72 }} />
+                <col style={{ width: 72 }} />
+                <col style={{ width: 82 }} />
+                {podeEditar && <col style={{ width: 44 }} />}
+              </colgroup>
               <thead>
                 <tr>
                   {podeEditar && (
@@ -480,7 +496,7 @@ export default function Criancas() {
                   <th>Idade</th>
                   <th>Sexo</th>
                   <th>Dia</th>
-                  {abaAtiva === TODAS && <th>Instituição</th>}
+                  <th>Instituição</th>
                   <th title="Padrinho de cesta e de festa">Padrinhos</th>
                   <th title="Cartões digitalizados, de 2">Cartões</th>
                   <th>Kit</th>
@@ -509,7 +525,6 @@ export default function Criancas() {
                         <CelulaEditavel
                           valor={c.codigo}
                           aoSalvar={(v) => salvarCampo(c, "codigo", v)}
-                          largura={90}
                         />
                       ) : (
                         <span className="celula">{c.codigo}</span>
@@ -520,7 +535,6 @@ export default function Criancas() {
                         <CelulaEditavel
                           valor={c.nome}
                           aoSalvar={(v) => salvarCampo(c, "nome", v)}
-                          largura={220}
                         />
                       ) : (
                         <span className="celula">{c.nome}</span>
@@ -532,7 +546,6 @@ export default function Criancas() {
                           valor={c.idade}
                           tipo="number"
                           aoSalvar={(v) => salvarCampo(c, "idade", Number(v))}
-                          largura={70}
                         />
                       ) : (
                         <span className="celula">{c.idade}</span>
@@ -544,7 +557,6 @@ export default function Criancas() {
                           valor={c.sexo}
                           opcoes={SEXOS}
                           aoSalvar={(v) => salvarCampo(c, "sexo", v)}
-                          largura={70}
                         />
                       ) : (
                         <span className="celula">{c.sexo}</span>
@@ -556,7 +568,6 @@ export default function Criancas() {
                           valor={c.dia_evento_id}
                           opcoes={opcoesDia}
                           aoSalvar={(v) => salvarCampo(c, "dia_evento_id", v ? Number(v) : null)}
-                          largura={120}
                         />
                       ) : (
                         <span className="celula">
@@ -564,9 +575,11 @@ export default function Criancas() {
                         </span>
                       )}
                     </td>
-                    {abaAtiva === TODAS && (
-                      <td><span className="celula">{c.instituicao}</span></td>
-                    )}
+                    <td>
+                      <span className="celula" title={c.instituicao}>
+                        {c.instituicao}
+                      </span>
+                    </td>
                     <td>
                       <span className="celula" style={{ cursor: "default" }}>
                         <span
@@ -618,9 +631,15 @@ export default function Criancas() {
                     </td>
                     {podeEditar && (
                       <td className="planilha__acoes">
-                        <Button size="sm" variant="ghost" onClick={() => remover(c)}>
-                          Remover
-                        </Button>
+                        <button
+                          type="button"
+                          className="remover"
+                          onClick={() => remover(c)}
+                          title={`Remover ${c.nome}`}
+                          aria-label={`Remover ${c.nome}`}
+                        >
+                          ×
+                        </button>
                       </td>
                     )}
                   </tr>

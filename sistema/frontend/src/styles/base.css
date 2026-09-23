@@ -509,9 +509,24 @@
 /* ---------- Planilha ---------- */
 .planilha {
   width: 100%;
+  /* fixed e o que segura as colunas no lugar: sem isso o navegador
+     redimensiona tudo conforme o conteudo, e trocar de aba faz a informacao
+     pular de posicao. As larguras vem do <colgroup>. */
+  table-layout: fixed;
+  /* Abaixo disto a tabela rola em vez de espremer as colunas. */
+  min-width: 1080px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--size-body-sm);
+}
+
+/* O texto que nao couber na largura fixa e cortado com reticencias, em vez de
+   quebrar a linha e mudar a altura. */
+.planilha td .celula,
+.planilha td > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .planilha th {
@@ -559,8 +574,31 @@
 }
 
 .planilha__acoes {
-  padding: 0 8px !important;
-  text-align: right;
+  padding: 0 6px !important;
+  text-align: center;
+}
+
+/* Remover vira icone: escrever "Remover" em 1500 linhas e ruido. */
+.remover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--navy-300);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.remover:hover {
+  background: #fdecec;
+  color: #c0392b;
 }
 
 /* ---------- Celula que vira campo ao clicar ---------- */
