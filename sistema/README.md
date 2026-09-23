@@ -19,7 +19,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 7 | Cartões: digitalização, OCR e envio | **pronta** |
 | 8 | Kits, compras e check-in | **pronta** |
 | 9 | Painel e relatórios | **pronta** |
-| 10 | Publicação em /acesso | a fazer |
+| 10 | Publicação em /acesso | **pronta** |
 
 ---
 
@@ -495,16 +495,127 @@ cd backend
 
 ## Publicação em /acesso
 
-A fazer na fase 10. O desenho previsto:
-
-- `https://DOMINIO/` → site público (`site/dist`)
-- `https://DOMINIO/acesso` → `sistema/frontend/dist`, com o servidor devolvendo
-  `index.html` em qualquer subrota
-- `https://DOMINIO/acesso/api` → uvicorn, com o FastAPI usando
-  `root_path="/acesso/api"`. O servidor web precisa **remover** o prefixo antes
-  de encaminhar (no nginx, `proxy_pass http://127.0.0.1:8000/;` — com a barra
-  no fim): a aplicação atende em `/auth/login`, e o `root_path` serve só para
-  ela montar os links e a documentação com o prefixo correto.
+```
+https://DOMINIO/            → site público        site/dist
+https://DOMINIO/acesso      → sistema             sistema/frontend/dist
+https://DOMINIO/acesso/api  → API                 uvicorn em 127.0.0.1:8000
+```
 
 Frontend e API no mesmo domínio é o que permite o cookie de sessão `httpOnly`
 com `SameSite=Strict` e `path=/acesso`, sem CORS em produção.
+
+Os arquivos prontos estão em [publicacao/](publicacao/):
+
+| Arquivo | O que é |
+| --- | --- |
+| `nginx.conf` | Configuração do nginx, com os três caminhos acima |
+| `natal-lumen-api.service` | Unidade systemd da API |
+| `publicar.sh` | Atualiza uma instalação já existente |
+
+### Primeira instalação
+
+No servidor (Ubuntu/Debian):
+
+```bash
+sudo apt install python3.12 python3.12-venv postgresql nginx nodejs npm
+sudo adduser --system --group natal-lumen
+
+sudo mkdir -p /var/www/natal-lumen
+sudo chown natal-lumen:natal-lumen /var/www/natal-lumen
+sudo -u natal-lumen git clone SEU_REPO /var/www/natal-lumen
+cd /var/www/natal-lumen
+```
+
+Base de dados:
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE natal_lumen LOGIN PASSWORD 'uma-senha-forte';"
+sudo -u postgres psql -c "CREATE DATABASE natal_lumen OWNER natal_lumen;"
+```
+
+Backend:
+
+```bash
+cd sistema/backend
+python3.12 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+
+cp .env.example .env
+```
+
+No `.env` de produção, obrigatoriamente:
+
+```
+DATABASE_URL=postgresql+psycopg://natal_lumen:uma-senha-forte@localhost:5432/natal_lumen
+JWT_SECRET=<gere um novo, veja abaixo>
+AMBIENTE=producao
+ARQUIVOS_DIR=/var/www/natal-lumen/sistema/arquivos
+```
+
+```bash
+./.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(48))"
+chmod 600 .env          # o systemd lê este arquivo; ninguém mais precisa
+./.venv/bin/alembic upgrade head
+./.venv/bin/python -m app.seeds.perfis_permissoes
+./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
+```
+
+> `AMBIENTE=producao` muda três coisas: o cookie passa a exigir HTTPS
+> (`Secure`), o CORS é desligado (desnecessário no mesmo domínio) e o `/docs`
+> some.
+
+Frontend:
+
+```bash
+cd ../frontend
+npm ci
+npm run build
+```
+
+Serviço e nginx:
+
+```bash
+cd ../publicacao
+sudo cp natal-lumen-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now natal-lumen-api
+
+sudo cp nginx.conf /etc/nginx/sites-available/natal-lumen
+# troque DOMINIO e os caminhos dentro do arquivo
+sudo ln -s /etc/nginx/sites-available/natal-lumen /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+sudo certbot --nginx -d DOMINIO -d www.DOMINIO
+```
+
+Confira: `curl https://DOMINIO/acesso/api/saude` deve responder
+`{"ok":true,"ambiente":"producao"}`.
+
+### Atualizações
+
+```bash
+cd /var/www/natal-lumen
+./sistema/publicacao/publicar.sh
+```
+
+Ele busca a versão nova, instala dependências, **roda as migrations antes de
+reiniciar** (o código novo costuma esperar o esquema novo), reconstrói o
+frontend, reinicia a API e confere se ela respondeu.
+
+### Detalhes que costumam morder
+
+**A barra no fim do `proxy_pass`.** `proxy_pass http://127.0.0.1:8000/;` remove
+o prefixo `/acesso/api` antes de encaminhar. A aplicação atende em
+`/auth/login`, não em `/acesso/api/auth/login` — o `root_path` do FastAPI serve
+só para ela montar links e documentação. Sem a barra, tudo dá 404.
+
+**`try_files ... /acesso/index.html`.** Sem isso, abrir `/acesso/criancas`
+direto no navegador dá 404: quem conhece essa rota é o React Router, não o
+nginx.
+
+**`ARQUIVOS_DIR` não é servido pelo nginx.** As imagens dos cartões só saem por
+`GET /acesso/api/cartoes/{id}/imagem`, que confere sessão e permissão antes.
+Apontar o nginx para essa pasta abriria as fotos a quem tivesse o link.
+
+**Backup.** O que não dá para refazer são dois: a base (`pg_dump natal_lumen`) e
+a pasta `sistema/arquivos/` (as imagens dos cartões). O resto está no git.

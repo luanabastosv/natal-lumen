@@ -1,0 +1,39 @@
+# systemd — API do sistema Natal Lumen
+#
+#   sudo cp natal-lumen-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now natal-lumen-api
+
+[Unit]
+Description=API do sistema Natal Lumen
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=natal-lumen
+Group=natal-lumen
+WorkingDirectory=/var/www/natal-lumen/sistema/backend
+
+# O .env fica fora do git e so o usuario do servico consegue ler.
+EnvironmentFile=/var/www/natal-lumen/sistema/backend/.env
+
+# Sem --reload: em producao ele so gasta memoria.
+# 2 workers dao conta do evento; cada um carrega o EasyOCR (~1 GB), entao
+# subir muito alem disso pesa na memoria.
+ExecStart=/var/www/natal-lumen/sistema/backend/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --workers 2
+
+Restart=always
+RestartSec=5
+
+# Endurecimento basico
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# As unicas pastas em que o servico escreve.
+ReadWritePaths=/var/www/natal-lumen/sistema/arquivos
+
+[Install]
+WantedBy=multi-user.target
