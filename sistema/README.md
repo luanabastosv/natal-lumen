@@ -89,6 +89,35 @@ Estrutura). É idempotente: rodar de novo não duplica nada, e não desfaz ajust
 feitos direto na base — os perfis existem na base justamente para poderem ser
 alterados sem mexer no código.
 
+### Backup
+
+**Duas coisas não dão para refazer:** a base de dados e as imagens dos cartões.
+O resto está no git.
+
+```bash
+cd backend
+./backup.sh                    # guarda em sistema/backups/
+./backup.sh /Volumes/PenDrive  # ou onde você quiser
+```
+
+Guarde **uma cópia fora do computador** — nuvem, pen drive, outro disco. Um
+backup que mora no mesmo disco que os dados não protege contra o que mais
+acontece: o disco morrer.
+
+Para conferir que o backup presta, restaure numa base descartável:
+
+```bash
+psql -d postgres -c "CREATE DATABASE teste_restauro OWNER natal_lumen"
+pg_restore -h localhost -U natal_lumen -d teste_restauro backups/natal-lumen_DATA.dump
+psql -d postgres -c "DROP DATABASE teste_restauro"
+```
+
+Backup que nunca foi restaurado não é backup — é esperança.
+
+> ⚠️ `alembic downgrade base` **apaga todas as tabelas**. É útil em
+> desenvolvimento e desastroso em produção. Faça backup antes de qualquer
+> comando do Alembic que não seja `upgrade`.
+
 ### Testes
 
 ```bash
@@ -109,12 +138,16 @@ cd backend
 cria cidades, edições e coordenadores; a coordenação só mexe na própria cidade;
 e a instituição atribuída tem de ser da cidade da edição.
 
-Se algum teste for interrompido no meio, ou depois de mexer no sistema pelo
-navegador, limpe o que ficou:
+Todo dado criado por teste tem nome começando com `ZZ`, e cada bateria limpa o
+que criou. Se alguma for interrompida no meio, ou depois de mexer no sistema
+pelo navegador, limpe o que ficou:
 
 ```bash
 ./.venv/bin/python -m tests.limpar_dados_de_teste
 ```
+
+Ele só apaga o que começa com `ZZ`, lista o que apagou, e **se recusa a rodar
+com `AMBIENTE=producao`**. Ainda assim: não batize nada de verdade com `ZZ`.
 
 `test_esquema` valida as restrições do banco com dados reais (um padrinho em
 várias crianças, apadrinhamento entre cidades, unicidade de cartões e kits).

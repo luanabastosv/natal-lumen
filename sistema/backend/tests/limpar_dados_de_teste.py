@@ -9,6 +9,7 @@ Rodar com:  python -m tests.limpar_dados_de_teste
 
 from sqlalchemy import delete, select
 
+from app.config import config
 from app.database import SessionLocal
 from app.models import (
     Cidade,
@@ -29,12 +30,19 @@ MARCA = "ZZ%"
 
 
 def main() -> None:
+    # Trava: este comando so existe para desfazer testes. Rodar em producao
+    # seria, na melhor das hipoteses, inutil.
+    if config.em_producao:
+        print("Recusado: AMBIENTE=producao. Este comando e so para desenvolvimento.")
+        raise SystemExit(1)
+
     db = SessionLocal()
     try:
         cidades = db.scalars(
             select(Cidade).where(Cidade.nome.like(MARCA))
         ).all()
         cidade_ids = [c.id for c in cidades]
+        nomes_removidos = [c.nome for c in cidades]
 
         edicao_ids = []
         if cidade_ids:
@@ -67,6 +75,7 @@ def main() -> None:
             select(Usuario).where(Usuario.nome.like(MARCA))
         ).all()
         ids = [u.id for u in usuarios]
+        nomes_removidos += [u.nome for u in usuarios]
         if ids:
             db.execute(delete(LogAtividade).where(LogAtividade.usuario_id.in_(ids)))
             db.execute(delete(TokenAcesso).where(TokenAcesso.usuario_id.in_(ids)))
@@ -87,6 +96,8 @@ def main() -> None:
             f"removidos: {len(cidade_ids)} cidade(s), {len(edicao_ids)} edicao(oes), "
             f"{len(ids)} usuario(s) de teste"
         )
+        for nome in nomes_removidos:
+            print(f"   - {nome}")
     finally:
         db.close()
 
