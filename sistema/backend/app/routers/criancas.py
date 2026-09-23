@@ -28,6 +28,7 @@ from app.schemas.criancas import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
 from app.servicos import importador
+from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/criancas", tags=["criancas"])
@@ -231,9 +232,7 @@ async def importar_previa(
     if edicao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
-    conteudo = await arquivo.read()
-    if not conteudo:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Arquivo vazio.")
+    conteudo = await ler_limitado(arquivo)
 
     try:
         leitura = importador.ler_planilha(conteudo, arquivo.filename or "lista.xlsx")

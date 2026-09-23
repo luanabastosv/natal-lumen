@@ -36,6 +36,12 @@ class Config(BaseSettings):
     cookie_csrf: str = "nl_csrf"
     cookie_path: str = "/acesso"
 
+    # --- Uploads ---
+    # A aplicacao le o arquivo inteiro na memoria (foto para o OCR, planilha
+    # para a importacao). Sem teto, um arquivo gigante derruba o servidor —
+    # e nao da para confiar so no limite do nginx.
+    max_upload_mb: int = 15
+
     # --- OCR dos cartoes ---
     # Carregar o EasyOCR leva ~30s. Em producao vale a pena fazer isso no
     # arranque, para o primeiro monitor do dia nao esperar. Em desenvolvimento
@@ -49,6 +55,10 @@ class Config(BaseSettings):
     @property
     def em_producao(self) -> bool:
         return self.ambiente == "producao"
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
 
     @property
     def aquecer_ocr(self) -> bool:

@@ -32,6 +32,7 @@ from app.schemas.cartoes import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import arquivos, scanner
+from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/cartoes", tags=["cartoes"])
@@ -166,9 +167,7 @@ async def analisar(
             "Nenhuma crianca com este codigo entre as que voce alcanca.",
         )
 
-    conteudo = await imagem.read()
-    if not conteudo:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Arquivo de imagem vazio.")
+    conteudo = await ler_limitado(imagem)
 
     try:
         original = scanner.carregar_imagem(conteudo)

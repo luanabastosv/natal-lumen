@@ -89,6 +89,42 @@ Estrutura). É idempotente: rodar de novo não duplica nada, e não desfaz ajust
 feitos direto na base — os perfis existem na base justamente para poderem ser
 alterados sem mexer no código.
 
+### Segurança
+
+`tests/test_seguranca.py` não confere se o código *parece* seguro — ele **tenta
+atacar** o sistema. Cada verificação é um ataque que falhou:
+
+| O que tenta | Resultado |
+| --- | --- |
+| Ler, editar e apagar dados de outra cidade pelo ID | 404 — nem confirma que existe |
+| Alcançar instituição vizinha, da mesma cidade | 404 |
+| Forçar `edicao_id` / `instituicao_id` na query | Lista vazia |
+| Forjar JWT com outro segredo, com `alg: none`, expirado | 401 nos três |
+| POST sem CSRF, ou com CSRF de outra sessão | 403 |
+| `' OR '1'='1`, `DROP TABLE`, `UNION SELECT` na busca | Sem efeito; tabelas intactas |
+| `../../etc/passwd` em caminho de arquivo e em id | Recusado |
+| Virar admin por campo extra no JSON | Ignorado |
+| Upload de 20 MB, arquivo vazio, executável com nome de foto | 413 / 400 |
+| Enumerar quem tem conta pelo login ou pelo "esqueci a senha" | Mesma resposta sempre |
+| Usar sessão de conta desativada | 401 |
+
+Também auditados:
+
+- **as 57 rotas exigem autenticação** — verificado por introspecção do FastAPI,
+  não por leitura. As únicas públicas são login, definir-senha, esqueci-senha e
+  `/saude`;
+- **sem `eval`, `exec`, `pickle`, `subprocess` ou SQL cru** em lugar nenhum;
+- **sem `dangerouslySetInnerHTML`** no frontend — o React escapa tudo;
+- **a senha nunca entra em log** nem volta em resposta;
+- **dependências sem CVE conhecido** (`npm audit` e `pip-audit`).
+
+Para repetir a auditoria de dependências:
+
+```bash
+cd frontend && npm audit --omit=dev
+cd ../backend && ./.venv/bin/python -m pip_audit
+```
+
 ### Backup
 
 **Duas coisas não dão para refazer:** a base de dados e as imagens dos cartões.
@@ -130,6 +166,7 @@ cd backend
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_logistica      # 26 verificações
 ./.venv/bin/python -m tests.test_painel         # 29 verificações
+./.venv/bin/python -m tests.test_seguranca      # 42 ataques barrados
 ```
 
 > `test_cartoes` carrega o EasyOCR na primeira execução e demora bem mais.
