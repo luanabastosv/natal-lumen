@@ -14,7 +14,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 2 | Autenticação e autorização | **pronta** |
 | 3 | Fundação do frontend | **pronta** |
 | 4 | Cadastros base (cidades, edições, instituições, usuários) | **pronta** |
-| 5 | Crianças e importação de listas | a fazer |
+| 5 | Crianças e importação de listas | **pronta** |
 | 6 | Padrinhos, apadrinhamentos e pagamentos | a fazer |
 | 7 | Cartões: digitalização, OCR e envio | a fazer |
 | 8 | Kits, compras e check-in | a fazer |
@@ -96,6 +96,7 @@ cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
 ./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
+./.venv/bin/python -m tests.test_criancas       # 35 verificações
 ```
 
 `test_cadastros` cobre quem pode o quê nos cadastros: só a administração geral
@@ -220,6 +221,36 @@ log de algo que acabou desfeito.
 | `app/seeds/` | dados iniciais |
 | `alembic/versions/` | histórico de migrations |
 
+### Importação de listas
+
+As instituições mandam planilhas com o seu próprio jeito de nomear as colunas.
+O importador reconhece variações (`Matrícula`, `Cod`, `Nome Completo`, `Escola`,
+`Sexo` escrito por extenso), tira acentos e normaliza tudo antes de comparar.
+
+A importação tem duas etapas, e **nada é gravado na primeira**:
+
+1. `POST /criancas/importar` lê a planilha e devolve a conferência — quais
+   colunas reconheceu, quais linhas estão prontas e quais têm problema.
+2. `POST /criancas/importar/{id}/confirmar` grava só as linhas válidas.
+
+O que vira **erro** (não importa): sem código, sem nome, idade ou sexo
+inválidos, código repetido dentro da planilha, criança já cadastrada nesta
+edição, instituição não reconhecida.
+
+O que vira **aviso** (importa, mas aparece na conferência): nome muito parecido
+com o de outra criança — da base ou da própria planilha. É só aviso porque
+irmãos com nomes parecidos existem; quem confere decide. A comparação usa
+`rapidfuzz` com corte em 88 de semelhança, ajustável em
+`app/servicos/importador.py`.
+
+### Busca por código: o escape do filtro
+
+Comissários e monitores só enxergam as crianças das instituições atribuídas a
+eles. A exceção é a busca por **código exato**, que alcança qualquer instituição
+das edições do usuário — necessária porque apadrinhamento entre cidades é
+permitido. Todo uso dela vai para `log_atividades` com a ação
+`busca_por_codigo`. Listagens e buscas por nome nunca escapam do filtro.
+
 ### Arquivos enviados
 
 Ficam em `ARQUIVOS_DIR` (por padrão `sistema/arquivos/`), **fora** das pastas
@@ -261,7 +292,8 @@ npm run preview  # serve o build
 | `/acesso/usuarios` | Equipe, vínculos e instituições atribuídas | `gerenciar_usuarios` |
 | `/acesso/instituicoes` | Instituições da cidade | `gerenciar_cadastros` |
 | `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
-| `/acesso/criancas` e demais | Espaços reservados das próximas fases | conforme o perfil |
+| `/acesso/criancas` | Lista, cadastro e importação de listas | `ver_criancas` |
+| `/acesso/padrinhos` e demais | Espaços reservados das próximas fases | conforme o perfil |
 
 `/acesso` sem sessão cai no login; com sessão, vai para o painel.
 

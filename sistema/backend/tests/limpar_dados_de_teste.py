@@ -7,7 +7,7 @@ poder rodar de novo.
 Rodar com:  python -m tests.limpar_dados_de_teste
 """
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, select
 
 from app.database import SessionLocal
 from app.models import (
@@ -23,14 +23,16 @@ from app.models import (
     UsuarioInstituicao,
 )
 
-MARCAS = ("ZZB%", "ZZ_AUTH%", "ZZ_CAD%", "ZZ_TESTE%")
+# Todo dado criado por teste comeca com ZZ. Nada de verdade deveria comecar
+# assim — se algum dia comecar, ajuste este prefixo antes de rodar.
+MARCA = "ZZ%"
 
 
 def main() -> None:
     db = SessionLocal()
     try:
         cidades = db.scalars(
-            select(Cidade).where(or_(*[Cidade.nome.like(m) for m in MARCAS]))
+            select(Cidade).where(Cidade.nome.like(MARCA))
         ).all()
         cidade_ids = [c.id for c in cidades]
 
@@ -62,7 +64,7 @@ def main() -> None:
             db.execute(delete(Cidade).where(Cidade.id.in_(cidade_ids)))
 
         usuarios = db.scalars(
-            select(Usuario).where(or_(*[Usuario.nome.like(m) for m in MARCAS]))
+            select(Usuario).where(Usuario.nome.like(MARCA))
         ).all()
         ids = [u.id for u in usuarios]
         if ids:

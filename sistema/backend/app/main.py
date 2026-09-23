@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import config
-from app.routers import auth, cidades, edicoes, instituicoes, perfis, usuarios
+from app.routers import auth, cidades, criancas, edicoes, instituicoes, perfis, usuarios
 
 app = FastAPI(
     title="Sistema Natal Lumen",
@@ -31,6 +31,7 @@ if config.origens_permitidas:
 for router in (
     auth.router,
     cidades.router,
+    criancas.router,
     edicoes.router,
     instituicoes.router,
     perfis.router,
