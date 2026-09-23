@@ -67,6 +67,35 @@ def main() -> None:
             db.execute(delete(DiaEvento).where(DiaEvento.edicao_id.in_(edicao_ids)))
             db.execute(delete(Edicao).where(Edicao.id.in_(edicao_ids)))
 
+        # Instituicoes e criancas de teste podem ter sido criadas dentro de uma
+        # cidade REAL — e ai apagar so pelas cidades ZZ as deixaria para tras.
+        # Ja aconteceu: um teste de navegador deixou uma escola na cidade da
+        # Luana. Por isso o segundo passe, pelo nome.
+        instituicoes_soltas = db.scalars(
+            select(Instituicao).where(Instituicao.nome.like(MARCA))
+        ).all()
+        soltas = [i.id for i in instituicoes_soltas]
+        if soltas:
+            criancas_soltas = list(
+                db.scalars(select(Crianca.id).where(Crianca.instituicao_id.in_(soltas))).all()
+            )
+            if criancas_soltas:
+                db.execute(delete(Crianca).where(Crianca.id.in_(criancas_soltas)))
+            db.execute(
+                delete(UsuarioInstituicao).where(UsuarioInstituicao.instituicao_id.in_(soltas))
+            )
+            db.execute(delete(Instituicao).where(Instituicao.id.in_(soltas)))
+            nomes_removidos += [i.nome for i in instituicoes_soltas]
+
+        criancas_de_teste = db.scalars(
+            select(Crianca).where(Crianca.nome.like(MARCA))
+        ).all()
+        if criancas_de_teste:
+            db.execute(
+                delete(Crianca).where(Crianca.id.in_([c.id for c in criancas_de_teste]))
+            )
+            nomes_removidos += [f"crianca {c.nome}" for c in criancas_de_teste]
+
         if cidade_ids:
             db.execute(delete(Instituicao).where(Instituicao.cidade_id.in_(cidade_ids)))
             db.execute(delete(Cidade).where(Cidade.id.in_(cidade_ids)))
