@@ -32,6 +32,7 @@ from app.models import (
     UsuarioEdicao,
     UsuarioInstituicao,
 )
+from app.schemas.cadastros import DependenciasOut
 from app.schemas.criancas import (
     ComissarioDoTime,
     CriancaEditar,
@@ -49,14 +50,19 @@ from app.schemas.criancas import (
     ResultadoImportacao,
     ResumoInstituicao,
 )
-from app.seeds.perfis_permissoes import PERFIL_COMISSARIO
+from app.seeds.perfis_permissoes import PERFIL_COMISSARIO, PERFIL_COORDENACAO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
-from app.servicos import codigos, dias, importador
+from app.servicos import codigos, dias, exclusao, importador
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/criancas", tags=["criancas"])
+
+# A administracao geral nao e um perfil na base — e um atributo da conta. Este
+# e o nome que ela usa quando aparece ao lado dos perfis, na lista de quem pode
+# responder por uma crianca.
+PAPEL_ADMIN_GERAL = "Administracao geral"
 
 BD = Annotated[Session, Depends(get_db)]
 Ver = Annotated[ContextoAcesso, Depends(exige_permissao("ver_criancas"))]
@@ -64,6 +70,34 @@ Editar = Annotated[ContextoAcesso, Depends(exige_permissao("editar_criancas"))]
 Importar = Annotated[ContextoAcesso, Depends(exige_permissao("importar_listas"))]
 
 PASTA_IMPORTACOES = config.caminho_arquivos / "importacoes"
+
+
+# O carregamento padrao da crianca: tudo o que `_saida` le sem voltar ao banco.
+# O comissario traz junto os vinculos dele porque o GRUPO mora la — ele e do
+# vinculo com a edicao, e nao da pessoa.
+CARREGAR = (
+    joinedload(Crianca.instituicao),
+    joinedload(Crianca.dia_evento),
+    joinedload(Crianca.comissario)
+    .selectinload(Usuario.edicoes)
+    .joinedload(UsuarioEdicao.grupo),
+)
+
+
+def _grupo_do_comissario(crianca: Crianca) -> str | None:
+    """O grupo da comunidade de quem responde por esta crianca.
+
+    Procurado pela edicao da crianca, e nao pela pessoa: o mesmo comissario
+    pode estar num grupo em Fortaleza e noutro em Caucaia, e o que vale para
+    esta crianca e o grupo dele NAQUELA edicao.
+    """
+    if crianca.comissario is None:
+        return None
+
+    for vinculo in crianca.comissario.edicoes:
+        if vinculo.edicao_id == crianca.edicao_id:
+            return vinculo.grupo.nome if vinculo.grupo else None
+    return None
 
 
 def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
@@ -84,6 +118,7 @@ def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
         desistiu_em=crianca.desistiu_em,
         comissario_id=crianca.comissario_id,
         comissario=crianca.comissario.nome if crianca.comissario else None,
+        comissario_grupo=_grupo_do_comissario(crianca),
         tem_padrinho_cesta=extra.get("cesta", False),
         tem_padrinho_festa=extra.get("festa", False),
         cartoes=extra.get("cartoes", 0),
@@ -123,15 +158,41 @@ def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
     return dados
 
 
-def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int]]]:
-    """Os comissarios desta edicao: id -> (nome, instituicoes que ele atende).
+def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int], str]]:
+    """Quem pode responder por uma crianca desta edicao.
 
-    Uma instituicao e atendida por um TIME — as vezes 2 ou 3 comissarios — e
-    todos eles alcancam a lista inteira dela. Isto aqui serve para dizer QUEM
-    pode ser posto como responsavel de uma crianca daquela instituicao.
+    id -> (nome, instituicoes que ele alcanca, papel).
+
+    O comissario e quem faz isto no dia a dia. Uma instituicao e atendida por
+    um TIME — as vezes 2 ou 3 comissarios — e todos eles alcancam a lista
+    inteira dela, e so a dela: e a atribuicao em usuario_instituicao que diz
+    por quais ele responde.
+
+    Coordenacao e administracao geral entram na lista pelo mesmo motivo por que
+    entram em todo o resto do sistema: elas fazem tudo o que a equipe faz, e
+    sem recorte de instituicao. Captar um padrinho e ficar com a crianca no
+    proprio nome e trabalho que a coordenacao tambem pega — e sem isto o nome
+    dela nao poderia aparecer na coluna de responsavel.
     """
+    edicao = db.get(Edicao, edicao_id)
+    if edicao is None:
+        return {}
+
+    # O alcance de quem nao e filtrado por instituicao: a cidade da edicao
+    # inteira. Sem filtrar por `ativo` de proposito — instituicao desativada
+    # ainda pode ter crianca deste ano esperando responsavel.
+    da_cidade = set(
+        db.scalars(
+            select(Instituicao.id).where(Instituicao.cidade_id == edicao.cidade_id)
+        ).all()
+    )
+
+    time: dict[int, tuple[str, set[int], str]] = {}
+
     linhas = db.execute(
-        select(Usuario.id, Usuario.nome, UsuarioInstituicao.instituicao_id)
+        select(
+            Usuario.id, Usuario.nome, Perfil.nome, UsuarioInstituicao.instituicao_id
+        )
         .join(UsuarioEdicao, UsuarioEdicao.usuario_id == Usuario.id)
         .join(Perfil, Perfil.id == UsuarioEdicao.perfil_id)
         .outerjoin(
@@ -143,16 +204,31 @@ def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int]]]:
             UsuarioEdicao.edicao_id == edicao_id,
             UsuarioEdicao.ativo.is_(True),
             Usuario.ativo.is_(True),
-            Perfil.nome == PERFIL_COMISSARIO,
+            # A conta de administracao geral entra pela consulta de baixo, com
+            # a cidade inteira na mao, mesmo que tambem tenha vinculo aqui.
+            Usuario.admin_geral.is_(False),
+            Perfil.nome.in_((PERFIL_COMISSARIO, PERFIL_COORDENACAO)),
         )
         .order_by(Usuario.nome)
     ).all()
 
-    time: dict[int, tuple[str, set[int]]] = {}
-    for usuario_id, nome, instituicao_id in linhas:
-        _, instituicoes = time.setdefault(usuario_id, (nome, set()))
-        if instituicao_id is not None:
+    for usuario_id, nome, papel, instituicao_id in linhas:
+        _, instituicoes, _ = time.setdefault(
+            usuario_id,
+            (nome, set() if papel == PERFIL_COMISSARIO else set(da_cidade), papel),
+        )
+        if papel == PERFIL_COMISSARIO and instituicao_id is not None:
             instituicoes.add(instituicao_id)
+
+    # A administracao geral nao tem vinculo com edicao nenhuma — e alcanca
+    # todas. Por isso ela nao aparece na consulta de cima: entra aqui.
+    for usuario_id, nome in db.execute(
+        select(Usuario.id, Usuario.nome)
+        .where(Usuario.admin_geral.is_(True), Usuario.ativo.is_(True))
+        .order_by(Usuario.nome)
+    ).all():
+        time[usuario_id] = (nome, set(da_cidade), PAPEL_ADMIN_GERAL)
+
     return time
 
 
@@ -162,11 +238,12 @@ def _conferir_comissario(
     criancas: list[Crianca],
     destino: Instituicao | None = None,
 ) -> None:
-    """O responsavel tem de ser do time da instituicao de cada crianca.
+    """O responsavel tem de alcancar a instituicao de cada crianca.
 
     Sem esta conferencia daria para pendurar uma crianca num comissario de
     outra cidade, ou num monitor — e o nome na coluna deixaria de significar
-    "e com ele que eu falo sobre esta crianca".
+    "e com ele que eu falo sobre esta crianca". Coordenacao e administracao
+    geral passam sempre: elas alcancam a cidade inteira.
 
     `destino` e para o lote que muda de escola e poe responsavel na mesma
     chamada: o que vale e a instituicao onde a crianca vai PARAR, nao a de onde
@@ -183,7 +260,7 @@ def _conferir_comissario(
         if membro is None:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Este comissario nao atende a edicao desta crianca.",
+                "Esta pessoa nao atende a edicao desta crianca.",
             )
         if instituicao.id not in membro[1]:
             raise HTTPException(
@@ -198,8 +275,7 @@ def _buscar(db: Session, ctx: ContextoAcesso, crianca_id: int, permissao: str) -
     crianca = db.scalar(
         select(Crianca)
         .where(Crianca.id == crianca_id, ctx.filtro_criancas(permissao))
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
-                 joinedload(Crianca.comissario))
+        .options(*CARREGAR)
     )
     if crianca is None:
         # Mesma resposta de "nao existe": nao revelar criancas fora do alcance.
@@ -263,11 +339,22 @@ def listar(
 
     total = db.scalar(select(func.count()).select_from(Crianca).where(condicao)) or 0
 
+    # Conta sobre o filtro inteiro, nao sobre a pagina: a coluna de check-in so
+    # existe depois que o evento comeca, e quem esta na pagina 3 tem de ver a
+    # mesma planilha de quem esta na 1.
+    com_checkin = (
+        db.scalar(
+            select(func.count())
+            .select_from(Crianca)
+            .where(condicao, Crianca.checkin_em.is_not(None))
+        )
+        or 0
+    )
+
     itens = db.scalars(
         select(Crianca)
         .where(condicao)
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
-                 joinedload(Crianca.comissario))
+        .options(*CARREGAR)
         .order_by(Crianca.codigo)
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
@@ -285,6 +372,7 @@ def listar(
 
     return PaginaCriancas(
         total=total, pagina=pagina, por_pagina=por_pagina,
+        com_checkin=com_checkin,
         itens=[_saida(c, panorama.get(c.id)) for c in itens],
     )
 
@@ -345,18 +433,25 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
 
 @router.get("/comissarios", response_model=list[ComissarioDoTime])
 def comissarios_da_edicao(db: BD, ctx: Ver, edicao_id: int):
-    """O time de comissarios da edicao, com as instituicoes de cada um.
+    """Quem pode responder por uma crianca da edicao, com o alcance de cada um.
 
-    Alimenta o seletor de responsavel na planilha. Sai nome, e mais nada: e a
-    lista de quem trabalha na edicao, nao a ficha de ninguem.
+    Alimenta o seletor de responsavel na planilha. Sai nome e papel, e mais
+    nada: e a lista de quem trabalha na edicao, nao a ficha de ninguem.
+
+    Os comissarios vem primeiro porque sao a escolha do dia a dia; coordenacao
+    e administracao geral ficam no fim da lista, onde nao atrapalham quem esta
+    distribuindo mil criancas pelo time.
     """
     if not ctx.alcanca_edicao(edicao_id, "ver_criancas"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
-    return [
-        ComissarioDoTime(id=i, nome=nome, instituicoes=sorted(instituicoes))
-        for i, (nome, instituicoes) in _time(db, edicao_id).items()
+    membros = [
+        ComissarioDoTime(
+            id=i, nome=nome, papel=papel, instituicoes=sorted(instituicoes)
+        )
+        for i, (nome, instituicoes, papel) in _time(db, edicao_id).items()
     ]
+    return sorted(membros, key=lambda m: (m.papel != PERFIL_COMISSARIO, m.nome))
 
 
 @router.post("/lote", response_model=list[CriancaOut])
@@ -369,8 +464,7 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
     criancas = db.scalars(
         select(Crianca)
         .where(Crianca.id.in_(dados.criancas), ctx.filtro_criancas("editar_criancas"))
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
-                 joinedload(Crianca.comissario))
+        .options(*CARREGAR)
     ).all()
 
     if len(criancas) != len(set(dados.criancas)):
@@ -439,8 +533,7 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
     atualizadas = db.scalars(
         select(Crianca)
         .where(Crianca.id.in_([c.id for c in criancas]))
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
-                 joinedload(Crianca.comissario))
+        .options(*CARREGAR)
         .order_by(Crianca.nome)
     ).all()
     panorama = _panorama(db, [c.id for c in atualizadas])
@@ -486,8 +579,7 @@ def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
             Crianca.edicao_id == dados.edicao_id,
             Crianca.instituicao_id == dados.instituicao_id,
         )
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
-                 joinedload(Crianca.comissario))
+        .options(*CARREGAR)
     ).all()
 
     if not criancas:
@@ -531,8 +623,7 @@ def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
             Crianca.edicao_id == dados.edicao_id,
             Crianca.instituicao_id == dados.instituicao_id,
         )
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
-                 joinedload(Crianca.comissario))
+        .options(*CARREGAR)
         .order_by(Crianca.codigo)
     ).all()
     panorama = _panorama(db, [c.id for c in atualizadas])
@@ -545,12 +636,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
     crianca = db.scalar(
         select(Crianca)
         .where(Crianca.id == crianca_id, ctx.filtro_criancas("ver_criancas"))
-        .options(
-            joinedload(Crianca.instituicao),
-            joinedload(Crianca.dia_evento),
-            joinedload(Crianca.edicao),
-            joinedload(Crianca.comissario),
-        )
+        .options(*CARREGAR, joinedload(Crianca.edicao))
     )
     if crianca is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
@@ -602,6 +688,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         desistiu_em=crianca.desistiu_em,
         comissario_id=crianca.comissario_id,
         comissario=crianca.comissario.nome if crianca.comissario else None,
+        comissario_grupo=_grupo_do_comissario(crianca),
         padrinhos=padrinhos,
         cartoes=[
             CartaoDaCrianca(
@@ -712,6 +799,20 @@ def desistencia(crianca_id: int, dados: DesistenciaIn, db: BD, ctx: Editar):
 
     panorama = _panorama(db, [crianca.id])
     return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"), panorama.get(crianca.id))
+
+
+@router.get("/{crianca_id}/dependencias", response_model=DependenciasOut)
+def dependencias(crianca_id: int, db: BD, ctx: Editar):
+    """O que seria apagado junto com a crianca. A tela pergunta isto antes.
+
+    Apagar uma crianca nao e apagar uma linha: vao junto o cartao que ela
+    escreveu, o kit ja montado e o apadrinhamento de quem se ofereceu para
+    ela. Quem clica precisa ver essa lista antes de decidir.
+    """
+    crianca = _buscar(db, ctx, crianca_id, "editar_criancas")
+    return exclusao.resumir(
+        db, crianca.id, crianca.nome, exclusao.alcance_da_crianca(crianca.id)
+    )
 
 
 @router.delete("/{crianca_id}", status_code=status.HTTP_204_NO_CONTENT)

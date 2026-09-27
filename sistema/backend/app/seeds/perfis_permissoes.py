@@ -38,13 +38,16 @@ PERMISSOES: dict[str, str] = {
 # Vem da especificacao, com uma mudanca pedida depois: o comissario perdeu
 # registrar_pagamentos e fazer_checkin — pagamento e conferencia de dinheiro
 # ficam com a coordenacao, e o check-in do dia e do monitor e da estrutura.
-# A coordenacao recebe todas as permissoes, sempre limitadas as suas edicoes.
+# A coordenacao recebe todas as permissoes — tudo o que qualquer equipe faz,
+# ela tambem faz — limitadas a sua CIDADE: o unico alcance que ela nao tem e o
+# de cidades e edicoes, que fica so com a administracao geral, porque e de la
+# que a propria cidade dela nasce.
 # Nota: ver_painel so aparece na coordenacao — a especificacao nao a atribui
 # aos outros perfis. Se o painel tiver de abrir para todos, e acrescentar
 # "ver_painel" aqui (ou na base, sem mexer no codigo).
 PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
     "Coordenacao": (
-        "Coordenacao da cidade: todas as permissoes, limitadas as suas edicoes",
+        "Coordenacao da cidade: todas as permissoes, em todas as edicoes dela",
         tuple(PERMISSOES),
     ),
     "Comissario": (
@@ -79,10 +82,25 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
 # Coordenacao e Estrutura veem a edicao inteira.
 PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitor")
 
-# Quem pode ser posto como responsavel por uma crianca (criancas.comissario_id).
-# O nome do perfil vive na base e pode ser mudado la; se for mudado, mude aqui
-# tambem — e a unica regra do sistema que olha um perfil pelo nome.
+# Perfis que respondem por um grupo da comunidade (usuario_edicao.grupo_id).
+# So o comissario: o monitor responde pela instituicao e a coordenacao pela
+# edicao inteira, e nenhum dos dois pertence a um grupo enquanto esta ali.
+PERFIS_COM_GRUPO = ("Comissario",)
+
+# Os dois unicos lugares em que o sistema olha um perfil pelo NOME, e nao pela
+# permissao. Existem porque nenhum dos dois e uma permissao: sao papeis.
+#
+#   PERFIL_COMISSARIO   quem aparece como responsavel por uma crianca
+#                       (criancas.comissario_id) — ao lado da coordenacao e da
+#                       administracao geral, que tambem assumem crianca.
+#   PERFIL_COORDENACAO  o alcance de cidade inteira: o vinculo da coordenacao e
+#                       repetido em todas as edicoes ativas da cidade, e a
+#                       edicao nova ja nasce com ela dentro. Quem cuida disso e
+#                       app/servicos/coordenacao.py.
+#
+# O nome vive na base e pode ser mudado la; se for mudado, mude aqui tambem.
 PERFIL_COMISSARIO = "Comissario"
+PERFIL_COORDENACAO = "Coordenacao"
 
 
 def semear(db: Session) -> tuple[int, int]:

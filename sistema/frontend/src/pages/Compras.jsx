@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
-import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import MenuAcoes from "../components/core/MenuAcoes.jsx";
+import { Entrada } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes } from "../services/cadastros.js";
 import { apagarCompra, criarCompra, listarCompras } from "../services/logistica.js";
 import { dinheiro, formatarData } from "../utils/dinheiro.js";
 
@@ -16,47 +17,34 @@ const NOVA = {
 };
 
 export default function Compras() {
+  // A edicao vem da lateral: e a mesma para o sistema inteiro.
   const { edicaoAtiva } = useSessao();
 
-  const [edicoes, definirEdicoes] = useState([]);
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [dados, definirDados] = useState({ itens: [], total: 0, total_gasto: "0.00", por_categoria: {} });
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(NOVA);
   const [salvando, definirSalvando] = useState(false);
 
-  useEffect(() => {
-    let vivo = true;
-    listarEdicoes()
-      .then((eds) => {
-        if (!vivo) return;
-        definirEdicoes(eds);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
-      .catch((e) => vivo && definirErro(e.message));
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const buscar = useCallback(async () => {
     try {
-      definirDados(await listarCompras({ edicao_id: edicaoId }));
+      definirDados(await listarCompras({ edicao_id: edicaoAtiva }));
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId]);
+  }, [edicaoAtiva]);
 
   useEffect(() => {
-    if (edicaoId) buscar();
-  }, [edicaoId, buscar]);
+    // Buscar no servidor e justamente o que este efeito existe para fazer: a
+    // lista so chega depois do await, e nao daria para derivar no render.
+    // eslint-disable-next-line react/set-state-in-effect
+    if (edicaoAtiva) buscar();
+  }, [edicaoAtiva, buscar]);
 
   async function salvar(evento) {
     evento.preventDefault();
@@ -64,7 +52,7 @@ export default function Compras() {
     definirSalvando(true);
     try {
       await criarCompra({
-        edicao_id: Number(edicaoId),
+        edicao_id: Number(edicaoAtiva),
         descricao: campos.descricao.trim(),
         categoria: campos.categoria.trim() || null,
         quantidade: Number(campos.quantidade),
@@ -72,7 +60,7 @@ export default function Compras() {
         fornecedor: campos.fornecedor.trim() || null,
         data: campos.data,
       });
-      definirSucesso("Compra registrada.");
+      notificar("Compra registrada.");
       definirCampos(NOVA);
       definirFormAberto(false);
       buscar();
@@ -95,25 +83,23 @@ export default function Compras() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">Estrutura</div>
-      <h1 className="pagina__titulo">Compras</h1>
-      <p className="pagina__lede">
-        O que foi comprado para a edição, com o total por categoria.
-      </p>
+      <div className="pagina__cabecalho">
+        <div className="pagina__texto">
+          <div className="pagina__eyebrow">Estrutura</div>
+          <h1 className="pagina__titulo">Compras</h1>
+          <p className="pagina__lede">
+            O que foi comprado para a edição, com o total por categoria.
+          </p>
+        </div>
+
+        <div className="pagina__acoes">
+          <Button onClick={() => definirFormAberto(true)} disabled={!edicaoAtiva}>
+            Nova compra
+          </Button>
+        </div>
+      </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
-
-      <div className="barra-acoes">
-        <Selecao value={edicaoId} onChange={(e) => definirEdicaoId(e.target.value)}>
-          {edicoes.map((e) => (
-            <option key={e.id} value={e.id}>{e.nome}</option>
-          ))}
-        </Selecao>
-        <Button onClick={() => definirFormAberto(true)} disabled={!edicaoId}>
-          Nova compra
-        </Button>
-      </div>
 
       {dados.total > 0 && (
         <div className="painel">
@@ -163,7 +149,7 @@ export default function Compras() {
             <thead>
               <tr>
                 <th>Descrição</th><th>Categoria</th><th>Qtd</th>
-                <th>Valor</th><th>Fornecedor</th><th>Data</th><th>Por</th><th />
+                <th>Valor</th><th>Fornecedor</th><th>Data</th><th>Por</th><th className="tabela__acoes" />
               </tr>
             </thead>
             <tbody>
@@ -176,8 +162,13 @@ export default function Compras() {
                   <td>{c.fornecedor ?? "—"}</td>
                   <td>{formatarData(c.data)}</td>
                   <td>{c.responsavel ?? "—"}</td>
-                  <td>
-                    <Button size="sm" variant="ghost" onClick={() => remover(c)}>Remover</Button>
+                  <td className="tabela__acoes">
+                    <MenuAcoes
+                      titulo={`Ações de ${c.descricao}`}
+                      itens={[
+                        { rotulo: "Remover", perigo: true, aoEscolher: () => remover(c) },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

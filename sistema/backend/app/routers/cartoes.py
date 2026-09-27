@@ -237,7 +237,7 @@ async def lote_previa(
 
     for indice, enviado in enumerate(arquivos_enviados):
         nome = enviado.filename or f"arquivo_{indice}"
-        item = ArquivoDoLote(arquivo=nome, erros=[], avisos=[])
+        item = ArquivoDoLote(indice=indice, arquivo=nome, erros=[], avisos=[])
 
         acerto = nomes_de_arquivo.casar(nome, list(por_codigo))
         if acerto.erro:
@@ -373,6 +373,24 @@ def lote_confirmar(id_lote: str, db: BD, ctx: Subir):
     caminho_manifesto.unlink(missing_ok=True)
 
     return ResultadoLote(gravados=gravados, ignorados=ignorados)
+
+
+@router.get("/lote/{id_lote}/{indice}/imagem")
+def imagem_do_lote(id_lote: str, indice: int, ctx: Subir):
+    """Imagem de uma foto que ainda esta na previa, em tamanho de conferencia.
+
+    A miniatura da previa tem 220px: da para ver que ha um cartao ali, nao para
+    ler o que a crianca escreveu. A conferencia um a um abre a foto inteira, e
+    ela ainda nao tem linha no banco — mora na pasta temporaria do lote.
+    """
+    if not id_lote.isalnum():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Identificador invalido.")
+
+    caminho = PASTA_TEMP / id_lote / f"{indice}.jpg"
+    if not caminho.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Imagem nao encontrada.")
+
+    return FileResponse(caminho, media_type="image/jpeg")
 
 
 @router.get("/{cartao_id}/imagem")

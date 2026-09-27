@@ -3,8 +3,8 @@ import { useSessao } from "../../contexts/useSessao.js";
 import { itensVisiveis } from "./menu.js";
 
 export default function MenuLateral({ aoNavegar }) {
-  const { pode, usuario } = useSessao();
-  const itens = itensVisiveis(pode, Boolean(usuario?.admin_geral));
+  const { pode } = useSessao();
+  const itens = itensVisiveis(pode);
 
   return (
     <nav className="menu" aria-label="Menu principal">

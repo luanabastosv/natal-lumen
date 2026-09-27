@@ -49,6 +49,9 @@ class CriancaOut(BaseModel):
     # Quem responde por esta crianca. Nulo = ninguem do time ainda pegou.
     comissario_id: int | None = None
     comissario: str | None = None
+    # O grupo dele na comunidade, do vinculo com ESTA edicao. Nulo quando nao
+    # ha responsavel, ou quando ele ainda nao teve grupo nomeado.
+    comissario_grupo: str | None = None
 
     # O panorama da crianca, para a tela ser um painel de controle e nao so
     # uma lista de nomes.
@@ -63,6 +66,10 @@ class PaginaCriancas(BaseModel):
     pagina: int
     por_pagina: int
     itens: list[CriancaOut]
+    # Quantas criancas ja fizeram check-in, no filtro inteiro e nao so nesta
+    # pagina: a planilha so mostra a coluna de check-in quando ha o que
+    # mostrar, e ela nao pode aparecer e sumir conforme a pessoa pagina.
+    com_checkin: int = 0
 
 
 class LinhaImportada(BaseModel):
@@ -180,6 +187,7 @@ class CriancaDetalhe(BaseModel):
 
     comissario_id: int | None = None
     comissario: str | None = None
+    comissario_grupo: str | None = None
 
     padrinhos: list[PadrinhoDaCrianca]
     cartoes: list[CartaoDaCrianca]
@@ -192,13 +200,19 @@ class CriancaDetalhe(BaseModel):
 
 
 class ComissarioDoTime(BaseModel):
-    """Um comissario que atende esta instituicao nesta edicao.
+    """Alguem que pode ser posto como responsavel por uma crianca da edicao.
 
-    E a lista de quem pode ser posto como responsavel de uma crianca dali.
+    Quase sempre e um comissario. Coordenacao e administracao geral tambem
+    entram — elas fazem o que a equipe faz — e por isso o `papel`: a tela
+    precisa dizer quem e quem, senao um nome de coordenacao no meio do time
+    pareceria um comissario a mais.
     """
 
     id: int
     nome: str
-    # As instituicoes da edicao que este comissario atende. A tela usa para
-    # montar um so seletor por instituicao sem voltar ao servidor a cada aba.
+    # "Comissario", "Coordenacao" ou "Administracao geral".
+    papel: str
+    # As instituicoes da edicao que esta pessoa alcanca. A tela usa para montar
+    # um so seletor por instituicao sem voltar ao servidor a cada aba. Para
+    # coordenacao e administracao geral sao todas as da cidade.
     instituicoes: list[int]

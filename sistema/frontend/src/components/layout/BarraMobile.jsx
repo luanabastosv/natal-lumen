@@ -1,7 +1,11 @@
+import { useSessao } from "../../contexts/useSessao.js";
+
 /** Barra fina que so existe no celular, onde a lateral vira gaveta: sem ela
  *  nao haveria de onde abrir a gaveta. No desktop ela nao e renderizada — a
  *  navegacao inteira mora na lateral. */
 export default function BarraMobile({ aoAbrirMenu, menuAberto }) {
+  const { edicao } = useSessao();
+
   return (
     <header className="barra-mobile">
       <button
@@ -20,6 +24,14 @@ export default function BarraMobile({ aoAbrirMenu, menuAberto }) {
         className="barra-mobile__mascote"
       />
       <span className="barra-mobile__nome">Natal Lumen</span>
+
+      {/* So mostra qual edicao esta sendo vista: com a lateral fechada, as
+          paginas nao diriam. Trocar continua sendo la dentro. */}
+      {edicao && (
+        <span className="barra-mobile__edicao">
+          {edicao.cidade} {edicao.ano}
+        </span>
+      )}
     </header>
   );
 }

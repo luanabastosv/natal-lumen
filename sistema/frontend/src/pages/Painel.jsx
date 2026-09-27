@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
@@ -15,7 +14,7 @@ function primeiroNome(nome) {
 }
 
 export default function Painel() {
-  const { usuario, pode, vinculoAtivo, edicaoAtiva, escolherEdicao } = useSessao();
+  const { usuario, pode, vinculoAtivo, edicao, edicaoAtiva } = useSessao();
 
   const [relatorio, definirRelatorio] = useState(null);
   const [carregando, definirCarregando] = useState(false);
@@ -40,9 +39,7 @@ export default function Painel() {
     };
   }, [podeVerNumeros, edicaoAtiva]);
 
-  const atalhos = itensVisiveis(pode, Boolean(usuario?.admin_geral)).filter(
-    (i) => i.para !== "/painel",
-  );
+  const atalhos = itensVisiveis(pode).filter((i) => i.para !== "/painel");
 
   const r = relatorio?.resumo;
 
@@ -58,9 +55,11 @@ export default function Painel() {
           Acompanhe o panorama da edição e siga para o que precisa da sua mão.
         </p>
         <div className="abertura__contexto">
+          {/* Qual edicao esta sendo vista. Trocar de edicao e na lateral: e
+              uma escolha do sistema inteiro, nao deste card. */}
           <span className="chip">
-            {vinculoAtivo
-              ? `${vinculoAtivo.cidade} ${vinculoAtivo.ano}`
+            {edicao
+              ? `${edicao.cidade} ${edicao.ano}`
               : usuario?.admin_geral
                 ? "Administração geral"
                 : "Sem edição vinculada"}
@@ -78,21 +77,6 @@ export default function Painel() {
         />
       ) : (
         <>
-          {usuario?.vinculos.length > 1 && (
-            <div className="barra-acoes">
-              <Selecao
-                value={edicaoAtiva ?? ""}
-                onChange={(e) => escolherEdicao(Number(e.target.value))}
-              >
-                {usuario.vinculos.map((v) => (
-                  <option key={v.edicao_id} value={v.edicao_id}>
-                    {v.cidade} {v.ano}
-                  </option>
-                ))}
-              </Selecao>
-            </div>
-          )}
-
           {podeVerNumeros && carregando && <Carregando>Somando os números...</Carregando>}
 
           {podeVerNumeros && r && (

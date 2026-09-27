@@ -79,7 +79,10 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
             <dt>Dia</dt>
             <dd>{ficha.dia_evento ? formatarData(ficha.dia_evento) : "sem dia marcado"}</dd>
             <dt>Comissário</dt>
-            <dd>{ficha.comissario ?? "sem responsável"}</dd>
+            <dd>
+              {ficha.comissario ?? "sem responsável"}
+              {ficha.comissario_grupo && ` · ${ficha.comissario_grupo}`}
+            </dd>
             <dt>Kit</dt>
             <dd>
               {ficha.kit_status}

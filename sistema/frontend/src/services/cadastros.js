@@ -47,5 +47,10 @@ export const dependenciasDaInstituicao = (id) =>
 export const apagarInstituicao = (id) =>
   api.delete(`/instituicoes/${id}?confirmar=true`);
 
+// Grupos da comunidade (sugestoes do formulario de comissario).
+// Nao ha rota de criar: o grupo nasce junto com o vinculo, em /usuarios.
+export const listarGrupos = (edicaoId) =>
+  api.get(`/grupos${edicaoId ? `?edicao_id=${edicaoId}` : ""}`);
+
 // Perfis
 export const listarPerfis = () => api.get("/perfis");

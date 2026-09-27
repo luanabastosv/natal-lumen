@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
-import { Olho, Xis } from "../components/core/icones.jsx";
+import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
+import { rotuloDoPerfil } from "../components/dados/perfis.js";
 import Carregando from "../components/feedback/Carregando.jsx";
+import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes, listarInstituicoes } from "../services/cadastros.js";
+import { listarInstituicoes } from "../services/cadastros.js";
 import {
   apagarCrianca,
   criarCrianca,
+  dependenciasDaCrianca,
   editarCrianca,
   editarEmLote,
   listarComissarios,
@@ -23,10 +26,30 @@ import {
 import { formatarData } from "../utils/dinheiro.js";
 import ImportarLista from "./ImportarLista.jsx";
 
+/** Como um responsavel se escreve nas listas desta tela.
+ *
+ *  A lista e quase toda de comissarios, e para eles o nome basta. Coordenacao e
+ *  administracao geral tambem podem ficar com uma crianca no nome — mas sao
+ *  poucas pessoas e alcancam a cidade inteira, entao aparecer ali sem aviso
+ *  faria parecer que sao mais um comissario do time daquela escola.
+ */
+function comoAparece(membro) {
+  return membro.papel === "Comissario"
+    ? membro.nome
+    : `${membro.nome} · ${rotuloDoPerfil(membro.papel)}`;
+}
+
 const POR_PAGINA = 100;
 const TODAS = "todas";
 const SEM_RESPONSAVEL = "sem";
 const NOVA = { instituicao_id: "", codigo: "", nome: "", idade: "", sexo: "F" };
+
+/* O que a janela de exclusao diz alem da conta. Desistencia e quase sempre o
+   caminho certo: guarda o cadastro e so tira a crianca do evento — e da para
+   voltar atras ate a vespera. */
+const NOTA_CRIANCA =
+  "Se a criança apenas não vai ao evento, marque desistência na ficha dela em " +
+  "vez de apagar — isso guarda o histórico e dá para voltar atrás.";
 
 const SEXOS = [
   { valor: "F", rotulo: "F" },
@@ -34,10 +57,9 @@ const SEXOS = [
 ];
 
 export default function Criancas() {
-  const { pode, edicaoAtiva } = useSessao();
+  // A edicao vem da lateral: e a mesma para o sistema inteiro.
+  const { pode, edicaoAtiva, edicao } = useSessao();
 
-  const [edicoes, definirEdicoes] = useState([]);
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [instituicoes, definirInstituicoes] = useState([]);
   const [abas, definirAbas] = useState([]);
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
@@ -49,12 +71,14 @@ export default function Criancas() {
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
 
   const [marcadas, definirMarcadas] = useState([]);
 
-  // O time de comissarios da edicao. Uma instituicao e atendida por varios
-  // deles, e a coluna do responsavel diz qual atende cada crianca.
+  // Quem pode responder por uma crianca desta edicao: o time de comissarios e,
+  // sem recorte de escola, a coordenacao e a administracao geral. Uma
+  // instituicao e atendida por varios deles, e a coluna do responsavel diz
+  // quem responde por cada crianca.
   const [comissarios, definirComissarios] = useState([]);
   const [filtroComissario, definirFiltroComissario] = useState("");
   const [atribuindo, definirAtribuindo] = useState(false);
@@ -65,29 +89,49 @@ export default function Criancas() {
   const [importando, definirImportando] = useState(false);
   const [fichaAberta, definirFichaAberta] = useState(null);
 
+  // A exclusao em curso: { registro, dependencias, erro, apagando }. Num
+  // estado so porque as quatro coisas andam juntas — abrir a janela zera as
+  // outras tres, e fechar joga tudo fora.
+  const [exclusao, definirExclusao] = useState(null);
+
   const podeEditar = pode("editar_criancas");
+
+  // O check-in so acontece no dia do evento. Ate la a coluna seria uma fileira
+  // de "nao" ocupando largura que o nome e a instituicao precisam mais — entao
+  // ela so entra quando ha check-in feito.
+  //
+  // O `some` nao e redundante com a conta do servidor: a ficha aberta na
+  // planilha devolve a crianca atualizada, e a coluna tem de aparecer no
+  // mesmo instante, sem esperar a proxima busca.
+  const mostrarCheckin =
+    criancas.com_checkin > 0 || criancas.itens.some((c) => c.checkin_em);
 
   useEffect(() => {
     let vivo = true;
-    Promise.all([listarEdicoes(), listarInstituicoes()])
-      .then(([eds, insts]) => {
-        if (!vivo) return;
-        definirEdicoes(eds);
-        definirInstituicoes(insts);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
+    listarInstituicoes()
+      .then((insts) => vivo && definirInstituicoes(insts))
       .catch((e) => vivo && definirErro(e.message));
     return () => {
       vivo = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Trocar de edicao na lateral recomeca a planilha: as abas, a pagina e as
+  // linhas marcadas sao todas da edicao anterior. Ajustado durante o render, e
+  // nao por efeito: evita uma busca jogada fora.
+  const [ultimaEdicao, definirUltimaEdicao] = useState(edicaoAtiva);
+  if (edicaoAtiva !== ultimaEdicao) {
+    definirUltimaEdicao(edicaoAtiva);
+    definirAbaAtiva(TODAS);
+    definirPagina(1);
+    definirMarcadas([]);
+  }
 
   // As abas mudam quando a edicao muda.
   useEffect(() => {
-    if (!edicaoId) return;
+    if (!edicaoAtiva) return;
     let vivo = true;
-    resumoInstituicoes(edicaoId)
+    resumoInstituicoes(edicaoAtiva)
       .then((resumo) => {
         if (!vivo) return;
         definirAbas(resumo);
@@ -96,25 +140,25 @@ export default function Criancas() {
     return () => {
       vivo = false;
     };
-  }, [edicaoId]);
+  }, [edicaoAtiva]);
 
   // O time tambem muda com a edicao: comissario e vinculo por edicao.
   useEffect(() => {
-    if (!edicaoId) return;
+    if (!edicaoAtiva) return;
     let vivo = true;
-    listarComissarios(edicaoId)
+    listarComissarios(edicaoAtiva)
       .then((time) => vivo && definirComissarios(time))
       .catch(() => vivo && definirComissarios([]));
     return () => {
       vivo = false;
     };
-  }, [edicaoId]);
+  }, [edicaoAtiva]);
 
   const buscar = useCallback(async () => {
     try {
       definirCriancas(
         await listarCriancas({
-          edicao_id: edicaoId,
+          edicao_id: edicaoAtiva,
           instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
           comissario_id: filtroComissario === SEM_RESPONSAVEL ? "" : filtroComissario,
           sem_comissario: filtroComissario === SEM_RESPONSAVEL ? true : "",
@@ -129,15 +173,18 @@ export default function Criancas() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId, abaAtiva, filtroComissario, busca, codigo, pagina]);
+  }, [edicaoAtiva, abaAtiva, filtroComissario, busca, codigo, pagina]);
 
   useEffect(() => {
-    if (edicaoId) buscar();
-  }, [edicaoId, abaAtiva, pagina, buscar]);
+    // Buscar no servidor e justamente o que este efeito existe para fazer: a
+    // lista so chega depois do await, e nao daria para derivar no render.
+    // eslint-disable-next-line react/set-state-in-effect
+    if (edicaoAtiva) buscar();
+  }, [edicaoAtiva, abaAtiva, pagina, buscar]);
 
   async function recarregarAbas() {
     try {
-      definirAbas(await resumoInstituicoes(edicaoId));
+      definirAbas(await resumoInstituicoes(edicaoAtiva));
     } catch {
       // A planilha e o que importa; as abas atualizam na proxima troca.
     }
@@ -153,7 +200,7 @@ export default function Criancas() {
     if (campo === "dia_evento_id") recarregarAbas();
   }
 
-  /** O time da instituicao, como opcoes do seletor da coluna. */
+  /** Quem alcanca esta instituicao, como opcoes do seletor da coluna. */
   function opcoesComissario(instituicaoId) {
     return [
       // O mesmo texto da celula so-leitura: a coluna diz a mesma coisa para
@@ -161,7 +208,7 @@ export default function Criancas() {
       { valor: "", rotulo: "sem responsável" },
       ...comissarios
         .filter((c) => c.instituicoes.includes(instituicaoId))
-        .map((c) => ({ valor: c.id, rotulo: c.nome })),
+        .map((c) => ({ valor: c.id, rotulo: comoAparece(c) })),
     ];
   }
 
@@ -180,7 +227,7 @@ export default function Criancas() {
         itens: atual.itens.map((c) => porId.get(c.id) ?? c),
       }));
       const nome = comissarios.find((c) => String(c.id) === String(comissarioId))?.nome;
-      definirSucesso(
+      notificar(
         nome
           ? `${marcadas.length} criança(s) agora com ${nome}.`
           : `${marcadas.length} criança(s) sem responsável.`,
@@ -194,15 +241,35 @@ export default function Criancas() {
     }
   }
 
-  async function remover(crianca) {
+  /** Abre a janela e ja pergunta ao servidor o que vai junto. */
+  async function pedirExclusao(crianca) {
     definirErro("");
+    definirExclusao({ registro: crianca, dependencias: null, erro: "", apagando: false });
+    try {
+      const conta = await dependenciasDaCrianca(crianca.id);
+      definirExclusao((atual) =>
+        atual && atual.registro.id === crianca.id
+          ? { ...atual, dependencias: conta }
+          : atual,
+      );
+    } catch (e) {
+      definirExclusao((atual) => (atual ? { ...atual, erro: e.message } : atual));
+    }
+  }
+
+  async function confirmarExclusao() {
+    const crianca = exclusao.registro;
+    definirExclusao((atual) => ({ ...atual, apagando: true, erro: "" }));
     try {
       await apagarCrianca(crianca.id);
-      definirSucesso(`${crianca.nome} removida.`);
+      notificar(`${crianca.nome} removida.`);
+      definirExclusao(null);
       buscar();
       recarregarAbas();
     } catch (e) {
-      definirErro(e.message);
+      definirExclusao((atual) =>
+        atual ? { ...atual, apagando: false, erro: e.message } : atual,
+      );
     }
   }
 
@@ -212,14 +279,14 @@ export default function Criancas() {
     definirSalvando(true);
     try {
       await criarCrianca({
-        edicao_id: Number(edicaoId),
+        edicao_id: Number(edicaoAtiva),
         instituicao_id: Number(campos.instituicao_id),
         codigo: campos.codigo.trim(),
         nome: campos.nome.trim(),
         idade: Number(campos.idade),
         sexo: campos.sexo,
       });
-      definirSucesso(`${campos.nome.trim()} cadastrada.`);
+      notificar(`${campos.nome.trim()} cadastrada.`);
       definirCampos(NOVA);
       definirFormAberto(false);
       buscar();
@@ -231,7 +298,6 @@ export default function Criancas() {
     }
   }
 
-  const edicao = edicoes.find((e) => String(e.id) === String(edicaoId));
   const instituicoesDaCidade = instituicoes.filter((i) => i.cidade_id === edicao?.cidade_id);
 
   const totalGeral = abas.reduce((soma, a) => soma + a.criancas, 0);
@@ -265,7 +331,7 @@ export default function Criancas() {
         instituicoes={instituicoesDaCidade}
         aoTerminar={(quantas) => {
           definirImportando(false);
-          if (quantas) definirSucesso(`${quantas} criança(s) importada(s).`);
+          if (quantas) notificar(`${quantas} criança(s) importada(s).`);
           buscar();
           recarregarAbas();
         }}
@@ -275,37 +341,29 @@ export default function Criancas() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">Dados sensíveis</div>
-      <h1 className="pagina__titulo">Crianças</h1>
-      <p className="pagina__lede">
-        Uma aba por instituição. Clique em qualquer célula para editar — Enter salva e
-        desce, Esc desfaz.
-      </p>
+      <div className="pagina__cabecalho">
+        <div className="pagina__texto">
+          <div className="pagina__eyebrow">Dados sensíveis</div>
+          <h1 className="pagina__titulo">Crianças</h1>
+          <p className="pagina__lede">
+            Uma aba por instituição. Clique na célula para editar — Enter salva, Esc
+            desfaz.
+          </p>
+        </div>
 
-      <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
-
-      <div className="barra-acoes">
-        <Selecao
-          value={edicaoId}
-          onChange={(e) => {
-            definirEdicaoId(e.target.value);
-            definirAbaAtiva(TODAS);
-            definirPagina(1);
-            definirMarcadas([]);
-          }}
-        >
-          {edicoes.map((e) => (
-            <option key={e.id} value={e.id}>{e.nome}</option>
-          ))}
-        </Selecao>
-
+        {/* Importar e acao da pagina, nao da lista: na folga lateral do titulo
+            ela nao custa nenhuma linha de altura. Sem permissao de importar,
+            o cabecalho fica so com o texto. */}
         {pode("importar_listas") && (
-          <Button size="sm" variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
-            Importar lista
-          </Button>
+          <div className="pagina__acoes">
+            <Button size="sm" variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
+              Importar lista
+            </Button>
+          </div>
         )}
       </div>
+
+      <Mensagem tipo="erro">{erro}</Mensagem>
 
       {/* Abas: uma por instituição, com o que falta em cada uma. */}
       {abas.length > 0 && (
@@ -378,12 +436,12 @@ export default function Criancas() {
               definirPagina(1);
               definirMarcadas([]);
             }}
-            aria-label="Filtrar por comissário responsável"
+            aria-label="Filtrar por responsável"
           >
-            <option value="">Todos os comissários</option>
+            <option value="">Todos os responsáveis</option>
             <option value={SEM_RESPONSAVEL}>Sem responsável</option>
             {comissarios.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
+              <option key={c.id} value={c.id}>{comoAparece(c)}</option>
             ))}
           </Selecao>
         )}
@@ -478,6 +536,19 @@ export default function Criancas() {
         />
       )}
 
+      {exclusao && (
+        <ConfirmarExclusao
+          rotulo="Criança"
+          nome={exclusao.registro.nome}
+          dependencias={exclusao.dependencias}
+          nota={NOTA_CRIANCA}
+          erro={exclusao.erro}
+          apagando={exclusao.apagando}
+          aoConfirmar={confirmarExclusao}
+          aoFechar={() => definirExclusao(null)}
+        />
+      )}
+
       {carregando ? (
         <Carregando>Carregando crianças...</Carregando>
       ) : criancas.itens.length === 0 ? (
@@ -504,10 +575,14 @@ export default function Criancas() {
                 <col style={{ width: 112 }} />
                 <col style={{ width: 190 }} />
                 <col style={{ width: 150 }} />
+                <col style={{ width: 120 }} />
                 <col style={{ width: 84 }} />
                 <col style={{ width: 72 }} />
                 <col style={{ width: 72 }} />
-                <col style={{ width: 82 }} />
+                {/* Condicional junto com o <th>: um <col> a mais que as celulas
+                    nao some — vira uma coluna vazia no fim, e a planilha
+                    parece nao alcancar a borda do container. */}
+                {mostrarCheckin && <col style={{ width: 82 }} />}
                 {podeEditar && <col style={{ width: 66 }} />}
               </colgroup>
               <thead>
@@ -531,10 +606,13 @@ export default function Criancas() {
                   <th title="Comissário responsável por esta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
                     Comissário
                   </th>
+                  <th title="O grupo do comissário responsável na comunidade. Vem do cadastro dele nesta edição e não se edita aqui.">
+                    Grupo
+                  </th>
                   <th title="Padrinho de cesta e de festa">Padrinhos</th>
                   <th title="Cartões digitalizados, de 2">Cartões</th>
                   <th>Kit</th>
-                  <th>Check-in</th>
+                  {mostrarCheckin && <th>Check-in</th>}
                   {podeEditar && <th className="planilha__acoes" />}
                 </tr>
               </thead>
@@ -640,6 +718,23 @@ export default function Criancas() {
                       )}
                     </td>
                     <td>
+                      {/* So leitura: o grupo e do cadastro do comissario, na
+                          tela de usuarios. Editar aqui mudaria o grupo dele
+                          para TODAS as criancas de uma vez, o que ninguem
+                          esperaria de um clique na linha de uma. */}
+                      <span
+                        className={`celula ${c.comissario_grupo ? "" : "celula--vazia"}`}
+                        style={{ cursor: "default" }}
+                        title={
+                          c.comissario
+                            ? (c.comissario_grupo ?? `${c.comissario} ainda não tem grupo nomeado`)
+                            : "Nenhum comissário responsável"
+                        }
+                      >
+                        {c.comissario_grupo ?? (c.comissario ? "sem grupo" : "—")}
+                      </span>
+                    </td>
+                    <td>
                       <span className="celula" style={{ cursor: "default" }}>
                         <span
                           className={`marcador ${c.tem_padrinho_cesta ? "marcador--feito" : ""}`}
@@ -681,32 +776,31 @@ export default function Criancas() {
                         </span>
                       </span>
                     </td>
-                    <td>
-                      <span className="celula" style={{ cursor: "default" }}>
-                        <span className={`marcador ${c.checkin_em ? "marcador--feito" : ""}`}>
-                          {c.checkin_em ? "sim" : "não"}
+                    {mostrarCheckin && (
+                      <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          <span className={`marcador ${c.checkin_em ? "marcador--feito" : ""}`}>
+                            {c.checkin_em ? "sim" : "não"}
+                          </span>
                         </span>
-                      </span>
-                    </td>
+                      </td>
+                    )}
                     {podeEditar && (
                       <td className="planilha__acoes">
-                        <span className="acoes-icone">
-                          <BotaoIcone
-                            tamanho="sm"
-                            titulo={`Ver ficha de ${c.nome}`}
-                            onClick={() => definirFichaAberta(c.id)}
-                          >
-                            <Olho />
-                          </BotaoIcone>
-                          <BotaoIcone
-                            tamanho="sm"
-                            perigo
-                            titulo={`Remover ${c.nome}`}
-                            onClick={() => remover(c)}
-                          >
-                            <Xis />
-                          </BotaoIcone>
-                        </span>
+                        <MenuAcoes
+                          titulo={`Ações de ${c.nome}`}
+                          itens={[
+                            {
+                              rotulo: "Ver ficha",
+                              aoEscolher: () => definirFichaAberta(c.id),
+                            },
+                            {
+                              rotulo: "Apagar",
+                              perigo: true,
+                              aoEscolher: () => pedirExclusao(c),
+                            },
+                          ]}
+                        />
                       </td>
                     )}
                   </tr>
@@ -736,18 +830,18 @@ export default function Criancas() {
                 value=""
                 disabled={atribuindo}
                 onChange={(e) => atribuirMarcadas(e.target.value)}
-                aria-label="Atribuir as marcadas a um comissário"
+                aria-label="Atribuir as marcadas a um responsável"
               >
                 <option value="" disabled>
                   {atribuindo ? "Atribuindo..." : "Atribuir a..."}
                 </option>
                 {comissariosDoLote.length === 0 && (
                   <option value="" disabled>
-                    (nenhum comissário atende todas as escolas marcadas)
+                    (ninguém da equipe atende todas as escolas marcadas)
                   </option>
                 )}
                 {comissariosDoLote.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
+                  <option key={c.id} value={c.id}>{comoAparece(c)}</option>
                 ))}
                 <option value={SEM_RESPONSAVEL}>Sem responsável</option>
               </Selecao>

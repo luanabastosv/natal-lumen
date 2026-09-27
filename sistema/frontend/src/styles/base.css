@@ -240,6 +240,130 @@ textarea.campo__controle {
   color: var(--color-primary);
 }
 
+/* ---------- Recados no canto da tela ----------
+   A confirmacao de "salvou" era uma faixa no alto da pagina, e toda vez que
+   aparecia empurrava a planilha uns 60px para baixo — a linha que a pessoa
+   acabara de mexer saia de onde os olhos estavam. Aqui ela flutua sobre o
+   conteudo, no canto de baixo, e some sozinha. Fica no canto INFERIOR direito
+   de proposito: o alto direito e onde o sistema poe acao, e o pe da tela e o
+   lugar onde um aviso passageiro atrapalha menos leitura. */
+.notificacoes {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  /* Acima do modal (80): salvar dentro de uma janela tem de poder confirmar
+     por cima dela. */
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(380px, calc(100vw - var(--space-6) * 2));
+  /* A pilha cobre um pedaco da tela mesmo vazia; sem isto ela engoliria os
+     cliques do conteudo que esta embaixo. */
+  pointer-events: none;
+}
+
+.notificacao {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  /* Mesma paleta da mensagem de sucesso que isto substitui: o navy claro ja
+     era a cor de "deu certo" no sistema. O que muda e a sombra — ela e que
+     diz que o recado esta POR CIMA da pagina, e nao dentro dela. */
+  background: var(--navy-100);
+  border: var(--stroke-hairline) solid var(--navy-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  animation: notificacao-entra var(--dur-slow) var(--ease-out);
+}
+
+.notificacao--saindo {
+  animation: notificacao-sai var(--dur-slow) var(--ease-out) forwards;
+}
+
+.notificacao__texto {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+  color: var(--color-primary);
+  text-wrap: pretty;
+}
+
+.notificacao__fechar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  /* 28px de alvo num icone de 14: o recado e passageiro, mas fechar na hora
+     nao pode exigir mira. */
+  width: 28px;
+  height: 28px;
+  /* Alinha o X com a primeira linha do texto, nao com o bloco todo. */
+  margin-top: -2px;
+  padding: 0;
+  color: var(--navy-500);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+
+.notificacao__fechar:hover {
+  color: var(--color-primary);
+  background: var(--navy-200);
+}
+
+.notificacao__fechar:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@keyframes notificacao-entra {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes notificacao-sai {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+/* Quem pede menos movimento continua vendo a entrada e a saida — so em
+   opacidade. O tempo e o mesmo, porque o relogio do componente conta com
+   ele. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes notificacao-entra {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes notificacao-sai {
+    to {
+      opacity: 0;
+    }
+  }
+}
+
+@media (max-width: 960px) {
+  /* No celular o recado ocupa a largura toda: uma caixa de 380px encostada na
+     direita deixaria o texto em duas palavras por linha. */
+  .notificacoes {
+    right: var(--space-4);
+    bottom: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+  }
+}
+
 /* ---------- Carregando ---------- */
 .carregando {
   display: inline-flex;
@@ -312,6 +436,21 @@ textarea.campo__controle {
 .tabela td:first-child {
   font-weight: 700;
   color: var(--text-on-light-primary);
+}
+
+/* A coluna do menu de acoes so precisa da largura do botao.
+ *
+ * `width: 1%` e o jeito de dizer isso numa tabela de layout automatico: o
+ * navegador le como "o minimo que couber" e derrama a sobra nas colunas de
+ * dado. Sem isto, a tabela de 100% reparte a sobra por TODAS as colunas, e
+ * numa tabela curta — Cidades tem quatro — a coluna vazia ficava com 227px de
+ * vao e os tres pontinhos boiando longe da borda, enquanto "Situacao" esticava
+ * para 480px. Com a coluna presa, a linha se espalha igual a das tabelas
+ * largas, que ja caiam certo so por terem colunas suficientes.
+ */
+.tabela__acoes {
+  width: 1%;
+  white-space: nowrap;
 }
 
 /* ---------- Card de abertura ---------- */
@@ -414,6 +553,56 @@ textarea.campo__controle {
 
 .pagina__eyebrow {
   margin-bottom: var(--space-2);
+}
+
+/* ---------- Cabecalho de pagina ---------- */
+/* Titulo de um lado, acao da pagina do outro. Empilhados, os tres blocos —
+   eyebrow, titulo, lede — mais uma barra so para o botao comiam uns 180px de
+   altura antes da primeira linha da lista. Lado a lado, o botao nao custa
+   altura nenhuma: ele ocupa a folga lateral que o texto ja deixava livre. */
+.pagina__cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.pagina__cabecalho .pagina__titulo,
+.pagina__cabecalho .pagina__lede {
+  margin-bottom: 0;
+}
+
+.pagina__cabecalho .pagina__lede {
+  margin-top: var(--space-1);
+}
+
+/* `min-width: 0` para o texto poder encolher: sem isso o bloco de texto se
+   recusa a ficar menor que a linha mais longa dele e empurra as acoes. */
+.pagina__texto {
+  min-width: 0;
+}
+
+/* As acoes descem a altura do eyebrow para ficarem na linha do titulo, e nao
+   coladas no topo. `flex-shrink: 0` porque botao espremido e botao ilegivel. */
+.pagina__acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding-top: var(--space-6);
+}
+
+/* Estreito demais para duas colunas: as acoes voltam a ser uma linha propria,
+   agora embaixo do texto. */
+@media (max-width: 720px) {
+  .pagina__cabecalho {
+    flex-direction: column;
+  }
+
+  .pagina__acoes {
+    padding-top: 0;
+  }
 }
 
 /* ---------- Atalhos do painel ---------- */
@@ -603,21 +792,37 @@ textarea.campo__controle {
 }
 
 /* ---------- Linhas de detalhe dentro da tabela ---------- */
-.detalhe-vinculo {
+/* Uma linha de vinculo dentro das colunas Equipe e Edicao vinculada.
+   As duas colunas usam a MESMA classe de proposito: quem tem dois vinculos ve
+   o perfil de um lado e a edicao dele do outro, na mesma altura. */
+.vinculo-linha {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+}
+
+.vinculo-linha:last-child {
+  margin-bottom: 0;
+}
+
+.vinculo-linha__titulo {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-.detalhe-vinculo:last-child {
-  margin-bottom: 0;
-}
-
-.detalhe-vinculo__edicao {
   font-weight: 700;
   color: var(--text-on-light-primary);
+}
+
+/* As instituicoes por que a pessoa responde: dado de apoio do perfil logo
+   acima, entao menor e mais claro — leem-se depois dele, nao no lugar dele. */
+.vinculo-linha__detalhe {
+  /* A tabela inteira ja e body-sm: para a linha das instituicoes ler como
+     apoio, e preciso descer mais um degrau. */
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  color: var(--text-on-light-secondary);
 }
 
 /* ---------- Numeros do painel ---------- */
@@ -888,12 +1093,13 @@ textarea.campo__controle {
   white-space: nowrap;
 }
 
+/* A coluna do menu e estreita de proposito: cabe um botao de tres pontinhos e
+   mais nada. Escrever "Ver ficha · Apagar" em 1500 linhas seria ruido. */
 .planilha__acoes {
   padding: 0 6px !important;
   text-align: center;
 }
 
-/* Remover vira icone: escrever "Remover" em 1500 linhas e ruido. */
 /* ---------- Celula que vira campo ao clicar ---------- */
 .celula {
   display: block;
@@ -1165,6 +1371,79 @@ textarea.campo__controle {
   background: var(--cream-100);
 }
 
+/* ---------- Menu de acoes da linha ---------- */
+
+.menu-acoes__alvo {
+  display: inline-flex;
+}
+
+/* Fixa, e nao absoluta: a planilha vive dentro de `.tabela-rolagem`, que corta
+   o que passa da borda. O JS calcula top/right a partir do botao e fecha o
+   menu em qualquer rolagem, para ele nunca descolar da linha que o abriu. */
+.menu-acoes__lista {
+  position: fixed;
+  /* Abaixo do modal (80): escolher no menu abre o modal, nunca o contrario. */
+  z-index: 70;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface-card);
+  border: var(--stroke-hairline) solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+}
+
+.menu-acoes__item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-on-light-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menu-acoes__item:hover {
+  background: var(--navy-100);
+}
+
+.menu-acoes__item:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* A que nao tem volta vai por ultimo, com uma linha separando: o dedo que
+   desce a lista depressa precisa tropecar antes de chegar nela. */
+.menu-acoes__item--perigo {
+  color: #c0392b;
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--stroke-hairline) solid var(--border-light);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.menu-acoes__item--perigo:hover {
+  background: #fdecec;
+}
+
+.menu-acoes__item:disabled {
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+
+.menu-acoes__item:disabled:hover {
+  background: transparent;
+}
+
+
 /* ---------- Confirmacao de exclusao ---------- */
 
 .exclusao__texto {
@@ -1237,6 +1516,126 @@ textarea.campo__controle {
   border-radius: var(--radius-md);
   border: var(--stroke-hairline) solid var(--border-default);
   background: var(--cream-100);
+}
+
+/* ---------- Conferencia do lote, um cartao por vez ---------- */
+
+/* A foto entre os dois chevrons. As setas ficam FORA da imagem, e nao por
+   cima: por cima elas tapariam justamente o canto onde a crianca costuma
+   escrever o nome — que e o que a pessoa esta ali para ler. */
+.conferencia__palco {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 220px;
+}
+
+.conferencia__foto {
+  /* Aqui o corpo leva a foto, os dados e as etiquetas, e o rodape existe:
+     sobra menos altura do que no visualizador simples. */
+  max-height: calc(85vh - 330px);
+  min-height: 180px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.conferencia__sem-foto {
+  flex: 1;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: var(--size-body-sm);
+  color: var(--text-on-light-secondary);
+  background: var(--cream-100);
+  border: var(--stroke-hairline) dashed var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.conferencia__seta {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--white);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.conferencia__seta:hover:not(:disabled) {
+  background: var(--navy-100);
+}
+
+.conferencia__seta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.conferencia__seta:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Codigo e nome juntos, embaixo da foto: e o par que a pessoa compara com o
+   papel na mao. */
+.conferencia__dados {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--stroke-hairline) solid var(--border-light);
+}
+
+/* O codigo e o que casa com o papel, entao vem em tamanho de titulo — nao de
+   etiqueta perdida ao lado do nome. */
+.conferencia__codigo {
+  flex: none;
+  font-family: var(--font-condensed);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+  background: var(--navy-100);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+}
+
+.conferencia__nome {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: var(--size-body);
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+.conferencia__rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* No celular a foto e a tela inteira: as setas descem para baixo dela, lado a
+   lado, onde o polegar alcanca. */
+@media (max-width: 560px) {
+  .conferencia__palco {
+    flex-wrap: wrap;
+  }
+
+  .conferencia__foto,
+  .conferencia__sem-foto {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .conferencia__seta {
+    flex: 1;
+  }
 }
 
 /* ---------- Lista de dados dentro da janela ---------- */
@@ -1669,11 +2068,4 @@ textarea.campo__controle {
   .botao-icone__roda {
     animation: none;
   }
-}
-
-/* Uma fila de acoes so de icones, encostadas. */
-.acoes-icone {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
 }

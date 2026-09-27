@@ -54,3 +54,8 @@ export const marcarEnviados = (cartoes) => api.post("/cartoes/enviados", { carto
 
 /** A imagem só sai por rota autenticada — nunca é servida como arquivo estático. */
 export const urlDaImagem = (id) => `${API_URL}/cartoes/${id}/imagem`;
+
+/** A foto de uma previa ainda nao gravada. Mesma porta autenticada: a imagem
+ *  esta na pasta temporaria do lote e so sai por aqui. */
+export const urlDaImagemDoLote = (idLote, indice) =>
+  `${API_URL}/cartoes/lote/${idLote}/${indice}/imagem`;

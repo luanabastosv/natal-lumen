@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
+import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
 import {
   apagarPagamento,
   criarPagamento,
@@ -23,7 +25,7 @@ export default function Pagamentos() {
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
 
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(NOVO);
@@ -82,7 +84,7 @@ export default function Pagamentos() {
         forma: campos.forma || null,
         apadrinhamentos: campos.apadrinhamentos,
       });
-      definirSucesso("Pagamento registrado.");
+      notificar("Pagamento registrado.");
       definirCampos(NOVO);
       definirFormAberto(false);
       buscar();
@@ -107,7 +109,7 @@ export default function Pagamentos() {
     definirErro("");
     try {
       await apagarPagamento(p.id);
-      definirSucesso("Pagamento removido. Os apadrinhamentos voltaram a ficar em aberto.");
+      notificar("Pagamento removido. Os apadrinhamentos voltaram a ficar em aberto.");
       buscar();
     } catch (e) {
       definirErro(e.message);
@@ -116,20 +118,26 @@ export default function Pagamentos() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">Financeiro</div>
-      <h1 className="pagina__titulo">Pagamentos</h1>
-      <p className="pagina__lede">
-        Um pagamento pode quitar vários apadrinhamentos de uma vez. Marque quais ele
-        cobre para o acompanhamento ficar certo.
-      </p>
+      <div className="pagina__cabecalho">
+        <div className="pagina__texto">
+          <div className="pagina__eyebrow">Financeiro</div>
+          <h1 className="pagina__titulo">Pagamentos</h1>
+          <p className="pagina__lede">
+            Um pagamento pode quitar vários apadrinhamentos. Marque quais ele cobre.
+          </p>
+        </div>
+
+        <div className="pagina__acoes">
+          <Button onClick={() => definirFormAberto(true)} disabled={padrinhos.length === 0}>
+            Registrar pagamento
+          </Button>
+        </div>
+      </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
+      {/* Sobra na barra o que e filtro da lista, e nao acao da pagina. */}
       <div className="barra-acoes">
-        <Button onClick={() => definirFormAberto(true)} disabled={padrinhos.length === 0}>
-          Registrar pagamento
-        </Button>
         <Selecao value={conferido} onChange={(e) => definirConferido(e.target.value)}>
           <option value="">Todos</option>
           <option value="false">A conferir</option>
@@ -243,7 +251,7 @@ export default function Pagamentos() {
                 <th>Forma</th>
                 <th>Quita</th>
                 <th>Situação</th>
-                <th />
+                <th className="tabela__acoes" />
               </tr>
             </thead>
             <tbody>
@@ -259,15 +267,21 @@ export default function Pagamentos() {
                       {p.conferido ? "Conferido" : "A conferir"}
                     </span>
                   </td>
-                  <td>
-                    <div className="barra-acoes" style={{ margin: 0 }}>
-                      <Button size="sm" variant="ghost" onClick={() => alternarConferido(p)}>
-                        {p.conferido ? "Desmarcar" : "Conferir"}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => remover(p)}>
-                        Remover
-                      </Button>
-                    </div>
+                  <td className="tabela__acoes">
+                    <MenuAcoes
+                      titulo={`Ações do pagamento de ${p.padrinho}`}
+                      itens={[
+                        {
+                          rotulo: p.conferido ? "Desmarcar" : "Conferir",
+                          aoEscolher: () => alternarConferido(p),
+                        },
+                        {
+                          rotulo: "Remover",
+                          perigo: true,
+                          aoEscolher: () => remover(p),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

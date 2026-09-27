@@ -12,6 +12,11 @@ exclusao tem um par:
 Os dois leem o mesmo `Alcance`, entao o numero que aparece na tela e
 exatamente o do que vai ser apagado — nunca contar seis e apagar sete.
 
+A crianca entra aqui so pela metade de cima: ela tem `alcance_da_crianca`
+para a mesma conta aparecer no modal, mas nao tem `apagar_crianca` — o
+cascade do banco da conta dela sozinho, e quem apaga e o `db.delete` do
+router.
+
 O grosso da remocao e do banco: as chaves estrangeiras ja tem ON DELETE CASCADE
 (crianca -> cartoes, kits, apadrinhamentos; edicao -> criancas, padrinhos,
 dias, compras, acessos). Aqui ficam so as pontas que o cascade nao resolve: a
@@ -32,10 +37,12 @@ from app.models import (
     Crianca,
     DiaEvento,
     Edicao,
+    Grupo,
     Instituicao,
     Kit,
     Padrinho,
     Pagamento,
+    Usuario,
     UsuarioEdicao,
     UsuarioInstituicao,
 )
@@ -61,6 +68,9 @@ class Alcance:
     instituicoes: Select
     criancas: Select
     padrinhos: Select
+    # So a cidade alcanca grupos: eles sao dela e atravessam os anos, como a
+    # instituicao — apagar a edicao de 2026 nao apaga o grupo Elyon.
+    grupos: Select
 
 
 def _nenhum(coluna) -> Select:
@@ -85,6 +95,7 @@ def alcance_da_cidade(cidade_id: int) -> Alcance:
             )
         ),
         padrinhos=select(Padrinho.id).where(Padrinho.edicao_id.in_(edicoes)),
+        grupos=select(Grupo.id).where(Grupo.cidade_id == cidade_id),
     )
 
 
@@ -100,6 +111,7 @@ def alcance_da_edicao(edicao_id: int) -> Alcance:
         instituicoes=_nenhum(Instituicao.id),
         criancas=select(Crianca.id).where(Crianca.edicao_id == edicao_id),
         padrinhos=select(Padrinho.id).where(Padrinho.edicao_id == edicao_id),
+        grupos=_nenhum(Grupo.id),
     )
 
 
@@ -115,6 +127,22 @@ def alcance_da_instituicao(instituicao_id: int) -> Alcance:
         instituicoes=select(Instituicao.id).where(Instituicao.id == instituicao_id),
         criancas=select(Crianca.id).where(Crianca.instituicao_id == instituicao_id),
         padrinhos=_nenhum(Padrinho.id),
+        grupos=_nenhum(Grupo.id),
+    )
+
+
+def alcance_da_crianca(crianca_id: int) -> Alcance:
+    """A crianca leva o que e so dela: cartoes, kit e apadrinhamentos.
+
+    Nada sobe: a instituicao e a edicao continuam de pe, e o padrinho tambem —
+    o que cai do lado dele e o apadrinhamento desta crianca, nao o cadastro.
+    """
+    return Alcance(
+        edicoes=_nenhum(Edicao.id),
+        instituicoes=_nenhum(Instituicao.id),
+        criancas=select(Crianca.id).where(Crianca.id == crianca_id),
+        padrinhos=_nenhum(Padrinho.id),
+        grupos=_nenhum(Grupo.id),
     )
 
 
@@ -162,6 +190,7 @@ def contar(db: Session, alcance: Alcance) -> list[ItemDependencia]:
             _quantos(db, Pagamento, Pagamento.padrinho_id.in_(alcance.padrinhos)),
         ),
         ("compras", _quantos(db, Compra, Compra.edicao_id.in_(alcance.edicoes))),
+        ("grupos", _quantos(db, Grupo, Grupo.id.in_(alcance.grupos))),
         ("acessos", _quantos(db, UsuarioEdicao, UsuarioEdicao.id.in_(acessos))),
         # A atribuicao cai por dois caminhos, um por chave estrangeira: some
         # com a instituicao e some tambem com o acesso do usuario a edicao.
@@ -193,6 +222,64 @@ def resumir(db: Session, registro_id: int, nome: str, alcance: Alcance) -> Depen
         total=sum(item.quantidade for item in itens),
         itens=itens,
     )
+
+
+def resumir_usuario(db: Session, usuario: Usuario) -> DependenciasOut:
+    """O que some junto com a conta — e so o que some de verdade.
+
+    A conta do usuario nao usa `Alcance`: ela nao segura um bloco de dados como
+    a cidade ou a edicao. O que cai com ela sao os proprios acessos (vinculo com
+    cada edicao) e as atribuicoes de instituicao, ambos por ON DELETE CASCADE.
+
+    O que o trabalho dela deixou fica: crianca, padrinho, pagamento e compra
+    apontam para o usuario com ON DELETE SET NULL, entao sobrevivem sem dono.
+    Nada disso entra na conta — quem le "leva junto" tem de poder confiar que
+    aquilo vai ser apagado mesmo. As criancas que ficam sem responsavel sao
+    assunto do aviso da tela, nao desta lista.
+    """
+    acessos = select(UsuarioEdicao.id).where(UsuarioEdicao.usuario_id == usuario.id)
+
+    contagens = [
+        # Os acessos vao todos, suspensos inclusive — e a tela mostra os
+        # suspensos, entao o numero bate com o que a pessoa esta vendo.
+        ("acessos", _quantos(db, UsuarioEdicao, UsuarioEdicao.usuario_id == usuario.id)),
+        (
+            # Aqui so as que valem. Tirar uma instituicao de alguem nao apaga a
+            # linha, desliga: quem foi comissario da Escola A e deixou de ser
+            # tem uma linha inativa que nenhuma tela mostra. Conta-las diria
+            # "3 atribuicoes" a quem enxerga uma — e o numero existe justamente
+            # para ser conferido contra o que esta na tela.
+            "atribuicoes",
+            _quantos(
+                db,
+                UsuarioInstituicao,
+                UsuarioInstituicao.usuario_edicao_id.in_(acessos)
+                & UsuarioInstituicao.ativo.is_(True),
+            ),
+        ),
+    ]
+
+    itens = [
+        ItemDependencia(chave=chave, quantidade=quantidade)
+        for chave, quantidade in contagens
+        if quantidade
+    ]
+
+    return DependenciasOut(
+        id=usuario.id,
+        nome=usuario.nome,
+        total=sum(item.quantidade for item in itens),
+        itens=itens,
+    )
+
+
+def criancas_sob_responsabilidade(db: Session, usuario_id: int) -> int:
+    """Quantas criancas ficam sem responsavel se esta conta sair.
+
+    Separado da conta de exclusao de proposito: estas criancas NAO sao apagadas,
+    so perdem o nome de quem respondia por elas. A tela avisa, mas noutro tom.
+    """
+    return _quantos(db, Crianca, Crianca.comissario_id == usuario_id)
 
 
 def _arquivos_do_alcance(db: Session, alcance: Alcance) -> list[str]:
@@ -258,6 +345,12 @@ def apagar_cidade(db: Session, cidade_id: int) -> list[str]:
     )
     db.execute(
         delete(Instituicao).where(Instituicao.cidade_id == cidade_id),
+        execution_options=SEM_SINCRONIZAR,
+    )
+    # Depois das edicoes: os vinculos que apontavam para estes grupos ja cairam
+    # no cascade delas.
+    db.execute(
+        delete(Grupo).where(Grupo.cidade_id == cidade_id),
         execution_options=SEM_SINCRONIZAR,
     )
     db.execute(

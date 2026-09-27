@@ -7,6 +7,9 @@ export const criarUsuario = (dados, vinculo) =>
 
 export const editarUsuario = (id, dados) => api.patch(`/usuarios/${id}`, dados);
 
+export const dependenciasDoUsuario = (id) => api.get(`/usuarios/${id}/dependencias`);
+export const apagarUsuario = (id) => api.delete(`/usuarios/${id}`);
+
 export const gerarLinkDeAcesso = (id) => api.post(`/usuarios/${id}/link-de-acesso`);
 
 export const criarVinculo = (usuarioId, dados) =>

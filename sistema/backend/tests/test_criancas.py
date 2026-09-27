@@ -20,6 +20,7 @@ from app.models import (
     Cidade,
     Crianca,
     Edicao,
+    Grupo,
     Instituicao,
     LogAtividade,
     Perfil,
@@ -69,6 +70,8 @@ def limpar(db, log_inicial: int = 0) -> None:
                 db.execute(delete(UsuarioEdicao).where(UsuarioEdicao.id.in_(vs)))
             db.execute(delete(Edicao).where(Edicao.id.in_(eds)))
         db.execute(delete(Instituicao).where(Instituicao.cidade_id.in_(cids)))
+        # Depois dos vinculos, que sao quem aponta para o grupo.
+        db.execute(delete(Grupo).where(Grupo.cidade_id.in_(cids)))
         db.execute(delete(Cidade).where(Cidade.id.in_(cids)))
 
     if ids:
@@ -883,12 +886,37 @@ def main() -> None:
         r = cc.get("/criancas/comissarios", params={"edicao_id": edicao.id})
         time = {c["nome"]: c for c in r.json()} if r.status_code == 200 else {}
         verifica("lista o time de comissarios da edicao", r.status_code == 200, r.text[:140])
-        verifica("os tres comissarios estao no time", len(time) == 3, str(sorted(time)))
+
+        # A lista nao e so de comissarios: coordenacao e administracao geral
+        # tambem podem ficar com uma crianca no nome. Por isso a conta e pelo
+        # papel, e nao pelo tamanho da lista.
+        so_comissarios = [n for n, c in time.items() if c["papel"] == "Comissario"]
+        verifica("os tres comissarios estao no time",
+                 len(so_comissarios) == 3, str(sorted(so_comissarios)))
         verifica("cada um traz as instituicoes que atende",
                  time.get(f"{MARCA} Caio", {}).get("instituicoes") == sorted([inst_a.id, inst_b.id]),
                  str(time.get(f"{MARCA} Caio")))
-        verifica("o monitor nao entra no time de comissarios",
+        verifica("o monitor nao entra no time",
                  f"{MARCA} Monitor" not in time, str(sorted(time)))
+        verifica("a coordenacao entra no time",
+                 time.get(f"{MARCA} Coord", {}).get("papel") == "Coordenacao",
+                 str(time.get(f"{MARCA} Coord")))
+        verifica("e alcanca as escolas todas, sem recorte de instituicao",
+                 set(time.get(f"{MARCA} Coord", {}).get("instituicoes", []))
+                 >= {inst_a.id, inst_b.id},
+                 str(time.get(f"{MARCA} Coord")))
+        verifica("os comissarios vem antes na lista",
+                 [c["papel"] for c in r.json()][:3] == ["Comissario"] * 3,
+                 str([c["papel"] for c in r.json()]))
+
+        # E a coordenacao pode mesmo ficar com a crianca no nome dela.
+        r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": coord.id})
+        verifica("coordenacao assume uma crianca como responsavel",
+                 r.status_code == 200 and r.json()["comissario_id"] == coord.id,
+                 r.text[:140])
+        r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": comissario.id})
+        verifica("e devolve para a comissaria de sempre",
+                 r.status_code == 200, r.text[:140])
 
         r = cb.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 100})
         quantas_bia = r.json()["total"]
@@ -904,6 +932,17 @@ def main() -> None:
                  r.json().get("comissario") == f"{MARCA} Bia", str(r.json().get("comissario")))
         verifica("e o id, para a tela montar o seletor",
                  r.json().get("comissario_id") == bia.id, str(r.json().get("comissario_id")))
+
+        # O grupo da comissaria viaja junto com o nome dela: e a coluna Grupo
+        # da planilha, e sai do cadastro dela nesta edicao — nao da crianca.
+        bia_vinculo = next(
+            u["vinculos"][0]["id"] for u in cc.get("/usuarios").json() if u["id"] == bia.id
+        )
+        cc.patch(f"/usuarios/{bia.id}/vinculos/{bia_vinculo}", json={"grupo": "Elyon"})
+        r = cc.get(f"/criancas/{ana['id']}")
+        verifica("a crianca traz o grupo da comissaria",
+                 r.json().get("comissario_grupo") == "Elyon",
+                 str(r.json().get("comissario_grupo")))
 
         # O ponto do time: quem NAO e responsavel continua alcancando a crianca.
         r = ck.get(f"/criancas/{ana['id']}")
@@ -1005,6 +1044,24 @@ def main() -> None:
                  r.status_code == 200 and r.json()["comissario_id"] == caio.id, r.text[:140])
 
         print("\nRemocao")
+        # A tela pede a conta antes de apagar: o modal so libera o botao
+        # depois de mostrar o que vai junto.
+        r = cc.get(f"/criancas/{bruno['id']}/dependencias")
+        conta = r.json() if r.status_code == 200 else {}
+        verifica("a conta do que vai junto vem antes de apagar",
+                 r.status_code == 200, r.text[:140])
+        verifica("e vem com o nome de quem sera apagada",
+                 conta.get("nome") == bruno["nome"], str(conta.get("nome")))
+        chaves = {i["chave"]: i["quantidade"] for i in conta.get("itens", [])}
+        verifica("a propria crianca entra na conta", chaves.get("criancas") == 1,
+                 str(chaves))
+        verifica("nada de edicao ou instituicao e arrastado junto",
+                 "edicoes" not in chaves and "instituicoes" not in chaves, str(chaves))
+
+        r = cmon.get(f"/criancas/{bruno['id']}/dependencias")
+        verifica("monitor NAO pede a conta (nao apaga crianca)",
+                 r.status_code == 403, str(r.status_code))
+
         r = cc.delete(f"/criancas/{bruno['id']}")
         verifica("coordenacao apaga crianca", r.status_code == 204, str(r.status_code))
         r = cc.get(f"/criancas/{bruno['id']}")

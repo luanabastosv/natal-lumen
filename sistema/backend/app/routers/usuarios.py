@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -27,6 +27,7 @@ from app.models import (
     UsuarioInstituicao,
 )
 from app.models.tipos import TipoToken
+from app.schemas.cadastros import DependenciasOut
 from app.schemas.usuarios import (
     UsuarioCriado,
     UsuarioDetalhe,
@@ -39,18 +40,18 @@ from app.schemas.usuarios import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seeds.perfis_permissoes import (
     PERFIL_COMISSARIO,
+    PERFIL_COORDENACAO,
+    PERFIS_COM_GRUPO,
     PERFIS_FILTRADOS_POR_INSTITUICAO,
 )
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import tokens_acesso
+from app.servicos import coordenacao, exclusao, grupos, tokens_acesso
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
 BD = Annotated[Session, Depends(get_db)]
 Gestor = Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_usuarios"))]
-
-PERFIL_COORDENACAO = "Coordenacao"
 
 
 # ---------------------------------------------------------------- apoio
@@ -74,6 +75,9 @@ def _saida(db: Session, usuario: Usuario) -> UsuarioDetalhe:
                 ativo=v.ativo,
                 instituicoes=sorted(i.instituicao_id for i in v.instituicoes if i.ativo),
                 filtrado_por_instituicao=v.perfil.nome in PERFIS_FILTRADOS_POR_INSTITUICAO,
+                grupo_id=v.grupo_id,
+                grupo=v.grupo.nome if v.grupo else None,
+                usa_grupo=v.perfil.nome in PERFIS_COM_GRUPO,
             )
         )
 
@@ -106,6 +110,7 @@ def _carregar(db: Session, usuario_id: int) -> Usuario | None:
             .selectinload(UsuarioEdicao.edicao)
             .joinedload(Edicao.cidade),
             selectinload(Usuario.edicoes).selectinload(UsuarioEdicao.instituicoes),
+            selectinload(Usuario.edicoes).selectinload(UsuarioEdicao.grupo),
         )
     )
 
@@ -124,6 +129,54 @@ def _conferir_alcance(ctx: ContextoAcesso, usuario: Usuario) -> None:
     geridas = set(_edicoes_geridas(ctx))
     if not any(v.edicao_id in geridas for v in usuario.edicoes):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario nao encontrado.")
+
+
+def _conferir_pode_apagar(db: Session, ctx: ContextoAcesso, usuario: Usuario) -> None:
+    """Apagar e mais restrito que editar, por tres motivos diferentes.
+
+    A propria conta: quem se apagasse sairia do sistema no meio do clique, sem
+    ter como voltar.
+
+    A ultima administracao geral: sem ela ninguem cria cidade, edicao nem outra
+    administracao — seria um sistema trancado por fora, sem conserto pela tela.
+
+    Conta com vinculo fora do alcance: a coordenacao gerencia a equipe DAS SUAS
+    edicoes. Se a pessoa tambem trabalha noutra cidade, apagar a conta levaria
+    junto um acesso que esta coordenacao nunca teve autoridade para tirar — o
+    caminho ali e desativar o vinculo desta edicao, nao apagar a pessoa.
+    """
+    if usuario.id == ctx.usuario.id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Voce nao pode apagar a propria conta.",
+        )
+
+    if usuario.admin_geral:
+        outras = db.scalar(
+            select(func.count())
+            .select_from(Usuario)
+            .where(
+                Usuario.admin_geral.is_(True),
+                Usuario.ativo.is_(True),
+                Usuario.id != usuario.id,
+            )
+        )
+        if not outras:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Esta e a ultima conta de administracao geral ativa: sem ela "
+                "ninguem mais administra o sistema.",
+            )
+
+    if not ctx.admin_geral:
+        geridas = set(_edicoes_geridas(ctx))
+        fora = [v for v in usuario.edicoes if v.edicao_id not in geridas]
+        if fora:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Esta pessoa tambem tem acesso a uma edicao que voce nao "
+                "gerencia. Desative o vinculo desta edicao em vez de apagar a conta.",
+            )
 
 
 def _conferir_perfil(db: Session, ctx: ContextoAcesso, perfil_id: int) -> Perfil:
@@ -188,17 +241,45 @@ def _definir_instituicoes(db: Session, vinculo: UsuarioEdicao, ids: list[int]) -
         )
 
 
+def _definir_grupo(
+    db: Session, vinculo: UsuarioEdicao, perfil: Perfil, nome: str | None
+) -> None:
+    """Nomeia o grupo da comunidade pelo qual este comissario responde.
+
+    O nome chega escrito a mao. O grupo da cidade com esse nome e reaproveitado
+    se ja existir — e a comparacao ignora acento e caixa, senao "Elyon" e
+    "élyon" vira dois — e criado se for a primeira vez.
+
+    Perfil que nao e comissario nao guarda grupo: trocar de comissario para
+    monitor apaga o nome, do mesmo jeito que a lista de instituicoes deixa de
+    valer para a coordenacao. Um grupo pendurado num vinculo que nao o usa
+    reapareceria sozinho no dia em que a pessoa voltasse a ser comissaria.
+    """
+    if perfil.nome not in PERFIS_COM_GRUPO or not (nome or "").strip():
+        vinculo.grupo_id = None
+        return
+
+    edicao = db.get(Edicao, vinculo.edicao_id)
+    grupo = grupos.achar_ou_criar(db, edicao.cidade_id, nome)
+    vinculo.grupo_id = grupo.id if grupo else None
+
+
 
 def _soltar_criancas_fora_do_alcance(db: Session, vinculo: UsuarioEdicao) -> int:
     """Solta as criancas que estavam no nome dele e que ele nao alcanca mais.
 
     criancas.comissario_id diz quem responde por cada crianca. Ele deixa de
     alcancar quando a instituicao sai da atribuicao, quando o vinculo e
-    desativado ou quando o perfil deixa de ser comissario — e nos tres casos um
-    nome que nao enxerga mais a crianca e pior que nenhum.
+    desativado ou quando o perfil deixa de responder por crianca — e nos tres
+    casos um nome que nao enxerga mais a crianca e pior que nenhum.
 
     Chamar DEPOIS de gravar a mudanca no vinculo (precisa do estado novo).
     """
+    # A coordenacao ativa alcanca a edicao inteira: crianca no nome dela nunca
+    # sai do alcance por instituicao, porque instituicao nao a limita.
+    if vinculo.ativo and vinculo.perfil.nome == PERFIL_COORDENACAO:
+        return 0
+
     ainda_alcanca: set[int] = set()
     if vinculo.ativo and vinculo.perfil.nome == PERFIL_COMISSARIO:
         ainda_alcanca = {i.instituicao_id for i in vinculo.instituicoes if i.ativo}
@@ -214,6 +295,18 @@ def _soltar_criancas_fora_do_alcance(db: Session, vinculo: UsuarioEdicao) -> int
         update(Crianca).where(*condicoes).values(comissario_id=None)
     ).rowcount
     return soltas or 0
+
+
+def _espelhos(vinculos: list[UsuarioEdicao]) -> dict:
+    """As outras edicoes da cidade que a mudanca alcancou, para o log.
+
+    Vai para o log porque e o unico rastro de uma mudanca que ninguem pediu
+    tela nenhuma: quem nomeia a coordenacao escolhe uma edicao e o sistema mexe
+    nas outras. Sem isto, o acesso apareceria do nada em 2027.
+    """
+    if not vinculos:
+        return {}
+    return {"edicoes_alcancadas": sorted(v.edicao_id for v in vinculos)}
 
 
 def _gerar_link(db: Session, usuario: Usuario) -> tuple[str, datetime]:
@@ -232,6 +325,7 @@ def listar(db: BD, ctx: Gestor):
         .selectinload(UsuarioEdicao.edicao)
         .joinedload(Edicao.cidade),
         selectinload(Usuario.edicoes).selectinload(UsuarioEdicao.instituicoes),
+        selectinload(Usuario.edicoes).selectinload(UsuarioEdicao.grupo),
     )
 
     if not ctx.admin_geral:
@@ -277,6 +371,13 @@ def criar(dados: UsuarioIn, vinculo: VinculoIn, db: BD, ctx: Gestor):
     db.add(ligacao)
     db.flush()
     _definir_instituicoes(db, ligacao, vinculo.instituicoes)
+    _definir_grupo(db, ligacao, perfil, vinculo.grupo)
+
+    # A coordenacao e da cidade, nao do ano: o vinculo se repete em todas as
+    # edicoes ativas dela.
+    espelhados = (
+        coordenacao.espelhar(db, ligacao) if perfil.nome == PERFIL_COORDENACAO else []
+    )
 
     link, expira = _gerar_link(db, usuario)
 
@@ -287,6 +388,7 @@ def criar(dados: UsuarioIn, vinculo: VinculoIn, db: BD, ctx: Gestor):
             "email": email,
             "perfil": perfil.nome,
             "edicao_id": vinculo.edicao_id,
+            **_espelhos(espelhados),
         },
     )
     db.commit()
@@ -359,11 +461,21 @@ def criar_vinculo(usuario_id: int, dados: VinculoIn, db: BD, ctx: Gestor):
         )
 
     _definir_instituicoes(db, vinculo, dados.instituicoes)
+    _definir_grupo(db, vinculo, perfil, dados.grupo)
+
+    espelhados = (
+        coordenacao.espelhar(db, vinculo) if perfil.nome == PERFIL_COORDENACAO else []
+    )
 
     registrar(
         db, "vinculo_criado", usuario_id=ctx.usuario.id,
         tabela="usuario_edicao", registro_id=vinculo.id,
-        detalhes={"usuario_id": usuario.id, "edicao_id": dados.edicao_id, "perfil": perfil.nome},
+        detalhes={
+            "usuario_id": usuario.id,
+            "edicao_id": dados.edicao_id,
+            "perfil": perfil.nome,
+            **_espelhos(espelhados),
+        },
     )
     db.commit()
     return _saida(db, _carregar(db, usuario_id))
@@ -384,8 +496,24 @@ def editar_vinculo(
 
     _conferir_edicao(ctx, vinculo.edicao_id)
 
+    perfil = db.get(Perfil, vinculo.perfil_id)
+    # Lido antes da troca: quem SAI da coordenacao precisa ter o alcance de
+    # cidade desfeito, e depois de mudar o perfil nao ha mais como saber disso.
+    era_coordenacao = perfil.nome == PERFIL_COORDENACAO
+
+    # Mexer num vinculo de coordenacao E definir a coordenacao da cidade, e
+    # isso e da administracao geral — a mesma regra que ja vale para cria-lo.
+    # Sem esta linha, uma coordenacao suspenderia a colega e o acesso cairia na
+    # cidade inteira, incluindo os anos em que ela nem trabalha.
+    if era_coordenacao and not ctx.admin_geral:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Apenas a administracao geral mexe no acesso da coordenacao.",
+        )
+
     if dados.perfil_id is not None:
-        vinculo.perfil_id = _conferir_perfil(db, ctx, dados.perfil_id).id
+        perfil = _conferir_perfil(db, ctx, dados.perfil_id)
+        vinculo.perfil_id = perfil.id
 
     if dados.ativo is not None:
         vinculo.ativo = dados.ativo
@@ -394,19 +522,86 @@ def editar_vinculo(
         _conferir_instituicoes(db, vinculo.edicao_id, dados.instituicoes)
         _definir_instituicoes(db, vinculo, dados.instituicoes)
 
+    # O grupo tambem e mexido quando o perfil deixa de ser comissario sem que a
+    # tela tenha mandado campo nenhum: quem nao usa grupo nao guarda grupo.
+    pedidos = dados.model_dump(exclude_unset=True)
+    if "grupo" in pedidos or perfil.nome not in PERFIS_COM_GRUPO:
+        _definir_grupo(db, vinculo, perfil, dados.grupo)
+
     # O estado novo precisa estar na sessao antes de conferir o que ele ainda
     # alcanca; sem o flush, as instituicoes recem-atribuidas nao apareceriam.
     db.flush()
     db.refresh(vinculo)
     soltas = _soltar_criancas_fora_do_alcance(db, vinculo)
 
+    # O alcance de cidade anda junto com este vinculo: continuar coordenacao
+    # leva o perfil e o `ativo` para as outras edicoes ativas da cidade — e e
+    # por isso que suspender aqui suspende na cidade inteira. Sair dela desativa
+    # os espelhos, que so existiam por causa da coordenacao.
+    if perfil.nome == PERFIL_COORDENACAO:
+        espelhados = coordenacao.espelhar(db, vinculo)
+    elif era_coordenacao:
+        espelhados = coordenacao.encerrar(db, vinculo)
+    else:
+        espelhados = []
+
+    for espelho in espelhados:
+        db.refresh(espelho)
+        soltas += _soltar_criancas_fora_do_alcance(db, espelho)
+
     registrar(
         db, "vinculo_editado", usuario_id=ctx.usuario.id,
         tabela="usuario_edicao", registro_id=vinculo.id,
         detalhes={
-            "campos": sorted(dados.model_dump(exclude_unset=True)),
+            "campos": sorted(pedidos),
             **({"criancas_soltas": soltas} if soltas else {}),
+            **_espelhos(espelhados),
         },
     )
     db.commit()
     return _saida(db, _carregar(db, usuario_id))
+
+
+@router.get("/{usuario_id}/dependencias", response_model=DependenciasOut)
+def dependencias(usuario_id: int, db: BD, ctx: Gestor):
+    """O que some junto com a conta. A tela pergunta isto antes de apagar."""
+    usuario = _carregar(db, usuario_id)
+    if usuario is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario nao encontrado.")
+    _conferir_alcance(ctx, usuario)
+    _conferir_pode_apagar(db, ctx, usuario)
+
+    return exclusao.resumir_usuario(db, usuario)
+
+
+@router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar(usuario_id: int, db: BD, ctx: Gestor):
+    """Apaga a conta de vez.
+
+    Desativar costuma ser o certo e e o que a tela oferece primeiro: guarda o
+    historico de quem fez o que. Apagar existe para a conta que nunca deveria
+    ter sido criada — o email errado, a pessoa que desistiu antes de comecar.
+    """
+    usuario = _carregar(db, usuario_id)
+    if usuario is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario nao encontrado.")
+    _conferir_alcance(ctx, usuario)
+    _conferir_pode_apagar(db, ctx, usuario)
+
+    # Contado ANTES do delete: depois nenhuma crianca aponta mais para ele. Vai
+    # para o log porque e o rastro que sobra — as criancas continuam la, sem
+    # responsavel, e alguem vai precisar saber quantas foram e de quem eram.
+    orfas = exclusao.criancas_sob_responsabilidade(db, usuario.id)
+
+    registrar(
+        db, "usuario_apagado", usuario_id=ctx.usuario.id,
+        tabela="usuarios", registro_id=usuario.id,
+        detalhes={
+            "nome": usuario.nome,
+            "email": usuario.email,
+            "edicoes": sorted(v.edicao_id for v in usuario.edicoes),
+            **({"criancas_sem_responsavel": orfas} if orfas else {}),
+        },
+    )
+    db.delete(usuario)
+    db.commit()

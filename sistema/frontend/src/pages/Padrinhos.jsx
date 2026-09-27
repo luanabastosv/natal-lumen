@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
-import { Olho, PessoaMais } from "../components/core/icones.jsx";
-import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import MenuAcoes from "../components/core/MenuAcoes.jsx";
+import { Entrada } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes } from "../services/cadastros.js";
 import { criarPadrinho, editarPadrinho, listarPadrinhos } from "../services/padrinhos.js";
 import { dinheiro } from "../utils/dinheiro.js";
 
@@ -18,17 +17,16 @@ const POR_PAGINA = 100;
 const NOVO = { nome: "", whatsapp: "", email: "", observacoes: "" };
 
 export default function Padrinhos() {
+  // A edicao vem da lateral: e a mesma para o sistema inteiro.
   const { pode, edicaoAtiva } = useSessao();
 
   const [padrinhos, definirPadrinhos] = useState({ itens: [], total: 0 });
-  const [edicoes, definirEdicoes] = useState([]);
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [busca, definirBusca] = useState("");
   const [pagina, definirPagina] = useState(1);
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
 
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(NOVO);
@@ -51,36 +49,34 @@ export default function Padrinhos() {
   const podeEditar = pode("editar_padrinhos");
   const podePagar = pode("registrar_pagamentos");
 
-  useEffect(() => {
-    let vivo = true;
-    listarEdicoes()
-      .then((eds) => {
-        if (!vivo) return;
-        definirEdicoes(eds);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
-      .catch((e) => vivo && definirErro(e.message));
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Trocar de edicao na lateral recomeca a lista: a pagina 3 da edicao anterior
+  // nao tem relacao com esta, e a ficha aberta era de outro padrinho. Ajustado
+  // durante o render, e nao por efeito: evita uma busca jogada fora.
+  const [ultimaEdicao, definirUltimaEdicao] = useState(edicaoAtiva);
+  if (edicaoAtiva !== ultimaEdicao) {
+    definirUltimaEdicao(edicaoAtiva);
+    definirPagina(1);
+    definirFichaAbertaId(null);
+  }
 
   const buscar = useCallback(async () => {
     try {
       definirPadrinhos(
-        await listarPadrinhos({ edicao_id: edicaoId, busca, pagina, por_pagina: POR_PAGINA }),
+        await listarPadrinhos({ edicao_id: edicaoAtiva, busca, pagina, por_pagina: POR_PAGINA }),
       );
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId, busca, pagina]);
+  }, [edicaoAtiva, busca, pagina]);
 
   useEffect(() => {
-    if (edicaoId) buscar();
-  }, [edicaoId, pagina, buscar]);
+    // Buscar no servidor e justamente o que este efeito existe para fazer: a
+    // lista so chega depois do await, e nao daria para derivar no render.
+    // eslint-disable-next-line react/set-state-in-effect
+    if (edicaoAtiva) buscar();
+  }, [edicaoAtiva, pagina, buscar]);
 
   /** Troca so a linha mexida: recarregar a lista inteira perderia a posicao de
       quem estava no meio da planilha, e fecharia a ficha aberta. */
@@ -105,13 +101,13 @@ export default function Padrinhos() {
     definirSalvando(true);
     try {
       await criarPadrinho({
-        edicao_id: Number(edicaoId),
+        edicao_id: Number(edicaoAtiva),
         nome: campos.nome.trim(),
         whatsapp: campos.whatsapp.trim() || null,
         email: campos.email.trim() || null,
         observacoes: campos.observacoes.trim() || null,
       });
-      definirSucesso(`${campos.nome.trim()} cadastrado.`);
+      notificar(`${campos.nome.trim()} cadastrado.`);
       definirCampos(NOVO);
       definirFormAberto(false);
       buscar();
@@ -135,22 +131,6 @@ export default function Padrinhos() {
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
-
-      <div className="barra-acoes">
-        <Selecao
-          value={edicaoId}
-          onChange={(e) => {
-            definirEdicaoId(e.target.value);
-            definirPagina(1);
-            abrirFicha(null);
-          }}
-        >
-          {edicoes.map((e) => (
-            <option key={e.id} value={e.id}>{e.nome}</option>
-          ))}
-        </Selecao>
-      </div>
 
       <form
         className="barra-acoes"
@@ -184,7 +164,7 @@ export default function Padrinhos() {
             busca, sem roubar uma linha so para ele. */}
         {podeEditar && (
           <div className="barra-acoes__ponta">
-            <Button size="sm" onClick={() => definirFormAberto(true)} disabled={!edicaoId}>
+            <Button size="sm" onClick={() => definirFormAberto(true)} disabled={!edicaoAtiva}>
               Novo padrinho
             </Button>
           </div>
@@ -357,24 +337,16 @@ export default function Padrinhos() {
                         </span>
                       </td>
                       <td className="planilha__acoes">
-                        <span className="acoes-icone">
-                          <BotaoIcone
-                            tamanho="sm"
-                            titulo={`Ver ficha de ${p.nome}`}
-                            onClick={() => abrirFicha(p.id)}
-                          >
-                            <Olho />
-                          </BotaoIcone>
-                          {podeEditar && (
-                            <BotaoIcone
-                              tamanho="sm"
-                              titulo={`Apadrinhar uma criança — ${p.nome}`}
-                              onClick={() => abrirFicha(p.id, true)}
-                            >
-                              <PessoaMais />
-                            </BotaoIcone>
-                          )}
-                        </span>
+                        <MenuAcoes
+                          titulo={`Ações de ${p.nome}`}
+                          itens={[
+                            { rotulo: "Ver ficha", aoEscolher: () => abrirFicha(p.id) },
+                            podeEditar && {
+                              rotulo: "Apadrinhar uma criança",
+                              aoEscolher: () => abrirFicha(p.id, true),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );

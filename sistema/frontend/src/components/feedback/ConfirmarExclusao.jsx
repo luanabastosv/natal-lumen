@@ -23,6 +23,7 @@ const ROTULOS = {
   compras: ["compra", "compras"],
   acessos: ["acesso de equipe", "acessos de equipe"],
   atribuicoes: ["atribuição de comissário", "atribuições de comissário"],
+  grupos: ["grupo da comunidade", "grupos da comunidade"],
 };
 
 function rotular({ chave, quantidade }) {
@@ -51,7 +52,11 @@ export default function ConfirmarExclusao({
   aoConfirmar,
   aoFechar,
 }) {
-  const carregando = !dependencias;
+  // Sem a conta em maos o botao nao libera: apagar sem ter visto o que vai
+  // junto e exatamente o que esta janela existe para evitar. Se a conta falhou,
+  // o que aparece e o erro — nao adianta seguir dizendo "conferindo".
+  const podeApagar = Boolean(dependencias);
+  const conferindo = !dependencias && !erro;
   const itens = dependencias?.itens ?? [];
   const total = dependencias?.total ?? 0;
 
@@ -66,13 +71,11 @@ export default function ConfirmarExclusao({
       aoFechar={fechar}
       rodape={
         <div className="barra-acoes barra-acoes--fim" style={{ marginTop: 0 }}>
-          {/* Fica travado enquanto a conta nao chega: apagar sem ter visto o
-              que vai junto e exatamente o que esta janela existe para evitar. */}
           <Button
             variant="perigo"
             onClick={aoConfirmar}
             carregando={apagando}
-            disabled={carregando}
+            disabled={!podeApagar}
           >
             {apagando ? "Apagando..." : "Apagar mesmo assim"}
           </Button>
@@ -84,9 +87,9 @@ export default function ConfirmarExclusao({
     >
       <Mensagem tipo="erro">{erro}</Mensagem>
 
-      {carregando ? (
+      {conferindo ? (
         <Carregando>Conferindo o que está ligado a {nome}...</Carregando>
-      ) : total === 0 ? (
+      ) : !dependencias ? null : total === 0 ? (
         <p className="exclusao__texto">
           Nada depende de <strong>{nome}</strong> — apagar não leva mais nada junto.
         </p>

@@ -5,6 +5,7 @@ import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
 import ApadrinharCriancas from "./ApadrinharCriancas.jsx";
 import RegistrarPagamento from "./RegistrarPagamento.jsx";
+import { useNotificar } from "../../contexts/useNotificar.js";
 import { salvarBlob } from "../../services/api.js";
 import {
   apagarApadrinhamento,
@@ -42,7 +43,7 @@ export default function FichaPadrinho({
   iniciarLigando = false,
 }) {
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
 
   // Qual cartao esta sendo gerado ou enviado: o PNG e montado no servidor e
   // demora um instante, entao aquele bloco precisa dizer que esta ocupado.
@@ -88,7 +89,6 @@ export default function FichaPadrinho({
 
   async function desligar(apadrinhamento) {
     definirErro("");
-    definirSucesso("");
     definirDesfazendo(apadrinhamento.id);
     try {
       await apagarApadrinhamento(apadrinhamento.id);
@@ -122,11 +122,10 @@ export default function FichaPadrinho({
    */
   async function enviarNoWhatsapp(apadrinhamento) {
     definirErro("");
-    definirSucesso("");
     definirEnviando(apadrinhamento.id);
     try {
       await enviarAgradecimento(apadrinhamento.id);
-      definirSucesso(
+      notificar(
         `Cartão de ${apadrinhamento.crianca_primeiro_nome} enviado para ` +
           `${padrinho.nome.split(" ")[0]} no WhatsApp.`,
       );
@@ -162,7 +161,7 @@ export default function FichaPadrinho({
       salvarBlob(blob, nomeArquivo);
       const link = linkWhatsapp(padrinho.whatsapp, texto);
       if (link) window.open(link, "_blank", "noopener");
-      definirSucesso(
+      notificar(
         `Cartão de ${apadrinhamento.crianca_primeiro_nome} baixado. ` +
           "Arraste a imagem para a conversa que abriu.",
       );
@@ -180,7 +179,6 @@ export default function FichaPadrinho({
       tamanho="grande"
     >
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
       <dl className="ficha ficha--duas">
         <dt>Edição</dt>

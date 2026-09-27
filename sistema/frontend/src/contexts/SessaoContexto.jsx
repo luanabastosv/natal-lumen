@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as auth from "../services/auth.js";
+import { listarEdicoes } from "../services/cadastros.js";
 import { SessaoContexto } from "./sessao-contexto.js";
 
 const CHAVE_EDICAO = "nl_edicao_ativa";
@@ -19,6 +20,10 @@ export function ProvedorSessao({ children }) {
   const [carregando, definirCarregando] = useState(true);
   const [edicaoEscolhida, definirEdicaoEscolhida] = useState(lerEdicaoGuardada);
 
+  // As edicoes que este usuario alcanca. Ficam aqui, e nao em cada pagina: a
+  // edicao ativa e uma escolha do sistema inteiro, feita uma vez na lateral.
+  const [edicoes, definirEdicoes] = useState([]);
+
   // Ao abrir a pagina, pergunta ao backend quem esta na sessao. O cookie e
   // httpOnly: o JavaScript nao consegue ler o token, so perguntar.
   useEffect(() => {
@@ -34,6 +39,30 @@ export function ProvedorSessao({ children }) {
       vivo = false;
     };
   }, []);
+
+  const recarregarEdicoes = useCallback(async () => {
+    // O backend ja devolve so o que o usuario alcanca: admin_geral ve todas,
+    // os demais so aquelas em que tem vinculo ativo.
+    const lista = await listarEdicoes();
+    definirEdicoes(lista);
+    return lista;
+  }, []);
+
+  // A lista so faz sentido com alguem logado, e precisa ser buscada de novo a
+  // cada troca de usuario. Sair ja limpa a lista no proprio `sair`, e nao aqui:
+  // e a acao que causou a mudanca.
+  useEffect(() => {
+    if (usuario === null) return;
+
+    let vivo = true;
+    listarEdicoes()
+      .then((lista) => vivo && definirEdicoes(lista))
+      .catch(() => vivo && definirEdicoes([]));
+
+    return () => {
+      vivo = false;
+    };
+  }, [usuario]);
 
   const escolherEdicao = useCallback((id) => {
     definirEdicaoEscolhida(id);
@@ -56,6 +85,7 @@ export function ProvedorSessao({ children }) {
     } finally {
       // Mesmo que o pedido falhe, a tela volta ao login.
       definirUsuario(null);
+      definirEdicoes([]);
       try {
         localStorage.removeItem(CHAVE_EDICAO);
       } catch {
@@ -67,10 +97,10 @@ export function ProvedorSessao({ children }) {
   const valor = useMemo(() => {
     const permissoes = new Set(usuario?.permissoes ?? []);
     const vinculos = usuario?.vinculos ?? [];
-    const ids = vinculos.map((v) => v.edicao_id);
+    const ids = edicoes.map((e) => e.id);
 
     // Derivada durante o render, e nao por efeito: a escolha guardada so vale
-    // se o usuario ainda tiver vinculo com aquela edicao.
+    // se o usuario ainda alcancar aquela edicao.
     const edicaoAtiva = ids.includes(edicaoEscolhida)
       ? edicaoEscolhida
       : (ids[0] ?? null);
@@ -81,13 +111,26 @@ export function ProvedorSessao({ children }) {
       autenticado: usuario !== null,
       entrar,
       sair,
+      edicoes,
+      recarregarEdicoes,
       edicaoAtiva,
+      // A edicao inteira, para quem precisa da cidade ou do nome.
+      edicao: edicoes.find((e) => e.id === edicaoAtiva) ?? null,
       escolherEdicao,
       vinculoAtivo: vinculos.find((v) => v.edicao_id === edicaoAtiva) ?? null,
       // So esconde menus. Quem decide de verdade e o backend, em cada rota.
       pode: (permissao) => Boolean(usuario?.admin_geral) || permissoes.has(permissao),
     };
-  }, [usuario, carregando, entrar, sair, edicaoEscolhida, escolherEdicao]);
+  }, [
+    usuario,
+    carregando,
+    entrar,
+    sair,
+    edicoes,
+    recarregarEdicoes,
+    edicaoEscolhida,
+    escolherEdicao,
+  ]);
 
   return <SessaoContexto.Provider value={valor}>{children}</SessaoContexto.Provider>;
 }

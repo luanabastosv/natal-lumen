@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import Modal from "../components/feedback/Modal.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
+import { useSessao } from "../contexts/useSessao.js";
 import { dinheiro, formatarData } from "../utils/dinheiro.js";
 import {
   apagarCidade,
@@ -15,45 +19,62 @@ import {
   criarEdicao,
   dependenciasDaCidade,
   dependenciasDaEdicao,
+  editarCidade,
+  editarEdicao,
   listarCidades,
   listarDias,
   listarEdicoes,
 } from "../services/cadastros.js";
 
 const CIDADE_VAZIA = { nome: "", uf: "" };
+const EDICAO_VAZIA = {
+  cidade_id: "",
+  ano: new Date().getFullYear(),
+  nome: "",
+  valor_cesta: "120.00",
+  valor_festa: "60.00",
+};
 
-/* O que a janela de exclusao diz alem da conta, em cada caso. E o ponto que a
-   contagem sozinha nao ensina: o que NAO vai junto, e quando desativar
-   resolve melhor do que apagar. */
+/* O que a janela de exclusao diz alem da conta. E o ponto que a contagem
+   sozinha nao ensina: o que NAO vai junto, e quando desativar resolve melhor
+   do que apagar. */
 const NOTA_CIDADE =
   "Uma cidade que só não participa este ano não precisa ser apagada: deixe-a " +
   "inativa e o histórico dos anos anteriores continua de pé.";
 const NOTA_EDICAO =
   "As instituições da cidade não vão junto — o cadastro delas atravessa os " +
   "anos. Sai o que era deste ano.";
-const EDICAO_VAZIA = { cidade_id: "", ano: new Date().getFullYear(), nome: "", valor_cesta: "120.00", valor_festa: "60.00" };
 
 export default function CidadesEdicoes() {
+  // Criar, renomear ou apagar uma edicao muda o seletor da lateral: a lista de
+  // la e a mesma, e precisa saber.
+  const { recarregarEdicoes } = useSessao();
+
   const [cidades, definirCidades] = useState([]);
   const [edicoes, definirEdicoes] = useState([]);
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
+  const [salvando, definirSalvando] = useState(false);
 
+  // Toda acao desta tela acontece dentro de uma janela: cadastrar, editar,
+  // ver os dias, apagar. Formulario aberto no meio da pagina empurrava a
+  // planilha para baixo e deixava quem preenchia sem saber em que linha
+  // estava mexendo.
+  //
+  // `registro` em null quer dizer "e um cadastro novo"; preenchido, e edicao
+  // daquele registro.
   const [formCidade, definirFormCidade] = useState(null);
   const [formEdicao, definirFormEdicao] = useState(null);
-  const [salvando, definirSalvando] = useState(false);
+
+  // Os dias da edicao, numa janela propria: { edicao, lista, novo }.
+  const [dias, definirDias] = useState(null);
 
   // A exclusao em curso: { tipo, registro, dependencias, erro, apagando }.
   // Tudo num objeto so porque a conta que chega do servidor precisa ser
   // casada com o registro que a pediu — trocar de alvo com a resposta no ar
   // nao pode acabar mostrando a conta de um em cima do nome do outro.
   const [exclusao, definirExclusao] = useState(null);
-
-  // Dias da edicao aberta
-  const [edicaoAberta, definirEdicaoAberta] = useState(null);
-  const [dias, definirDias] = useState([]);
-  const [novoDia, definirNovoDia] = useState({ data: "", descricao: "" });
 
   useEffect(() => {
     let vivo = true;
@@ -70,17 +91,53 @@ export default function CidadesEdicoes() {
     };
   }, []);
 
+  function limparErro() {
+    definirErro("");
+  }
+
+  // ---------------------------------------------------------------- cidades
+
+  function abrirFormCidade(registro = null) {
+    limparErro();
+    definirFormCidade({
+      registro,
+      campos: registro ? { nome: registro.nome, uf: registro.uf } : CIDADE_VAZIA,
+    });
+  }
+
+  function mudarCidade(campo, valor) {
+    definirFormCidade((atual) => ({
+      ...atual,
+      campos: { ...atual.campos, [campo]: valor },
+    }));
+  }
+
   async function salvarCidade(evento) {
     evento.preventDefault();
     definirErro("");
     definirSalvando(true);
+
+    const { registro, campos } = formCidade;
+    const corpo = {
+      nome: campos.nome.trim(),
+      uf: campos.uf.trim().toUpperCase(),
+      // O PATCH da cidade pede a ficha inteira: sem repetir a situacao aqui,
+      // editar o nome de uma cidade inativa a reativaria sem querer.
+      ativo: registro ? registro.ativo : true,
+    };
+
     try {
-      const nova = await criarCidade({
-        nome: formCidade.nome.trim(),
-        uf: formCidade.uf.trim().toUpperCase(),
-      });
-      definirCidades((l) => [...l, nova].sort((a, b) => a.nome.localeCompare(b.nome)));
-      definirSucesso(`${nova.nome} cadastrada.`);
+      if (registro) {
+        const salva = await editarCidade(registro.id, corpo);
+        definirCidades((l) => l.map((c) => (c.id === salva.id ? salva : c)));
+        notificar(`${salva.nome} atualizada.`);
+      } else {
+        const nova = await criarCidade(corpo);
+        definirCidades((l) =>
+          [...l, nova].sort((a, b) => a.nome.localeCompare(b.nome)),
+        );
+        notificar(`${nova.nome} cadastrada.`);
+      }
       definirFormCidade(null);
     } catch (e) {
       definirErro(e.message);
@@ -89,20 +146,76 @@ export default function CidadesEdicoes() {
     }
   }
 
+  async function alternarCidade(cidade) {
+    limparErro();
+    try {
+      const salva = await editarCidade(cidade.id, {
+        nome: cidade.nome,
+        uf: cidade.uf,
+        ativo: !cidade.ativo,
+      });
+      definirCidades((l) => l.map((c) => (c.id === salva.id ? salva : c)));
+    } catch (e) {
+      definirErro(e.message);
+    }
+  }
+
+  // ---------------------------------------------------------------- edicoes
+
+  function abrirFormEdicao(registro = null) {
+    limparErro();
+    definirFormEdicao({
+      registro,
+      campos: registro
+        ? {
+            cidade_id: registro.cidade_id,
+            ano: registro.ano,
+            nome: registro.nome,
+            valor_cesta: registro.valor_cesta,
+            valor_festa: registro.valor_festa,
+          }
+        : { ...EDICAO_VAZIA, cidade_id: cidades[0]?.id ?? "" },
+    });
+  }
+
+  function mudarEdicao(campo, valor) {
+    definirFormEdicao((atual) => ({
+      ...atual,
+      campos: { ...atual.campos, [campo]: valor },
+    }));
+  }
+
   async function salvarEdicao(evento) {
     evento.preventDefault();
     definirErro("");
     definirSalvando(true);
+
+    const { registro, campos } = formEdicao;
+
     try {
-      const nova = await criarEdicao({
-        cidade_id: Number(formEdicao.cidade_id),
-        ano: Number(formEdicao.ano),
-        nome: formEdicao.nome.trim(),
-        valor_cesta: formEdicao.valor_cesta,
-        valor_festa: formEdicao.valor_festa,
-      });
-      definirEdicoes((l) => [nova, ...l]);
-      definirSucesso(`${nova.nome} criada.`);
+      if (registro) {
+        // Cidade e ano nao entram: sao a identidade da edicao, e o servidor
+        // nem aceita muda-los.
+        const salva = await editarEdicao(registro.id, {
+          nome: campos.nome.trim(),
+          valor_cesta: campos.valor_cesta,
+          valor_festa: campos.valor_festa,
+        });
+        definirEdicoes((l) => l.map((e) => (e.id === salva.id ? salva : e)));
+        recarregarEdicoes().catch(() => {});
+        notificar(`${salva.nome} atualizada.`);
+      } else {
+        const nova = await criarEdicao({
+          cidade_id: Number(campos.cidade_id),
+          ano: Number(campos.ano),
+          nome: campos.nome.trim(),
+          valor_cesta: campos.valor_cesta,
+          valor_festa: campos.valor_festa,
+        });
+        definirEdicoes((l) => [nova, ...l]);
+        recarregarEdicoes().catch(() => {});
+        notificar(`${nova.nome} criada.`);
+      }
       definirFormEdicao(null);
     } catch (e) {
       definirErro(e.message);
@@ -111,49 +224,71 @@ export default function CidadesEdicoes() {
     }
   }
 
-  async function abrirDias(edicao) {
-    if (edicaoAberta?.id === edicao.id) {
-      definirEdicaoAberta(null);
-      return;
-    }
-    definirErro("");
-    definirEdicaoAberta(edicao);
-    definirNovoDia({ data: "", descricao: "" });
+  async function alternarEdicao(edicao) {
+    limparErro();
     try {
-      definirDias(await listarDias(edicao.id));
+      const salva = await editarEdicao(edicao.id, { ativa: !edicao.ativa });
+      definirEdicoes((l) => l.map((e) => (e.id === salva.id ? salva : e)));
     } catch (e) {
       definirErro(e.message);
     }
+  }
+
+  // ------------------------------------------------------------------- dias
+
+  async function abrirDias(edicao) {
+    limparErro();
+    definirDias({ edicao, lista: null, novo: { data: "", descricao: "" }, erro: "" });
+    try {
+      const lista = await listarDias(edicao.id);
+      definirDias((atual) =>
+        atual && atual.edicao.id === edicao.id ? { ...atual, lista } : atual,
+      );
+    } catch (e) {
+      definirDias((atual) => (atual ? { ...atual, erro: e.message, lista: [] } : atual));
+    }
+  }
+
+  function mudarNovoDia(campo, valor) {
+    definirDias((atual) => ({ ...atual, novo: { ...atual.novo, [campo]: valor } }));
   }
 
   async function adicionarDia(evento) {
     evento.preventDefault();
-    definirErro("");
+    definirDias((atual) => ({ ...atual, erro: "" }));
     try {
-      const dia = await criarDia(edicaoAberta.id, {
-        data: novoDia.data,
-        descricao: novoDia.descricao.trim() || null,
+      const dia = await criarDia(dias.edicao.id, {
+        data: dias.novo.data,
+        descricao: dias.novo.descricao.trim() || null,
       });
-      definirDias((l) => [...l, dia].sort((a, b) => a.data.localeCompare(b.data)));
-      definirNovoDia({ data: "", descricao: "" });
+      definirDias((atual) => ({
+        ...atual,
+        // `?? []` porque da para preencher a data antes de a lista chegar.
+        lista: [...(atual.lista ?? []), dia].sort((a, b) => a.data.localeCompare(b.data)),
+        novo: { data: "", descricao: "" },
+      }));
     } catch (e) {
-      definirErro(e.message);
+      definirDias((atual) => ({ ...atual, erro: e.message }));
     }
   }
 
   async function removerDia(dia) {
-    definirErro("");
+    definirDias((atual) => ({ ...atual, erro: "" }));
     try {
-      await apagarDia(edicaoAberta.id, dia.id);
-      definirDias((l) => l.filter((d) => d.id !== dia.id));
+      await apagarDia(dias.edicao.id, dia.id);
+      definirDias((atual) => ({
+        ...atual,
+        lista: atual.lista.filter((d) => d.id !== dia.id),
+      }));
     } catch (e) {
-      definirErro(e.message);
+      definirDias((atual) => ({ ...atual, erro: e.message }));
     }
   }
 
+  // -------------------------------------------------------------- exclusao
+
   async function pedirExclusao(tipo, registro) {
-    definirErro("");
-    definirSucesso("");
+    limparErro();
     definirExclusao({ tipo, registro, dependencias: null, erro: "", apagando: false });
     try {
       const conta =
@@ -182,13 +317,14 @@ export default function CidadesEdicoes() {
         // precisa perder as dela tambem, senao sobram linhas apontando para
         // uma cidade que nao existe mais.
         definirEdicoes((l) => l.filter((e) => e.cidade_id !== registro.id));
-        if (edicaoAberta?.cidade_id === registro.id) definirEdicaoAberta(null);
+        if (dias?.edicao.cidade_id === registro.id) definirDias(null);
       } else {
         await apagarEdicao(registro.id);
         definirEdicoes((l) => l.filter((e) => e.id !== registro.id));
-        if (edicaoAberta?.id === registro.id) definirEdicaoAberta(null);
+        if (dias?.edicao.id === registro.id) definirDias(null);
       }
-      definirSucesso(`${registro.nome} apagada.`);
+      recarregarEdicoes().catch(() => {});
+      notificar(`${registro.nome} apagada.`);
       definirExclusao(null);
     } catch (e) {
       definirExclusao((atual) =>
@@ -209,46 +345,24 @@ export default function CidadesEdicoes() {
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
       <h2 className="painel__titulo">Cidades</h2>
       <div className="barra-acoes">
-        <Button variant="secondary" size="sm" onClick={() => definirFormCidade(CIDADE_VAZIA)}>
+        <Button variant="secondary" size="sm" onClick={() => abrirFormCidade()}>
           Nova cidade
         </Button>
       </div>
 
-      {formCidade && (
-        <form className="painel" onSubmit={salvarCidade}>
-          <div className="linha-campos">
-            <Entrada
-              rotulo="Nome"
-              value={formCidade.nome}
-              onChange={(e) => definirFormCidade({ ...formCidade, nome: e.target.value })}
-              required
-            />
-            <Entrada
-              rotulo="UF"
-              value={formCidade.uf}
-              onChange={(e) => definirFormCidade({ ...formCidade, uf: e.target.value })}
-              maxLength={2}
-              required
-            />
-          </div>
-          <div className="barra-acoes barra-acoes--fim">
-            <Button variant="secondary" type="submit" carregando={salvando}>Salvar</Button>
-            <Button variant="ghost" onClick={() => definirFormCidade(null)}>Cancelar</Button>
-          </div>
-        </form>
-      )}
-
       {cidades.length === 0 ? (
-        <EmptyState titulo="Nenhuma cidade cadastrada" corpo="Comece cadastrando a cidade, depois crie a edição do ano." />
+        <EmptyState
+          titulo="Nenhuma cidade cadastrada"
+          corpo="Comece cadastrando a cidade, depois crie a edição do ano."
+        />
       ) : (
         <div className="tabela-rolagem">
           <table className="tabela">
             <thead>
-              <tr><th>Cidade</th><th>UF</th><th>Situação</th><th /></tr>
+              <tr><th>Cidade</th><th>UF</th><th>Situação</th><th className="tabela__acoes" /></tr>
             </thead>
             <tbody>
               {cidades.map((c) => (
@@ -260,14 +374,22 @@ export default function CidadesEdicoes() {
                       {c.ativo ? "Ativa" : "Inativa"}
                     </span>
                   </td>
-                  <td>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => pedirExclusao("cidade", c)}
-                    >
-                      Apagar
-                    </Button>
+                  <td className="tabela__acoes">
+                    <MenuAcoes
+                      titulo={`Ações de ${c.nome}`}
+                      itens={[
+                        { rotulo: "Editar", aoEscolher: () => abrirFormCidade(c) },
+                        {
+                          rotulo: c.ativo ? "Desativar" : "Ativar",
+                          aoEscolher: () => alternarCidade(c),
+                        },
+                        {
+                          rotulo: "Apagar",
+                          perigo: true,
+                          aoEscolher: () => pedirExclusao("cidade", c),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -278,73 +400,24 @@ export default function CidadesEdicoes() {
 
       <h2 className="painel__titulo" style={{ marginTop: "var(--space-7)" }}>Edições</h2>
       <div className="barra-acoes">
-        <Button
-          size="sm"
-          onClick={() => definirFormEdicao({ ...EDICAO_VAZIA, cidade_id: cidades[0]?.id ?? "" })}
-          disabled={cidades.length === 0}
-        >
+        <Button size="sm" onClick={() => abrirFormEdicao()} disabled={cidades.length === 0}>
           Nova edição
         </Button>
+        {cidades.length === 0 && (
+          <span className="campo__dica">Cadastre uma cidade primeiro.</span>
+        )}
       </div>
 
-      {formEdicao && (
-        <form className="painel" onSubmit={salvarEdicao}>
-          <div className="linha-campos">
-            <Selecao
-              rotulo="Cidade"
-              value={formEdicao.cidade_id}
-              onChange={(e) => definirFormEdicao({ ...formEdicao, cidade_id: e.target.value })}
-              required
-            >
-              {cidades.map((c) => (
-                <option key={c.id} value={c.id}>{c.nome} · {c.uf}</option>
-              ))}
-            </Selecao>
-            <Entrada
-              rotulo="Ano"
-              tipo="number"
-              value={formEdicao.ano}
-              onChange={(e) => definirFormEdicao({ ...formEdicao, ano: e.target.value })}
-              required
-            />
-            <Entrada
-              rotulo="Nome da edição"
-              value={formEdicao.nome}
-              onChange={(e) => definirFormEdicao({ ...formEdicao, nome: e.target.value })}
-              dica="Ex.: Fortaleza 2026"
-              required
-            />
-            <Entrada
-              rotulo="Valor da cesta"
-              tipo="number"
-              step="0.01"
-              value={formEdicao.valor_cesta}
-              onChange={(e) => definirFormEdicao({ ...formEdicao, valor_cesta: e.target.value })}
-              required
-            />
-            <Entrada
-              rotulo="Valor da festa"
-              tipo="number"
-              step="0.01"
-              value={formEdicao.valor_festa}
-              onChange={(e) => definirFormEdicao({ ...formEdicao, valor_festa: e.target.value })}
-              required
-            />
-          </div>
-          <div className="barra-acoes barra-acoes--fim">
-            <Button variant="secondary" type="submit" carregando={salvando}>Salvar</Button>
-            <Button variant="ghost" onClick={() => definirFormEdicao(null)}>Cancelar</Button>
-          </div>
-        </form>
-      )}
-
       {edicoes.length === 0 ? (
-        <EmptyState titulo="Nenhuma edição criada" corpo="A edição é o que liga crianças, padrinhos e equipe a um ano e uma cidade." />
+        <EmptyState
+          titulo="Nenhuma edição criada"
+          corpo="A edição é o que liga crianças, padrinhos e equipe a um ano e uma cidade."
+        />
       ) : (
         <div className="tabela-rolagem">
           <table className="tabela">
             <thead>
-              <tr><th>Edição</th><th>Cidade</th><th>Ano</th><th>Cesta</th><th>Festa</th><th>Situação</th><th /></tr>
+              <tr><th>Edição</th><th>Cidade</th><th>Ano</th><th>Cesta</th><th>Festa</th><th>Situação</th><th className="tabela__acoes" /></tr>
             </thead>
             <tbody>
               {edicoes.map((e) => (
@@ -359,19 +432,23 @@ export default function CidadesEdicoes() {
                       {e.ativa ? "Ativa" : "Encerrada"}
                     </span>
                   </td>
-                  <td>
-                    <div className="barra-acoes" style={{ margin: 0 }}>
-                      <Button size="sm" variant="ghost" onClick={() => abrirDias(e)}>
-                        {edicaoAberta?.id === e.id ? "Fechar dias" : "Dias do evento"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => pedirExclusao("edicao", e)}
-                      >
-                        Apagar
-                      </Button>
-                    </div>
+                  <td className="tabela__acoes">
+                    <MenuAcoes
+                      titulo={`Ações de ${e.nome}`}
+                      itens={[
+                        { rotulo: "Editar", aoEscolher: () => abrirFormEdicao(e) },
+                        { rotulo: "Dias do evento", aoEscolher: () => abrirDias(e) },
+                        {
+                          rotulo: e.ativa ? "Encerrar" : "Reabrir",
+                          aoEscolher: () => alternarEdicao(e),
+                        },
+                        {
+                          rotulo: "Apagar",
+                          perigo: true,
+                          aoEscolher: () => pedirExclusao("edicao", e),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -380,30 +457,169 @@ export default function CidadesEdicoes() {
         </div>
       )}
 
-      {edicaoAberta && (
-        <div className="painel" style={{ marginTop: "var(--space-5)" }}>
-          <h3 className="painel__titulo">Dias de {edicaoAberta.nome}</h3>
-          <p className="campo__dica" style={{ marginTop: 0, marginBottom: "var(--space-4)" }}>
-            Cada criança vai a um único dia. Um dia só pode ser apagado quando não tem
-            criança marcada.
+      {formCidade && (
+        <Modal
+          rotulo="Cidade"
+          titulo={formCidade.registro ? `Editar ${formCidade.registro.nome}` : "Nova cidade"}
+          aoFechar={() => !salvando && definirFormCidade(null)}
+        >
+          <form onSubmit={salvarCidade}>
+            <Entrada
+              rotulo="Nome"
+              value={formCidade.campos.nome}
+              onChange={(e) => mudarCidade("nome", e.target.value)}
+              required
+            />
+            <Entrada
+              rotulo="UF"
+              value={formCidade.campos.uf}
+              onChange={(e) => mudarCidade("uf", e.target.value.toUpperCase())}
+              maxLength={2}
+              required
+            />
+            <div className="barra-acoes barra-acoes--fim">
+              <Button variant="secondary" type="submit" carregando={salvando}>
+                {salvando ? "Salvando..." : "Salvar"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => definirFormCidade(null)}
+                disabled={salvando}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {formEdicao && (
+        <Modal
+          rotulo="Edição"
+          titulo={formEdicao.registro ? `Editar ${formEdicao.registro.nome}` : "Nova edição"}
+          aoFechar={() => !salvando && definirFormEdicao(null)}
+        >
+          <form onSubmit={salvarEdicao}>
+            {/* Cidade e ano sao a identidade da edicao e nao mudam depois de
+                criada — na edicao eles aparecem so para situar quem abriu. */}
+            {formEdicao.registro ? (
+              <p className="campo__dica" style={{ marginTop: 0 }}>
+                {formEdicao.registro.cidade} · {formEdicao.registro.uf} ·{" "}
+                {formEdicao.registro.ano}
+              </p>
+            ) : (
+              <>
+                <Selecao
+                  rotulo="Cidade"
+                  value={formEdicao.campos.cidade_id}
+                  onChange={(e) => mudarEdicao("cidade_id", e.target.value)}
+                  required
+                >
+                  {cidades.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nome} · {c.uf}</option>
+                  ))}
+                </Selecao>
+                <Entrada
+                  rotulo="Ano"
+                  tipo="number"
+                  value={formEdicao.campos.ano}
+                  onChange={(e) => mudarEdicao("ano", e.target.value)}
+                  required
+                />
+              </>
+            )}
+
+            <Entrada
+              rotulo="Nome da edição"
+              value={formEdicao.campos.nome}
+              onChange={(e) => mudarEdicao("nome", e.target.value)}
+              dica="Ex.: Fortaleza 2026"
+              required
+            />
+            <Entrada
+              rotulo="Valor da cesta"
+              tipo="number"
+              step="0.01"
+              value={formEdicao.campos.valor_cesta}
+              onChange={(e) => mudarEdicao("valor_cesta", e.target.value)}
+              required
+            />
+            <Entrada
+              rotulo="Valor da festa"
+              tipo="number"
+              step="0.01"
+              value={formEdicao.campos.valor_festa}
+              onChange={(e) => mudarEdicao("valor_festa", e.target.value)}
+              dica="Vale para os apadrinhamentos registrados daqui para a frente; os já combinados guardam o valor do dia."
+              required
+            />
+
+            <div className="barra-acoes barra-acoes--fim">
+              <Button variant="secondary" type="submit" carregando={salvando}>
+                {salvando ? "Salvando..." : "Salvar"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => definirFormEdicao(null)}
+                disabled={salvando}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {dias && (
+        /* `grande`: a lista muda com a janela aberta (adicionar, apagar), e
+           com a altura acompanhando o conteudo a janela pularia embaixo do
+           ponteiro a cada acao. */
+        <Modal
+          rotulo="Dias do evento"
+          titulo={dias.edicao.nome}
+          tamanho="grande"
+          aoFechar={() => definirDias(null)}
+        >
+          <Mensagem tipo="erro">{dias.erro}</Mensagem>
+
+          <p className="campo__dica" style={{ marginTop: 0 }}>
+            Cada criança vai a um único dia, e quem define o dia é a instituição.
+            Um dia só pode ser apagado quando não tem criança marcada.
           </p>
 
-          {dias.length > 0 && (
+          {dias.lista === null ? (
+            <Carregando>Carregando os dias...</Carregando>
+          ) : dias.lista.length === 0 ? (
+            <EmptyState
+              titulo="Nenhum dia cadastrado"
+              corpo="Cadastre os dias do evento para poder marcar em qual cada instituição vai."
+            />
+          ) : (
             <div className="tabela-rolagem">
               <table className="tabela">
                 <thead>
-                  <tr><th>Data</th><th>Descrição</th><th>Crianças</th><th /></tr>
+                  <tr><th>Data</th><th>Descrição</th><th>Crianças</th><th className="tabela__acoes" /></tr>
                 </thead>
                 <tbody>
-                  {dias.map((d) => (
+                  {dias.lista.map((d) => (
                     <tr key={d.id}>
                       <td>{formatarData(d.data)}</td>
                       <td>{d.descricao ?? "—"}</td>
                       <td>{d.total_criancas}</td>
-                      <td>
-                        <Button size="sm" variant="ghost" onClick={() => removerDia(d)}>
-                          Apagar
-                        </Button>
+                      <td className="tabela__acoes">
+                        <MenuAcoes
+                          titulo={`Ações de ${formatarData(d.data)}`}
+                          itens={[
+                            {
+                              rotulo: "Apagar",
+                              perigo: true,
+                              // Com crianca marcada o servidor recusa. Travar
+                              // aqui tambem evita o clique que so traz erro.
+                              disabled: d.total_criancas > 0,
+                              aoEscolher: () => removerDia(d),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -412,27 +628,26 @@ export default function CidadesEdicoes() {
             </div>
           )}
 
-          <form onSubmit={adicionarDia} style={{ marginTop: "var(--space-5)" }}>
+          <form onSubmit={adicionarDia} style={{ marginTop: "var(--space-6)" }}>
             <div className="linha-campos">
               <Entrada
                 rotulo="Data"
                 tipo="date"
-                value={novoDia.data}
-                onChange={(e) => definirNovoDia({ ...novoDia, data: e.target.value })}
-                required
+                value={dias.novo.data}
+                onChange={(e) => mudarNovoDia("data", e.target.value)}
               />
               <Entrada
                 rotulo="Descrição"
-                value={novoDia.descricao}
-                onChange={(e) => definirNovoDia({ ...novoDia, descricao: e.target.value })}
+                value={dias.novo.descricao}
+                onChange={(e) => mudarNovoDia("descricao", e.target.value)}
                 dica="Opcional. Ex.: Sábado de manhã"
               />
             </div>
-            <Button variant="secondary" type="submit" size="sm" disabled={!novoDia.data}>
+            <Button variant="secondary" type="submit" size="sm" disabled={!dias.novo.data}>
               Adicionar dia
             </Button>
           </form>
-        </div>
+        </Modal>
       )}
 
       {exclusao && (

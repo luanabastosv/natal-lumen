@@ -4,8 +4,8 @@ import { Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes } from "../services/cadastros.js";
 import { listarKits, mudarKits } from "../services/logistica.js";
 import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
 
@@ -16,52 +16,39 @@ const ESTADOS = {
 };
 
 export default function Kits() {
+  // A edicao vem da lateral: e a mesma para o sistema inteiro.
   const { edicaoAtiva } = useSessao();
 
-  const [edicoes, definirEdicoes] = useState([]);
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [situacao, definirSituacao] = useState("");
   const [dados, definirDados] = useState({ itens: [], total: 0, resumo: {} });
   const [marcados, definirMarcados] = useState([]);
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
-
-  useEffect(() => {
-    let vivo = true;
-    listarEdicoes()
-      .then((eds) => {
-        if (!vivo) return;
-        definirEdicoes(eds);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
-      .catch((e) => vivo && definirErro(e.message));
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const notificar = useNotificar();
 
   const buscar = useCallback(async () => {
     try {
-      definirDados(await listarKits({ edicao_id: edicaoId, situacao }));
+      definirDados(await listarKits({ edicao_id: edicaoAtiva, situacao }));
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId, situacao]);
+  }, [edicaoAtiva, situacao]);
 
   useEffect(() => {
-    if (edicaoId) buscar();
-  }, [edicaoId, situacao, buscar]);
+    // Buscar no servidor e justamente o que este efeito existe para fazer: a
+    // lista so chega depois do await, e nao daria para derivar no render.
+    // eslint-disable-next-line react/set-state-in-effect
+    if (edicaoAtiva) buscar();
+  }, [edicaoAtiva, situacao, buscar]);
 
   async function mudar(status) {
     definirErro("");
     try {
       const mudados = await mudarKits(marcados, status);
-      definirSucesso(`${mudados.length} kit(s) marcado(s) como ${status}.`);
+      notificar(`${mudados.length} kit(s) marcado(s) como ${status}.`);
       definirMarcados([]);
       buscar();
     } catch (e) {
@@ -89,14 +76,8 @@ export default function Kits() {
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
       <div className="barra-acoes">
-        <Selecao value={edicaoId} onChange={(e) => definirEdicaoId(e.target.value)}>
-          {edicoes.map((e) => (
-            <option key={e.id} value={e.id}>{e.nome}</option>
-          ))}
-        </Selecao>
         <Selecao value={situacao} onChange={(e) => definirSituacao(e.target.value)}>
           <option value="">Todos</option>
           <option value="pendente">Pendentes</option>

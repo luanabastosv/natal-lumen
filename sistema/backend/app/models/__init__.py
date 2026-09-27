@@ -23,6 +23,7 @@ from app.models.operacao import (
     Crianca,
     DiaEvento,
     Edicao,
+    Grupo,
     Instituicao,
     InstituicaoDia,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "DiaEvento",
     "Instituicao",
     "InstituicaoDia",
+    "Grupo",
     "Crianca",
     # apadrinhamento
     "Padrinho",

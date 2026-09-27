@@ -110,6 +110,37 @@ class Instituicao(Base):
     criancas: Mapped[list["Crianca"]] = relationship(back_populates="instituicao")
 
 
+class Grupo(Base):
+    """Grupo da comunidade a que um comissario pertence.
+
+    Pertence a CIDADE e atravessa os anos, como a instituicao: o grupo Elyon de
+    2026 e o mesmo de 2027, ainda que o comissario mude. Por isso a sugestao
+    continua aparecendo na edicao seguinte, em vez de a cidade recomecar do zero
+    todo mes de janeiro.
+
+    Nao ha tela de cadastro de grupos: eles nascem do proprio formulario de
+    usuario, quando a coordenacao atribui a funcao de comissario. Dai o
+    `nome_normalizado` — sem ele "Elyon", "elyon" e "Élyon" virariam tres grupos
+    diferentes na lista de sugestoes, que existe justamente para isso nao
+    acontecer. A unicidade e por ele; `nome` guarda a grafia de quem cadastrou
+    primeiro, e e o que aparece na tela.
+    """
+
+    __tablename__ = "grupos"
+    __table_args__ = (
+        UniqueConstraint("cidade_id", "nome_normalizado", name="uq_grupos_cidade_nome"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cidade_id: Mapped[int] = mapped_column(
+        ForeignKey("cidades.id"), nullable=False, index=True
+    )
+    nome: Mapped[str] = mapped_column(String(120), nullable=False)
+    nome_normalizado: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    cidade: Mapped[Cidade] = relationship()
+
+
 class InstituicaoDia(Base):
     """Em que dia da edicao esta instituicao vai.
 

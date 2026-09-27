@@ -22,6 +22,9 @@ export const listarComissarios = (edicaoId) =>
 export const renumerar = (dados) => api.post("/criancas/renumerar", dados);
 export const detalharCrianca = (id) => api.get(`/criancas/${id}`);
 export const editarCrianca = (id, dados) => api.patch(`/criancas/${id}`, dados);
+/* Apagar crianca leva junto cartao, kit e apadrinhamento: a tela pede a conta
+   primeiro, mostra no modal, e so entao apaga. */
+export const dependenciasDaCrianca = (id) => api.get(`/criancas/${id}/dependencias`);
 export const apagarCrianca = (id) => api.delete(`/criancas/${id}`);
 /** Marca (ou desmarca) que a crianca desistiu de ir ao evento. */
 export const marcarDesistencia = (id, desistiu) =>

@@ -97,6 +97,23 @@
   border-top: var(--stroke-hairline) solid rgba(255, 255, 255, 0.14);
 }
 
+.lateral__edicao-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A edicao ativa e um controle global, e nao mais um filtro de cada pagina:
+   o rotulo existe para que ninguem leia o seletor como "mais um campo". */
+.lateral__edicao-rotulo {
+  padding: 0 var(--space-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
 .lateral__edicao {
   width: 100%;
   padding: 8px var(--space-4);
@@ -155,9 +172,19 @@
   white-space: nowrap;
 }
 
-/* Sair e a acao menos importante daqui: icone, sem amarelo — o amarelo e do
-   CTA da pagina. */
-.lateral__sair {
+/* As duas acoes andam juntas, e coladas: sao um par no canto, nao dois
+   destinos soltos. O que sobra de largura vai para o nome, que e o unico
+   pedaco desta linha que pode crescer. */
+.lateral__acoes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/* As acoes da conta: configuracoes e sair. Sao as menos importantes da
+   lateral — icone, sem amarelo, que o amarelo e do CTA da pagina. */
+.lateral__acao {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -175,12 +202,21 @@
     color var(--dur) var(--ease-out);
 }
 
-.lateral__sair:hover {
+.lateral__acao:hover {
   background: rgba(255, 255, 255, 0.12);
   color: var(--white);
 }
 
-.lateral__sair:focus-visible {
+/* Configuracoes leva a uma tela; sair, nao. So ela tem estado de "voce esta
+   aqui" — sem isso, a tela de cidades e edicoes seria a unica do sistema sem
+   nada na lateral dizendo de onde ela veio. */
+.lateral__acao--ativo,
+.lateral__acao--ativo:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--white);
+}
+
+.lateral__acao:focus-visible {
   outline: 2px solid var(--focus-ring-dark);
   outline-offset: 2px;
 }
@@ -299,6 +335,17 @@
     font-size: 16px;
     font-weight: 800;
     letter-spacing: var(--tracking-titulo);
+  }
+
+  .barra-mobile__edicao {
+    margin-left: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cream-500);
+    background: var(--navy-800);
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
   }
 
   /* A lateral vira gaveta, por cima do conteudo. */

@@ -1,17 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Button from "../components/core/Button.jsx";
-import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import { Entrada } from "../components/core/Campo.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes } from "../services/cadastros.js";
 import { fazerCheckin } from "../services/logistica.js";
 import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
 
 export default function Checkin() {
+  // A edicao vem da lateral: e a mesma para o sistema inteiro.
   const { edicaoAtiva } = useSessao();
 
-  const [edicoes, definirEdicoes] = useState([]);
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [codigo, definirCodigo] = useState("");
   const [resultado, definirResultado] = useState(null);
   const [historico, definirHistorico] = useState([]);
@@ -19,21 +17,6 @@ export default function Checkin() {
   const [enviando, definirEnviando] = useState(false);
 
   const campoCodigo = useRef(null);
-
-  useEffect(() => {
-    let vivo = true;
-    listarEdicoes()
-      .then((eds) => {
-        if (!vivo) return;
-        definirEdicoes(eds);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
-      .catch((e) => vivo && definirErro(e.message));
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function registrar(evento) {
     evento.preventDefault();
@@ -45,7 +28,7 @@ export default function Checkin() {
     const soCodigo = lido.includes(":") ? lido.split(":").pop() : lido;
 
     try {
-      const entrada = await fazerCheckin(soCodigo, Number(edicaoId));
+      const entrada = await fazerCheckin(soCodigo, Number(edicaoAtiva));
       definirResultado(entrada);
       definirHistorico((h) => [entrada, ...h].slice(0, 15));
       definirCodigo("");
@@ -72,11 +55,6 @@ export default function Checkin() {
 
       <form className="painel" onSubmit={registrar}>
         <div className="linha-campos">
-          <Selecao rotulo="Edição" value={edicaoId} onChange={(e) => definirEdicaoId(e.target.value)}>
-            {edicoes.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome}</option>
-            ))}
-          </Selecao>
           <Entrada
             rotulo="Código da criança"
             value={codigo}
@@ -86,7 +64,7 @@ export default function Checkin() {
             dica="O leitor de QR digita sozinho e confirma."
           />
         </div>
-        <Button type="submit" carregando={enviando} disabled={!codigo.trim() || !edicaoId}>
+        <Button type="submit" carregando={enviando} disabled={!codigo.trim() || !edicaoAtiva}>
           Registrar entrada
         </Button>
       </form>

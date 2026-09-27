@@ -18,8 +18,13 @@ export function Campo({ rotulo, dica, erro, classe = "", children }) {
   );
 }
 
-export function Entrada({ rotulo, dica, erro, classe, tipo = "text", ...resto }) {
+/** Campo de texto. Com `sugestoes`, continua aceitando qualquer valor: a lista
+ *  e um atalho para o que ja existe, nao um seletor — o primeiro grupo de uma
+ *  cidade precisa poder ser escrito do zero.
+ */
+export function Entrada({ rotulo, dica, erro, classe, tipo = "text", sugestoes, ...resto }) {
   const id = useId();
+  const listaId = `${id}-sugestoes`;
   return (
     <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
       <input
@@ -27,8 +32,16 @@ export function Entrada({ rotulo, dica, erro, classe, tipo = "text", ...resto })
         type={tipo}
         className={`campo__controle ${erro ? "campo__controle--erro" : ""}`}
         aria-invalid={erro ? true : undefined}
+        list={sugestoes?.length ? listaId : undefined}
         {...resto}
       />
+      {sugestoes?.length > 0 && (
+        <datalist id={listaId}>
+          {sugestoes.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
     </Campo>
   );
 }

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
+import ConferirCartoes from "../components/dados/ConferirCartoes.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
+import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
-import { listarEdicoes } from "../services/cadastros.js";
 import {
   confirmarLote,
   listarCartoes,
@@ -17,22 +18,24 @@ import {
 import { formatarDataHora } from "../utils/dinheiro.js";
 
 export default function Cartoes() {
+  // A edicao vem da lateral: e a mesma para o sistema inteiro.
   const { pode, edicaoAtiva } = useSessao();
 
-  const [edicoes, definirEdicoes] = useState([]);
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [cartoes, definirCartoes] = useState({ itens: [], total: 0 });
   const [situacao, definirSituacao] = useState("");
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
 
   // Fluxo de digitalizacao
   // Envio em lote: o codigo da crianca vem do NOME DO ARQUIVO.
   const [arquivos, definirArquivos] = useState([]);
   const [tipo, definirTipo] = useState("cesta");
   const [previa, definirPrevia] = useState(null);
+  // Quais fotos da previa ja passaram pela conferencia, pelo indice no lote.
+  const [conferidos, definirConferidos] = useState([]);
+  const [conferindo, definirConferindo] = useState(false);
   const [subindo, definirSubindo] = useState(false);
   const [salvando, definirSalvando] = useState(false);
 
@@ -40,21 +43,6 @@ export default function Cartoes() {
 
   // Qual cartao esta aberto para olhar.
   const [vendo, definirVendo] = useState(null);
-
-  useEffect(() => {
-    let vivo = true;
-    listarEdicoes()
-      .then((eds) => {
-        if (!vivo) return;
-        definirEdicoes(eds);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
-      .catch((e) => vivo && definirErro(e.message));
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const buscar = useCallback(async () => {
     try {
@@ -67,16 +55,22 @@ export default function Cartoes() {
   }, [situacao]);
 
   useEffect(() => {
-    if (edicaoId) buscar();
-  }, [edicaoId, buscar]);
+    // Buscar no servidor e justamente o que este efeito existe para fazer: a
+    // lista so chega depois do await, e nao daria para derivar no render.
+    // eslint-disable-next-line react/set-state-in-effect
+    if (edicaoAtiva) buscar();
+  }, [edicaoAtiva, buscar]);
 
   async function enviarLote(evento) {
     evento.preventDefault();
     definirErro("");
-    definirSucesso("");
     definirSubindo(true);
     try {
-      definirPrevia(await subirLoteDeCartoes({ arquivos, tipo, edicaoId }));
+      definirPrevia(await subirLoteDeCartoes({ arquivos, tipo, edicaoId: edicaoAtiva }));
+      definirConferidos([]);
+      // A conferencia e o passo seguinte do fluxo, nao um extra: quem subiu a
+      // pilha subiu para olhar cartao por cartao.
+      definirConferindo(true);
     } catch (e) {
       definirErro(e.message);
     } finally {
@@ -89,7 +83,7 @@ export default function Cartoes() {
     definirSalvando(true);
     try {
       const r = await confirmarLote(previa.id);
-      definirSucesso(
+      notificar(
         `${r.gravados} cartão(ões) de ${previa.tipo} guardado(s).` +
           (r.ignorados ? ` ${r.ignorados} ignorado(s).` : ""),
       );
@@ -105,6 +99,8 @@ export default function Cartoes() {
   function limpar() {
     definirPrevia(null);
     definirArquivos([]);
+    definirConferidos([]);
+    definirConferindo(false);
   }
 
 
@@ -112,7 +108,7 @@ export default function Cartoes() {
     definirErro("");
     try {
       const enviados = await marcarEnviados(marcados);
-      definirSucesso(`${enviados.length} cartão(ões) marcado(s) como enviado(s).`);
+      notificar(`${enviados.length} cartão(ões) marcado(s) como enviado(s).`);
       definirMarcados([]);
       buscar();
     } catch (e) {
@@ -128,6 +124,12 @@ export default function Cartoes() {
 
   const podeMarcar = pode("enviar_cartoes");
 
+  // So as fotos que vao subir precisam de olho: as que ja estao com erro nao
+  // vao ser gravadas de qualquer jeito.
+  const faltamConferir = previa
+    ? previa.arquivos.filter((a) => a.valida && !conferidos.includes(a.indice)).length
+    : 0;
+
   return (
     <div>
       <div className="pagina__eyebrow">Monitoria</div>
@@ -140,7 +142,6 @@ export default function Cartoes() {
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
       {pode("subir_cartoes") && (
         <>
@@ -148,15 +149,6 @@ export default function Cartoes() {
             <form className="painel" onSubmit={enviarLote}>
               <h2 className="painel__titulo">Subir cartões digitalizados</h2>
               <div className="linha-campos">
-                <Selecao
-                  rotulo="Edição"
-                  value={edicaoId}
-                  onChange={(e) => definirEdicaoId(e.target.value)}
-                >
-                  {edicoes.map((ed) => (
-                    <option key={ed.id} value={ed.id}>{ed.nome}</option>
-                  ))}
-                </Selecao>
                 <Selecao
                   rotulo="Estes cartões são de"
                   value={tipo}
@@ -185,7 +177,7 @@ export default function Cartoes() {
                 <Button
                   type="submit"
                   carregando={subindo}
-                  disabled={arquivos.length === 0 || !edicaoId}
+                  disabled={arquivos.length === 0 || !edicaoAtiva}
                 >
                   {arquivos.length > 0
                     ? `Conferir ${arquivos.length} arquivo(s)`
@@ -201,11 +193,14 @@ export default function Cartoes() {
               <p className="campo__dica" style={{ marginTop: 0 }}>
                 Nada foi gravado ainda. Quem estiver com erro é ignorado — corrija o
                 nome do arquivo e suba de novo.
+                {faltamConferir > 0
+                  ? ` Falta olhar ${faltamConferir} cartão(ões) um a um.`
+                  : " Todos já foram conferidos um a um."}
               </p>
 
               <div className="ficha__lista">
                 {previa.arquivos.map((a) => (
-                  <div key={a.arquivo} className="ficha__linha">
+                  <div key={a.indice} className="ficha__linha">
                     {a.miniatura ? (
                       <img
                         src={`data:image/jpeg;base64,${a.miniatura}`}
@@ -226,7 +221,9 @@ export default function Cartoes() {
                     <div className="ficha__linha-corpo">
                       <span className="ficha__linha-etiquetas">
                         {a.valida ? (
-                          <span className="etiqueta etiqueta--ok">pronto</span>
+                          <span className="etiqueta etiqueta--ok">
+                            {conferidos.includes(a.indice) ? "conferido" : "pronto"}
+                          </span>
                         ) : (
                           <span className="etiqueta etiqueta--parado">não vai subir</span>
                         )}
@@ -259,8 +256,19 @@ export default function Cartoes() {
               </div>
 
               <div className="barra-acoes barra-acoes--fim" style={{ marginTop: "var(--space-4)" }}>
-                <Button onClick={gravarLote} carregando={salvando} disabled={previa.validas === 0}>
+                <Button
+                  onClick={gravarLote}
+                  carregando={salvando}
+                  disabled={previa.validas === 0 || faltamConferir > 0}
+                >
                   Guardar {previa.validas} cartão(ões)
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => definirConferindo(true)}
+                  disabled={salvando}
+                >
+                  {faltamConferir > 0 ? "Conferir um a um" : "Rever um a um"}
                 </Button>
                 <Button variant="ghost" onClick={limpar} disabled={salvando}>
                   Descartar
@@ -299,19 +307,19 @@ export default function Cartoes() {
           <table className="tabela">
             <thead>
               <tr>
-                {podeMarcar && <th />}
+                {podeMarcar && <th className="tabela__acoes" />}
                 <th>Criança</th>
                 <th>Tipo</th>
                 <th>Padrinho</th>
                 <th>Situação</th>
-                <th />
+                <th className="tabela__acoes" />
               </tr>
             </thead>
             <tbody>
               {cartoes.itens.map((c) => (
                 <tr key={c.id}>
                   {podeMarcar && (
-                    <td>
+                    <td className="tabela__acoes">
                       <input
                         type="checkbox"
                         checked={marcados.includes(c.id)}
@@ -341,7 +349,7 @@ export default function Cartoes() {
                       <><br /><span className="campo__dica">{formatarDataHora(c.enviado_em)}</span></>
                     )}
                   </td>
-                  <td>
+                  <td className="tabela__acoes">
                     <Button size="sm" variant="ghost" onClick={() => definirVendo(c)}>
                       Ver imagem
                     </Button>
@@ -351,6 +359,25 @@ export default function Cartoes() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {conferindo && previa && (
+        <ConferirCartoes
+          previa={previa}
+          conferidos={conferidos}
+          aoConferir={(indice) =>
+            definirConferidos((atual) =>
+              atual.includes(indice) ? atual : [...atual, indice],
+            )
+          }
+          aoFechar={() => definirConferindo(false)}
+          aoGuardar={() => {
+            // Fecha antes de gravar: se der erro, a mensagem e o botao de
+            // tentar de novo estao no painel, atras da janela.
+            definirConferindo(false);
+            gravarLote();
+          }}
+        />
       )}
 
       {/* A imagem so sai por rota autenticada. Num <img> de mesma origem o

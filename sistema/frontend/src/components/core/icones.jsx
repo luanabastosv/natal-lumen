@@ -26,6 +26,33 @@ function Svg({ t = 15, children }) {
   );
 }
 
+/** Passar para o cartao seguinte na conferencia. */
+export function ChevronDireita({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M9 5l7 7-7 7" />
+    </Svg>
+  );
+}
+
+/** Voltar um cartao na conferencia. */
+export function ChevronEsquerda({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M15 5l-7 7 7 7" />
+    </Svg>
+  );
+}
+
+/** Conferido: o visto que a pessoa deu ao passar o cartao. */
+export function Visto({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M4 12.5l5 5L20 6.5" />
+    </Svg>
+  );
+}
+
 /** Ver a ficha. */
 export function Olho({ t }) {
   return (
@@ -83,6 +110,39 @@ export function Xis({ t }) {
   return (
     <Svg t={t}>
       <path d="M6 6l12 12M18 6 6 18" />
+    </Svg>
+  );
+}
+
+/** Tres pontinhos: abre o menu de acoes da linha.
+ *
+ * Circulos preenchidos, e nao tracos: com `stroke` de 2 num raio pequeno o
+ * ponto virava anel. Aqui o `fill` vem de `currentColor` para seguir a cor do
+ * botao igual aos outros.
+ */
+export function TresPontos({ t }) {
+  return (
+    <Svg t={t}>
+      <circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+/** Configuracoes: as telas que so a administracao geral abre.
+ *
+ * Reguladores, e nao engrenagem. A engrenagem classica tem oito dentes dentro
+ * da grade de 24, e no tamanho em que este icone aparece — 18px, na base da
+ * lateral — os dentes viram uma mancha. Duas reguas com o cursor no lugar
+ * continuam legiveis ali.
+ */
+export function Configuracoes({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M4 7h9.5M18.5 7H20M4 17h1.5M10.5 17H20" />
+      <circle cx="16" cy="7" r="2.3" />
+      <circle cx="8" cy="17" r="2.3" />
     </Svg>
   );
 }

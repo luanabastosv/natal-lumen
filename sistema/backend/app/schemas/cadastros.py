@@ -118,6 +118,17 @@ class InstituicaoOut(BaseModel):
     codigos_atualizados: int = 0
 
 
+class GrupoOut(BaseModel):
+    """Um grupo ja usado na cidade, para o formulario sugerir em vez de deixar
+    digitar de novo."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    cidade_id: int
+    nome: str
+
+
 class ItemDependencia(BaseModel):
     """Uma linha da conta do modal de confirmacao: "132 criancas".
 

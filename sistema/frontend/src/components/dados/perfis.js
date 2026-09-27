@@ -1,0 +1,62 @@
+/** Perfis que respondem por instituicoes especificas; os outros alcancam a
+ *  edicao inteira.
+ *
+ *  O backend usa a mesma regra e a devolve pronta em `filtrado_por_instituicao`
+ *  — mas aquilo vale para o perfil JA GRAVADO. Enquanto a escolha esta na tela,
+ *  quem decide se o campo de instituicoes aparece e esta lista.
+ *
+ *  Em arquivo proprio: um modulo que exporta componente e constante quebra o
+ *  fast refresh do Vite.
+ */
+export const PERFIS_POR_INSTITUICAO = ["Comissario", "Monitor"];
+
+export function pedeInstituicoes(perfil) {
+  return PERFIS_POR_INSTITUICAO.includes(perfil?.nome);
+}
+
+/** Perfis que respondem por um grupo da comunidade.
+ *
+ *  So o comissario: o monitor responde pela instituicao e a coordenacao pela
+ *  edicao inteira. Mesma historia da lista acima — o backend devolve
+ *  `usa_grupo` para o perfil ja gravado, e esta lista vale enquanto a escolha
+ *  ainda esta na tela.
+ */
+export const PERFIS_COM_GRUPO = ["Comissario"];
+
+export function pedeGrupo(perfil) {
+  return PERFIS_COM_GRUPO.includes(perfil?.nome);
+}
+
+/** A coordenacao e o unico perfil de CIDADE, e nao de edicao.
+ *
+ *  Quem coordena uma cidade coordena tudo o que esta aberto nela: o servidor
+ *  repete o vinculo em todas as edicoes ativas daquela cidade e poe a
+ *  coordenacao dentro de toda edicao nova. A tela escolhe uma edicao como
+ *  sempre — mas precisa avisar que a escolha vale mais largo do que parece.
+ */
+export const PERFIL_COORDENACAO = "Coordenacao";
+
+export function valeCidadeInteira(perfil) {
+  return perfil?.nome === PERFIL_COORDENACAO;
+}
+
+/** Como cada perfil se escreve na tela.
+ *
+ * O banco guarda o nome sem acento ("Comissario"), do mesmo jeito que as chaves
+ * de dependencia: o acento e assunto de tela, e e aqui que o sistema escreve em
+ * portugues de verdade. Perfil novo que chegue sem rotulo aparece como veio, em
+ * vez de sumir.
+ */
+const ROTULOS = {
+  Coordenacao: "Coordenação",
+  Comissario: "Comissário",
+  Monitor: "Monitor",
+  Estrutura: "Estrutura",
+  // Nao e um perfil da base: e o atributo da conta que alcanca tudo. Aparece
+  // aqui porque a lista de responsaveis por crianca mistura os dois.
+  "Administracao geral": "Administração geral",
+};
+
+export function rotuloDoPerfil(nome) {
+  return ROTULOS[nome] ?? nome;
+}

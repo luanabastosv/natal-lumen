@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
@@ -14,10 +15,10 @@ import {
   editarInstituicao,
   listarCidades,
   listarDias,
-  listarEdicoes,
   listarInstituicoes,
 } from "../services/cadastros.js";
 import { formatarData } from "../utils/dinheiro.js";
+import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 
 /* O que a janela de exclusao diz alem da conta. Desativar e quase sempre o
@@ -38,17 +39,16 @@ const VAZIO = {
 };
 
 export default function Instituicoes() {
-  const { edicaoAtiva } = useSessao();
+  // O dia do evento e por edicao, e a edicao vem da lateral: e a mesma para o
+  // sistema inteiro.
+  const { edicaoAtiva, edicao: edicaoSelecionada } = useSessao();
 
   const [instituicoes, definirInstituicoes] = useState([]);
   const [cidades, definirCidades] = useState([]);
-  const [edicoes, definirEdicoes] = useState([]);
-  // O dia do evento e por edicao: sem escolher uma, a pergunta nao tem resposta.
-  const [edicaoId, definirEdicaoId] = useState(edicaoAtiva ?? "");
   const [dias, definirDias] = useState([]);
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
-  const [sucesso, definirSucesso] = useState("");
+  const notificar = useNotificar();
 
   // A exclusao em curso: { registro, dependencias, erro, apagando }. Num
   // objeto so para a conta que chega do servidor nunca aparecer em cima do
@@ -59,7 +59,6 @@ export default function Instituicoes() {
   const [emEdicao, definirEmEdicao] = useState(null);
   const [campos, definirCampos] = useState(VAZIO);
   const [salvando, definirSalvando] = useState(false);
-  const edicaoSelecionada = edicoes.find((e) => String(e.id) === String(edicaoId));
   const cidadeDoFormulario = emEdicao?.cidade_id ?? campos.cidade_id;
   const cidadeBateComEdicao =
     !edicaoSelecionada ||
@@ -67,25 +66,19 @@ export default function Instituicoes() {
 
   useEffect(() => {
     let vivo = true;
-    Promise.all([listarCidades(), listarEdicoes()])
-      .then(([cids, eds]) => {
-        if (!vivo) return;
-        definirCidades(cids);
-        definirEdicoes(eds);
-        if (!edicaoId && eds.length) definirEdicaoId(eds[0].id);
-      })
+    listarCidades()
+      .then((cids) => vivo && definirCidades(cids))
       .catch((e) => vivo && definirErro(e.message));
     return () => {
       vivo = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const buscar = useCallback(async () => {
     try {
       const [lista, ds] = await Promise.all([
-        listarInstituicoes({ edicao_id: edicaoId || undefined }),
-        edicaoId ? listarDias(edicaoId) : Promise.resolve([]),
+        listarInstituicoes({ edicao_id: edicaoAtiva || undefined }),
+        edicaoAtiva ? listarDias(edicaoAtiva) : Promise.resolve([]),
       ]);
       definirInstituicoes(lista);
       definirDias(ds);
@@ -94,9 +87,12 @@ export default function Instituicoes() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId]);
+  }, [edicaoAtiva]);
 
   useEffect(() => {
+    // Buscar no servidor e justamente o que este efeito existe para fazer: a
+    // lista so chega depois do await, e nao daria para derivar no render.
+    // eslint-disable-next-line react/set-state-in-effect
     buscar();
   }, [buscar]);
 
@@ -110,7 +106,6 @@ export default function Instituicoes() {
     });
     definirFormularioAberto(true);
     definirErro("");
-    definirSucesso("");
   }
 
   function abrirEdicao(inst) {
@@ -126,7 +121,6 @@ export default function Instituicoes() {
     });
     definirFormularioAberto(true);
     definirErro("");
-    definirSucesso("");
   }
 
   function mudar(campo, valor) {
@@ -156,9 +150,9 @@ export default function Instituicoes() {
       // propria — mas do ponto de vista de quem preenche e o mesmo cadastro.
       const diaMudou =
         String(campos.dia_evento_id ?? "") !== String(emEdicao?.dia_evento_id ?? "");
-      if (edicaoId && diaMudou && cidadeBateComEdicao) {
+      if (edicaoAtiva && diaMudou && cidadeBateComEdicao) {
         await definirDiaDaInstituicao(
-          Number(edicaoId),
+          Number(edicaoAtiva),
           salva.id,
           campos.dia_evento_id ? Number(campos.dia_evento_id) : null,
         );
@@ -167,7 +161,7 @@ export default function Instituicoes() {
       // Quando a sigla muda, o codigo das criancas muda junto — quem acabou de
       // salvar precisa saber, porque a planilha impressa ficou velha.
       const codigos = salva.codigos_atualizados ?? 0;
-      definirSucesso(
+      notificar(
         emEdicao
           ? codigos > 0
             ? `${salva.nome} atualizada. ${codigos} ${
@@ -199,7 +193,6 @@ export default function Instituicoes() {
 
   async function pedirExclusao(inst) {
     definirErro("");
-    definirSucesso("");
     definirExclusao({ registro: inst, dependencias: null, erro: "", apagando: false });
     try {
       const conta = await dependenciasDaInstituicao(inst.id);
@@ -219,7 +212,7 @@ export default function Instituicoes() {
     try {
       await apagarInstituicao(inst.id);
       definirInstituicoes((lista) => lista.filter((i) => i.id !== inst.id));
-      definirSucesso(`${inst.nome} apagada.`);
+      notificar(`${inst.nome} apagada.`);
       definirExclusao(null);
     } catch (e) {
       definirExclusao((atual) =>
@@ -232,38 +225,35 @@ export default function Instituicoes() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">Cadastros</div>
-      <h1 className="pagina__titulo">Instituições</h1>
-      <p className="pagina__lede">
-        As instituições pertencem a uma cidade e continuam de um ano para o outro. São
-        elas que enviam as listas de crianças. <strong>O dia do evento é definido
-        aqui</strong>: todas as crianças da instituição vão no mesmo dia.
-      </p>
+      <div className="pagina__cabecalho">
+        <div className="pagina__texto">
+          <div className="pagina__eyebrow">Cadastros</div>
+          <h1 className="pagina__titulo">Instituições</h1>
+          <p className="pagina__lede">
+            Pertencem a uma cidade e continuam de um ano para o outro. São elas que
+            enviam as listas. <strong>O dia do evento é definido aqui</strong>, e vale
+            para todas as crianças da instituição.
+          </p>
+        </div>
+
+        <div className="pagina__acoes">
+          <Button onClick={abrirNova} disabled={cidades.length === 0}>
+            Nova instituição
+          </Button>
+        </div>
+      </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
-      <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
-      <div className="barra-acoes">
-        {edicoes.length > 0 && (
-          <Selecao
-            value={edicaoId}
-            onChange={(e) => definirEdicaoId(e.target.value)}
-            aria-label="Edição"
-          >
-            {edicoes.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome}</option>
-            ))}
-          </Selecao>
-        )}
-        <Button onClick={abrirNova} disabled={cidades.length === 0}>
-          Nova instituição
-        </Button>
-        {cidades.length === 0 && (
+      {/* So aparece no caso em que o botao esta desligado: fora dele a linha
+          seria um vazio entre o titulo e a lista. */}
+      {cidades.length === 0 && (
+        <div className="barra-acoes">
           <span className="campo__dica">
             Nenhuma cidade cadastrada ainda — peça à administração geral.
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {formularioAberto && (
         <Modal
@@ -311,7 +301,7 @@ export default function Instituicoes() {
               rotulo={`Dia do evento${edicaoSelecionada ? ` · ${edicaoSelecionada.nome}` : ""}`}
               value={cidadeBateComEdicao ? campos.dia_evento_id : ""}
               onChange={(e) => mudar("dia_evento_id", e.target.value)}
-              disabled={!edicaoId || dias.length === 0 || !cidadeBateComEdicao}
+              disabled={!edicaoAtiva || dias.length === 0 || !cidadeBateComEdicao}
               dica={
                 !cidadeBateComEdicao
                   ? `O dia é da edição ${edicaoSelecionada?.nome}, que é de outra cidade. Escolha a cidade dela para poder marcar o dia.`
@@ -378,7 +368,7 @@ export default function Instituicoes() {
                 <th>Responsável</th>
                 <th>Telefone</th>
                 <th>Situação</th>
-                <th />
+                <th className="tabela__acoes" />
               </tr>
             </thead>
             <tbody>
@@ -403,18 +393,22 @@ export default function Instituicoes() {
                       {i.ativo ? "Ativa" : "Inativa"}
                     </span>
                   </td>
-                  <td>
-                    <div className="barra-acoes" style={{ margin: 0 }}>
-                      <Button size="sm" variant="ghost" onClick={() => abrirEdicao(i)}>
-                        Editar
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => alternarAtivo(i)}>
-                        {i.ativo ? "Desativar" : "Ativar"}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => pedirExclusao(i)}>
-                        Apagar
-                      </Button>
-                    </div>
+                  <td className="tabela__acoes">
+                    <MenuAcoes
+                      titulo={`Ações de ${i.nome}`}
+                      itens={[
+                        { rotulo: "Editar", aoEscolher: () => abrirEdicao(i) },
+                        {
+                          rotulo: i.ativo ? "Desativar" : "Ativar",
+                          aoEscolher: () => alternarAtivo(i),
+                        },
+                        {
+                          rotulo: "Apagar",
+                          perigo: true,
+                          aoEscolher: () => pedirExclusao(i),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

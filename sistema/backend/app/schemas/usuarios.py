@@ -23,12 +23,19 @@ class VinculoIn(BaseModel):
     # Vazio significa "sem instituicao atribuida" — e para comissario e monitor
     # isso quer dizer que ainda nao alcancam nenhuma crianca.
     instituicoes: list[int] = Field(default_factory=list)
+    # O grupo da comunidade do comissario, escrito a mao. Vem como nome e nao
+    # como id porque na maioria das vezes ele ainda nao existe: o servidor
+    # procura o grupo da cidade com este nome e cria se for a primeira vez.
+    # Vazio ou None: comissario sem grupo nomeado ainda.
+    grupo: str | None = Field(default=None, max_length=120)
 
 
 class VinculoEditar(BaseModel):
     perfil_id: int | None = None
     ativo: bool | None = None
     instituicoes: list[int] | None = None
+    # Mandar "" (ou None) apaga o grupo; nao mandar o campo deixa como esta.
+    grupo: str | None = Field(default=None, max_length=120)
 
 
 class VinculoDetalhe(BaseModel):
@@ -43,6 +50,10 @@ class VinculoDetalhe(BaseModel):
     instituicoes: list[int]
     # So os perfis filtrados por instituicao usam a lista acima.
     filtrado_por_instituicao: bool
+    grupo_id: int | None
+    grupo: str | None
+    # So o comissario tem grupo; para os outros perfis o campo nem aparece.
+    usa_grupo: bool
 
 
 class UsuarioDetalhe(BaseModel):

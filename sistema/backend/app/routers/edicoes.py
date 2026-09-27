@@ -2,6 +2,10 @@
 
 Edicao e criada so pela administracao geral. Os dias sao da coordenacao, que
 tem gerenciar_cadastros.
+
+A edicao nova nao nasce vazia de gente: a coordenacao e da CIDADE, entao quem
+coordena a cidade ja entra nela. Sem isso, abrir 2027 deixaria a cidade parada
+ate a administracao geral recriar os vinculos um a um.
 """
 
 from typing import Annotated
@@ -25,7 +29,7 @@ from app.schemas.cadastros import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral, exige_permissao
-from app.servicos import dias, exclusao
+from app.servicos import coordenacao, dias, exclusao
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/edicoes", tags=["cadastros"])
@@ -92,10 +96,16 @@ def criar(dados: EdicaoIn, db: BD, ctx: Admin):
             status.HTTP_409_CONFLICT, "Esta cidade ja tem uma edicao neste ano."
         )
 
+    herdados = coordenacao.povoar_edicao_nova(db, edicao)
+
     registrar(
         db, "edicao_criada", usuario_id=ctx.usuario.id,
         tabela="edicoes", registro_id=edicao.id,
-        detalhes={"nome": edicao.nome, "ano": edicao.ano},
+        detalhes={
+            "nome": edicao.nome,
+            "ano": edicao.ano,
+            **({"coordenacao_herdada": len(herdados)} if herdados else {}),
+        },
     )
     db.commit()
     db.refresh(edicao)
@@ -110,10 +120,22 @@ def editar(edicao_id: int, dados: EdicaoEditar, db: BD, ctx: Admin):
     for campo, valor in mudancas.items():
         setattr(edicao, campo, valor)
 
+    # Edicao reaberta volta a ser uma edicao ativa da cidade, e a coordenacao
+    # da cidade alcanca as edicoes ativas dela. Sem isto a edicao voltaria sem
+    # coordenacao nenhuma.
+    herdados = (
+        coordenacao.povoar_edicao_nova(db, edicao)
+        if mudancas.get("ativa") is True
+        else []
+    )
+
     registrar(
         db, "edicao_editada", usuario_id=ctx.usuario.id,
         tabela="edicoes", registro_id=edicao.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            **({"coordenacao_herdada": len(herdados)} if herdados else {}),
+        },
     )
     db.commit()
     db.refresh(edicao)

@@ -114,6 +114,15 @@ class UsuarioEdicao(Base):
         ForeignKey("edicoes.id", ondelete="CASCADE"), nullable=False, index=True
     )
     perfil_id: Mapped[int] = mapped_column(ForeignKey("perfis.id"), nullable=False)
+
+    # O grupo da comunidade pelo qual o comissario responde. So o comissario tem
+    # grupo: o monitor responde pela instituicao, e a coordenacao pela edicao
+    # inteira. Nulo enquanto ninguem o nomeou — e o grupo nao muda alcance
+    # nenhum, e so quem ele e la dentro.
+    grupo_id: Mapped[int | None] = mapped_column(
+        ForeignKey("grupos.id", ondelete="SET NULL"), index=True
+    )
+
     ativo: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
@@ -121,6 +130,7 @@ class UsuarioEdicao(Base):
     usuario: Mapped[Usuario] = relationship(back_populates="edicoes")
     edicao: Mapped["Edicao"] = relationship(back_populates="usuarios")  # noqa: F821
     perfil: Mapped[Perfil] = relationship()
+    grupo: Mapped["Grupo | None"] = relationship()  # noqa: F821
     instituicoes: Mapped[list["UsuarioInstituicao"]] = relationship(
         back_populates="usuario_edicao", cascade="all, delete-orphan", passive_deletes=True
     )

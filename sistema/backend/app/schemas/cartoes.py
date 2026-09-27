@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 class ArquivoDoLote(BaseModel):
     """Uma foto do lote, ja casada (ou nao) com uma crianca."""
 
+    # Posicao no lote. E por ele que a conferencia pede a imagem grande:
+    # `/cartoes/lote/{id}/{indice}/imagem`.
+    indice: int
     arquivo: str
     codigo: str | None = None
     crianca_id: int | None = None
