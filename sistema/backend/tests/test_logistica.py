@@ -193,7 +193,10 @@ def main() -> None:
 
         print("\nCheck-in")
         r = ck.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
-        verifica("comissario faz check-in", r.status_code == 200, r.text[:130])
+        verifica("comissario NAO faz check-in", r.status_code == 403, str(r.status_code))
+
+        r = ce.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        verifica("estrutura faz check-in", r.status_code == 200, r.text[:130])
         entrada = r.json() if r.status_code == 200 else {}
 
         if entrada:
@@ -206,26 +209,26 @@ def main() -> None:
             verifica("nao avisa do dia, porque e hoje",
                      not any("dia dela" in a for a in entrada["avisos"]), str(entrada["avisos"]))
 
-        r = ck.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        r = ce.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
         verifica("check-in repetido avisa, mas nao recusa",
                  r.status_code == 200 and r.json()["ja_tinha_checkin"] is True, str(r.status_code))
 
-        r = ck.post("/checkin", json={"codigo": "002", "edicao_id": edicao.id})
+        r = ce.post("/checkin", json={"codigo": "002", "edicao_id": edicao.id})
         verifica("avisa quando o dia da crianca nao e hoje",
                  any("nao hoje" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
 
-        r = ck.post("/checkin", json={"codigo": "003", "edicao_id": edicao.id})
+        r = ce.post("/checkin", json={"codigo": "003", "edicao_id": edicao.id})
         verifica("avisa quando a crianca nao esta marcada em nenhum dia",
                  any("nenhum dia" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
 
-        r = ck.post("/checkin", json={"codigo": "999", "edicao_id": edicao.id})
+        r = ce.post("/checkin", json={"codigo": "999", "edicao_id": edicao.id})
         verifica("codigo inexistente devolve 404", r.status_code == 404, str(r.status_code))
 
         db.expire_all()
         verifica("o check-in ficou gravado na crianca", db.get(Crianca, ana.id).checkin_em is not None)
 
         print("\nQR code do cracha")
-        r = ck.get(f"/checkin/qrcode/{ana.id}")
+        r = ce.get(f"/checkin/qrcode/{ana.id}")
         verifica("gera o QR code", r.status_code == 200 and r.headers["content-type"] == "image/png",
                  str(r.status_code))
         verifica("o PNG tem conteudo", len(r.content) > 200, str(len(r.content)))

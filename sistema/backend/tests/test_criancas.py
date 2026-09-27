@@ -335,6 +335,119 @@ def main() -> None:
         lista = [c["codigo"] for c in r.json()["itens"]]
         verifica("a planilha sai na ordem do codigo", lista == sorted(lista), str(lista))
 
+        print("\nTrocar a sigla da instituicao leva os codigos junto")
+        # Mudar a sigla no cadastro e deixar ES04 na planilha foi o que
+        # aconteceu de verdade: o codigo apontava para uma sigla que nao existia
+        # mais. O numero de cada crianca continua o mesmo, so o prefixo muda.
+        antes = {
+            c["id"]: c["codigo"]
+            for c in cc.get("/criancas", params={"instituicao_id": inst_b.id,
+                                                 "por_pagina": 50}).json()["itens"]
+        }
+        r = cc.patch(f"/instituicoes/{inst_b.id}", json={"sigla": "WZ"})
+        verifica("coordenacao troca a sigla da instituicao", r.status_code == 200,
+                 r.text[:140])
+        if r.status_code == 200:
+            verifica("a resposta diz quantos codigos mudaram",
+                     r.json()["codigos_atualizados"] == len(antes),
+                     f"{r.json().get('codigos_atualizados')} de {len(antes)}")
+
+            depois = {
+                c["id"]: c["codigo"]
+                for c in cc.get("/criancas", params={"instituicao_id": inst_b.id,
+                                                     "por_pagina": 50}).json()["itens"]
+            }
+            verifica("todos os codigos passam para a sigla nova",
+                     all(c.startswith("WZ") for c in depois.values()),
+                     str(sorted(depois.values())[:3]))
+            verifica("o numero de cada crianca continua o mesmo",
+                     all(depois[i] == "WZ" + antes[i][2:] for i in antes),
+                     str([(antes[i], depois[i]) for i in list(antes)[:3]]))
+
+        # Codigo que veio escrito na planilha ("999") nao tem sigla para trocar,
+        # e fica como esta.
+        r = cc.post("/criancas", json={
+            "edicao_id": edicao.id, "instituicao_id": inst_b.id,
+            "codigo": "999", "nome": "Codigo Da Planilha", "idade": 7, "sexo": "F",
+        })
+        verifica("cadastra crianca com codigo sem sigla", r.status_code == 201, r.text[:110])
+
+        mistura_antes = {
+            c["id"]: c["codigo"]
+            for c in cc.get("/criancas", params={"instituicao_id": inst_b.id,
+                                                 "por_pagina": 50}).json()["itens"]
+        }
+        com_sigla = {i: c for i, c in mistura_antes.items() if c.startswith("WZ")}
+        sem_sigla = {i: c for i, c in mistura_antes.items() if not c.startswith("WZ")}
+
+        r = cc.patch(f"/instituicoes/{inst_b.id}", json={"sigla": "VV"})
+        verifica("troca a sigla de novo, com codigos misturados",
+                 r.status_code == 200, r.text[:140])
+        if r.status_code == 200:
+            verifica("conta so os codigos que tinham a sigla antiga",
+                     r.json()["codigos_atualizados"] == len(com_sigla),
+                     f"{r.json().get('codigos_atualizados')} de {len(com_sigla)}")
+
+            depois_b = {
+                c["id"]: c["codigo"]
+                for c in cc.get("/criancas", params={"instituicao_id": inst_b.id,
+                                                     "por_pagina": 50}).json()["itens"]
+            }
+            verifica("os codigos com sigla ganham a nova, com o mesmo numero",
+                     all(depois_b[i] == "VV" + com_sigla[i][2:] for i in com_sigla),
+                     str([(com_sigla[i], depois_b[i]) for i in list(com_sigla)[:3]]))
+            verifica("codigo que veio da planilha nao e mexido",
+                     all(depois_b[i] == c for i, c in sem_sigla.items()),
+                     str([(c, depois_b[i]) for i, c in list(sem_sigla.items())[:3]]))
+
+        # Instituicao que ainda nao tinha sigla: nao ha prefixo antigo para
+        # trocar, e os codigos que existem ficam como estao.
+        a_antes = {
+            c["id"]: c["codigo"]
+            for c in cc.get("/criancas", params={"instituicao_id": inst_a.id,
+                                                 "por_pagina": 50}).json()["itens"]
+        }
+        r = cc.patch(f"/instituicoes/{inst_a.id}", json={"sigla": "QQ"})
+        a_depois = {
+            c["id"]: c["codigo"]
+            for c in cc.get("/criancas", params={"instituicao_id": inst_a.id,
+                                                 "por_pagina": 50}).json()["itens"]
+        }
+        verifica("estrear a sigla nao mexe nos codigos que ja existem",
+                 r.status_code == 200 and r.json()["codigos_atualizados"] == 0
+                 and a_depois == a_antes,
+                 f"{r.status_code} {r.json().get('codigos_atualizados')}")
+
+        # Sigla nova que esbarra num codigo que ja existe: recusa e nao deixa
+        # nada pela metade — nem a sigla, nem os codigos.
+        r = cc.post("/criancas", json={
+            "edicao_id": edicao.id, "instituicao_id": inst_b.id,
+            "codigo": "TT00", "nome": "Ja Ocupa Tt", "idade": 9, "sexo": "F",
+        })
+        verifica("cadastra crianca com codigo TT00", r.status_code == 201, r.text[:110])
+
+        r = cc.patch(f"/instituicoes/{inst_b.id}", json={"sigla": "TT"})
+        verifica("recusa a sigla que esbarra em codigo existente",
+                 r.status_code == 409, f"{r.status_code} {r.text[:110]}")
+        sigla_agora = next(
+            i["sigla"] for i in cc.get("/instituicoes").json() if i["id"] == inst_b.id
+        )
+        verifica("e a sigla continua a de antes", sigla_agora == "VV", str(sigla_agora))
+        ainda = {
+            c["id"]: c["codigo"]
+            for c in cc.get("/criancas", params={"instituicao_id": inst_b.id,
+                                                 "por_pagina": 50}).json()["itens"]
+        }
+        verifica("nenhum codigo fica com o valor temporario",
+                 not any(c.startswith("~") for c in ainda.values()),
+                 str(sorted(ainda.values())[:4]))
+
+        # Editar outro campo nao mexe em codigo nenhum.
+        r = cc.patch(f"/instituicoes/{inst_b.id}", json={"responsavel": "Quem Responde"})
+        verifica("editar outro campo nao mexe nos codigos",
+                 r.status_code == 200 and r.json()["codigos_atualizados"] == 0,
+                 f"{r.status_code} {r.text[:110]}")
+
         print("\nFormatos de planilha que aparecem na vida real")
         # Cada um destes ja quebrou de verdade. O BOM e o pior: sao tres bytes
         # invisiveis que o Excel grava ao salvar como "CSV UTF-8", e a mensagem
@@ -375,6 +488,52 @@ def main() -> None:
         verifica("le cabecalho com espaco inquebravel",
                  r.status_code == 200 and "nome" in r.json()["colunas_reconhecidas"],
                  f"{r.status_code} {r.text[:90]}")
+
+        print("\nIdade escrita do jeito que a instituicao quis")
+        # A coluna de idade raramente vem so com o numero: "2 ANOS" era recusado
+        # como idade invalida e derrubava a planilha inteira.
+        idades = planilha([
+            {"Nome": "Idade Escrita Um", "Idade": "2 ANOS", "Sexo": "F"},
+            {"Nome": "Idade Escrita Dois", "Idade": "4 anos", "Sexo": "M"},
+            {"Nome": "Idade Escrita Tres", "Idade": "10a", "Sexo": "F"},
+            {"Nome": "Idade Escrita Quatro", "Idade": "1 ano e 6 meses", "Sexo": "M"},
+            {"Nome": "Idade Escrita Cinco", "Idade": "18 meses", "Sexo": "F"},
+        ])
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("idades.xlsx", idades, "application/vnd.ms-excel")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        verifica("le a planilha com a idade escrita em texto", r.status_code == 200,
+                 r.text[:140])
+        if r.status_code == 200:
+            lidas = {l["nome"]: l["idade"] for l in r.json()["linhas"]}
+            esperadas = {
+                "Idade Escrita Um": 2, "Idade Escrita Dois": 4,
+                "Idade Escrita Tres": 10, "Idade Escrita Quatro": 1,
+                "Idade Escrita Cinco": 1,
+            }
+            verifica("entende '2 ANOS', '10a', '1 ano e 6 meses' e '18 meses'",
+                     lidas == esperadas, str(lidas))
+            verifica("e nenhuma linha fica com erro",
+                     r.json()["validas"] == 5, str(r.json()["linhas"][:1]))
+
+        # O que continua sendo erro, e com a mensagem dizendo o que veio escrito.
+        sem_idade = planilha([
+            {"Nome": "Idade Ruim Um", "Idade": "nao informada", "Sexo": "F"},
+            {"Nome": "Idade Ruim Dois", "Idade": "04/03/2015", "Sexo": "M"},
+        ])
+        r = cc.post(
+            "/criancas/importar",
+            files={"arquivo": ("ruins.xlsx", sem_idade, "application/vnd.ms-excel")},
+            data={"edicao_id": str(edicao.id), "instituicao_id": str(inst_a.id)},
+        )
+        if r.status_code == 200:
+            erros = [e for l in r.json()["linhas"] for e in l["erros"]]
+            verifica("aponta a idade que nao deu para entender, com o valor escrito",
+                     len(erros) == 2 and all("idade invalida" in e for e in erros)
+                     and any("04/03/2015" in e for e in erros),
+                     str(erros))
 
         print("\nCabecalhos que as instituicoes usam de verdade")
         from app.servicos.importador import _mapear_colunas
@@ -678,6 +837,172 @@ def main() -> None:
         r = cmon.get(f"/criancas/{bruno['id']}")
         verifica("monitor nao abre ficha de crianca fora do alcance",
                  r.status_code == 404, str(r.status_code))
+
+        print("\nDesistencia")
+        r = cc.patch(f"/criancas/{ana['id']}/desistencia", json={"desistiu": True})
+        verifica("coordenacao marca que a crianca desistiu",
+                 r.status_code == 200 and r.json()["desistiu_em"] is not None, r.text[:110])
+
+        r = cc.get("/criancas", params={"edicao_id": edicao.id, "busca": "Ana"})
+        itens = r.json()["itens"] if r.status_code == 200 else []
+        verifica("quem desistiu CONTINUA na planilha",
+                 any(i["id"] == ana["id"] for i in itens), str(len(itens)))
+        marcada = next((i for i in itens if i["id"] == ana["id"]), {})
+        verifica("e a listagem diz que desistiu", marcada.get("desistiu_em") is not None)
+
+        r = cc.get(f"/criancas/{ana['id']}")
+        verifica("a ficha tambem diz", r.json().get("desistiu_em") is not None, r.text[:110])
+
+        antes = db.scalar(
+            select(func.count()).select_from(LogAtividade)
+            .where(LogAtividade.acao == "crianca_desistiu", LogAtividade.registro_id == ana["id"])
+        )
+        cc.patch(f"/criancas/{ana['id']}/desistencia", json={"desistiu": True})
+        depois = db.scalar(
+            select(func.count()).select_from(LogAtividade)
+            .where(LogAtividade.acao == "crianca_desistiu", LogAtividade.registro_id == ana["id"])
+        )
+        verifica("marcar de novo nao registra outra vez", antes == depois, f"{antes} -> {depois}")
+
+        r = cc.patch(f"/criancas/{ana['id']}/desistencia", json={"desistiu": False})
+        verifica("e da para voltar atras",
+                 r.status_code == 200 and r.json()["desistiu_em"] is None, r.text[:110])
+
+        r = ck.patch(f"/criancas/{bruno['id']}/desistencia", json={"desistiu": True})
+        verifica("comissario nao marca crianca fora do alcance",
+                 r.status_code in (403, 404), str(r.status_code))
+
+        print("\nTime de comissarios por instituicao")
+        # Duas outras comissarias na MESMA Escola A: a instituicao e atendida
+        # por um time, nao por uma pessoa.
+        bia = criar_usuario("Bia", "Comissario", [inst_a.id])
+        caio = criar_usuario("Caio", "Comissario", [inst_a.id, inst_b.id])
+        db.commit()
+        cb = TestClient(app); entrar(cb, bia.email)
+
+        r = cc.get("/criancas/comissarios", params={"edicao_id": edicao.id})
+        time = {c["nome"]: c for c in r.json()} if r.status_code == 200 else {}
+        verifica("lista o time de comissarios da edicao", r.status_code == 200, r.text[:140])
+        verifica("os tres comissarios estao no time", len(time) == 3, str(sorted(time)))
+        verifica("cada um traz as instituicoes que atende",
+                 time.get(f"{MARCA} Caio", {}).get("instituicoes") == sorted([inst_a.id, inst_b.id]),
+                 str(time.get(f"{MARCA} Caio")))
+        verifica("o monitor nao entra no time de comissarios",
+                 f"{MARCA} Monitor" not in time, str(sorted(time)))
+
+        r = cb.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 100})
+        quantas_bia = r.json()["total"]
+        r = ck.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 100})
+        verifica("duas comissarias da mesma escola veem a MESMA lista",
+                 quantas_bia == r.json()["total"] and quantas_bia > 0,
+                 f"{quantas_bia} x {r.json()['total']}")
+
+        print("\nComissario responsavel pela crianca")
+        r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": bia.id})
+        verifica("coordenacao poe a responsavel", r.status_code == 200, r.text[:140])
+        verifica("a linha passa a trazer o nome dela",
+                 r.json().get("comissario") == f"{MARCA} Bia", str(r.json().get("comissario")))
+        verifica("e o id, para a tela montar o seletor",
+                 r.json().get("comissario_id") == bia.id, str(r.json().get("comissario_id")))
+
+        # O ponto do time: quem NAO e responsavel continua alcancando a crianca.
+        r = ck.get(f"/criancas/{ana['id']}")
+        verifica("o outro comissario do time ainda abre a ficha",
+                 r.status_code == 200, str(r.status_code))
+        verifica("e ve de quem ela e",
+                 r.json().get("comissario") == f"{MARCA} Bia", str(r.json().get("comissario")))
+
+        r = ck.patch(f"/criancas/{ana['id']}", json={"comissario_id": comissario.id})
+        verifica("comissario NAO se atribui a crianca (e da coordenacao)",
+                 r.status_code == 403, str(r.status_code))
+
+        r = cc.patch(f"/criancas/{bruno['id']}", json={"comissario_id": bia.id})
+        verifica("recusa responsavel que nao esta no time da escola",
+                 r.status_code == 422, str(r.status_code))
+        verifica("e a mensagem diz o que fazer",
+                 "time" in r.text.lower() and "usuarios" in r.text.lower(), r.text[:200])
+
+        r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": monitor.id})
+        verifica("recusa monitor como responsavel", r.status_code == 422, str(r.status_code))
+
+        r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": None})
+        verifica("mandar null solta a crianca",
+                 r.status_code == 200 and r.json()["comissario_id"] is None, r.text[:140])
+
+        print("\nAtribuir criancas especificas, em lote")
+        da_escola_a = cc.get(
+            "/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 100}
+        ).json()["itens"]
+        metade = [c["id"] for c in da_escola_a[:2]]
+        r = cc.post("/criancas/lote", json={"criancas": metade, "comissario_id": bia.id})
+        verifica("divide parte da escola com uma comissaria", r.status_code == 200, r.text[:160])
+        verifica("todas as marcadas saem com ela",
+                 all(c["comissario_id"] == bia.id for c in r.json()), r.text[:160])
+
+        resto = [c["id"] for c in da_escola_a[2:4]]
+        if resto:
+            r = cc.post("/criancas/lote", json={"criancas": resto, "comissario_id": caio.id})
+            verifica("e o resto com outro, na mesma escola", r.status_code == 200, r.text[:160])
+
+        r = cc.post("/criancas/lote", json={"criancas": metade, "comissario_id": None})
+        verifica("o lote tambem solta", 
+                 r.status_code == 200 and all(c["comissario_id"] is None for c in r.json()),
+                 r.text[:160])
+
+        # De volta com a Bia, para os filtros terem o que achar.
+        cc.post("/criancas/lote", json={"criancas": metade, "comissario_id": bia.id})
+
+        print("\nFiltro por responsavel")
+        r = cc.get("/criancas", params={"comissario_id": bia.id, "por_pagina": 100})
+        verifica("filtra as criancas de uma comissaria",
+                 r.json()["total"] == len(metade), str(r.json()["total"]))
+        verifica("e sao exatamente as dela",
+                 all(c["comissario_id"] == bia.id for c in r.json()["itens"]), r.text[:160])
+
+        r = cc.get("/criancas", params={
+            "instituicao_id": inst_a.id, "sem_comissario": "true", "por_pagina": 100,
+        })
+        verifica("filtra as que ainda nao tem responsavel",
+                 all(c["comissario_id"] is None for c in r.json()["itens"]), r.text[:160])
+
+        r = cc.get("/criancas/resumo-instituicoes", params={"edicao_id": edicao.id})
+        aba_a = next((a for a in r.json() if a["instituicao_id"] == inst_a.id), {})
+        verifica("a aba da instituicao conta quantas estao sem responsavel",
+                 aba_a.get("sem_comissario") == aba_a.get("criancas") - len(metade) - len(resto),
+                 f"{aba_a.get('sem_comissario')} de {aba_a.get('criancas')}")
+
+        print("\nO responsavel cai quando deixa de alcancar a crianca")
+        # Mudar de escola: a Bia nao esta no time da Escola B.
+        r = cc.post("/criancas/lote", json={
+            "criancas": metade[:1], "instituicao_id": inst_b.id,
+        })
+        verifica("mudar de escola solta a responsavel que nao atende a nova",
+                 r.status_code == 200 and r.json()[0]["comissario_id"] is None,
+                 r.text[:160])
+
+        # Tirar a Escola A da Bia: as criancas dela naquela escola ficam sem
+        # responsavel, porque ela nao as alcanca mais.
+        ainda_da_bia = cc.get(
+            "/criancas", params={"comissario_id": bia.id, "por_pagina": 100}
+        ).json()
+        verifica("antes de tirar, ela ainda tem criancas",
+                 ainda_da_bia["total"] > 0, str(ainda_da_bia["total"]))
+
+        vinculo_bia = db.scalar(
+            select(UsuarioEdicao).where(UsuarioEdicao.usuario_id == bia.id)
+        )
+        r = cc.patch(f"/usuarios/{bia.id}/vinculos/{vinculo_bia.id}",
+                     json={"instituicoes": []})
+        verifica("coordenacao tira a instituicao da comissaria",
+                 r.status_code == 200, r.text[:140])
+
+        r = cc.get("/criancas", params={"comissario_id": bia.id, "por_pagina": 100})
+        verifica("e as criancas que estavam no nome dela sao soltas",
+                 r.json()["total"] == 0, str(r.json()["total"]))
+
+        r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": caio.id})
+        verifica("outro comissario do time assume sem problema",
+                 r.status_code == 200 and r.json()["comissario_id"] == caio.id, r.text[:140])
 
         print("\nRemocao")
         r = cc.delete(f"/criancas/{bruno['id']}")

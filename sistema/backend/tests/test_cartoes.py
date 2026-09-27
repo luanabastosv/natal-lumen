@@ -50,6 +50,16 @@ def verifica(d: str, c: bool, extra: str = "") -> None:
 
 
 def limpar(db, log_inicial: int = 0) -> None:
+    # Previa de lote que o teste nao confirmou deixa pasta e JSON no temp.
+    import shutil as _sh
+    temp = config.caminho_arquivos / "cartoes_temp"
+    if temp.is_dir():
+        for c in temp.iterdir():
+            if c.is_dir():
+                _sh.rmtree(c, ignore_errors=True)
+            elif c.suffix == ".json":
+                c.unlink(missing_ok=True)
+
     db.rollback()
     db.execute(delete(LogAtividade).where(LogAtividade.id > log_inicial))
 
@@ -136,9 +146,12 @@ def main() -> None:
 
     ana = Crianca(edicao_id=edicao.id, instituicao_id=inst_a.id, codigo="001",
                   nome="Ana Clara Avila", idade=8, sexo="F")
+    # Mesma instituicao da ana: serve para testar o lote com mais de um.
+    joao = Crianca(edicao_id=edicao.id, instituicao_id=inst_a.id, codigo="EA10",
+                   nome="Joao Miguel Souza", idade=9, sexo="M")
     fora = Crianca(edicao_id=edicao.id, instituicao_id=inst_b.id, codigo="002",
                    nome="Bruno Lima", idade=10, sexo="M")
-    db.add_all([ana, fora]); db.flush()
+    db.add_all([ana, joao, fora]); db.flush()
 
     def usuario(sufixo, perfil, instituicoes=()):
         u = Usuario(nome=f"{MARCA} {sufixo}", email=f"{MARCA.lower()}.{sufixo.lower()}@exemplo.org",
@@ -152,99 +165,132 @@ def main() -> None:
 
     monitor = usuario("Monitor", "Monitor", [inst_a.id])
     comissario = usuario("Comissario", "Comissario", [inst_a.id])
+    # Sem instituicao atribuida: a coordenacao alcanca a edicao inteira.
+    coord = usuario("Coord", "Coordenacao")
     db.commit()
 
     try:
         cm = TestClient(app); entrar(cm, monitor.email)
         ck = TestClient(app); entrar(ck, comissario.email)
 
-        print("\nDigitalizacao e OCR (a primeira vez carrega o EasyOCR)")
-        foto = foto_de_cartao("ANA CLARA")
+        print("\nLote: o codigo vem do NOME DO ARQUIVO")
+        # A crianca e achada pelo codigo do arquivo, nao pelo nome escrito no
+        # cartao — que e justamente o que o OCR errava.
         r = cm.post(
-            "/cartoes/analisar",
-            files={"imagem": ("cartao.jpg", foto, "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(edicao.id)},
+            "/cartoes/lote",
+            files=[
+                ("arquivos", (f"{ana.codigo}.jpg", foto_de_cartao("ANA CLARA"), "image/jpeg")),
+                ("arquivos", (f"IMG_20261110_{joao.codigo}.jpg", foto_de_cartao("JOAO"), "image/jpeg")),
+                ("arquivos", ("cartao_sem_codigo.jpg", foto_de_cartao("X"), "image/jpeg")),
+                ("arquivos", ("ZZ999.jpg", foto_de_cartao("Y"), "image/jpeg")),
+            ],
+            data={"tipo": "cesta", "edicao_id": edicao.id},
         )
-        verifica("analisa o cartao", r.status_code == 200, r.text[:160])
-        analise = r.json() if r.status_code == 200 else {}
+        verifica("a previa responde", r.status_code == 200, r.text[:160])
+        previa = r.json() if r.status_code == 200 else {"arquivos": []}
+        por_arquivo = {a["arquivo"]: a for a in previa.get("arquivos", [])}
 
-        if analise:
-            verifica("acha a crianca pelo codigo", analise["crianca_nome"] == "Ana Clara Avila")
-            verifica("corrige a perspectiva (sem aviso de bordas)", analise["aviso"] is None,
-                     str(analise["aviso"]))
-            verifica("le o nome escrito no cartao",
-                     "ANA" in analise["nome_sugerido"].upper(), repr(analise["nome_sugerido"]))
-            verifica("devolve a imagem para pre-visualizacao", len(analise["imagem_base64"]) > 1000)
-            verifica("devolve os textos detectados", len(analise["textos"]) >= 1)
+        verifica("4 arquivos, 2 validos", previa.get("total") == 4 and previa.get("validas") == 2,
+                 f"total={previa.get('total')} validas={previa.get('validas')}")
+        verifica("nome limpo casa com a crianca",
+                 por_arquivo.get(f"{ana.codigo}.jpg", {}).get("crianca_id") == ana.id)
+        verifica("nome sujo do celular tambem casa",
+                 por_arquivo.get(f"IMG_20261110_{joao.codigo}.jpg", {}).get("crianca_id") == joao.id)
+        verifica("arquivo sem codigo vira erro, nao chute",
+                 por_arquivo.get("cartao_sem_codigo.jpg", {}).get("valida") is False)
+        verifica("codigo inexistente vira erro",
+                 por_arquivo.get("ZZ999.jpg", {}).get("valida") is False)
+        verifica("a previa traz miniatura para conferir",
+                 bool(por_arquivo.get(f"{ana.codigo}.jpg", {}).get("miniatura")))
+        meus = [ana.id, joao.id, fora.id]
+        verifica("a previa NAO gravou nada ainda",
+                 db.scalar(select(func.count()).select_from(Cartao)
+                           .where(Cartao.crianca_id.in_(meus))) == 0)
 
-        print("\nFoto sem bordas detectaveis")
-        r2 = cm.post(
-            "/cartoes/analisar",
-            files={"imagem": ("plano.jpg", foto_de_cartao("BRUNO", em_perspectiva=False), "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(edicao.id)},
-        )
-        verifica("aceita foto sem bordas, com aviso",
-                 r2.status_code == 200 and r2.json()["aviso"] == "bordas nao detectadas",
-                 str(r2.json().get("aviso") if r2.status_code == 200 else r2.status_code))
+        print("\nLote: confirmar grava so o que passou")
+        r = cm.post(f"/cartoes/lote/{previa['id']}/confirmar")
+        verifica("confirma o lote", r.status_code == 200, r.text[:140])
+        verifica("gravou os 2 validos e ignorou os 2",
+                 r.json().get("gravados") == 2 and r.json().get("ignorados") == 0,
+                 r.text[:110])
 
-        print("\nIsolamento")
+        cartoes = db.scalars(
+            select(Cartao).where(Cartao.crianca_id.in_(meus)).order_by(Cartao.id)
+        ).all()
+        verifica("dois cartoes na base", len(cartoes) == 2, str(len(cartoes)))
+        cartao = cm.get("/cartoes", params={"edicao_id": edicao.id}).json()["itens"][0]
+        verifica("o arquivo ficou com o nome da crianca, nao o do upload",
+                 ana.nome.split()[0].upper() in cartao["arquivo"].upper()
+                 or joao.nome.split()[0].upper() in cartao["arquivo"].upper(),
+                 cartao["arquivo"])
+        verifica("a pasta temporaria do lote foi apagada",
+                 not (config.caminho_arquivos / "cartoes_temp" / previa["id"]).exists())
+
+        print("\nLote: quem ja tem cartao do tipo e recusado na previa")
         r = cm.post(
-            "/cartoes/analisar",
-            files={"imagem": ("cartao.jpg", foto, "image/jpeg")},
-            data={"codigo": "002", "edicao_id": str(edicao.id)},
+            "/cartoes/lote",
+            files=[("arquivos", (f"{ana.codigo}.jpg", foto_de_cartao("ANA"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id},
         )
-        verifica("monitor nao digitaliza crianca de instituicao que nao e dele",
-                 r.status_code == 404, str(r.status_code))
+        repetido = r.json()["arquivos"][0]
+        verifica("acusa cartao repetido antes de gravar",
+                 repetido["valida"] is False and any("ja tem cartao" in e for e in repetido["erros"]),
+                 str(repetido["erros"]))
+
+        print("\nLote: o outro tipo passa")
+        r = cm.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{ana.codigo}.jpg", foto_de_cartao("ANA"), "image/jpeg"))],
+            data={"tipo": "festa", "edicao_id": edicao.id},
+        )
+        verifica("mesma crianca aceita cartao de festa", r.json()["validas"] == 1, r.text[:120])
+        r = cm.post(f"/cartoes/lote/{r.json()['id']}/confirmar")
+        verifica("grava o de festa", r.json().get("gravados") == 1, r.text[:110])
+        cartao_festa = [c for c in cm.get("/cartoes", params={"edicao_id": edicao.id}).json()["itens"]
+                        if c["tipo"] == "festa"][0]
+
+        print("\nLote: isolamento por instituicao")
+        # O monitor so alcanca a Escola A. O codigo da crianca da Escola B nem
+        # entra na lista procurada: para ele o arquivo nao casa com ninguem —
+        # e nao "casa mas nega", que ja vazaria a existencia da crianca.
+        r = cm.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{fora.codigo}.jpg", foto_de_cartao("BRUNO"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id},
+        )
+        item = r.json()["arquivos"][0]
+        verifica("crianca de outra instituicao nao casa para o monitor",
+                 item["valida"] is False and item["crianca_id"] is None, str(item)[:100])
 
         r = ck.post(
-            "/cartoes/analisar",
-            files={"imagem": ("cartao.jpg", foto, "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(edicao.id)},
+            "/cartoes/lote",
+            files=[("arquivos", (f"{fora.codigo}.jpg", foto_de_cartao("BRUNO"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id},
         )
-        verifica("comissario nao sobe cartao", r.status_code == 403, str(r.status_code))
+        verifica("comissario nem sobe cartao: nao tem a permissao",
+                 r.status_code == 403, str(r.status_code))
 
-        print("\nConfirmacao e nome do arquivo")
-        r = cm.post("/cartoes/confirmar", json={
-            "id": analise["id"], "crianca_id": ana.id, "tipo": "cesta",
-            "texto_ocr": analise["nome_sugerido"],
-        })
-        verifica("confirma e grava o cartao", r.status_code == 201, r.text[:150])
-        cartao = r.json() if r.status_code == 201 else {}
+        cc = TestClient(app); entrar(cc, coord.email)
+        r = cc.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{fora.codigo}.jpg", foto_de_cartao("BRUNO"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id},
+        )
+        verifica("a coordenacao, que alcanca as duas escolas, casa normalmente",
+                 r.json()["arquivos"][0]["crianca_id"] == fora.id, r.text[:120])
 
-        if cartao:
-            verifica("arquivo segue INSTITUICAO_NOME_TIPO.jpg",
-                     cartao["arquivo"].endswith("ZZ_CAR_ESCOLA_A_ANA_CLARA_AVILA_CESTA.jpg"),
-                     cartao["arquivo"])
-            verifica("fica na pasta da cidade e do ano",
-                     "cartoes/ZZ_CAR_CIDADE/2026/" in cartao["arquivo"].replace("\\", "/"),
-                     cartao["arquivo"])
-            verifica("nasce como digitalizado", cartao["status"] == "digitalizado")
-            verifica("ainda nao tem padrinho", cartao["padrinho_id"] is None)
+        print("\nLote: codigo so numerico exige nome exato")
+        r = cm.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"IMG_20261110_{ana.codigo}.jpg", foto_de_cartao("ANA"), "image/jpeg"))],
+            data={"tipo": "festa", "edicao_id": edicao.id},
+        )
+        item = r.json()["arquivos"][0]
+        verifica("nome sujo com codigo so numerico e recusado, nao adivinhado",
+                 item["valida"] is False and item["crianca_id"] is None, str(item["erros"])[:90])
 
-            caminho = arquivos.dentro_da_pasta(cartao["arquivo"])
-            verifica("o arquivo existe no disco", caminho.is_file())
-
-        r = cm.post("/cartoes/confirmar", json={
-            "id": analise["id"], "crianca_id": ana.id, "tipo": "cesta",
-        })
-        verifica("a mesma analise nao serve duas vezes", r.status_code == 404, str(r.status_code))
-
-        print("\nSegundo cartao do mesmo tipo")
-        nova = cm.post(
-            "/cartoes/analisar",
-            files={"imagem": ("cartao.jpg", foto, "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(edicao.id)},
-        ).json()
-        r = cm.post("/cartoes/confirmar", json={
-            "id": nova["id"], "crianca_id": ana.id, "tipo": "cesta",
-        })
-        verifica("recusa dois cartoes de cesta para a mesma crianca", r.status_code == 409, str(r.status_code))
-
-        r = cm.post("/cartoes/confirmar", json={
-            "id": nova["id"], "crianca_id": ana.id, "tipo": "festa",
-        })
-        verifica("aceita o cartao de festa", r.status_code == 201, r.text[:120])
-        cartao_festa = r.json() if r.status_code == 201 else {}
+        cartao = [c for c in cm.get("/cartoes", params={"edicao_id": edicao.id}).json()["itens"]
+                  if c["tipo"] == "cesta"][0]
 
         print("\nImagem so por rota autenticada")
         r = cm.get(f"/cartoes/{cartao['id']}/imagem")

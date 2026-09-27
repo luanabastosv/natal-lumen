@@ -26,16 +26,9 @@ from app.routers import (
 
 @asynccontextmanager
 async def ciclo_de_vida(app: FastAPI):
+    # Nao ha mais nada pesado para aquecer: o EasyOCR saiu, e o que sobrou do
+    # scanner e OpenCV puro, que custa ~1 ms por cartao.
     config.caminho_arquivos.mkdir(parents=True, exist_ok=True)
-
-    if config.aquecer_ocr:
-        # Carrega os modelos agora para o primeiro monitor do dia nao esperar.
-        from app.servicos import scanner
-
-        print("Carregando o EasyOCR...")
-        scanner.iniciar_leitor()
-        print("EasyOCR pronto.")
-
     yield
 
 

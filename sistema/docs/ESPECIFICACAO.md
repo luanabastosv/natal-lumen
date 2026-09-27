@@ -6,7 +6,7 @@
 - Cada criança recebe dois padrinhos: padrinho de CESTA (valor padrão R$ 120, paga cesta/presente/kit higiene) e padrinho de FESTA (valor padrão R$ 60, ajuda nos custos do evento). Os valores podem mudar por edição.
 - Cada criança escreve 2 cartões de agradecimento, um para cada padrinho. Os cartões são digitalizados e enviados aos padrinhos na semana do evento, junto com o convite para participar.
 - Cada edição pode ter vários dias; cada criança vai a apenas um dia (normalmente +1500 crianças por edição).
-- Equipes: coordenação, comissários (captam padrinhos, registram pagamentos, enviam cartões), monitores (recolhem e digitalizam cartões), estrutura (compram e montam os kits e fazem a entrega).
+- Equipes: coordenação, comissários (captam padrinhos e enviam cartões), monitores (recolhem e digitalizam cartões), estrutura (compram e montam os kits e fazem a entrega).
 - Dados de crianças são sensíveis (LGPD): acesso sempre autenticado, isolado por cidade e registrado em log.
 
 ## Stack e publicação
@@ -18,7 +18,7 @@
   - Em desenvolvimento, o Vite faz proxy de /acesso/api para http://localhost:8000.
   - Layout responsivo (vários voluntários usarão pelo celular).
   - Um link discreto "Voltar ao site" no rodapé do sistema.
-- Backend: Python, FastAPI (com root_path "/acesso/api"), SQLAlchemy 2, Alembic, Pydantic, pyjwt, pwdlib[argon2], openpyxl/pandas, opencv-python, numpy, easyocr, rapidfuzz, qrcode. Pasta sistema/backend.
+- Backend: Python, FastAPI (com root_path "/acesso/api"), SQLAlchemy 2, Alembic, Pydantic, pyjwt, pwdlib[argon2], openpyxl/pandas, opencv-python, numpy, rapidfuzz, qrcode. Pasta sistema/backend.
 - Autenticação por cookie httpOnly, Secure e SameSite=Strict, com path "/acesso" (possível porque frontend e API estão no mesmo domínio). Nunca guardar o token em localStorage. Proteção contra CSRF nas rotas que alteram dados.
 - Base de dados: PostgreSQL. URL na variável DATABASE_URL (arquivo .env, fora do git). Criar .env.example.
 - Pasta dos arquivos enviados definida pela variável ARQUIVOS_DIR, fora das pastas públicas do frontend.
@@ -32,7 +32,7 @@ Operação:
 - dias_evento: id, edicao_id, data, descricao
 - instituicao_dia: id, edicao_id, instituicao_id, dia_evento_id — único (edicao_id, instituicao_id). O dia do evento é da INSTITUIÇÃO: todas as crianças dela vão no mesmo dia.
 - instituicoes: id, cidade_id, nome, responsavel, telefone, endereco, ativo
-- criancas: id, edicao_id, instituicao_id, dia_evento_id (opcional), codigo, nome, idade, sexo, observacoes, checkin_em, checkin_por (usuario) — único (edicao_id, instituicao_id, codigo)
+- criancas: id, edicao_id, instituicao_id, dia_evento_id (opcional), comissario_id (usuario, opcional), codigo, nome, idade, sexo, observacoes, checkin_em, checkin_por (usuario) — único (edicao_id, instituicao_id, codigo)
 - padrinhos: id, edicao_id, nome, whatsapp, email, observacoes, criado_por, criado_em (padrinhos pertencem a uma edição — cidade + ano; não persistem entre anos: todo ano são padrinhos novos)
 - apadrinhamentos: id, crianca_id, padrinho_id, tipo (cesta|festa), valor, pagamento_id (opcional), comissario_id (usuario), vai_ao_evento (opcional), criado_em — único (crianca_id, tipo). A restrição única é do lado da criança: ela tem no máximo um padrinho de cesta e um de festa. **Um mesmo padrinho pode apadrinhar várias crianças.** O padrinho pode ser de outra edição/cidade: apadrinhamento entre cidades é permitido.
 - pagamentos: id, padrinho_id, valor, data, forma, comprovante_arquivo, registrado_por, conferido (bool). Um pagamento pode quitar vários apadrinhamentos.
@@ -53,7 +53,7 @@ Acesso:
 ## Perfis e permissões
 Permissões: importar_listas, editar_criancas, ver_criancas, gerenciar_usuarios, subir_cartoes, ver_padrinhos, editar_padrinhos, registrar_pagamentos, enviar_cartoes, gerenciar_kits, gerenciar_compras, fazer_checkin, ver_painel, gerenciar_cadastros.
 - Coordenação da cidade: todas as permissões, limitadas às suas edições.
-- Comissário: ver_criancas, ver_padrinhos, editar_padrinhos, registrar_pagamentos, enviar_cartoes, fazer_checkin.
+- Comissário: ver_criancas, ver_padrinhos, editar_padrinhos, enviar_cartoes. (Mudança posterior à especificação original: pagamento é da coordenação e check-in é do monitor e da estrutura.)
 - Monitor: ver_criancas, subir_cartoes, fazer_checkin.
 - Estrutura: ver_criancas, gerenciar_kits, gerenciar_compras, fazer_checkin.
 - admin_geral = true: acesso total a todas as cidades e edições; único que cria cidades, edições e coordenadores de cidade.
@@ -64,7 +64,7 @@ Os perfis e permissões são criados por seed e podem ser alterados na base sem 
 - Cada rota da API declara a permissão exigida (dependência do FastAPI, ex.: exige_permissao("subir_cartoes")).
 - Toda consulta é filtrada pelas edições em que o usuário tem vínculo ativo em usuario_edicao (exceto admin_geral).
 - Num apadrinhamento entre cidades, o registro é visível para quem tem vínculo ativo na edição do padrinho OU na edição da criança. Os dados da criança continuam sujeitos à permissão ver_criancas.
-- Comissários e monitores só alcançam crianças das instituições atribuídas a eles em usuario_instituicao. Coordenação e estrutura veem a edição inteira.
+- Comissários e monitores só alcançam crianças das instituições atribuídas a eles em usuario_instituicao. Coordenação e estrutura veem a edição inteira. **Uma instituição pode ter vários comissários**, e todos eles alcançam a lista inteira dela: é um time. `criancas.comissario_id` diz quem responde por cada criança, e não restringe nada — nem o alcance nem a edição.
 - Escape para o caso entre cidades: a busca por **código exato** da criança alcança qualquer instituição das edições do usuário, mesmo fora das atribuídas — e é gravada em log_atividades. Listagens e exportações nunca escapam do filtro.
 - O coordenador de cidade só cria/edita usuários e vínculos da sua própria cidade, e é quem atribui as instituições de cada comissário e monitor.
 - Ações sensíveis (criar/editar/excluir registros, exportar listas, login) são gravadas em log_atividades.
@@ -165,3 +165,55 @@ Crianças criadas ou importadas depois herdam o dia que a instituição já tem.
 As planilhas passam a vir sem código (nome, idade, sexo, instituição). A
 aplicação numera com a sigla da instituição mais um sequencial, na ordem:
 meninas primeiro, depois idade crescente, depois ordem alfabética.
+
+### 2026-09-27 — O comissário não vê pagamentos nem check-in
+
+Decidido pela Luana. O comissário perde `registrar_pagamentos` e
+`fazer_checkin`.
+
+| | Versão inicial | Agora |
+| --- | --- | --- |
+| Pagamentos | comissário e coordenação | só a coordenação |
+| Check-in | comissário, monitor, estrutura e coordenação | monitor, estrutura e coordenação |
+
+Consequências práticas:
+
+- As abas **Pagamentos** e **Check-in** desaparecem do menu do comissário, e as
+  rotas correspondentes passam a devolver 403 para ele. O botão de pagamento na
+  ficha do padrinho também sai — ele continua captando padrinhos e ligando
+  crianças, mas quem registra e confere o dinheiro é a coordenação.
+- O comprovante no Drive passa a ser subido pela coordenação.
+- O seed dos perfis **só acrescenta** permissões, de propósito, para não desfazer
+  ajustes feitos direto na base. Tirar as duas da lista não mexe em base já
+  existente: por isso a mudança vem com a migração
+  `b3f5d0a71e29_comissario_sem_pagamentos_nem_checkin`.
+
+### 2026-09-27 — Time de comissários por instituição, e responsável por criança
+
+Decidido pela Luana. Uma instituição raramente é de um comissário só: às vezes
+são 2 ou 3, e cada um responde por um punhado de crianças dali.
+
+| | Versão inicial | Agora |
+| --- | --- | --- |
+| Comissários por instituição | já eram vários (nada impedia) | continuam vários, agora é a regra declarada |
+| Quem alcança as crianças da instituição | todos os comissários dela | sem mudança: **todos**, o time inteiro |
+| Quem responde por cada criança | não existia | `criancas.comissario_id`, uma coluna na planilha |
+
+Consequências práticas:
+
+- `criancas.comissario_id` é **organizacional, não de acesso**. O comissário
+  continua vendo e trabalhando todas as crianças das instituições dele, mesmo
+  as que estão no nome de outro — é o que significa ser um time. O campo
+  responde a outra pergunta: com quem eu falo sobre esta criança.
+- O responsável tem de ser do **time daquela instituição**: um comissário de
+  outra escola, de outra cidade ou um monitor é recusado (422). A conferência
+  vive em `_conferir_comissario`, no router de crianças.
+- **Só a coordenação atribui** (`editar_criancas`). O comissário vê a coluna e
+  não a muda.
+- Quem deixa de alcançar a criança é **solto automaticamente**: quando a
+  criança muda de escola, quando a instituição sai do vínculo do comissário,
+  quando o vínculo é desativado e quando o perfil deixa de ser comissário. Um
+  nome que não enxerga mais a criança é pior que nenhum.
+- `GET /criancas/comissarios?edicao_id=` devolve o time da edição com as
+  instituições de cada um — é o que alimenta o seletor da coluna. Sai só o
+  nome, e pede `ver_criancas`.

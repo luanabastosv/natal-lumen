@@ -115,7 +115,7 @@ export default function Kits() {
           <h2 className="painel__titulo">{marcados.length} criança(s) marcada(s)</h2>
           <div className="barra-acoes" style={{ margin: 0 }}>
             <Button size="sm" onClick={() => mudar("montado")}>Marcar como montado</Button>
-            <Button size="sm" onClick={() => mudar("entregue")}>Marcar como entregue</Button>
+            <Button variant="secondary" size="sm" onClick={() => mudar("entregue")}>Marcar como entregue</Button>
             <Button size="sm" variant="ghost" onClick={() => mudar("pendente")}>
               Voltar para pendente
             </Button>

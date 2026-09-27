@@ -6,7 +6,7 @@ tem gerenciar_cadastros.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Crianca, DiaEvento, Edicao, Instituicao
 from app.schemas.cadastros import (
+    DependenciasOut,
     DiaDaInstituicaoIn,
     DiaDaInstituicaoOut,
     DiaIn,
@@ -24,7 +25,7 @@ from app.schemas.cadastros import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral, exige_permissao
-from app.servicos import dias
+from app.servicos import dias, exclusao
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/edicoes", tags=["cadastros"])
@@ -103,9 +104,7 @@ def criar(dados: EdicaoIn, db: BD, ctx: Admin):
 
 @router.patch("/{edicao_id}", response_model=EdicaoOut)
 def editar(edicao_id: int, dados: EdicaoEditar, db: BD, ctx: Admin):
-    edicao = db.get(Edicao, edicao_id)
-    if edicao is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
+    edicao = _buscar_edicao(db, ctx, edicao_id)
 
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():
@@ -119,6 +118,61 @@ def editar(edicao_id: int, dados: EdicaoEditar, db: BD, ctx: Admin):
     db.commit()
     db.refresh(edicao)
     return _saida(edicao)
+
+
+@router.get("/{edicao_id}/dependencias", response_model=DependenciasOut)
+def dependencias(edicao_id: int, db: BD, ctx: Admin):
+    """O que seria apagado junto com a edicao. A tela pergunta isto antes."""
+    edicao = _buscar_edicao(db, ctx, edicao_id)
+    return exclusao.resumir(
+        db, edicao.id, edicao.nome, exclusao.alcance_da_edicao(edicao_id)
+    )
+
+
+@router.delete("/{edicao_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar(
+    edicao_id: int,
+    db: BD,
+    ctx: Admin,
+    confirmar: Annotated[bool, Query()] = False,
+):
+    """Apaga a edicao e o ano inteiro que esta dentro dela.
+
+    As instituicoes da cidade NAO vao junto: o cadastro delas atravessa os
+    anos. O que sai e o que era daquele ano — criancas, padrinhos, dias,
+    compras e os acessos da equipe aquela edicao.
+
+    `confirmar` existe para a exclusao nunca acontecer por engano fora da tela:
+    com dados pendurados, o pedido sem confirmacao volta 409 com a conta de
+    quantos sao.
+    """
+    edicao = _buscar_edicao(db, ctx, edicao_id)
+
+    # Lidos antes do DELETE: depois dele o objeto nao pode mais ser consultado.
+    nome, ano, cidade_id = edicao.nome, edicao.ano, edicao.cidade_id
+
+    resumo = exclusao.resumir(db, edicao_id, nome, exclusao.alcance_da_edicao(edicao_id))
+    if resumo.total and not confirmar:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{nome} tem {resumo.total} registro(s) ligados a ela. "
+            "Confirme a exclusao para apagar tudo junto.",
+        )
+
+    orfaos = exclusao.apagar_edicao(db, edicao_id)
+
+    registrar(
+        db, "edicao_apagada", usuario_id=ctx.usuario.id,
+        tabela="edicoes", registro_id=edicao_id,
+        detalhes={
+            "nome": nome,
+            "ano": ano,
+            "cidade_id": cidade_id,
+            "levou": {item.chave: item.quantidade for item in resumo.itens},
+        },
+    )
+    db.commit()
+    exclusao.remover_arquivos(orfaos)
 
 
 # ---------------------------------------------------------------- dias

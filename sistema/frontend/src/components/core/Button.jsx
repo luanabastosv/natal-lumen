@@ -1,37 +1,11 @@
-// Portado do site (site/src/components/core/Button.jsx), mantendo as mesmas
-// variantes e tamanhos. Acrescentado: type, largura total e estado "carregando",
-// que uma aplicacao com formularios precisa e um site institucional nao.
+// Botao do sistema. A anatomia segue o DS: pilula, peso 800, afunda no
+// :active e ganha anel de foco no :focus-visible.
+//
+// O estilo vive em CSS (.botao, em base.css) e nao mais em style inline: com
+// inline nao existe :active nem :focus-visible, e o hover precisava de dois
+// handlers de JS que o teclado nunca disparava.
 
-// Menores que os do site publico de proposito: aqui sao ferramentas de
-// trabalho numa tela cheia de dados, nao chamadas para acao numa pagina de
-// marketing.
-const SIZES = {
-  sm: { padding: "6px 12px", fontSize: 13 },
-  md: { padding: "9px 18px", fontSize: 14 },
-  lg: { padding: "13px 26px", fontSize: 16 },
-};
-
-const VARIANTS = {
-  primary: (disabled) => ({
-    background: disabled ? "var(--color-disabled-bg)" : "var(--color-cta)",
-    color: disabled ? "var(--color-disabled-text)" : "var(--navy-900)",
-  }),
-  secondary: (disabled) => ({
-    background: disabled ? "var(--color-disabled-bg)" : "var(--color-primary)",
-    color: disabled ? "var(--color-disabled-text)" : "var(--white)",
-  }),
-  ghost: (disabled) => ({
-    background: "transparent",
-    borderColor: disabled ? "var(--color-disabled-bg)" : "var(--color-primary)",
-    color: disabled ? "var(--color-disabled-text)" : "var(--color-primary)",
-  }),
-};
-
-const HOVER_BG = {
-  primary: "var(--color-cta-hover)",
-  secondary: "var(--color-primary-hover)",
-  ghost: "var(--navy-100)",
-};
+const TAMANHOS = { sm: "botao--sm", md: "", lg: "botao--lg" };
 
 export default function Button({
   variant = "primary",
@@ -47,44 +21,27 @@ export default function Button({
   href,
 }) {
   const inativo = disabled || carregando;
-
-  const style = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    justifyContent: "center",
-    fontFamily: "var(--font-body)",
-    fontWeight: 700,
-    borderRadius: "var(--radius-pill)",
-    border: "1.5px solid transparent",
-    cursor: inativo ? "not-allowed" : "pointer",
-    transition:
-      "background-color .15s ease, color .15s ease, border-color .15s ease, transform .1s ease",
-    textDecoration: "none",
-    width: larguraTotal ? "100%" : undefined,
-    ...SIZES[size],
-    ...VARIANTS[variant](inativo),
-  };
-
   const Tag = as === "a" ? "a" : "button";
-  const fundoBase = VARIANTS[variant](inativo).background;
+
+  const classe = [
+    "botao",
+    `botao--${variant}`,
+    TAMANHOS[size] ?? "",
+    larguraTotal ? "botao--largo" : "",
+    inativo ? "botao--inativo" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <Tag
+      className={classe}
       href={as === "a" ? href : undefined}
       type={as === "button" ? type : undefined}
       disabled={as === "button" ? inativo : undefined}
+      aria-disabled={as === "a" && inativo ? true : undefined}
       aria-busy={carregando || undefined}
       onClick={inativo ? undefined : onClick}
-      style={style}
-      onMouseEnter={(e) => {
-        if (inativo) return;
-        e.currentTarget.style.background = HOVER_BG[variant];
-      }}
-      onMouseLeave={(e) => {
-        if (inativo) return;
-        e.currentTarget.style.background = fundoBase;
-      }}
     >
       {iconLeft}
       {children}

@@ -88,11 +88,40 @@ def _normalizar_sexo(valor) -> str | None:
     return None
 
 
+# A coluna de idade quase nunca vem so com o numero: "2 ANOS", "1 ano e 6
+# meses", "10a", e a idade de bebe as vezes chega em meses.
+ANOS = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:anos?\b|a\b)")
+MESES = re.compile(r"(\d+)\s*(?:meses\b|mes\b|m\b)")
+NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
+MESES_POR_ANO = 12
+
+# Data de nascimento no lugar da idade: "04/03/2015", "2015-03-04". Nao da para
+# tratar como idade — pegar o primeiro numero daria "4 anos".
+DATA = re.compile(r"\d{1,4}\s*[/\-.]\s*\d{1,2}\s*[/\-.]\s*\d{1,4}")
+
+
 def _normalizar_idade(valor) -> int | None:
-    try:
-        idade = int(float(str(valor).strip().replace(",", ".")))
-    except (TypeError, ValueError):
+    """Anos completos a partir do que veio escrito na celula.
+
+    Aceita "8", "8 ANOS", "1 ano e 6 meses", "10a" e "18 meses" (que vira 1).
+    Devolve None quando nao da para entender — e a linha fica com o erro,
+    apontando o que estava escrito.
+    """
+    texto = _chave(valor)
+    if not texto or DATA.search(texto):
         return None
+
+    if achado := ANOS.search(texto):
+        bruto = achado.group(1)
+    elif meses := MESES.search(texto):
+        # "8 meses" e uma crianca de 0 ano; "18 meses", de 1.
+        bruto = str(int(meses.group(1)) // MESES_POR_ANO)
+    elif numero := NUMERO.search(texto):
+        bruto = numero.group(0)
+    else:
+        return None
+
+    idade = int(float(bruto.replace(",", ".")))
     return idade if 0 <= idade <= IDADE_MAXIMA else None
 
 
@@ -398,7 +427,10 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
             linha.erros.append("nome muito curto")
 
         if encontradas.get("idade") and linha.idade is None:
-            linha.erros.append("idade invalida")
+            escrito = pegar("idade")
+            linha.erros.append(
+                f"idade invalida: '{escrito}'" if escrito else "sem idade"
+            )
         if encontradas.get("sexo") and linha.sexo is None:
             linha.erros.append("sexo invalido (use M ou F)")
 

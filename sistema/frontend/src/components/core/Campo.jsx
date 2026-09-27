@@ -4,9 +4,9 @@ import { useId } from "react";
 // reaproveitar. Este segue os tokens e combina com os botoes: borda de 2px,
 // raio md e foco em navy.
 
-export function Campo({ rotulo, dica, erro, children }) {
+export function Campo({ rotulo, dica, erro, classe = "", children }) {
   return (
-    <label className="campo">
+    <label className={`campo ${classe}`.trim()}>
       {rotulo && <span className="campo__rotulo">{rotulo}</span>}
       {children}
       {erro ? (
@@ -18,10 +18,10 @@ export function Campo({ rotulo, dica, erro, children }) {
   );
 }
 
-export function Entrada({ rotulo, dica, erro, tipo = "text", ...resto }) {
+export function Entrada({ rotulo, dica, erro, classe, tipo = "text", ...resto }) {
   const id = useId();
   return (
-    <Campo rotulo={rotulo} dica={dica} erro={erro}>
+    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
       <input
         id={id}
         type={tipo}
@@ -33,10 +33,10 @@ export function Entrada({ rotulo, dica, erro, tipo = "text", ...resto }) {
   );
 }
 
-export function Selecao({ rotulo, dica, erro, children, ...resto }) {
+export function Selecao({ rotulo, dica, erro, classe, children, ...resto }) {
   const id = useId();
   return (
-    <Campo rotulo={rotulo} dica={dica} erro={erro}>
+    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
       <select
         id={id}
         className={`campo__controle campo__controle--selecao ${erro ? "campo__controle--erro" : ""}`}

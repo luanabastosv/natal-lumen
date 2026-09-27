@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import CabecalhoSistema from "./CabecalhoSistema.jsx";
-import MenuLateral from "./MenuLateral.jsx";
+import BarraLateral from "./BarraLateral.jsx";
+import BarraMobile from "./BarraMobile.jsx";
 import RodapeSistema from "./RodapeSistema.jsx";
 
 export default function LayoutSistema() {
@@ -29,31 +29,30 @@ export default function LayoutSistema() {
 
   return (
     <div className="layout">
-      <CabecalhoSistema
+      <BarraMobile
         menuAberto={menuAberto}
         aoAbrirMenu={() => definirMenuAberto((aberto) => !aberto)}
       />
 
-      <div className="layout__corpo">
-        <aside className={`layout__menu ${menuAberto ? "layout__menu--aberto" : ""}`}>
-          <MenuLateral aoNavegar={() => definirMenuAberto(false)} />
-        </aside>
+      <aside className={`layout__lateral ${menuAberto ? "layout__lateral--aberta" : ""}`}>
+        <BarraLateral aoNavegar={() => definirMenuAberto(false)} />
+      </aside>
 
-        {menuAberto && (
-          <button
-            type="button"
-            className="layout__fundo"
-            aria-label="Fechar menu"
-            onClick={() => definirMenuAberto(false)}
-          />
-        )}
+      {menuAberto && (
+        <button
+          type="button"
+          className="layout__fundo"
+          aria-label="Fechar menu"
+          onClick={() => definirMenuAberto(false)}
+        />
+      )}
 
+      <div className="layout__coluna">
         <main className="layout__conteudo">
           <Outlet />
         </main>
+        <RodapeSistema />
       </div>
-
-      <RodapeSistema />
     </div>
   );
 }

@@ -2,17 +2,22 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import Cidade, Crianca, DiaEvento, Edicao, Instituicao, InstituicaoDia
-from app.schemas.cadastros import InstituicaoEditar, InstituicaoIn, InstituicaoOut
+from app.schemas.cadastros import (
+    DependenciasOut,
+    InstituicaoEditar,
+    InstituicaoIn,
+    InstituicaoOut,
+)
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
-from app.servicos import codigos
+from app.servicos import codigos, exclusao
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/instituicoes", tags=["cadastros"])
@@ -36,6 +41,7 @@ def _saida(inst: Instituicao, extra: dict | None = None) -> InstituicaoOut:
         dia_evento_id=extra.get("dia_evento_id"),
         dia_evento=extra.get("dia_evento"),
         criancas=extra.get("criancas", 0),
+        codigos_atualizados=extra.get("codigos_atualizados", 0),
     )
 
 
@@ -55,6 +61,15 @@ def _conferir_cidade(db: Session, ctx: ContextoAcesso, cidade_id: int) -> None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Esta instituicao nao e de uma cidade sua."
         )
+
+
+def _buscar(db: Session, ctx: ContextoAcesso, instituicao_id: int) -> Instituicao:
+    inst = db.get(Instituicao, instituicao_id)
+    if inst is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+
+    _conferir_cidade(db, ctx, inst.cidade_id)
+    return inst
 
 
 @router.get("", response_model=list[InstituicaoOut])
@@ -163,13 +178,57 @@ def criar(dados: InstituicaoIn, db: BD, ctx: Cadastros):
     return _saida(inst)
 
 
+def _passar_codigos_para(db: Session, inst: Instituicao, antiga: str, nova: str) -> int:
+    """Troca a sigla nos codigos das criancas desta instituicao.
+
+    Mudar a sigla no cadastro e nao mexer nos codigos deixava a planilha das
+    criancas com o prefixo antigo — ES04 numa instituicao que hoje e SL. O
+    numero de cada crianca nao muda: so o prefixo. Renumerar e outra coisa, que
+    muda a ordem, e continua sendo a pedido, em /criancas/renumerar.
+
+    Vale para todas as edicoes: a sigla e da instituicao e nao e de um ano so.
+    """
+    criancas = db.scalars(
+        select(Crianca).where(Crianca.instituicao_id == inst.id)
+    ).all()
+
+    trocas = []
+    for crianca in criancas:
+        novo = codigos.trocar_sigla(crianca.codigo, antiga, nova)
+        if novo and novo != crianca.codigo:
+            trocas.append((crianca, novo))
+
+    if not trocas:
+        return 0
+
+    # Codigo temporario primeiro: a unicidade e por edicao + instituicao +
+    # codigo, e escrever direto esbarraria em quem ja tem o codigo de destino
+    # no meio do caminho.
+    for i, (crianca, _) in enumerate(trocas):
+        crianca.codigo = f"~{i}"
+    db.flush()
+
+    for crianca, novo in trocas:
+        crianca.codigo = novo
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Trocar a sigla para {nova} esbarra em codigos que ja existem nesta "
+            "instituicao. Confira os codigos das criancas antes de mudar a sigla.",
+        )
+
+    return len(trocas)
+
+
 @router.patch("/{instituicao_id}", response_model=InstituicaoOut)
 def editar(instituicao_id: int, dados: InstituicaoEditar, db: BD, ctx: Cadastros):
-    inst = db.get(Instituicao, instituicao_id)
-    if inst is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+    inst = _buscar(db, ctx, instituicao_id)
 
-    _conferir_cidade(db, ctx, inst.cidade_id)
+    sigla_antiga = inst.sigla
 
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():
@@ -188,11 +247,88 @@ def editar(instituicao_id: int, dados: InstituicaoEditar, db: BD, ctx: Cadastros
             "Esta cidade ja tem uma instituicao com este nome ou com esta sigla.",
         )
 
+    # A sigla e o prefixo do codigo das criancas: trocar uma sem a outra deixa
+    # a planilha apontando para uma sigla que nao existe mais.
+    trocados = 0
+    if sigla_antiga and inst.sigla and inst.sigla != sigla_antiga:
+        trocados = _passar_codigos_para(db, inst, sigla_antiga, inst.sigla)
+
     registrar(
         db, "instituicao_editada", usuario_id=ctx.usuario.id,
         tabela="instituicoes", registro_id=inst.id,
         detalhes={"campos": sorted(mudancas)},
     )
+    if trocados:
+        registrar(
+            db, "criancas_nova_sigla", usuario_id=ctx.usuario.id,
+            tabela="criancas", registro_id=inst.id,
+            detalhes={
+                "instituicao_id": inst.id,
+                "de": sigla_antiga,
+                "para": inst.sigla,
+                "quantas": trocados,
+            },
+        )
     db.commit()
     db.refresh(inst)
-    return _saida(inst)
+    return _saida(inst, {"codigos_atualizados": trocados})
+
+
+@router.get("/{instituicao_id}/dependencias", response_model=DependenciasOut)
+def dependencias(instituicao_id: int, db: BD, ctx: Cadastros):
+    """O que seria apagado junto com a instituicao. A tela pergunta isto antes.
+
+    A conta e de TODAS as edicoes, nao so da que esta aberta na tela: o
+    cadastro da instituicao e um so e atravessa os anos, entao apaga-lo leva
+    tambem a lista que ela mandou nos anos anteriores.
+    """
+    inst = _buscar(db, ctx, instituicao_id)
+    return exclusao.resumir(
+        db, inst.id, inst.nome, exclusao.alcance_da_instituicao(instituicao_id)
+    )
+
+
+@router.delete("/{instituicao_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar(
+    instituicao_id: int,
+    db: BD,
+    ctx: Cadastros,
+    confirmar: Annotated[bool, Query()] = False,
+):
+    """Apaga a instituicao e as criancas dela, de todos os anos.
+
+    Desativar (`ativo=false`) continua sendo o caminho normal para uma
+    instituicao que so nao participa este ano — isso guarda o historico. Apagar
+    e para a que nunca deveria ter entrado: some com a lista inteira dela.
+
+    `confirmar` existe para a exclusao nunca acontecer por engano fora da tela:
+    com dados pendurados, o pedido sem confirmacao volta 409 com a conta de
+    quantos sao.
+    """
+    inst = _buscar(db, ctx, instituicao_id)
+    # Lidos antes do DELETE: depois dele o objeto nao pode mais ser consultado.
+    nome, cidade_id = inst.nome, inst.cidade_id
+
+    resumo = exclusao.resumir(
+        db, instituicao_id, nome, exclusao.alcance_da_instituicao(instituicao_id)
+    )
+    if resumo.total and not confirmar:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{nome} tem {resumo.total} registro(s) ligados a ela. "
+            "Confirme a exclusao para apagar tudo junto.",
+        )
+
+    orfaos = exclusao.apagar_instituicao(db, instituicao_id)
+
+    registrar(
+        db, "instituicao_apagada", usuario_id=ctx.usuario.id,
+        tabela="instituicoes", registro_id=instituicao_id,
+        detalhes={
+            "nome": nome,
+            "cidade_id": cidade_id,
+            "levou": {item.chave: item.quantidade for item in resumo.itens},
+        },
+    )
+    db.commit()
+    exclusao.remover_arquivos(orfaos)

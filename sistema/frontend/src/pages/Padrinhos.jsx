@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
+import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
+import { Olho, PessoaMais } from "../components/core/icones.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
+import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import Modal from "../components/feedback/Modal.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 import { listarEdicoes } from "../services/cadastros.js";
-import { listarCriancas } from "../services/criancas.js";
-import {
-  apagarApadrinhamento,
-  criarApadrinhamento,
-  criarPadrinho,
-  listarPadrinhos,
-} from "../services/padrinhos.js";
+import { criarPadrinho, editarPadrinho, listarPadrinhos } from "../services/padrinhos.js";
 import { dinheiro } from "../utils/dinheiro.js";
 
-const POR_PAGINA = 25;
+const POR_PAGINA = 100;
 const NOVO = { nome: "", whatsapp: "", email: "", observacoes: "" };
 
 export default function Padrinhos() {
@@ -35,11 +34,22 @@ export default function Padrinhos() {
   const [campos, definirCampos] = useState(NOVO);
   const [salvando, definirSalvando] = useState(false);
 
-  // Painel para ligar este padrinho a uma crianca.
-  const [ligando, definirLigando] = useState(null);
-  const [codigoCrianca, definirCodigoCrianca] = useState("");
-  const [criancaAchada, definirCriancaAchada] = useState(null);
-  const [tipo, definirTipo] = useState("cesta");
+  // Guarda o id, nao o objeto: a ficha le sempre a linha que esta na lista,
+  // entao uma mudanca feita dentro da janela aparece nos dois lugares de uma
+  // vez, sem duas copias do mesmo padrinho podendo divergir.
+  const [fichaAbertaId, definirFichaAbertaId] = useState(null);
+  // O icone de apadrinhar na linha abre a mesma ficha, ja com o formulario de
+  // ligacao aberto: e um atalho para a acao, nao um segundo caminho para ela.
+  const [abrirLigando, definirAbrirLigando] = useState(false);
+  const fichaAberta = padrinhos.itens.find((p) => p.id === fichaAbertaId) ?? null;
+
+  function abrirFicha(id, ligando = false) {
+    definirAbrirLigando(ligando);
+    definirFichaAbertaId(id);
+  }
+
+  const podeEditar = pode("editar_padrinhos");
+  const podePagar = pode("registrar_pagamentos");
 
   useEffect(() => {
     let vivo = true;
@@ -72,6 +82,23 @@ export default function Padrinhos() {
     if (edicaoId) buscar();
   }, [edicaoId, pagina, buscar]);
 
+  /** Troca so a linha mexida: recarregar a lista inteira perderia a posicao de
+      quem estava no meio da planilha, e fecharia a ficha aberta. */
+  function trocarLinha(atualizado) {
+    definirPadrinhos((atual) => ({
+      ...atual,
+      itens: atual.itens.map((p) => (p.id === atualizado.id ? atualizado : p)),
+    }));
+  }
+
+  /** Salva uma celula e atualiza aquela linha, sem recarregar a tabela. */
+  async function salvarCampo(padrinho, campo, valor) {
+    const limpo = typeof valor === "string" ? valor.trim() : valor;
+    // Campo apagado vira null, nunca "": o schema aceita null, e o EmailStr
+    // rejeitaria a string vazia com um 422 que a celula mostraria como erro.
+    trocarLinha(await editarPadrinho(padrinho.id, { [campo]: limpo === "" ? null : limpo }));
+  }
+
   async function salvar(evento) {
     evento.preventDefault();
     definirErro("");
@@ -95,49 +122,6 @@ export default function Padrinhos() {
     }
   }
 
-  async function procurarCrianca() {
-    definirErro("");
-    definirCriancaAchada(null);
-    try {
-      const resultado = await listarCriancas({ codigo: codigoCrianca.trim() });
-      if (resultado.itens.length === 0) {
-        definirErro("Nenhuma criança com este código nas suas edições.");
-      } else {
-        definirCriancaAchada(resultado.itens[0]);
-      }
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
-  async function ligar() {
-    definirErro("");
-    try {
-      await criarApadrinhamento({
-        crianca_id: criancaAchada.id,
-        padrinho_id: ligando.id,
-        tipo,
-      });
-      definirSucesso(`${criancaAchada.nome} ligada a ${ligando.nome}.`);
-      definirLigando(null);
-      definirCriancaAchada(null);
-      definirCodigoCrianca("");
-      buscar();
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
-  async function desligar(apadrinhamento) {
-    definirErro("");
-    try {
-      await apagarApadrinhamento(apadrinhamento.id);
-      buscar();
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
   const totalPaginas = Math.max(1, Math.ceil(padrinhos.total / POR_PAGINA));
 
   return (
@@ -146,122 +130,102 @@ export default function Padrinhos() {
       <h1 className="pagina__titulo">Padrinhos</h1>
       <p className="pagina__lede">
         Cada padrinho pertence a uma edição e pode apadrinhar várias crianças, inclusive
-        de outra cidade. Do lado do padrinho, a criança aparece só pelo primeiro nome e
-        pela idade.
+        de outra cidade. Clique em qualquer célula para editar; o olho abre a ficha com
+        todas as crianças e as ações de cada uma.
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
       <Mensagem tipo="sucesso">{sucesso}</Mensagem>
 
+      <div className="barra-acoes">
+        <Selecao
+          value={edicaoId}
+          onChange={(e) => {
+            definirEdicaoId(e.target.value);
+            definirPagina(1);
+            abrirFicha(null);
+          }}
+        >
+          {edicoes.map((e) => (
+            <option key={e.id} value={e.id}>{e.nome}</option>
+          ))}
+        </Selecao>
+      </div>
+
       <form
-        className="painel"
+        className="barra-acoes"
         onSubmit={(e) => {
           e.preventDefault();
           definirPagina(1);
           buscar();
         }}
       >
-        <div className="linha-campos">
-          <Selecao
-            rotulo="Edição"
-            value={edicaoId}
-            onChange={(e) => {
-              definirEdicaoId(e.target.value);
+        <Entrada
+          value={busca}
+          onChange={(e) => definirBusca(e.target.value)}
+          placeholder="Nome, WhatsApp ou email"
+        />
+        <Button type="submit" size="sm" variant="ghost">Buscar</Button>
+        {busca && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              definirBusca("");
               definirPagina(1);
             }}
           >
-            {edicoes.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome}</option>
-            ))}
-          </Selecao>
-          <Entrada
-            rotulo="Buscar"
-            value={busca}
-            onChange={(e) => definirBusca(e.target.value)}
-            dica="Nome, WhatsApp ou email."
-          />
-        </div>
-        <Button type="submit" size="sm">Filtrar</Button>
-      </form>
-
-      {pode("editar_padrinhos") && (
-        <div className="barra-acoes">
-          <Button onClick={() => definirFormAberto(true)} disabled={!edicaoId}>
-            Novo padrinho
+            Limpar
           </Button>
-          <span className="campo__dica" style={{ marginTop: 0 }}>
-            {padrinhos.total} padrinho(s)
-          </span>
-        </div>
-      )}
+        )}
+        <span className="campo__dica">{padrinhos.total} padrinho(s)</span>
 
-      {formAberto && (
-        <form className="painel" onSubmit={salvar}>
-          <h2 className="painel__titulo">Novo padrinho</h2>
-          <div className="linha-campos">
-            <Entrada rotulo="Nome" value={campos.nome}
-              onChange={(e) => definirCampos({ ...campos, nome: e.target.value })} required />
-            <Entrada rotulo="WhatsApp" value={campos.whatsapp}
-              onChange={(e) => definirCampos({ ...campos, whatsapp: e.target.value })} />
-            <Entrada rotulo="Email" tipo="email" value={campos.email}
-              onChange={(e) => definirCampos({ ...campos, email: e.target.value })} />
-            <Entrada rotulo="Observações" value={campos.observacoes}
-              onChange={(e) => definirCampos({ ...campos, observacoes: e.target.value })} />
-          </div>
-          <div className="barra-acoes barra-acoes--fim">
-            <Button type="submit" carregando={salvando} disabled={!campos.nome.trim()}>Salvar</Button>
-            <Button variant="ghost" onClick={() => definirFormAberto(false)}>Cancelar</Button>
-          </div>
-        </form>
-      )}
-
-      {ligando && (
-        <div className="painel painel--destaque">
-          <h2 className="painel__titulo">Apadrinhar uma criança · {ligando.nome}</h2>
-          <p className="campo__dica" style={{ marginTop: 0 }}>
-            Busque pelo código da criança. A busca alcança qualquer instituição das suas
-            edições e fica registrada.
-          </p>
-          <div className="linha-campos">
-            <Entrada
-              rotulo="Código da criança"
-              value={codigoCrianca}
-              onChange={(e) => definirCodigoCrianca(e.target.value)}
-            />
-            <Selecao rotulo="Tipo" value={tipo} onChange={(e) => definirTipo(e.target.value)}>
-              <option value="cesta">Cesta</option>
-              <option value="festa">Festa</option>
-            </Selecao>
-          </div>
-
-          {criancaAchada && (
-            <Mensagem tipo="sucesso">
-              <strong>{criancaAchada.nome}</strong>, {criancaAchada.idade} anos ·{" "}
-              {criancaAchada.instituicao}
-            </Mensagem>
-          )}
-
-          <div className="barra-acoes barra-acoes--fim">
-            {!criancaAchada ? (
-              <Button size="sm" onClick={procurarCrianca} disabled={!codigoCrianca.trim()}>
-                Procurar
-              </Button>
-            ) : (
-              <Button size="sm" onClick={ligar}>Confirmar apadrinhamento</Button>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                definirLigando(null);
-                definirCriancaAchada(null);
-                definirCodigoCrianca("");
-              }}
-            >
-              Fechar
+        {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos de
+            busca, sem roubar uma linha so para ele. */}
+        {podeEditar && (
+          <div className="barra-acoes__ponta">
+            <Button size="sm" onClick={() => definirFormAberto(true)} disabled={!edicaoId}>
+              Novo padrinho
             </Button>
           </div>
-        </div>
+        )}
+      </form>
+
+      {formAberto && (
+        <Modal titulo="Novo padrinho" aoFechar={() => !salvando && definirFormAberto(false)}>
+          <form onSubmit={salvar}>
+            <div className="linha-campos">
+              <Entrada rotulo="Nome" value={campos.nome}
+                onChange={(e) => definirCampos({ ...campos, nome: e.target.value })} required />
+              <Entrada rotulo="WhatsApp" value={campos.whatsapp}
+                onChange={(e) => definirCampos({ ...campos, whatsapp: e.target.value })} />
+              <Entrada rotulo="Email" tipo="email" value={campos.email}
+                onChange={(e) => definirCampos({ ...campos, email: e.target.value })} />
+              <Entrada rotulo="Observações" value={campos.observacoes}
+                onChange={(e) => definirCampos({ ...campos, observacoes: e.target.value })} />
+            </div>
+            <div className="barra-acoes barra-acoes--fim">
+              <Button variant="secondary" type="submit" carregando={salvando}
+                disabled={!campos.nome.trim()}>
+                Salvar
+              </Button>
+              <Button variant="ghost" onClick={() => definirFormAberto(false)} disabled={salvando}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {fichaAberta && (
+        <FichaPadrinho
+          padrinho={fichaAberta}
+          aoFechar={() => definirFichaAbertaId(null)}
+          podeEditar={podeEditar}
+          podePagar={podePagar}
+          iniciarLigando={abrirLigando}
+          aoMudar={trocarLinha}
+        />
       )}
 
       {carregando ? (
@@ -269,67 +233,152 @@ export default function Padrinhos() {
       ) : padrinhos.itens.length === 0 ? (
         <EmptyState
           titulo="Nenhum padrinho ainda"
-          corpo="Cadastre os padrinhos captados e ligue cada um às crianças."
+          corpo={
+            busca
+              ? "Nenhum resultado para esta busca."
+              : "Cadastre os padrinhos captados e ligue cada um às crianças."
+          }
         />
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="tabela">
+            <table className="planilha">
+              {/* As larguras ficam aqui, e nao no conteudo: trocar de edicao
+                  nao move nenhuma coluna de lugar. */}
+              {/* A coluna solta e a das criancas, nao a do nome: e ela que
+                  ganha a folga da tela larga, e cada nome a mais que couber
+                  nas duas linhas e uma ida a menos a ficha. */}
+              <colgroup>
+                <col style={{ width: 230 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 224 }} />
+                <col style={{ width: 56 }} />
+                <col />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 66 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Nome</th>
-                  <th>Contato</th>
-                  <th>Apadrinhamentos</th>
+                  <th>WhatsApp</th>
+                  <th>Email</th>
+                  <th title="Quantas crianças este padrinho apadrinhou">Nº</th>
+                  <th>Crianças</th>
                   <th>Combinado</th>
                   <th>Pago</th>
-                  {pode("editar_padrinhos") && <th />}
+                  <th className="planilha__acoes" />
                 </tr>
               </thead>
               <tbody>
-                {padrinhos.itens.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      {p.nome}
-                      <br />
-                      <span className="etiqueta etiqueta--neutra">{p.cidade} {p.ano ?? ""}</span>
-                    </td>
-                    <td>
-                      {p.whatsapp ?? "—"}
-                      {p.email && <><br />{p.email}</>}
-                    </td>
-                    <td>
-                      {p.apadrinhamentos.length === 0
-                        ? "—"
-                        : p.apadrinhamentos.map((a) => (
-                            <div key={a.id} className="detalhe-vinculo">
-                              <span className="detalhe-vinculo__edicao">
-                                {a.crianca_primeiro_nome}, {a.crianca_idade}
-                              </span>
-                              <span className="etiqueta etiqueta--neutra">{a.tipo}</span>
-                              <span
-                                className={`etiqueta ${a.pago ? "etiqueta--ok" : "etiqueta--espera"}`}
-                              >
-                                {a.pago ? "pago" : "a pagar"}
-                              </span>
-                              {pode("editar_padrinhos") && !a.pago && (
-                                <Button size="sm" variant="ghost" onClick={() => desligar(a)}>
-                                  Desfazer
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                    </td>
-                    <td>{dinheiro(p.total_combinado)}</td>
-                    <td>{dinheiro(p.total_pago)}</td>
-                    {pode("editar_padrinhos") && (
+                {padrinhos.itens.map((p) => {
+                  const quitado =
+                    p.apadrinhamentos.length > 0 && p.apadrinhamentos.every((a) => a.pago);
+                  return (
+                    <tr key={p.id}>
                       <td>
-                        <Button size="sm" variant="ghost" onClick={() => definirLigando(p)}>
-                          Apadrinhar
-                        </Button>
+                        {podeEditar ? (
+                          <CelulaEditavel
+                            valor={p.nome}
+                            aoSalvar={(v) => salvarCampo(p, "nome", v)}
+                          />
+                        ) : (
+                          <span className="celula">{p.nome}</span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>
+                        {podeEditar ? (
+                          <CelulaEditavel
+                            valor={p.whatsapp}
+                            aoSalvar={(v) => salvarCampo(p, "whatsapp", v)}
+                          />
+                        ) : (
+                          <span className="celula">{p.whatsapp ?? "—"}</span>
+                        )}
+                      </td>
+                      <td>
+                        {podeEditar ? (
+                          <CelulaEditavel
+                            valor={p.email}
+                            aoSalvar={(v) => salvarCampo(p, "email", v)}
+                          />
+                        ) : (
+                          <span className="celula">{p.email ?? "—"}</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          <span
+                            className={`marcador ${quitado ? "marcador--feito" : ""}`}
+                            title={
+                              quitado
+                                ? "Todos os apadrinhamentos estão pagos"
+                                : "Há apadrinhamento a pagar"
+                            }
+                          >
+                            {p.apadrinhamentos.length}
+                          </span>
+                        </span>
+                      </td>
+                      <td>
+                        {/* Só os nomes, cortados em duas linhas. As ações de
+                            cada criança estão na ficha — ver .vinculos. */}
+                        {p.apadrinhamentos.length === 0 ? (
+                          <span className="vinculos--vazia">sem criança</span>
+                        ) : (
+                          <div
+                            className="vinculos"
+                            title={p.apadrinhamentos
+                              .map((a) => `${a.crianca_primeiro_nome}, ${a.crianca_idade}`)
+                              .join(" · ")}
+                          >
+                            {p.apadrinhamentos.map((a) => (
+                              <span key={a.id} className="vinculo">
+                                {a.crianca_primeiro_nome}
+                                <span
+                                  className={`marcador ${a.pago ? "marcador--feito" : ""}`}
+                                  title={`${a.tipo} · ${a.pago ? "pago" : "a pagar"}`}
+                                >
+                                  {a.tipo === "cesta" ? "C" : "F"}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          {dinheiro(p.total_combinado)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          {dinheiro(p.total_pago)}
+                        </span>
+                      </td>
+                      <td className="planilha__acoes">
+                        <span className="acoes-icone">
+                          <BotaoIcone
+                            tamanho="sm"
+                            titulo={`Ver ficha de ${p.nome}`}
+                            onClick={() => abrirFicha(p.id)}
+                          >
+                            <Olho />
+                          </BotaoIcone>
+                          {podeEditar && (
+                            <BotaoIcone
+                              tamanho="sm"
+                              titulo={`Apadrinhar uma criança — ${p.nome}`}
+                              onClick={() => abrirFicha(p.id, true)}
+                            >
+                              <PessoaMais />
+                            </BotaoIcone>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

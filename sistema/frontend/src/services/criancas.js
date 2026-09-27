@@ -16,10 +16,16 @@ export const criarCrianca = (dados) => api.post("/criancas", dados);
 export const resumoInstituicoes = (edicaoId) =>
   api.get(`/criancas/resumo-instituicoes?edicao_id=${edicaoId}`);
 export const editarEmLote = (dados) => api.post("/criancas/lote", dados);
+/** O time de comissarios da edicao, com as instituicoes que cada um atende. */
+export const listarComissarios = (edicaoId) =>
+  api.get(`/criancas/comissarios?edicao_id=${edicaoId}`);
 export const renumerar = (dados) => api.post("/criancas/renumerar", dados);
 export const detalharCrianca = (id) => api.get(`/criancas/${id}`);
 export const editarCrianca = (id, dados) => api.patch(`/criancas/${id}`, dados);
 export const apagarCrianca = (id) => api.delete(`/criancas/${id}`);
+/** Marca (ou desmarca) que a crianca desistiu de ir ao evento. */
+export const marcarDesistencia = (id, desistiu) =>
+  api.patch(`/criancas/${id}/desistencia`, { desistiu });
 
 /** Envio de arquivo: nao passa pelo api.js, que so manda JSON. */
 export async function analisarPlanilha({ arquivo, edicaoId, instituicaoId }) {

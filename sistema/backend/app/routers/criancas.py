@@ -7,6 +7,7 @@ limita por edicao e, para comissario e monitor, tambem por instituicao.
 import json
 import uuid
 from collections import defaultdict
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -26,9 +27,15 @@ from app.models import (
     InstituicaoDia,
     Kit,
     Padrinho,
+    Perfil,
+    Usuario,
+    UsuarioEdicao,
+    UsuarioInstituicao,
 )
 from app.schemas.criancas import (
+    ComissarioDoTime,
     CriancaEditar,
+    DesistenciaIn,
     CriancaIn,
     CriancaDetalhe,
     CriancaOut,
@@ -42,6 +49,7 @@ from app.schemas.criancas import (
     ResultadoImportacao,
     ResumoInstituicao,
 )
+from app.seeds.perfis_permissoes import PERFIL_COMISSARIO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
 from app.servicos import codigos, dias, importador
@@ -73,6 +81,9 @@ def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
         dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
+        desistiu_em=crianca.desistiu_em,
+        comissario_id=crianca.comissario_id,
+        comissario=crianca.comissario.nome if crianca.comissario else None,
         tem_padrinho_cesta=extra.get("cesta", False),
         tem_padrinho_festa=extra.get("festa", False),
         cartoes=extra.get("cartoes", 0),
@@ -112,12 +123,83 @@ def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
     return dados
 
 
+def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int]]]:
+    """Os comissarios desta edicao: id -> (nome, instituicoes que ele atende).
+
+    Uma instituicao e atendida por um TIME — as vezes 2 ou 3 comissarios — e
+    todos eles alcancam a lista inteira dela. Isto aqui serve para dizer QUEM
+    pode ser posto como responsavel de uma crianca daquela instituicao.
+    """
+    linhas = db.execute(
+        select(Usuario.id, Usuario.nome, UsuarioInstituicao.instituicao_id)
+        .join(UsuarioEdicao, UsuarioEdicao.usuario_id == Usuario.id)
+        .join(Perfil, Perfil.id == UsuarioEdicao.perfil_id)
+        .outerjoin(
+            UsuarioInstituicao,
+            (UsuarioInstituicao.usuario_edicao_id == UsuarioEdicao.id)
+            & UsuarioInstituicao.ativo.is_(True),
+        )
+        .where(
+            UsuarioEdicao.edicao_id == edicao_id,
+            UsuarioEdicao.ativo.is_(True),
+            Usuario.ativo.is_(True),
+            Perfil.nome == PERFIL_COMISSARIO,
+        )
+        .order_by(Usuario.nome)
+    ).all()
+
+    time: dict[int, tuple[str, set[int]]] = {}
+    for usuario_id, nome, instituicao_id in linhas:
+        _, instituicoes = time.setdefault(usuario_id, (nome, set()))
+        if instituicao_id is not None:
+            instituicoes.add(instituicao_id)
+    return time
+
+
+def _conferir_comissario(
+    db: Session,
+    comissario_id: int,
+    criancas: list[Crianca],
+    destino: Instituicao | None = None,
+) -> None:
+    """O responsavel tem de ser do time da instituicao de cada crianca.
+
+    Sem esta conferencia daria para pendurar uma crianca num comissario de
+    outra cidade, ou num monitor — e o nome na coluna deixaria de significar
+    "e com ele que eu falo sobre esta crianca".
+
+    `destino` e para o lote que muda de escola e poe responsavel na mesma
+    chamada: o que vale e a instituicao onde a crianca vai PARAR, nao a de onde
+    ela esta saindo.
+    """
+    por_edicao: dict[int, dict[int, tuple[str, set[int]]]] = {}
+    for crianca in criancas:
+        instituicao = destino or crianca.instituicao
+
+        if crianca.edicao_id not in por_edicao:
+            por_edicao[crianca.edicao_id] = _time(db, crianca.edicao_id)
+
+        membro = por_edicao[crianca.edicao_id].get(comissario_id)
+        if membro is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Este comissario nao atende a edicao desta crianca.",
+            )
+        if instituicao.id not in membro[1]:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"{membro[0]} nao esta no time de {instituicao.nome}. "
+                "Atribua a instituicao a ele na tela de usuarios primeiro.",
+            )
+
+
 def _buscar(db: Session, ctx: ContextoAcesso, crianca_id: int, permissao: str) -> Crianca:
     """Busca uma crianca ja aplicando o filtro de alcance."""
     crianca = db.scalar(
         select(Crianca)
         .where(Crianca.id == crianca_id, ctx.filtro_criancas(permissao))
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
+                 joinedload(Crianca.comissario))
     )
     if crianca is None:
         # Mesma resposta de "nao existe": nao revelar criancas fora do alcance.
@@ -132,6 +214,12 @@ def listar(
     edicao_id: int | None = None,
     instituicao_id: int | None = None,
     dia_evento_id: int | None = None,
+    comissario_id: int | None = Query(
+        default=None, description="So as criancas deste comissario responsavel"
+    ),
+    sem_comissario: bool = Query(
+        default=False, description="So as criancas que ainda nao tem responsavel"
+    ),
     busca: str | None = None,
     codigo: str | None = Query(default=None, description="Busca por codigo exato"),
     pagina: int = Query(default=1, ge=1),
@@ -164,6 +252,10 @@ def listar(
         condicao = condicao & (Crianca.instituicao_id == instituicao_id)
     if dia_evento_id is not None:
         condicao = condicao & (Crianca.dia_evento_id == dia_evento_id)
+    if comissario_id is not None:
+        condicao = condicao & (Crianca.comissario_id == comissario_id)
+    if sem_comissario:
+        condicao = condicao & Crianca.comissario_id.is_(None)
 
     if busca:
         termo = f"%{busca.strip()}%"
@@ -174,7 +266,8 @@ def listar(
     itens = db.scalars(
         select(Crianca)
         .where(condicao)
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
+                 joinedload(Crianca.comissario))
         .order_by(Crianca.codigo)
         .offset((pagina - 1) * por_pagina)
         .limit(por_pagina)
@@ -221,6 +314,7 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
             func.count(Crianca.id),
             func.count(case((~com_padrinho, Crianca.id))),
             func.count(case((~com_cartao, Crianca.id))),
+            func.count(case((Crianca.comissario_id.is_(None), Crianca.id))),
         )
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
         .where(alcance)
@@ -241,11 +335,27 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
     return [
         ResumoInstituicao(
             instituicao_id=i, instituicao=nome, criancas=total,
-            sem_padrinho=sp, sem_cartao=sc,
+            sem_padrinho=sp, sem_cartao=sc, sem_comissario=scom,
             dia_evento_id=dias_marcados.get(i, (None, None))[0],
             dia_evento=dias_marcados.get(i, (None, None))[1],
         )
-        for i, nome, total, sp, sc in linhas
+        for i, nome, total, sp, sc, scom in linhas
+    ]
+
+
+@router.get("/comissarios", response_model=list[ComissarioDoTime])
+def comissarios_da_edicao(db: BD, ctx: Ver, edicao_id: int):
+    """O time de comissarios da edicao, com as instituicoes de cada um.
+
+    Alimenta o seletor de responsavel na planilha. Sai nome, e mais nada: e a
+    lista de quem trabalha na edicao, nao a ficha de ninguem.
+    """
+    if not ctx.alcanca_edicao(edicao_id, "ver_criancas"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
+
+    return [
+        ComissarioDoTime(id=i, nome=nome, instituicoes=sorted(instituicoes))
+        for i, (nome, instituicoes) in _time(db, edicao_id).items()
     ]
 
 
@@ -259,7 +369,8 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
     criancas = db.scalars(
         select(Crianca)
         .where(Crianca.id.in_(dados.criancas), ctx.filtro_criancas("editar_criancas"))
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
+                 joinedload(Crianca.comissario))
     ).all()
 
     if len(criancas) != len(set(dados.criancas)):
@@ -278,6 +389,15 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
                     "Esta instituicao nao esta sob sua responsabilidade.",
                 )
 
+    # Mandar comissario_id: null limpa o responsavel; nao mandar o campo nao
+    # o toca. So model_fields_set separa os dois casos.
+    mexe_no_comissario = "comissario_id" in dados.model_fields_set
+    if mexe_no_comissario and dados.comissario_id is not None:
+        _conferir_comissario(
+            db, dados.comissario_id, list(criancas),
+            destino=instituicao if dados.instituicao_id is not None else None,
+        )
+
     mudou = []
     for crianca in criancas:
         if dados.instituicao_id is not None:
@@ -287,6 +407,18 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
                 db, crianca.edicao_id, dados.instituicao_id
             )
             mudou.append("instituicao_id")
+
+            # E o responsavel cai, se ele nao for do time da escola nova: um
+            # nome na coluna que nem alcanca a crianca e pior que nome nenhum.
+            if not mexe_no_comissario and crianca.comissario_id is not None:
+                membro = _time(db, crianca.edicao_id).get(crianca.comissario_id)
+                if membro is None or dados.instituicao_id not in membro[1]:
+                    crianca.comissario_id = None
+                    mudou.append("comissario_id")
+
+        if mexe_no_comissario:
+            crianca.comissario_id = dados.comissario_id
+            mudou.append("comissario_id")
 
     try:
         db.flush()
@@ -307,7 +439,8 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
     atualizadas = db.scalars(
         select(Crianca)
         .where(Crianca.id.in_([c.id for c in criancas]))
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
+                 joinedload(Crianca.comissario))
         .order_by(Crianca.nome)
     ).all()
     panorama = _panorama(db, [c.id for c in atualizadas])
@@ -353,7 +486,8 @@ def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
             Crianca.edicao_id == dados.edicao_id,
             Crianca.instituicao_id == dados.instituicao_id,
         )
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
+                 joinedload(Crianca.comissario))
     ).all()
 
     if not criancas:
@@ -397,7 +531,8 @@ def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
             Crianca.edicao_id == dados.edicao_id,
             Crianca.instituicao_id == dados.instituicao_id,
         )
-        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento),
+                 joinedload(Crianca.comissario))
         .order_by(Crianca.codigo)
     ).all()
     panorama = _panorama(db, [c.id for c in atualizadas])
@@ -414,6 +549,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
             joinedload(Crianca.instituicao),
             joinedload(Crianca.dia_evento),
             joinedload(Crianca.edicao),
+            joinedload(Crianca.comissario),
         )
     )
     if crianca is None:
@@ -463,6 +599,9 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
+        desistiu_em=crianca.desistiu_em,
+        comissario_id=crianca.comissario_id,
+        comissario=crianca.comissario.nome if crianca.comissario else None,
         padrinhos=padrinhos,
         cartoes=[
             CartaoDaCrianca(
@@ -517,6 +656,11 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: Editar):
     crianca = _buscar(db, ctx, crianca_id, "editar_criancas")
 
     mudancas = dados.model_dump(exclude_unset=True)
+
+    # O responsavel passa pela conferencia do time antes de entrar.
+    if mudancas.get("comissario_id") is not None:
+        _conferir_comissario(db, mudancas["comissario_id"], [crianca])
+
     for campo, valor in mudancas.items():
         setattr(crianca, campo, " ".join(valor.split()) if campo == "nome" and valor else valor)
 
@@ -535,6 +679,39 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: Editar):
     )
     db.commit()
     return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"))
+
+
+@router.patch("/{crianca_id}/desistencia", response_model=CriancaOut)
+def desistencia(crianca_id: int, dados: DesistenciaIn, db: BD, ctx: Editar):
+    """Marca (ou desmarca) que a crianca desistiu de ir ao evento.
+
+    Nao apaga nada: o kit, os cartoes e o apadrinhamento dela continuam onde
+    estavam. E so uma marca, para a planilha mostrar riscado quem nao vai mais
+    sem perder o nome de vista. Desmarcar devolve tudo como era.
+    """
+    crianca = _buscar(db, ctx, crianca_id, "editar_criancas")
+
+    ja_estava = crianca.desistiu_em is not None
+    if dados.desistiu and not ja_estava:
+        crianca.desistiu_em = datetime.now(UTC)
+        crianca.desistiu_por = ctx.usuario.id
+    elif not dados.desistiu:
+        crianca.desistiu_em = None
+        crianca.desistiu_por = None
+
+    if dados.desistiu != ja_estava:
+        registrar(
+            db,
+            "crianca_desistiu" if dados.desistiu else "crianca_voltou",
+            usuario_id=ctx.usuario.id,
+            tabela="criancas",
+            registro_id=crianca.id,
+            detalhes={"codigo": crianca.codigo, "nome": crianca.nome},
+        )
+    db.commit()
+
+    panorama = _panorama(db, [crianca.id])
+    return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"), panorama.get(crianca.id))
 
 
 @router.delete("/{crianca_id}", status_code=status.HTTP_204_NO_CONTENT)

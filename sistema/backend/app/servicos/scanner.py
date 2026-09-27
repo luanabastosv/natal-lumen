@@ -1,8 +1,15 @@
-"""Digitalizacao do cartao (OpenCV) e leitura do nome (EasyOCR).
+"""Digitalizacao do cartao: corrige a perspectiva da foto.
 
-O cartao chega como foto de celular, torta e com o fundo da mesa em volta. Aqui
-ele vira uma imagem so do cartao, com a perspectiva corrigida, e o nome escrito
-nele e lido para o monitor conferir.
+O cartao chega como foto de celular, torta e com o fundo da mesa em volta.
+Aqui ele vira uma imagem so do cartao, endireitada.
+
+Houve OCR aqui — o EasyOCR lia o nome escrito no cartao para o monitor
+conferir. Saiu. Duas razoes: errava (num cartao de teste com "BRUNO" escrito,
+leu "INPI"), e a identificacao passou a ser pelo CODIGO no nome do arquivo,
+que e exato. Junto com ele sairam 609 MB de disco (torch, torchvision,
+easyocr) e 884 MB de RAM por worker — o app inteiro cabe em 152 MB agora.
+
+O que sobrou custa ~1 ms por cartao.
 """
 
 import io
@@ -16,24 +23,6 @@ AVISO_SEM_BORDAS = "bordas nao detectadas"
 
 # Um contorno so e aceito como o cartao se ocupar ao menos esta fatia da foto.
 AREA_MINIMA_DO_CARTAO = 0.20
-
-# O EasyOCR carrega os modelos do disco: caro demais para fazer por pedido.
-_leitor = None
-
-
-def iniciar_leitor():
-    """Carrega o EasyOCR em portugues. Chamado uma vez, ao subir o servidor."""
-    global _leitor
-    if _leitor is None:
-        import easyocr
-
-        _leitor = easyocr.Reader(["pt"], gpu=False)
-    return _leitor
-
-
-def obter_leitor():
-    return _leitor if _leitor is not None else iniciar_leitor()
-
 
 # ---------------------------------------------------------------- imagem
 
@@ -119,114 +108,3 @@ def digitalizar(imagem: np.ndarray):
     )
     matriz = cv2.getPerspectiveTransform(cantos, destino)
     return cv2.warpPerspective(imagem, matriz, (largura, altura)), None
-
-
-# ---------------------------------------------------------------- OCR
-
-def ler_textos(imagem: np.ndarray) -> list[dict]:
-    """Roda o OCR e devolve os textos com confianca e posicao."""
-    textos = []
-    for caixa, texto, confianca in obter_leitor().readtext(imagem):
-        ys = [p[1] for p in caixa]
-        xs = [p[0] for p in caixa]
-        textos.append(
-            {
-                "texto": texto.strip(),
-                "confianca": round(float(confianca), 3),
-                "altura": round(float(max(ys) - min(ys)), 1),
-                "topo": round(float(min(ys)), 1),
-                "esquerda": round(float(min(xs)), 1),
-            }
-        )
-    return textos
-
-
-# --- Heuristica do nome sugerido -------------------------------------------
-# Isolada de proposito: ajuste os numeros abaixo conforme os cartoes reais.
-
-CONFIANCA_MINIMA = 0.30
-TAMANHO_MINIMO = 3
-ROTULO_NOME = re.compile(r"\bnomes?\b\s*:?\s*", re.IGNORECASE)
-
-# Duas caixas estao na mesma linha se os topos diferirem menos do que esta
-# fracao da altura. Aumente se nomes continuarem a sair partidos.
-TOLERANCIA_MESMA_LINHA = 0.6
-
-
-def _parece_nome(texto: str) -> bool:
-    letras = sum(1 for c in texto if c.isalpha())
-    return letras >= TAMANHO_MINIMO and letras >= len(texto.replace(" ", "")) / 2
-
-
-def _juntar_mesma_linha(textos: list[dict]) -> list[dict]:
-    """Junta caixas da mesma linha num texto so.
-
-    O EasyOCR costuma partir "BRUNO LIMA" em duas caixas; sem isto a heuristica
-    escolheria apenas "BRUNO".
-    """
-    linhas: list[list[dict]] = []
-
-    for item in sorted(textos, key=lambda t: (t["topo"], t["esquerda"])):
-        for linha in linhas:
-            referencia = linha[0]
-            limite = TOLERANCIA_MESMA_LINHA * max(referencia["altura"], item["altura"], 1)
-            if abs(item["topo"] - referencia["topo"]) <= limite:
-                linha.append(item)
-                break
-        else:
-            linhas.append([item])
-
-    juntados = []
-    for linha in linhas:
-        linha.sort(key=lambda t: t["esquerda"])
-        juntados.append(
-            {
-                "texto": " ".join(t["texto"] for t in linha).strip(),
-                "confianca": min(t["confianca"] for t in linha),
-                "altura": max(t["altura"] for t in linha),
-                "topo": min(t["topo"] for t in linha),
-                "esquerda": min(t["esquerda"] for t in linha),
-            }
-        )
-    return juntados
-
-
-def escolher_nome_sugerido(textos: list[dict]) -> str:
-    """Escolhe qual dos textos detectados e provavelmente o nome da crianca.
-
-    Por ordem:
-      1. Se o cartao tiver "Nome:", usa o que vem depois do rotulo — na mesma
-         linha ou na de baixo.
-      2. Senao, a linha com a maior altura de letra (nomes sao escritos grandes).
-    Textos curtos, com confianca baixa ou que sao so numeros saem antes.
-    """
-    linhas = _juntar_mesma_linha(textos)
-
-    candidatos = [
-        t
-        for t in linhas
-        if t["confianca"] >= CONFIANCA_MINIMA
-        and len(t["texto"]) >= TAMANHO_MINIMO
-        and _parece_nome(t["texto"])
-    ]
-
-    for indice, item in enumerate(linhas):
-        if not ROTULO_NOME.search(item["texto"]):
-            continue
-
-        depois = ROTULO_NOME.sub("", item["texto"], count=1).strip()
-        if len(depois) >= TAMANHO_MINIMO:
-            return depois
-
-        seguintes = sorted(
-            (t for i, t in enumerate(linhas) if i != indice and _parece_nome(t["texto"])),
-            key=lambda t: t["topo"],
-        )
-        for seguinte in seguintes:
-            if seguinte["topo"] >= item["topo"]:
-                return seguinte["texto"]
-
-    if candidatos:
-        return max(candidatos, key=lambda t: t["altura"])["texto"]
-
-    return ""

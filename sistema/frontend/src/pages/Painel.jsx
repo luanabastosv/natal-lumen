@@ -48,14 +48,26 @@ export default function Painel() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">
-        {vinculoAtivo
-          ? `${vinculoAtivo.cidade} ${vinculoAtivo.ano} · ${vinculoAtivo.perfil}`
-          : usuario?.admin_geral
-            ? "Administração geral"
-            : "Sem edição vinculada"}
+      {/* Card de abertura: no layout Sidebar e ele que faz o papel do
+          cabecalho, carregando saudacao e contexto. So existe na home. */}
+      <div className="abertura">
+        <h1 className="abertura__titulo">
+          Olá, <span className="abertura__nome">{primeiroNome(usuario?.nome)}</span>!
+        </h1>
+        <p className="abertura__lede">
+          Acompanhe o panorama da edição e siga para o que precisa da sua mão.
+        </p>
+        <div className="abertura__contexto">
+          <span className="chip">
+            {vinculoAtivo
+              ? `${vinculoAtivo.cidade} ${vinculoAtivo.ano}`
+              : usuario?.admin_geral
+                ? "Administração geral"
+                : "Sem edição vinculada"}
+          </span>
+          {vinculoAtivo && <span className="chip chip--discreto">{vinculoAtivo.perfil}</span>}
+        </div>
       </div>
-      <h1 className="pagina__titulo">Olá, {primeiroNome(usuario?.nome)}</h1>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
 

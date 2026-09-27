@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
+import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import {
+  apagarInstituicao,
   criarInstituicao,
   definirDiaDaInstituicao,
+  dependenciasDaInstituicao,
   editarInstituicao,
   listarCidades,
   listarDias,
@@ -16,6 +19,13 @@ import {
 } from "../services/cadastros.js";
 import { formatarData } from "../utils/dinheiro.js";
 import { useSessao } from "../contexts/useSessao.js";
+
+/* O que a janela de exclusao diz alem da conta. Desativar e quase sempre o
+   caminho certo: guarda o historico e tira a instituicao do ano corrente. */
+const NOTA_INSTITUICAO =
+  "A conta é de todas as edições, não só da que está aberta aqui: o cadastro " +
+  "da instituição é um só e atravessa os anos. Se ela apenas não participa " +
+  "deste ano, desative em vez de apagar.";
 
 const VAZIO = {
   cidade_id: "",
@@ -39,6 +49,11 @@ export default function Instituicoes() {
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
   const [sucesso, definirSucesso] = useState("");
+
+  // A exclusao em curso: { registro, dependencias, erro, apagando }. Num
+  // objeto so para a conta que chega do servidor nunca aparecer em cima do
+  // nome de outra instituicao, se o alvo trocar com a resposta no ar.
+  const [exclusao, definirExclusao] = useState(null);
 
   const [formularioAberto, definirFormularioAberto] = useState(false);
   const [emEdicao, definirEmEdicao] = useState(null);
@@ -149,8 +164,17 @@ export default function Instituicoes() {
         );
       }
 
+      // Quando a sigla muda, o codigo das criancas muda junto — quem acabou de
+      // salvar precisa saber, porque a planilha impressa ficou velha.
+      const codigos = salva.codigos_atualizados ?? 0;
       definirSucesso(
-        emEdicao ? `${salva.nome} atualizada.` : `${salva.nome} cadastrada.`,
+        emEdicao
+          ? codigos > 0
+            ? `${salva.nome} atualizada. ${codigos} ${
+                codigos === 1 ? "código passou" : "códigos passaram"
+              } a começar com ${salva.sigla} — listas e crachás já impressos ficaram desatualizados.`
+            : `${salva.nome} atualizada.`
+          : `${salva.nome} cadastrada.`,
       );
       definirFormularioAberto(false);
       buscar();
@@ -170,6 +194,37 @@ export default function Instituicoes() {
       );
     } catch (e) {
       definirErro(e.message);
+    }
+  }
+
+  async function pedirExclusao(inst) {
+    definirErro("");
+    definirSucesso("");
+    definirExclusao({ registro: inst, dependencias: null, erro: "", apagando: false });
+    try {
+      const conta = await dependenciasDaInstituicao(inst.id);
+      definirExclusao((atual) =>
+        atual && atual.registro.id === inst.id
+          ? { ...atual, dependencias: conta }
+          : atual,
+      );
+    } catch (e) {
+      definirExclusao((atual) => (atual ? { ...atual, erro: e.message } : atual));
+    }
+  }
+
+  async function confirmarExclusao() {
+    const inst = exclusao.registro;
+    definirExclusao((atual) => ({ ...atual, apagando: true, erro: "" }));
+    try {
+      await apagarInstituicao(inst.id);
+      definirInstituicoes((lista) => lista.filter((i) => i.id !== inst.id));
+      definirSucesso(`${inst.nome} apagada.`);
+      definirExclusao(null);
+    } catch (e) {
+      definirExclusao((atual) =>
+        atual ? { ...atual, apagando: false, erro: e.message } : atual,
+      );
     }
   }
 
@@ -243,7 +298,11 @@ export default function Instituicoes() {
               value={campos.sigla}
               onChange={(e) => mudar("sigla", e.target.value.toUpperCase())}
               maxLength={6}
-              dica='Prefixo do código das crianças. "ES" gera ES00, ES01... Em branco, o sistema sugere.'
+              dica={
+                emEdicao && emEdicao.criancas > 0
+                  ? `Prefixo do código das crianças. Mudar a sigla troca o prefixo das ${emEdicao.criancas} crianças já cadastradas (ES04 vira SL04); o número de cada uma continua o mesmo.`
+                  : 'Prefixo do código das crianças. "ES" gera ES00, ES01... Em branco, o sistema sugere.'
+              }
             />
 
             {/* O dia e por edicao, e por isso depende da edicao escolhida na
@@ -287,7 +346,7 @@ export default function Instituicoes() {
             />
 
             <div className="barra-acoes barra-acoes--fim">
-              <Button type="submit" carregando={salvando} disabled={!campos.nome.trim()}>
+              <Button variant="secondary" type="submit" carregando={salvando} disabled={!campos.nome.trim()}>
                 {salvando ? "Salvando..." : "Salvar"}
               </Button>
               <Button
@@ -352,6 +411,9 @@ export default function Instituicoes() {
                       <Button size="sm" variant="ghost" onClick={() => alternarAtivo(i)}>
                         {i.ativo ? "Desativar" : "Ativar"}
                       </Button>
+                      <Button size="sm" variant="ghost" onClick={() => pedirExclusao(i)}>
+                        Apagar
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -359,6 +421,19 @@ export default function Instituicoes() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {exclusao && (
+        <ConfirmarExclusao
+          rotulo="Instituição"
+          nome={exclusao.registro.nome}
+          dependencias={exclusao.dependencias}
+          nota={NOTA_INSTITUICAO}
+          erro={exclusao.erro}
+          apagando={exclusao.apagando}
+          aoConfirmar={confirmarExclusao}
+          aoFechar={() => definirExclusao(null)}
+        />
       )}
     </div>
   );

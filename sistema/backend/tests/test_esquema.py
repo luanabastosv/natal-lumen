@@ -201,7 +201,7 @@ def main() -> None:
 
         print("\nAcesso")
         perfil_comissario = db.query(Perfil).filter_by(nome="Comissario").one()
-        verifica("seed criou o perfil Comissario com 6 permissoes", len(perfil_comissario.permissoes) == 6)
+        verifica("seed criou o perfil Comissario com 4 permissoes", len(perfil_comissario.permissoes) == 4)
 
         user = Usuario(nome=f"{MARCA} Maria", email=f"{MARCA.lower()}@exemplo.org")
         db.add(user)

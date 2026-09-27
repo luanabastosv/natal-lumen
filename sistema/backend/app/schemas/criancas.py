@@ -23,6 +23,9 @@ class CriancaEditar(BaseModel):
     idade: int | None = Field(default=None, ge=0, le=21)
     sexo: str | None = Field(default=None, pattern="^[MF]$")
     observacoes: str | None = None
+    # Comissario responsavel. Mandar null limpa o responsavel; nao mandar o
+    # campo nao o toca — a diferenca sai de model_fields_set, no router.
+    comissario_id: int | None = None
     # Sem dia aqui de proposito: mudar o dia de UMA crianca deixaria duas da
     # mesma escola em dias diferentes. O dia se muda na instituicao.
 
@@ -40,6 +43,12 @@ class CriancaOut(BaseModel):
     dia_evento: date | None
     observacoes: str | None
     checkin_em: datetime | None
+    # Preenchido = desistiu de ir. Aparece riscada na planilha, mas continua nela.
+    desistiu_em: datetime | None = None
+
+    # Quem responde por esta crianca. Nulo = ninguem do time ainda pegou.
+    comissario_id: int | None = None
+    comissario: str | None = None
 
     # O panorama da crianca, para a tela ser um painel de controle e nao so
     # uma lista de nomes.
@@ -95,6 +104,10 @@ class CriancasEmLote(BaseModel):
 
     criancas: list[int] = Field(min_length=1)
     instituicao_id: int | None = None
+    # Comissario responsavel. Como em CriancaEditar, null limpa e ausente nao
+    # toca: distribuir 200 criancas entre 3 comissarios uma a uma nao e
+    # trabalho que alguem faca.
+    comissario_id: int | None = None
 
 
 class ResumoInstituicao(BaseModel):
@@ -105,9 +118,16 @@ class ResumoInstituicao(BaseModel):
     criancas: int
     sem_padrinho: int
     sem_cartao: int
+    sem_comissario: int = 0
     # O dia marcado para esta instituicao nesta edicao.
     dia_evento_id: int | None = None
     dia_evento: date | None = None
+
+
+class DesistenciaIn(BaseModel):
+    """Marca ou desmarca que a crianca desistiu de ir ao evento."""
+
+    desistiu: bool
 
 
 class RenumerarIn(BaseModel):
@@ -156,6 +176,10 @@ class CriancaDetalhe(BaseModel):
     dia_evento: date | None
     observacoes: str | None
     checkin_em: datetime | None
+    desistiu_em: datetime | None = None
+
+    comissario_id: int | None = None
+    comissario: str | None = None
 
     padrinhos: list[PadrinhoDaCrianca]
     cartoes: list[CartaoDaCrianca]
@@ -165,3 +189,16 @@ class CriancaDetalhe(BaseModel):
     # O contato do padrinho so aparece para quem tem ver_padrinhos. Sem isto,
     # um monitor veria o telefone de todos os doadores.
     pode_ver_contato: bool
+
+
+class ComissarioDoTime(BaseModel):
+    """Um comissario que atende esta instituicao nesta edicao.
+
+    E a lista de quem pode ser posto como responsavel de uma crianca dali.
+    """
+
+    id: int
+    nome: str
+    # As instituicoes da edicao que este comissario atende. A tela usa para
+    # montar um so seletor por instituicao sem voltar ao servidor a cada aba.
+    instituicoes: list[int]

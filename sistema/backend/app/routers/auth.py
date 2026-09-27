@@ -222,8 +222,9 @@ def esqueci_senha(dados: EsqueciSenhaIn, db: BD):
     db.commit()
 
     # O envio por email entra quando houver servidor de email configurado.
-    # Ate la, em desenvolvimento, o link volta na resposta.
-    if not config.em_producao:
+    # Ate la, em desenvolvimento, o link volta na resposta. Em homologacao
+    # NAO: o dominio e publico, e quem soubesse um email entraria na conta.
+    if config.mostra_link_de_senha:
         resposta.link = f"/acesso/definir-senha?token={token}"
 
     return resposta

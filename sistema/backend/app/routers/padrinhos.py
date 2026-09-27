@@ -11,18 +11,21 @@ from decimal import Decimal
 DOIS_DECIMAIS = Decimal("0.01")
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.config import config
 from app.database import get_db
-from app.models import Apadrinhamento, Crianca, Edicao, Padrinho, Pagamento
+from app.models import Apadrinhamento, Crianca, Edicao, EnvioCartao, Padrinho, Pagamento
 from app.models.tipos import TipoApadrinhamento
 from app.schemas.padrinhos import (
     ApadrinhamentoEditar,
     ApadrinhamentoIn,
     ApadrinhamentoResumo,
+    EnvioCartaoOut,
     PadrinhoEditar,
     PadrinhoIn,
     PadrinhoOut,
@@ -34,7 +37,9 @@ from app.schemas.padrinhos import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
+from app.servicos import agradecimento, arquivos, drive, whatsapp
 from app.servicos.log import registrar
+from app.servicos.upload import ler_limitado
 
 router = APIRouter(tags=["padrinhos"])
 
@@ -80,6 +85,9 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
 
     for a in padrinho.apadrinhamentos:
         quitado = a.pagamento_id is not None
+        # O mais recente manda: uma falha seguida de reenvio bem-sucedido
+        # tem de aparecer como enviado.
+        ultimo = max(a.envios, key=lambda e: e.criado_em, default=None)
         combinado += a.valor
         if quitado:
             pago += a.valor
@@ -88,11 +96,15 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
                 id=a.id,
                 crianca_id=a.crianca_id,
                 crianca_primeiro_nome=a.crianca.primeiro_nome,
+                crianca_codigo=a.crianca.codigo,
+                crianca_nome=a.crianca.nome,
                 crianca_idade=a.crianca.idade,
                 tipo=a.tipo,
                 valor=a.valor,
                 pago=quitado,
                 vai_ao_evento=a.vai_ao_evento,
+                cartao_status=ultimo.status if ultimo else None,
+                cartao_enviado_em=ultimo.criado_em if ultimo else None,
             )
         )
 
@@ -122,6 +134,7 @@ def _carregar(db: Session, padrinho_id: int, ctx: ContextoAcesso, permissao: str
         .options(
             joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
+            selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
         )
     )
     if padrinho is None:
@@ -160,6 +173,7 @@ def listar_padrinhos(
         .options(
             joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
+            selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
         )
         .order_by(Padrinho.nome)
         .offset((pagina - 1) * por_pagina)
@@ -282,6 +296,144 @@ def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
     return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
 
 
+def _apadrinhamento_do_cartao(db: Session, apadrinhamento_id: int, ctx: ContextoAcesso):
+    """Busca o apadrinhamento conferindo os dois alcances que o cartao exige."""
+    apadrinhamento = db.scalar(
+        select(Apadrinhamento)
+        .join(Padrinho, Apadrinhamento.padrinho_id == Padrinho.id)
+        .where(
+            Apadrinhamento.id == apadrinhamento_id,
+            _filtro_padrinhos(ctx, "ver_padrinhos"),
+        )
+        .options(
+            joinedload(Apadrinhamento.crianca).joinedload(Crianca.instituicao),
+            joinedload(Apadrinhamento.crianca).joinedload(Crianca.dia_evento),
+            joinedload(Apadrinhamento.padrinho)
+            .joinedload(Padrinho.edicao)
+            .joinedload(Edicao.cidade),
+        )
+    )
+    if apadrinhamento is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Apadrinhamento nao encontrado.")
+
+    # O cartao leva nome, codigo e instituicao da crianca — mais do que a tela
+    # de padrinhos mostra de proposito. Por isso exige tambem ver_criancas, e
+    # na edicao DA CRIANCA: quem so cuida de padrinhos nao le a ficha dela por
+    # este caminho.
+    if not ctx.alcanca_edicao(apadrinhamento.crianca.edicao_id, "ver_criancas"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Voce precisa alcancar as criancas desta edicao para gerar o cartao.",
+        )
+    return apadrinhamento
+
+
+def _montar_cartao(apadrinhamento) -> tuple[bytes, str]:
+    """PNG do cartao e o nome do arquivo. Montado na hora, nada fica guardado."""
+    crianca = apadrinhamento.crianca
+    edicao = apadrinhamento.padrinho.edicao
+    png = agradecimento.gerar(
+        crianca_nome=crianca.nome,
+        crianca_codigo=crianca.codigo,
+        instituicao=crianca.instituicao.nome,
+        dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+        cidade=edicao.cidade.nome,
+        ano=edicao.ano,
+    )
+    return png, agradecimento.nome_do_arquivo(crianca.codigo, crianca.nome)
+
+
+@router.get("/apadrinhamentos/{apadrinhamento_id}/agradecimento")
+def cartao_de_agradecimento(apadrinhamento_id: int, db: BD, ctx: Ver):
+    """PNG de agradecimento desta crianca, para baixar e mandar a mao."""
+    apadrinhamento = _apadrinhamento_do_cartao(db, apadrinhamento_id, ctx)
+    png, nome = _montar_cartao(apadrinhamento)
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
+
+
+@router.post(
+    "/apadrinhamentos/{apadrinhamento_id}/agradecimento/enviar",
+    response_model=EnvioCartaoOut,
+)
+def enviar_cartao(apadrinhamento_id: int, db: BD, ctx: Editar):
+    """Manda o cartao ao WhatsApp do padrinho pela Cloud API da Meta.
+
+    Exige editar_padrinhos, e nao so ver: isto gasta dinheiro (a Meta cobra
+    por conversa) e chega no telefone de um doador. Nao e uma leitura.
+
+    A tentativa fica gravada mesmo quando falha — sem isso ninguem descobre
+    que o numero de um padrinho esta errado.
+    """
+    apadrinhamento = _apadrinhamento_do_cartao(db, apadrinhamento_id, ctx)
+    padrinho = apadrinhamento.padrinho
+    telefone = whatsapp.telefone_e164(padrinho.whatsapp)
+
+    if not telefone:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Este padrinho nao tem um WhatsApp valido cadastrado.",
+        )
+
+    if not whatsapp.configurado():
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "O envio pelo WhatsApp nao esta configurado neste servidor. "
+            "Use o botao de baixar o cartao.",
+        )
+
+    png, nome_arquivo = _montar_cartao(apadrinhamento)
+
+    envio = EnvioCartao(
+        apadrinhamento_id=apadrinhamento.id,
+        telefone=telefone,
+        status="falhou",
+        enviado_por=ctx.usuario.id,
+    )
+
+    try:
+        enviado = whatsapp.enviar_cartao(
+            telefone=telefone,
+            png=png,
+            nome_arquivo=nome_arquivo,
+            padrinho_nome=padrinho.nome.split(" ")[0],
+            crianca_nome=apadrinhamento.crianca.primeiro_nome,
+        )
+    except whatsapp.ErroWhatsapp as erro:
+        envio.erro = f"{erro.mensagem} {erro.detalhe}".strip()
+        db.add(envio)
+        registrar(
+            db, "cartao_envio_falhou", usuario_id=ctx.usuario.id,
+            tabela="apadrinhamentos", registro_id=apadrinhamento.id,
+            detalhes={"erro": erro.mensagem, "codigo": erro.codigo},
+        )
+        db.commit()
+        # 502: quem falhou foi a Meta, nao o pedido de quem clicou.
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, envio.erro)
+
+    envio.status = "enviado"
+    envio.mensagem_id = enviado.mensagem_id
+    db.add(envio)
+    registrar(
+        db, "cartao_enviado", usuario_id=ctx.usuario.id,
+        tabela="apadrinhamentos", registro_id=apadrinhamento.id,
+        detalhes={"telefone": telefone, "mensagem_id": enviado.mensagem_id},
+    )
+    db.commit()
+    db.refresh(envio)
+
+    return EnvioCartaoOut(
+        apadrinhamento_id=apadrinhamento.id,
+        status=envio.status,
+        telefone=telefone,
+        mensagem_id=envio.mensagem_id,
+        enviado_em=envio.criado_em,
+    )
+
+
 @router.patch("/apadrinhamentos/{apadrinhamento_id}", response_model=PadrinhoOut)
 def editar_apadrinhamento(
     apadrinhamento_id: int, dados: ApadrinhamentoEditar, db: BD, ctx: Editar
@@ -341,6 +493,7 @@ def _saida_pagamento(pagamento: Pagamento) -> PagamentoOut:
         forma=pagamento.forma,
         conferido=pagamento.conferido,
         comprovante_arquivo=pagamento.comprovante_arquivo,
+        comprovante_drive_link=pagamento.comprovante_drive_link,
         apadrinhamentos=[a.id for a in pagamento.apadrinhamentos],
     )
 
@@ -482,6 +635,14 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Pagar):
     for a in pagamento.apadrinhamentos:
         a.pagamento_id = None
 
+    # O comprovante sai do disco junto: sem a linha, ninguem mais alcanca o
+    # arquivo, e ele ficaria ocupando lugar para sempre.
+    if pagamento.comprovante_arquivo:
+        try:
+            arquivos.dentro_da_pasta(pagamento.comprovante_arquivo).unlink(missing_ok=True)
+        except ValueError:
+            pass
+
     registrar(
         db, "pagamento_apagado", usuario_id=ctx.usuario.id,
         tabela="pagamentos", registro_id=pagamento.id,
@@ -489,3 +650,129 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Pagar):
     )
     db.delete(pagamento)
     db.commit()
+
+
+# ------------------------------------------------------------- comprovantes
+
+# Comprovante e foto de tela ou PDF do banco. Nada mais entra: o arquivo fica
+# guardado para conferencia e nunca e executado, mas aceitar qualquer extensao
+# convida a usar a pasta como deposito.
+EXTENSOES_COMPROVANTE = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "application/pdf": ".pdf",
+}
+
+
+@router.post("/pagamentos/{pagamento_id}/comprovante", response_model=PagamentoOut)
+async def subir_comprovante(
+    pagamento_id: int,
+    db: BD,
+    ctx: Pagar,
+    arquivo: UploadFile = File(...),
+):
+    """Guarda o comprovante deste pagamento.
+
+    Fica separado do POST /pagamentos de proposito: o pagamento e o vinculo
+    com os apadrinhamentos sao a parte que nao pode falhar, e misturar o
+    upload nela faria um arquivo grande demais derrubar a quitacao junto.
+    Sem comprovante o pagamento existe; o comprovante entra depois, e pode ser
+    trocado quantas vezes for preciso.
+    """
+    pagamento = db.get(Pagamento, pagamento_id)
+    if pagamento is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pagamento nao encontrado.")
+
+    padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
+
+    extensao = EXTENSOES_COMPROVANTE.get(arquivo.content_type or "")
+    if extensao is None:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "O comprovante precisa ser uma imagem (JPG ou PNG) ou um PDF.",
+        )
+
+    conteudo = await ler_limitado(arquivo)
+
+    pasta = arquivos.pasta_dos_comprovantes(padrinho.edicao.cidade.nome, padrinho.edicao.ano)
+    pasta.mkdir(parents=True, exist_ok=True)
+    destino = arquivos.caminho_disponivel(
+        pasta, arquivos.nome_do_comprovante(padrinho.nome, pagamento.data, extensao)
+    )
+    destino.write_bytes(conteudo)
+
+    # O anterior sai do disco: trocar o comprovante duas vezes deixaria dois
+    # arquivos orfaos que ninguem mais alcanca.
+    antigo = pagamento.comprovante_arquivo
+    pagamento.comprovante_arquivo = str(destino.relative_to(config.caminho_arquivos))
+
+    if antigo:
+        try:
+            arquivos.dentro_da_pasta(antigo).unlink(missing_ok=True)
+        except ValueError:
+            pass
+
+    registrar(
+        db, "comprovante_subido", usuario_id=ctx.usuario.id,
+        tabela="pagamentos", registro_id=pagamento.id,
+        detalhes={"arquivo": pagamento.comprovante_arquivo},
+    )
+
+    # O Drive e espelho, nunca o original. Ja esta gravado em disco a esta
+    # altura, entao uma falha aqui NAO derruba a requisicao: o comprovante
+    # vale do mesmo jeito, e subir o arquivo de novo refaz a tentativa.
+    pagamento.comprovante_drive_id = None
+    pagamento.comprovante_drive_link = None
+
+    if drive.configurado():
+        try:
+            enviado = drive.enviar(
+                conteudo,
+                arquivos.nome_do_comprovante_drive(
+                    padrinho.edicao.cidade.nome,
+                    padrinho.edicao.ano,
+                    padrinho.nome,
+                    pagamento.data,
+                    extensao,
+                ),
+                arquivo.content_type or "application/octet-stream",
+            )
+            pagamento.comprovante_drive_id = enviado.id
+            pagamento.comprovante_drive_link = enviado.link
+            registrar(
+                db, "comprovante_no_drive", usuario_id=ctx.usuario.id,
+                tabela="pagamentos", registro_id=pagamento.id,
+                detalhes={"drive_id": enviado.id},
+            )
+        except drive.ErroDrive as erro:
+            # Fica no log para alguem investigar, e a tela mostra que o link
+            # do Drive nao veio.
+            registrar(
+                db, "comprovante_drive_falhou", usuario_id=ctx.usuario.id,
+                tabela="pagamentos", registro_id=pagamento.id,
+                detalhes={"erro": erro.mensagem, "detalhe": erro.detalhe[:200]},
+            )
+
+    db.commit()
+    db.refresh(pagamento)
+    return _saida_pagamento(pagamento)
+
+
+@router.get("/pagamentos/{pagamento_id}/comprovante")
+def baixar_comprovante(pagamento_id: int, db: BD, ctx: Pagar):
+    """Devolve o comprovante. Unica porta para o arquivo, sempre autenticada."""
+    pagamento = db.get(Pagamento, pagamento_id)
+    if pagamento is None or not pagamento.comprovante_arquivo:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comprovante nao encontrado.")
+
+    _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
+
+    try:
+        caminho = arquivos.dentro_da_pasta(pagamento.comprovante_arquivo)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comprovante nao encontrado.")
+
+    if not caminho.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comprovante nao encontrado.")
+
+    return FileResponse(caminho, filename=caminho.name)

@@ -17,7 +17,29 @@ export const criarApadrinhamento = (dados) => api.post("/apadrinhamentos", dados
 export const editarApadrinhamento = (id, dados) => api.patch(`/apadrinhamentos/${id}`, dados);
 export const apagarApadrinhamento = (id) => api.delete(`/apadrinhamentos/${id}`);
 
+/** Baixa o cartao de agradecimento desta crianca, pronto para o WhatsApp. */
+export const baixarAgradecimento = (id) =>
+  api.baixar(`/apadrinhamentos/${id}/agradecimento`);
+
+/** O mesmo cartao, como blob — para compartilhar em vez de so salvar. */
+export const obterAgradecimento = (id) =>
+  api.blob(`/apadrinhamentos/${id}/agradecimento`);
+
+/** Manda o cartao ao WhatsApp do padrinho pela Cloud API da Meta. */
+export const enviarAgradecimento = (id) =>
+  api.post(`/apadrinhamentos/${id}/agradecimento/enviar`);
+
 export const listarPagamentos = (filtros) => comFiltros("/pagamentos", filtros);
+
+/** Sobe o comprovante deste pagamento. Separado do POST /pagamentos: a
+ *  quitacao nao pode falhar por causa de um arquivo grande demais. */
+export function subirComprovante(id, arquivo) {
+  const dados = new FormData();
+  dados.append("arquivo", arquivo);
+  return api.enviarArquivo(`/pagamentos/${id}/comprovante`, dados);
+}
+
+export const baixarComprovante = (id) => api.baixar(`/pagamentos/${id}/comprovante`);
 export const criarPagamento = (dados) => api.post("/pagamentos", dados);
 export const editarPagamento = (id, dados) => api.patch(`/pagamentos/${id}`, dados);
 export const apagarPagamento = (id) => api.delete(`/pagamentos/${id}`);

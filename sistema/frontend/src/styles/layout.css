@@ -1,198 +1,213 @@
-/* Casca do sistema: cabecalho, menu e rodape.
+/* Casca do sistema: barra lateral, coluna de conteudo e rodape.
 
-   O site publico simplesmente esconde o menu abaixo de 860px. Aqui isso nao
-   serve: muitos voluntarios usam o sistema pelo celular. Por isso o menu vira
-   uma gaveta de verdade, com botao, fundo escuro e fecho por Esc. */
+   Com 11 destinos, o layout do DS e o de Sidebar: navegacao vertical fixa,
+   marca no topo, usuario na base, e nenhum cabecalho no topo da pagina. No
+   celular a lateral vira gaveta de verdade, e uma barra fina aparece so para
+   dar de onde abri-la. */
 
 .layout {
   min-height: 100dvh;
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
   background: var(--white);
   font-family: var(--font-body);
 }
 
-/* ---------- Cabecalho ---------- */
-.cabecalho {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 9px 20px;
+/* ---------- Barra lateral ---------- */
+.layout__lateral {
+  width: var(--layout-sidebar-w);
+  flex: none;
   background: var(--navy-700);
   color: var(--white);
+}
+
+.lateral {
   position: sticky;
   top: 0;
-  /* Acima da gaveta (50) e do fundo escuro (40): o botao que abre o menu
-     precisa continuar clicavel para fechar, e o Sair, alcancavel. */
-  z-index: 60;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
 }
 
-.cabecalho__menu-botao {
-  display: none;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  margin-left: -8px;
-  border-radius: var(--radius-sm);
-}
-
-.cabecalho__hamburguer,
-.cabecalho__hamburguer::before,
-.cabecalho__hamburguer::after {
-  display: block;
-  width: 22px;
-  height: 2px;
-  background: var(--white);
-  border-radius: 2px;
-}
-
-.cabecalho__hamburguer {
-  position: relative;
-}
-
-.cabecalho__hamburguer::before,
-.cabecalho__hamburguer::after {
-  content: "";
-  position: absolute;
-}
-
-.cabecalho__hamburguer::before {
-  top: -7px;
-}
-
-.cabecalho__hamburguer::after {
-  top: 7px;
-}
-
-.cabecalho__marca {
+.lateral__marca {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 0 var(--space-3);
+  font-size: 18px;
   font-weight: 800;
-  font-size: 17px;
+  letter-spacing: var(--tracking-titulo);
   white-space: nowrap;
 }
 
-.cabecalho__mascote {
+.lateral__mascote {
   height: 26px;
-  /* Mesmo filtro do site: deixa o mascote em amber. */
-  filter: invert(69%) sepia(84%) saturate(1000%) hue-rotate(360deg);
 }
 
-.cabecalho__direita {
-  margin-left: auto;
+/* ---------- Menu ---------- */
+/* A nav ocupa o meio e rola sozinha se a lista crescer; assim a base fica
+   colada embaixo sem depender da altura da lista. */
+.menu {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  flex-direction: column;
+  gap: 2px;
 }
 
-.cabecalho__edicao {
+.menu__item {
+  display: block;
+  padding: 10px var(--space-3);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy-200);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition:
+    background-color var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+}
+
+.menu__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--white);
+}
+
+/* Branco translucido, como o DS pede: navy sobre navy sumiria. */
+.menu__item--ativo,
+.menu__item--ativo:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--white);
+}
+
+.menu__item:focus-visible {
+  outline: 2px solid var(--focus-ring-dark);
+  outline-offset: -2px;
+}
+
+/* ---------- Base da lateral: edicao e usuario ---------- */
+.lateral__base {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: var(--stroke-hairline) solid rgba(255, 255, 255, 0.14);
+}
+
+.lateral__edicao {
+  width: 100%;
+  padding: 8px var(--space-4);
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 700;
   color: var(--white);
   background: var(--navy-800);
-  border: 1.5px solid var(--navy-600);
+  border: var(--stroke-hairline) solid var(--navy-600);
   border-radius: var(--radius-pill);
-  padding: 7px 14px;
   cursor: pointer;
-  max-width: 190px;
 }
 
-.cabecalho__edicao-fixa {
+.lateral__edicao:focus-visible {
+  outline: 2px solid var(--focus-ring-dark);
+  outline-offset: 2px;
+}
+
+.lateral__edicao-fixa {
+  padding: 0 var(--space-3);
   font-size: 13px;
   font-weight: 700;
   color: var(--cream-500);
-  white-space: nowrap;
 }
 
-.cabecalho__usuario {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--white);
-  white-space: nowrap;
+.lateral__usuario {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
 }
 
-.cabecalho__sair {
-  font-family: var(--font-body);
+.lateral__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--cream-500);
+  background: var(--navy-800);
+  border: var(--stroke-hairline) solid var(--navy-500);
+  border-radius: 50%;
+}
+
+.lateral__usuario-nome {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 700;
-  color: var(--navy-900);
-  background: var(--amber-500);
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 8px 18px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.cabecalho__sair:hover {
-  background: var(--amber-600);
-}
-
-/* ---------- Corpo ---------- */
-.layout__corpo {
-  flex: 1;
-  display: flex;
-  align-items: stretch;
-  position: relative;
-}
-
-.layout__menu {
-  width: 196px;
+/* Sair e a acao menos importante daqui: icone, sem amarelo — o amarelo e do
+   CTA da pagina. */
+.lateral__sair {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
-  border-right: var(--stroke-hairline) solid var(--border-default);
-  padding: var(--space-5) var(--space-3);
-  background: var(--white);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--navy-200);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    background-color var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out);
+}
+
+.lateral__sair:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+}
+
+.lateral__sair:focus-visible {
+  outline: 2px solid var(--focus-ring-dark);
+  outline-offset: 2px;
+}
+
+/* ---------- Coluna de conteudo ---------- */
+.layout__coluna {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .layout__conteudo {
   flex: 1;
   min-width: 0;
-  /* Sem max-width: o sistema e ferramenta de trabalho, e a planilha tem de
-     usar a tela inteira. O texto corrido continua legivel porque .pagina__lede
-     tem largura propria. */
-  padding: var(--space-5) var(--space-5) var(--space-7);
+  width: 100%;
+  /* Coluna larga: o DS a reserva para dashboards e tabelas densas, que e
+     exatamente o que este sistema tem. */
+  max-width: var(--layout-content-wide);
+  padding: var(--space-8) var(--layout-gutter) var(--space-10);
 }
 
+/* Fora do celular estes dois nao existem: a navegacao inteira mora na
+   lateral, que esta sempre aberta. */
+.barra-mobile,
 .layout__fundo {
   display: none;
-}
-
-/* ---------- Menu ---------- */
-.menu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  position: sticky;
-  top: 76px;
-}
-
-.menu__item {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-on-light-secondary);
-  text-decoration: none;
-  padding: 8px 14px;
-  border-radius: var(--radius-pill);
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.menu__item:hover {
-  background: var(--navy-100);
-  color: var(--color-primary);
-}
-
-.menu__item--ativo {
-  background: var(--color-primary);
-  color: var(--white);
-}
-
-.menu__item--ativo:hover {
-  background: var(--color-primary-hover);
-  color: var(--white);
 }
 
 /* ---------- Rodape ---------- */
@@ -202,8 +217,8 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-6);
-  border-top: var(--stroke-hairline) solid var(--border-default);
+  padding: var(--space-4) var(--layout-gutter);
+  border-top: var(--stroke-hairline) solid var(--border-light);
   font-size: var(--size-caption);
   color: var(--text-on-light-muted);
 }
@@ -220,78 +235,102 @@
 }
 
 /* ---------- Celular ---------- */
-/* Mesmo ponto de quebra do site (860px), para os dois envelhecerem juntos. */
-@media (max-width: 860px) {
-  :root {
-    /* Medido no navegador em 390px de largura. */
-    --altura-cabecalho: 48px;
-  }
-
-  .cabecalho {
-    padding: 10px 16px;
+/* O DS recolhe a sidebar para um trilho de 80px so com icones entre 960 e
+   1279px. Aqui ela segue inteira ate 960px: os 11 destinos sao so texto, e um
+   trilho exigiria um jogo de icones que este sistema ainda nao tem. */
+@media (max-width: 960px) {
+  .barra-mobile {
+    display: flex;
+    align-items: center;
     gap: var(--space-3);
-  }
-
-  .cabecalho__menu-botao {
-    display: block;
-  }
-
-  .cabecalho__nome {
-    display: none;
-  }
-
-  .cabecalho__usuario,
-  .cabecalho__edicao-fixa {
-    display: none;
-  }
-
-  .cabecalho__edicao {
-    max-width: 140px;
-    padding: 6px 10px;
-  }
-
-  .layout__menu {
     position: fixed;
-    /* Comeca abaixo do cabecalho: com top 0 o primeiro item do menu ficava
-       escondido atras dele (o cabecalho tem z-index maior, de proposito). */
-    top: var(--altura-cabecalho);
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 56px;
+    padding: 0 var(--space-4);
+    background: var(--navy-700);
+    color: var(--white);
+    z-index: 60;
+  }
+
+  .barra-mobile__menu {
+    padding: 8px;
+    margin-left: -8px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .barra-mobile__hamburguer,
+  .barra-mobile__hamburguer::before,
+  .barra-mobile__hamburguer::after {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--white);
+    border-radius: 2px;
+  }
+
+  .barra-mobile__hamburguer {
+    position: relative;
+  }
+
+  .barra-mobile__hamburguer::before,
+  .barra-mobile__hamburguer::after {
+    content: "";
+    position: absolute;
+  }
+
+  .barra-mobile__hamburguer::before {
+    top: -7px;
+  }
+
+  .barra-mobile__hamburguer::after {
+    top: 7px;
+  }
+
+  .barra-mobile__mascote {
+    height: 22px;
+  }
+
+  .barra-mobile__nome {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: var(--tracking-titulo);
+  }
+
+  /* A lateral vira gaveta, por cima do conteudo. */
+  .layout__lateral {
+    position: fixed;
+    top: 0;
     bottom: 0;
     left: 0;
-    width: 260px;
-    z-index: 50;
-    padding-top: var(--space-4);
+    z-index: 70;
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
-    box-shadow: var(--shadow-lg);
-    overflow-y: auto;
+    transition: transform var(--dur-slow) var(--ease-out);
+    box-shadow: var(--shadow-popover);
   }
 
-  .layout__menu--aberto {
+  .layout__lateral--aberta {
     transform: translateX(0);
   }
 
   .layout__fundo {
     display: block;
     position: fixed;
-    inset: var(--altura-cabecalho) 0 0 0;
-    z-index: 40;
-    background: rgba(13, 35, 82, 0.45);
-    border: none;
+    inset: 0;
+    z-index: 65;
     padding: 0;
+    background: rgba(13, 35, 82, 0.62);
+    border: none;
     cursor: pointer;
   }
 
-  .menu {
-    position: static;
-  }
-
-  .menu__item {
-    padding: 14px 18px;
-    font-size: 16px;
-  }
-
   .layout__conteudo {
-    padding: var(--space-5) var(--space-4) var(--space-7);
+    /* Desce abaixo da barra fixa. */
+    padding: calc(56px + var(--space-6)) var(--space-4) var(--space-9);
   }
 
   .rodape {
@@ -300,7 +339,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .layout__menu {
+  .layout__lateral,
+  .menu__item,
+  .botao {
     transition: none;
   }
 }

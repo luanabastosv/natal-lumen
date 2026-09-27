@@ -2,22 +2,30 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Cidade, Edicao
-from app.schemas.cadastros import CidadeIn, CidadeOut
+from app.schemas.cadastros import CidadeIn, CidadeOut, DependenciasOut
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral
+from app.servicos import exclusao
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/cidades", tags=["cadastros"])
 
 BD = Annotated[Session, Depends(get_db)]
 Admin = Annotated[ContextoAcesso, Depends(exige_admin_geral)]
+
+
+def _buscar(db: Session, cidade_id: int) -> Cidade:
+    cidade = db.get(Cidade, cidade_id)
+    if cidade is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cidade nao encontrada.")
+    return cidade
 
 
 @router.get("", response_model=list[CidadeOut])
@@ -60,9 +68,7 @@ def criar(dados: CidadeIn, db: BD, ctx: Admin):
 
 @router.patch("/{cidade_id}", response_model=CidadeOut)
 def editar(cidade_id: int, dados: CidadeIn, db: BD, ctx: Admin):
-    cidade = db.get(Cidade, cidade_id)
-    if cidade is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cidade nao encontrada.")
+    cidade = _buscar(db, cidade_id)
 
     cidade.nome = dados.nome.strip()
     cidade.uf = dados.uf.upper()
@@ -83,3 +89,53 @@ def editar(cidade_id: int, dados: CidadeIn, db: BD, ctx: Admin):
     db.commit()
     db.refresh(cidade)
     return cidade
+
+
+@router.get("/{cidade_id}/dependencias", response_model=DependenciasOut)
+def dependencias(cidade_id: int, db: BD, ctx: Admin):
+    """O que seria apagado junto com a cidade. A tela pergunta isto antes."""
+    cidade = _buscar(db, cidade_id)
+    return exclusao.resumir(
+        db, cidade.id, f"{cidade.nome} ({cidade.uf})", exclusao.alcance_da_cidade(cidade_id)
+    )
+
+
+@router.delete("/{cidade_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar(
+    cidade_id: int,
+    db: BD,
+    ctx: Admin,
+    confirmar: Annotated[bool, Query()] = False,
+):
+    """Apaga a cidade e, com ela, as edicoes e instituicoes que estao dentro.
+
+    `confirmar` existe para a exclusao nunca acontecer por engano fora da
+    tela: com dados pendurados, o pedido sem confirmacao volta 409 com a conta
+    de quantos sao. O frontend so chega aqui depois de mostrar essa conta no
+    modal.
+    """
+    cidade = _buscar(db, cidade_id)
+    # Lido antes do DELETE: depois dele o objeto nao pode mais ser consultado.
+    nome, uf = cidade.nome, cidade.uf
+
+    resumo = exclusao.resumir(db, cidade_id, nome, exclusao.alcance_da_cidade(cidade_id))
+    if resumo.total and not confirmar:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{nome} tem {resumo.total} registro(s) ligados a ela. "
+            "Confirme a exclusao para apagar tudo junto.",
+        )
+
+    orfaos = exclusao.apagar_cidade(db, cidade_id)
+
+    registrar(
+        db, "cidade_apagada", usuario_id=ctx.usuario.id,
+        tabela="cidades", registro_id=cidade_id,
+        detalhes={
+            "nome": nome,
+            "uf": uf,
+            "levou": {item.chave: item.quantidade for item in resumo.itens},
+        },
+    )
+    db.commit()
+    exclusao.remover_arquivos(orfaos)

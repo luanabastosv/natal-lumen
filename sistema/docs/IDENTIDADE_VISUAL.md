@@ -9,6 +9,10 @@ bundle do design system em `_ds/natal-lumen-design-system-*/`.
 
 ---
 
+> Este documento é sobre **cor, tipografia e tokens**. Como montar a tela
+> (modal x painel, onde vai o CTA, barra de ações) está em
+> [PADROES_UI.md](PADROES_UI.md).
+
 ## 1. Tecnologia de estilização
 
 **CSS puro com variáveis CSS (custom properties). Não há Tailwind, CSS Modules,
@@ -42,10 +46,23 @@ Paleta completa em `site/src/styles/tokens.css`. Escalas base:
 `--navy-600:#204490` · `--navy-500:#3a61a5` · `--navy-400:#6688bd`
 `--navy-300:#9db2d6` · `--navy-200:#c7d3e9` · `--navy-100:#e6ecf6`
 
-**Amber** (ação/destaque)
+**Amber** (ação/destaque) — **no site**
 `--amber-900:#8f6301` · `--amber-800:#b17701` · `--amber-700:#cc8902`
 `--amber-600:#e69c00` · `--amber-500:#ffb000` ← principal · `--amber-400:#ffc23d`
 `--amber-300:#ffd166` · `--amber-200:#ffe3a3` · `--amber-100:#fff3d6`
+
+> ⚠️ **O sistema divergiu aqui.** O amber do site está em matiz **40–41°**: é
+> laranja-âmbar, não o amarelo da logo. (O filtro que o site aplica ao mascote,
+> `invert(69%) sepia(84%) saturate(1000%)`, renderiza `#ffa800` — matiz 40°,
+> ainda mais laranja.) No `sistema/` a escala foi refeita em matiz **46°**, que
+> lê como amarelo de verdade sem perder o calor, e renomeada para `--amarelo-*`
+> para que ninguém use as duas por engano:
+>
+> `--amarelo-900:#7a5c00` · `--amarelo-800:#9c7500` · `--amarelo-700:#c29200`
+> `--amarelo-600:#e0aa00` · `--amarelo-500:#ffc300` ← principal · `--amarelo-400:#ffd23d`
+> `--amarelo-300:#ffdf6b` · `--amarelo-200:#ffecab` · `--amarelo-100:#fff8d9`
+>
+> **O site público não mudou.**
 
 **Cream / neutros**
 `--cream-500:#f2e7d1` · `--cream-300:#f7f0e3` · `--cream-100:#fbf7ee`
@@ -73,10 +90,42 @@ Paleta completa em `site/src/styles/tokens.css`. Escalas base:
 --text-link-hover      navy-800
 ```
 
+### Papéis semânticos **no sistema** (o que mudou)
+
+O sistema não usa `--color-accent` nem amarelo em botão. A tabela acima é a do
+site; no `sistema/frontend/src/styles/tokens.css` valem estes:
+
+```
+--color-cta            = --color-primary  (navy-700)   botão cheio
+--color-cta-hover      = --color-primary-hover
+--color-cta-active     = --color-primary-active
+--color-cta-text       = white
+
+--color-destaque       amarelo-500   preenchimento de elemento
+--color-destaque-forte amarelo-600   borda/hover de elemento
+--surface-destaque     amarelo-100   tinta de fundo (aviso, etiqueta, painel)
+--border-destaque      amarelo-300   borda desses blocos
+
+--text-accent          navy-500      acento de TEXTO (eyebrow, nome, rótulo)
+--focus-ring           navy-700      anel de foco em fundo claro
+--focus-ring-dark      amarelo-500   anel de foco sobre a lateral navy
+
+--color-accent         REMOVIDO      era amarelo em texto
+```
+
+**Duas regras novas, e elas não são negociáveis:**
+
+1. **Amarelo é elemento, nunca tipo.** Preenchimento, borda, ponto, barra, anel
+   de foco sobre navy — sim. Cor de letra — não, nem o `amarelo-900`, que só
+   parecia seguro por ser escuro. Acento de texto é `--text-accent` (navy-500).
+2. **Nenhum botão é amarelo.** O botão cheio é navy com texto branco. Amarelo de
+   fundo obriga texto escuro por cima, e azul sobre amarelo são duas cores
+   saturadas brigando na mesma pílula.
+
 ### Regras de uso (do design system)
 
 - **Branco é o fundo padrão da página.** Navy é para blocos institucionais/escuros.
-- **Amber nunca é fundo de área grande** — só CTA, pílulas, detalhes e acentos.
+- **Amber nunca é fundo de área grande** — só pílulas, detalhes e acentos.
 - **Cream é tinta sutil**, para diferenciar um bloco do branco — não é fundo de página.
 - No máximo **duas cores de fundo por tela**.
 - Sem gradientes. Sem foto como fundo de página inteira.
@@ -97,6 +146,15 @@ Três famílias, todas OTF locais em `site/public/fonts/` (11 arquivos, ~1,2 MB)
 | `--font-body` | **Typold** | Todo o resto. Corpo em 450/400, títulos em 700/800. |
 | `--font-condensed` | **Typold Condensed** | Só rótulos institucionais em CAIXA ALTA, pequenos, com tracking largo. |
 | `--font-extended` | **Typold Extended** | Disponível, sem uso no site atual. |
+
+> **No `sistema/` são quatro.** Entrou `--font-serif` (**Aleo**, variável, 36 KB
+> auto-hospedada) como voz da leitura: lede, mensagens e parágrafo longo. Typold
+> segue sendo a voz da interface. Os papéis não se misturam — ver
+> [PADROES_UI.md § 8](PADROES_UI.md). O site público não mudou.
+>
+> A escala do sistema também divergiu da do site: ela segue o DS de referência
+> (display 36 / h1 28 / h2 22 / h3 18), mais compacta que a do site, porque
+> tela de trabalho não é página de campanha.
 
 Pesos disponíveis do Typold: 400 Regular, 450 Book, 500 Medium, 700 Bold,
 800 ExtraBold, 900 Black. Condensed: 700/800/900. Extended: 700.
@@ -151,6 +209,13 @@ O mascote no header recebe um filtro que o deixa amber:
 ```css
 filter: invert(69%) sepia(84%) saturate(1000%) hue-rotate(360deg);
 ```
+
+> **No sistema esse filtro saiu.** A cadeia só por acaso caía num amarelo
+> (`#ffa800`) e não havia como mirá-la no tom novo. Em vez disso existe um
+> segundo arquivo, `public/images/star-mascot-amarelo.svg`, que é o mesmo SVG
+> com `fill="#ffc300"` — usado na barra lateral e na barra mobile. O
+> `star-mascot-outline.svg` navy continua sendo o favicon, o `EmptyState` e a
+> marca das telas de acesso.
 
 **Fotografia é sempre duotone** (navy ou amber), nunca colorida — o componente
 `DuotonePhoto` aplica isso com um filtro SVG (`feColorMatrix` + `feComponentTransfer`).
@@ -221,8 +286,13 @@ explícita (`./Home.jsx`).
 
 ### Anatomia do `Button` (referência a manter)
 
+> **O sistema mudou o `primary`.** Abaixo está o site; no sistema `primary` e
+> `secondary` são ambos navy cheio com texto branco (escopos diferentes: CTA da
+> página vs. confirmar do modal), e `ghost` é o contorno. Ver
+> [PADROES_UI.md § 2](PADROES_UI.md).
+
 ```
-primary   fundo amber-500,  texto navy-900   hover amber-600
+primary   fundo amber-500,  texto navy-900   hover amber-600   ← só no site
 secondary fundo navy-700,   texto branco     hover navy-800
 ghost     transparente, borda 2px navy-700   hover navy-100
 desabilitado  fundo navy-100, texto navy-300, cursor not-allowed

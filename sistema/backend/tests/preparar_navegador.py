@@ -13,7 +13,17 @@ from sqlalchemy import select
 
 from app.config import config
 from app.database import SessionLocal
-from app.models import Cidade, Crianca, DiaEvento, Edicao, Instituicao, Perfil, Usuario, UsuarioEdicao
+from app.models import (
+    Cidade,
+    Crianca,
+    DiaEvento,
+    Edicao,
+    Instituicao,
+    Perfil,
+    Usuario,
+    UsuarioEdicao,
+    UsuarioInstituicao,
+)
 from app.seguranca.senhas import gerar_hash
 
 EMAIL = "zz_nav.admin@exemplo.org"
@@ -56,19 +66,55 @@ def main() -> None:
         inst_b = Instituicao(cidade_id=cidade.id, nome="ZZ_NAV Creche B")
         db.add_all([inst_a, inst_b]); db.flush()
 
+        criancas = []
         for i, nome in enumerate(NOMES):
             inst = inst_a if i < 5 else inst_b
-            db.add(Crianca(
+            crianca = Crianca(
                 edicao_id=edicao.id, instituicao_id=inst.id,
                 codigo=f"NAV{i:02d}", nome=f"ZZ {nome}",
                 idade=4 + (i % 5), sexo="F" if i % 2 == 0 else "M",
-            ))
+            )
+            criancas.append(crianca)
+            db.add(crianca)
 
         db.add(UsuarioEdicao(usuario_id=u.id, edicao_id=edicao.id,
                              perfil_id=perfis["Coordenacao"].id))
+
+        # Um TIME de duas comissarias na Escola A: e o caso que a coluna do
+        # responsavel existe para resolver. A terceira atende a Creche B, para
+        # o seletor de uma escola nao oferecer quem nao atende a outra.
+        db.flush()
+        for sufixo, instituicoes in (
+            ("Bia", [inst_a.id]),
+            ("Carla", [inst_a.id]),
+            ("Davi", [inst_b.id]),
+        ):
+            com = db.scalar(
+                select(Usuario).where(Usuario.email == f"zz_nav.{sufixo.lower()}@exemplo.org")
+            )
+            if com is None:
+                com = Usuario(
+                    nome=f"ZZ_NAV {sufixo}",
+                    email=f"zz_nav.{sufixo.lower()}@exemplo.org",
+                    senha_hash=gerar_hash(SENHA),
+                )
+                db.add(com); db.flush()
+            vinculo = UsuarioEdicao(usuario_id=com.id, edicao_id=edicao.id,
+                                    perfil_id=perfis["Comissario"].id)
+            db.add(vinculo); db.flush()
+            for instituicao_id in instituicoes:
+                db.add(UsuarioInstituicao(
+                    usuario_edicao_id=vinculo.id, instituicao_id=instituicao_id
+                ))
+            if instituicoes == [inst_a.id] and sufixo == "Bia":
+                # Metade da Escola A no nome da Bia: a coluna abre com dado.
+                for crianca in criancas[:3]:
+                    crianca.comissario_id = com.id
+
         db.commit()
 
         print(f"pronto: edicao {edicao.id}, {len(NOMES)} criancas em 2 instituicoes")
+        print("time da Escola A: ZZ_NAV Bia e ZZ_NAV Carla; Creche B: ZZ_NAV Davi")
         print(f"conta: {EMAIL} / {SENHA}")
     finally:
         db.close()

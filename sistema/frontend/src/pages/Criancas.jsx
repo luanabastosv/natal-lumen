@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
+import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
+import { Olho, Xis } from "../components/core/icones.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import Modal from "../components/feedback/Modal.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 import { listarEdicoes, listarInstituicoes } from "../services/cadastros.js";
 import {
   apagarCrianca,
   criarCrianca,
   editarCrianca,
+  editarEmLote,
+  listarComissarios,
   listarCriancas,
-  renumerar,
   resumoInstituicoes,
 } from "../services/criancas.js";
 import { formatarData } from "../utils/dinheiro.js";
@@ -21,6 +25,7 @@ import ImportarLista from "./ImportarLista.jsx";
 
 const POR_PAGINA = 100;
 const TODAS = "todas";
+const SEM_RESPONSAVEL = "sem";
 const NOVA = { instituicao_id: "", codigo: "", nome: "", idade: "", sexo: "F" };
 
 const SEXOS = [
@@ -48,13 +53,17 @@ export default function Criancas() {
 
   const [marcadas, definirMarcadas] = useState([]);
 
+  // O time de comissarios da edicao. Uma instituicao e atendida por varios
+  // deles, e a coluna do responsavel diz qual atende cada crianca.
+  const [comissarios, definirComissarios] = useState([]);
+  const [filtroComissario, definirFiltroComissario] = useState("");
+  const [atribuindo, definirAtribuindo] = useState(false);
+
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(NOVA);
   const [salvando, definirSalvando] = useState(false);
   const [importando, definirImportando] = useState(false);
-  const [renumerando, definirRenumerando] = useState(false);
   const [fichaAberta, definirFichaAberta] = useState(null);
-  const [sigla, definirSigla] = useState("");
 
   const podeEditar = pode("editar_criancas");
 
@@ -89,12 +98,26 @@ export default function Criancas() {
     };
   }, [edicaoId]);
 
+  // O time tambem muda com a edicao: comissario e vinculo por edicao.
+  useEffect(() => {
+    if (!edicaoId) return;
+    let vivo = true;
+    listarComissarios(edicaoId)
+      .then((time) => vivo && definirComissarios(time))
+      .catch(() => vivo && definirComissarios([]));
+    return () => {
+      vivo = false;
+    };
+  }, [edicaoId]);
+
   const buscar = useCallback(async () => {
     try {
       definirCriancas(
         await listarCriancas({
           edicao_id: edicaoId,
           instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
+          comissario_id: filtroComissario === SEM_RESPONSAVEL ? "" : filtroComissario,
+          sem_comissario: filtroComissario === SEM_RESPONSAVEL ? true : "",
           busca,
           codigo,
           pagina,
@@ -106,7 +129,7 @@ export default function Criancas() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoId, abaAtiva, busca, codigo, pagina]);
+  }, [edicaoId, abaAtiva, filtroComissario, busca, codigo, pagina]);
 
   useEffect(() => {
     if (edicaoId) buscar();
@@ -130,29 +153,52 @@ export default function Criancas() {
     if (campo === "dia_evento_id") recarregarAbas();
   }
 
+  /** O time da instituicao, como opcoes do seletor da coluna. */
+  function opcoesComissario(instituicaoId) {
+    return [
+      // O mesmo texto da celula so-leitura: a coluna diz a mesma coisa para
+      // quem edita e para quem so olha.
+      { valor: "", rotulo: "sem responsável" },
+      ...comissarios
+        .filter((c) => c.instituicoes.includes(instituicaoId))
+        .map((c) => ({ valor: c.id, rotulo: c.nome })),
+    ];
+  }
+
+  /** Poe (ou tira) o responsavel das criancas marcadas, de uma vez. */
+  async function atribuirMarcadas(comissarioId) {
+    definirErro("");
+    definirAtribuindo(true);
+    try {
+      const atualizadas = await editarEmLote({
+        criancas: marcadas,
+        comissario_id: comissarioId === SEM_RESPONSAVEL ? null : Number(comissarioId),
+      });
+      const porId = new Map(atualizadas.map((c) => [c.id, c]));
+      definirCriancas((atual) => ({
+        ...atual,
+        itens: atual.itens.map((c) => porId.get(c.id) ?? c),
+      }));
+      const nome = comissarios.find((c) => String(c.id) === String(comissarioId))?.nome;
+      definirSucesso(
+        nome
+          ? `${marcadas.length} criança(s) agora com ${nome}.`
+          : `${marcadas.length} criança(s) sem responsável.`,
+      );
+      definirMarcadas([]);
+      recarregarAbas();
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirAtribuindo(false);
+    }
+  }
+
   async function remover(crianca) {
     definirErro("");
     try {
       await apagarCrianca(crianca.id);
       definirSucesso(`${crianca.nome} removida.`);
-      buscar();
-      recarregarAbas();
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
-  async function aplicarRenumerar() {
-    definirErro("");
-    try {
-      await renumerar({
-        edicao_id: Number(edicaoId),
-        instituicao_id: Number(abaAtiva),
-        sigla: sigla.trim() || null,
-      });
-      definirSucesso("Códigos refeitos na ordem: meninas, idade, alfabética.");
-      definirRenumerando(false);
-      definirSigla("");
       buscar();
       recarregarAbas();
     } catch (e) {
@@ -194,6 +240,17 @@ export default function Criancas() {
   function alternar(id) {
     definirMarcadas((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
   }
+
+  // Num lote de escolas diferentes so cabe quem atende TODAS elas: o seletor
+  // do lote nao pode oferecer um nome que a conferencia do servidor vai negar.
+  const escolasMarcadas = [
+    ...new Set(
+      criancas.itens.filter((c) => marcadas.includes(c.id)).map((c) => c.instituicao_id),
+    ),
+  ];
+  const comissariosDoLote = comissarios.filter((c) =>
+    escolasMarcadas.every((i) => c.instituicoes.includes(i)),
+  );
 
   function marcarTodas() {
     definirMarcadas(
@@ -243,65 +300,12 @@ export default function Criancas() {
           ))}
         </Selecao>
 
-        {podeEditar && (
-          <Button
-            size="sm"
-            onClick={() => {
-              definirCampos({
-                ...NOVA,
-                instituicao_id:
-                  abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
-              });
-              definirFormAberto(true);
-            }}
-            disabled={instituicoesDaCidade.length === 0}
-          >
-            Nova criança
-          </Button>
-        )}
         {pode("importar_listas") && (
           <Button size="sm" variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
             Importar lista
           </Button>
         )}
-        {podeEditar && abaAtiva !== TODAS && (
-          <Button size="sm" variant="ghost" onClick={() => definirRenumerando(true)}>
-            Renumerar códigos
-          </Button>
-        )}
       </div>
-
-      {renumerando && (
-        <div className="painel painel--destaque">
-          <h2 className="painel__titulo">
-            Renumerar {abas.find((a) => String(a.instituicao_id) === String(abaAtiva))?.instituicao}
-          </h2>
-          <p className="campo__dica" style={{ marginTop: 0 }}>
-            Os códigos são refeitos na ordem do projeto: <strong>meninas primeiro</strong>,
-            depois por idade, depois em ordem alfabética. Use depois de corrigir idades
-            ou sexos que vieram errados da planilha.
-          </p>
-          <Mensagem tipo="aviso">
-            Os códigos vão <strong>mudar</strong>. Crachás já impressos e listas já
-            distribuídas ficam desatualizados.
-          </Mensagem>
-          <div className="linha-campos">
-            <Entrada
-              rotulo="Sigla"
-              value={sigla}
-              onChange={(e) => definirSigla(e.target.value.toUpperCase())}
-              maxLength={6}
-              dica="Em branco mantém a sigla atual da instituição."
-            />
-          </div>
-          <div className="barra-acoes barra-acoes--fim">
-            <Button size="sm" onClick={aplicarRenumerar}>Renumerar</Button>
-            <Button size="sm" variant="ghost" onClick={() => definirRenumerando(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Abas: uma por instituição, com o que falta em cada uma. */}
       {abas.length > 0 && (
@@ -366,6 +370,23 @@ export default function Criancas() {
           onChange={(e) => definirCodigo(e.target.value)}
           placeholder="Código exato"
         />
+        {comissarios.length > 0 && (
+          <Selecao
+            value={filtroComissario}
+            onChange={(e) => {
+              definirFiltroComissario(e.target.value);
+              definirPagina(1);
+              definirMarcadas([]);
+            }}
+            aria-label="Filtrar por comissário responsável"
+          >
+            <option value="">Todos os comissários</option>
+            <option value={SEM_RESPONSAVEL}>Sem responsável</option>
+            {comissarios.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </Selecao>
+        )}
         <Button type="submit" size="sm" variant="ghost">Buscar</Button>
         {(busca || codigo) && (
           <Button
@@ -374,52 +395,87 @@ export default function Criancas() {
             onClick={() => {
               definirBusca("");
               definirCodigo("");
+              definirFiltroComissario("");
               definirPagina(1);
             }}
           >
             Limpar
           </Button>
         )}
-        <span className="campo__dica" style={{ marginTop: 0 }}>
-          {criancas.total} nesta aba
-        </span>
+        <span className="campo__dica">{criancas.total} nesta aba</span>
+
+        {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos de
+            busca, sem roubar uma linha so para ele. */}
+        {podeEditar && (
+          <div className="barra-acoes__ponta">
+            <Button
+              size="sm"
+              onClick={() => {
+                definirCampos({
+                  ...NOVA,
+                  instituicao_id:
+                    abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
+                });
+                definirFormAberto(true);
+              }}
+              disabled={instituicoesDaCidade.length === 0}
+            >
+              Nova criança
+            </Button>
+          </div>
+        )}
       </form>
 
       {formAberto && (
-        <form className="painel" onSubmit={salvarNova}>
-          <h2 className="painel__titulo">Nova criança</h2>
-          <div className="linha-campos">
-            <Selecao
-              rotulo="Instituição"
-              value={campos.instituicao_id}
-              onChange={(e) => definirCampos({ ...campos, instituicao_id: e.target.value })}
-              required
-            >
-              {instituicoesDaCidade.map((i) => (
-                <option key={i.id} value={i.id}>{i.nome}</option>
-              ))}
-            </Selecao>
-            <Entrada rotulo="Código" value={campos.codigo}
-              onChange={(e) => definirCampos({ ...campos, codigo: e.target.value })} required />
-            <Entrada rotulo="Nome" value={campos.nome}
-              onChange={(e) => definirCampos({ ...campos, nome: e.target.value })} required />
-            <Entrada rotulo="Idade" tipo="number" min="0" max="21" value={campos.idade}
-              onChange={(e) => definirCampos({ ...campos, idade: e.target.value })} required />
-            <Selecao rotulo="Sexo" value={campos.sexo}
-              onChange={(e) => definirCampos({ ...campos, sexo: e.target.value })}>
-              <option value="F">Feminino</option>
-              <option value="M">Masculino</option>
-            </Selecao>
-          </div>
-          <div className="barra-acoes barra-acoes--fim">
-            <Button type="submit" carregando={salvando}>Salvar</Button>
-            <Button variant="ghost" onClick={() => definirFormAberto(false)}>Cancelar</Button>
-          </div>
-        </form>
+        <Modal titulo="Nova criança" aoFechar={() => !salvando && definirFormAberto(false)}>
+          <form onSubmit={salvarNova}>
+            <div className="linha-campos">
+              <Selecao
+                rotulo="Instituição"
+                value={campos.instituicao_id}
+                onChange={(e) => definirCampos({ ...campos, instituicao_id: e.target.value })}
+                required
+              >
+                {instituicoesDaCidade.map((i) => (
+                  <option key={i.id} value={i.id}>{i.nome}</option>
+                ))}
+              </Selecao>
+              <Entrada rotulo="Código" value={campos.codigo}
+                onChange={(e) => definirCampos({ ...campos, codigo: e.target.value })} required />
+              <Entrada rotulo="Nome" value={campos.nome}
+                onChange={(e) => definirCampos({ ...campos, nome: e.target.value })} required />
+              <Entrada rotulo="Idade" tipo="number" min="0" max="21" value={campos.idade}
+                onChange={(e) => definirCampos({ ...campos, idade: e.target.value })} required />
+              <Selecao rotulo="Sexo" value={campos.sexo}
+                onChange={(e) => definirCampos({ ...campos, sexo: e.target.value })}>
+                <option value="F">Feminino</option>
+                <option value="M">Masculino</option>
+              </Selecao>
+            </div>
+            <div className="barra-acoes barra-acoes--fim">
+              <Button variant="secondary" type="submit" carregando={salvando}>Salvar</Button>
+              <Button variant="ghost" onClick={() => definirFormAberto(false)} disabled={salvando}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {fichaAberta && (
-        <FichaCrianca criancaId={fichaAberta} aoFechar={() => definirFichaAberta(null)} />
+        <FichaCrianca
+          criancaId={fichaAberta}
+          aoFechar={() => definirFichaAberta(null)}
+          podeEditar={podeEditar}
+          /* Troca so a linha mexida: recarregar a tabela inteira perderia a
+             posicao de quem estava no meio da planilha. */
+          aoMudar={(atualizada) =>
+            definirCriancas((atual) => ({
+              ...atual,
+              itens: atual.itens.map((c) => (c.id === atualizada.id ? atualizada : c)),
+            }))
+          }
+        />
       )}
 
       {carregando ? (
@@ -447,6 +503,7 @@ export default function Criancas() {
                 <col style={{ width: 58 }} />
                 <col style={{ width: 112 }} />
                 <col style={{ width: 190 }} />
+                <col style={{ width: 150 }} />
                 <col style={{ width: 84 }} />
                 <col style={{ width: 72 }} />
                 <col style={{ width: 72 }} />
@@ -471,6 +528,9 @@ export default function Criancas() {
                   <th>Sexo</th>
                   <th>Dia</th>
                   <th>Instituição</th>
+                  <th title="Comissário responsável por esta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
+                    Comissário
+                  </th>
                   <th title="Padrinho de cesta e de festa">Padrinhos</th>
                   <th title="Cartões digitalizados, de 2">Cartões</th>
                   <th>Kit</th>
@@ -482,7 +542,11 @@ export default function Criancas() {
                 {criancas.itens.map((c) => (
                   <tr
                     key={c.id}
-                    className={marcadas.includes(c.id) ? "planilha__linha--marcada" : ""}
+                    className={[
+                      marcadas.includes(c.id) ? "planilha__linha--marcada" : "",
+                      c.desistiu_em ? "planilha__linha--desistiu" : "",
+                    ].filter(Boolean).join(" ")}
+                    title={c.desistiu_em ? `${c.nome} desistiu de ir ao evento` : undefined}
                   >
                     {podeEditar && (
                       <td className="planilha__marcar">
@@ -554,6 +618,28 @@ export default function Criancas() {
                       </span>
                     </td>
                     <td>
+                      {/* Responsavel por ESTA crianca. Nao muda quem alcanca o
+                          que: o time inteiro da instituicao continua vendo e
+                          trabalhando a lista toda dela. */}
+                      {podeEditar ? (
+                        <CelulaEditavel
+                          valor={c.comissario_id}
+                          opcoes={opcoesComissario(c.instituicao_id)}
+                          aoSalvar={(v) =>
+                            salvarCampo(c, "comissario_id", v === "" ? null : Number(v))
+                          }
+                        />
+                      ) : (
+                        <span
+                          className={`celula ${c.comissario ? "" : "celula--vazia"}`}
+                          style={{ cursor: "default" }}
+                          title={c.comissario ?? "Nenhum comissário responsável"}
+                        >
+                          {c.comissario ?? "sem responsável"}
+                        </span>
+                      )}
+                    </td>
+                    <td>
                       <span className="celula" style={{ cursor: "default" }}>
                         <span
                           className={`marcador ${c.tem_padrinho_cesta ? "marcador--feito" : ""}`}
@@ -604,31 +690,23 @@ export default function Criancas() {
                     </td>
                     {podeEditar && (
                       <td className="planilha__acoes">
-                        <button
-                          type="button"
-                          className="ver"
-                          onClick={() => definirFichaAberta(c.id)}
-                          title={`Ver ${c.nome}`}
-                          aria-label={`Ver ficha de ${c.nome}`}
-                        >
-                          {/* Olho desenhado em SVG: nao depende de fonte de icones. */}
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path
-                              d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12Z"
-                              stroke="currentColor" strokeWidth="2" strokeLinejoin="round"
-                            />
-                            <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="2" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          className="remover"
-                          onClick={() => remover(c)}
-                          title={`Remover ${c.nome}`}
-                          aria-label={`Remover ${c.nome}`}
-                        >
-                          ×
-                        </button>
+                        <span className="acoes-icone">
+                          <BotaoIcone
+                            tamanho="sm"
+                            titulo={`Ver ficha de ${c.nome}`}
+                            onClick={() => definirFichaAberta(c.id)}
+                          >
+                            <Olho />
+                          </BotaoIcone>
+                          <BotaoIcone
+                            tamanho="sm"
+                            perigo
+                            titulo={`Remover ${c.nome}`}
+                            onClick={() => remover(c)}
+                          >
+                            <Xis />
+                          </BotaoIcone>
+                        </span>
                       </td>
                     )}
                   </tr>
@@ -654,6 +732,25 @@ export default function Criancas() {
           {podeEditar && marcadas.length > 0 && (
             <div className="lote">
               <span className="lote__texto">{marcadas.length} marcada(s)</span>
+              <Selecao
+                value=""
+                disabled={atribuindo}
+                onChange={(e) => atribuirMarcadas(e.target.value)}
+                aria-label="Atribuir as marcadas a um comissário"
+              >
+                <option value="" disabled>
+                  {atribuindo ? "Atribuindo..." : "Atribuir a..."}
+                </option>
+                {comissariosDoLote.length === 0 && (
+                  <option value="" disabled>
+                    (nenhum comissário atende todas as escolas marcadas)
+                  </option>
+                )}
+                {comissariosDoLote.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+                <option value={SEM_RESPONSAVEL}>Sem responsável</option>
+              </Selecao>
               <Button size="sm" variant="ghost" onClick={() => definirMarcadas([])}>
                 Desmarcar
               </Button>

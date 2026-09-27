@@ -5,6 +5,10 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 
 - Especificação: [docs/ESPECIFICACAO.md](docs/ESPECIFICACAO.md)
 - Identidade visual: [docs/IDENTIDADE_VISUAL.md](docs/IDENTIDADE_VISUAL.md)
+- Padrões de UI: [docs/PADROES_UI.md](docs/PADROES_UI.md)
+- Cartão de agradecimento: [docs/CARTAO_AGRADECIMENTO.md](docs/CARTAO_AGRADECIMENTO.md)
+- Comprovante no Google Drive: [docs/COMPROVANTE_NO_DRIVE.md](docs/COMPROVANTE_NO_DRIVE.md)
+- Homologação e produção: [docs/DOIS_AMBIENTES.md](docs/DOIS_AMBIENTES.md)
 
 ## Estado
 
@@ -16,7 +20,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 | 4 | Cadastros base (cidades, edições, instituições, usuários) | **pronta** |
 | 5 | Crianças e importação de listas | **pronta** |
 | 6 | Padrinhos, apadrinhamentos e pagamentos | **pronta** |
-| 7 | Cartões: digitalização, OCR e envio | **pronta** |
+| 7 | Cartões: envio em lote e envio aos padrinhos | **pronta** |
 | 8 | Kits, compras e check-in | **pronta** |
 | 9 | Painel e relatórios | **pronta** |
 | 10 | Publicação em /acesso | **pronta** |
@@ -52,8 +56,8 @@ $(brew --prefix python@3.12)/bin/python3.12 -m venv .venv
 cp .env.example .env     # e ajuste a senha da base
 ```
 
-O `requirements.txt` inclui o EasyOCR, que puxa o PyTorch: a instalação baixa
-cerca de 2 GB e leva alguns minutos. Só é usado na fase 7.
+A instalação baixa cerca de 600 MB (era 2 GB antes de o EasyOCR sair) e leva
+alguns minutos.
 
 Gere um segredo de sessão próprio para o `.env`:
 
@@ -84,7 +88,7 @@ cd backend
 ./.venv/bin/python -m app.seeds.perfis_permissoes
 ```
 
-Cria as 13 permissões e os 4 perfis (Coordenação, Comissário, Monitor,
+Cria as 14 permissões e os 4 perfis (Coordenação, Comissário, Monitor,
 Estrutura). É idempotente: rodar de novo não duplica nada, e não desfaz ajustes
 feitos direto na base — os perfis existem na base justamente para poderem ser
 alterados sem mexer no código.
@@ -128,8 +132,9 @@ cd ../backend && ./.venv/bin/python -m pip_audit
 
 ### Backup
 
-**Duas coisas não dão para refazer:** a base de dados e as imagens dos cartões.
-O resto está no git.
+**Duas coisas não dão para refazer:** a base de dados e a pasta
+`sistema/arquivos/` — as imagens dos cartões **e os comprovantes de
+pagamento**. O resto está no git.
 
 ```bash
 cd backend
@@ -160,17 +165,16 @@ Backup que nunca foi restaurado não é backup — é esperança.
 ```bash
 cd backend
 ./.venv/bin/python -m tests.test_esquema        # 22 verificações
-./.venv/bin/python -m tests.test_autenticacao   # 50 verificações
+./.venv/bin/python -m tests.test_autenticacao   # 52 verificações
 ./.venv/bin/python -m tests.test_cadastros      # 33 verificações
-./.venv/bin/python -m tests.test_criancas       # 89 verificações
-./.venv/bin/python -m tests.test_padrinhos      # 31 verificações
+./.venv/bin/python -m tests.test_criancas       # 143 verificações
+./.venv/bin/python -m tests.test_padrinhos      # 77 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
-./.venv/bin/python -m tests.test_logistica      # 26 verificações
+./.venv/bin/python -m tests.test_logistica      # 27 verificações
 ./.venv/bin/python -m tests.test_painel         # 29 verificações
 ./.venv/bin/python -m tests.test_seguranca      # 44 ataques barrados
 ```
 
-> `test_cartoes` carrega o EasyOCR na primeira execução e demora bem mais.
 
 `test_cadastros` cobre quem pode o quê nos cadastros: só a administração geral
 cria cidades, edições e coordenadores; a coordenação só mexe na própria cidade;
@@ -300,6 +304,16 @@ Um comissário ou monitor **sem instituição atribuída não vê nenhuma crian�
 de propósito: o vínculo existe, mas a coordenação ainda não definiu por quais
 instituições ele responde.
 
+**Uma instituição é atendida por um time.** Quase nunca é um comissário só: são
+2 ou 3, e todos eles alcançam a lista inteira dela. Quem responde por cada
+criança fica em `criancas.comissario_id`, que aparece como uma coluna na
+planilha — e **não restringe nada**: o comissário continua vendo e trabalhando
+as crianças que estão no nome de outro. O campo responde a outra pergunta (com
+quem eu falo sobre esta criança), e só a coordenação o preenche. Quando alguém
+deixa de alcançar a criança — ela muda de escola, a instituição sai do vínculo
+dele, o vínculo é desativado, o perfil deixa de ser comissário — o nome cai
+sozinho.
+
 `admin_geral` alcança tudo, em todas as cidades.
 
 **Log.** Login, logout, tentativa falhada, bloqueio e definição de senha vão para
@@ -316,7 +330,7 @@ log de algo que acabou desfeito.
 | `app/schemas/` | entrada e saída das rotas (Pydantic) |
 | `app/routers/` | as rotas, cada uma declarando a permissão exigida |
 | `app/seguranca/` | senhas, JWT, CSRF e as dependências de autorização |
-| `app/servicos/` | regra de negócio sem HTTP (OCR, importação, arquivos, log) |
+| `app/servicos/` | regra de negócio sem HTTP (digitalização, importação, arquivos, log) |
 | `app/seeds/` | dados iniciais |
 | `alembic/versions/` | histórico de migrations |
 
@@ -337,6 +351,14 @@ diferentes.
 
 Uma segunda lista da mesma instituição continua a numeração de onde a primeira
 parou, em vez de repetir códigos.
+
+**Trocar a sigla leva os códigos junto.** Mudar a sigla de uma instituição que
+já tem crianças cadastradas troca o prefixo de todas elas, em todas as edições:
+`ES04` vira `SL04`. O **número de cada criança não muda** — só o prefixo —, e a
+tela diz quantos códigos mudaram, porque listas e crachás já impressos ficaram
+desatualizados. Código que veio escrito na planilha da instituição (`001`,
+`CSV1`) não tem sigla para trocar e fica como está. Estrear uma sigla numa
+instituição que não tinha nenhuma também não mexe no que já existe.
 
 **Renumerar.** Se a lista entrou fora de ordem, ou depois de corrigir idades e
 sexos que vieram errados da planilha, o botão *Renumerar códigos* refaz a
@@ -387,6 +409,7 @@ linha do cabeçalho.
 | cabeçalho fora da primeira linha | título e subtítulo antes da tabela |
 | CSV UTF-8 **com BOM** | o que o Excel grava em "Salvar como > CSV UTF-8" |
 | CSV em Windows-1252 | Excel mais antigo em português |
+| idade escrita em texto | `2 ANOS`, `10a`, `1 ano e 6 meses`, `18 meses` → 1 |
 
 > O BOM já quebrou a importação em produção: são três bytes **invisíveis** no
 > começo do arquivo, e a mensagem de erro dizia que faltava a coluna `Codigo`
@@ -403,6 +426,11 @@ A importação tem duas etapas, e **nada é gravado na primeira**:
 O que vira **erro** (não importa): sem código, sem nome, idade ou sexo
 inválidos, código repetido dentro da planilha, criança já cadastrada nesta
 edição, instituição não reconhecida.
+
+A idade aceita o jeito que a instituição escreveu — `8`, `8 ANOS`, `10a`,
+`1 ano e 6 meses`, e meses viram anos completos (`18 meses` → 1). Só é erro o
+que não tem número (`não informada`) ou o que é data de nascimento em vez de
+idade (`04/03/2015`), e aí a mensagem mostra o que estava escrito na célula.
 
 O que vira **aviso** (importa, mas aparece na conferência): nome muito parecido
 com o de outra criança — da base ou da própria planilha. É só aviso porque
@@ -501,14 +529,24 @@ pagamento. Apagar o pagamento solta os apadrinhamentos de volta para "a pagar".
 
 ### Cartões
 
-Cada criança escreve dois cartões, um para cada padrinho. A digitalização tem
-duas etapas, como a importação:
+Cada criança escreve dois cartões, um para cada padrinho. Eles sobem **em
+lote**, em duas etapas, como a importação de planilha:
 
-1. `POST /cartoes/analisar` recebe a foto e o **código da criança**. Corrige a
-   perspectiva (escala de cinza → blur → Canny → contornos → `warpPerspective`),
-   roda o OCR e devolve o nome sugerido, os outros textos detectados e a imagem
-   para conferência. Nada é gravado.
-2. `POST /cartoes/confirmar` guarda o arquivo e grava o cartão.
+1. `POST /cartoes/lote` recebe a pilha de fotos, o **tipo** (cesta ou festa) e a
+   edição. Para cada arquivo: encontra a criança pelo **código no nome do
+   arquivo**, corrige a perspectiva (escala de cinza → blur → Canny → contornos
+   → `warpPerspective`) e devolve uma miniatura para conferência. Nada é gravado.
+2. `POST /cartoes/lote/{id}/confirmar` guarda os arquivos e grava os cartões.
+
+**A criança é identificada pelo código, não pelo nome escrito no cartão.**
+Houve OCR aqui (EasyOCR) lendo o nome para o monitor conferir. Saiu: errava — num
+cartão de teste com "BRUNO" escrito, leu "INPI" — e levava junto 609 MB de disco
+e 884 MB de RAM por worker. O app inteiro cabe em 152 MB agora.
+
+O casamento do nome do arquivo está em `app/servicos/nomes_de_arquivo.py`, e é
+deliberadamente desconfiado: `IMG_20261110_SL12.jpg` casa, mas nome que bate com
+dois códigos vira erro, e código puramente numérico só casa se o nome do arquivo
+for exatamente ele (`IMG_20261110_001.jpg` contém "001" **e** "010").
 
 Se as bordas não forem encontradas, a foto é usada como está e a resposta traz o
 aviso `bordas não detectadas` — uma foto torta ainda serve, e travar o monitor no
@@ -524,17 +562,10 @@ antes de a criança ter padrinho — que é o que acontece na prática.
 Um cartão só pode ser marcado como enviado quando já existe padrinho para
 recebê-lo.
 
-**Ajustar o OCR.** A escolha do nome está isolada em `escolher_nome_sugerido()`,
-em `app/servicos/scanner.py`. As regras: se o cartão tiver "Nome:", usa o que vem
-depois; senão, a linha com a maior altura de letra. Caixas da mesma linha são
-juntadas antes (o EasyOCR parte "BRUNO LIMA" em duas). Os parâmetros —
-`CONFIANCA_MINIMA`, `TAMANHO_MINIMO`, `TOLERANCIA_MESMA_LINHA` e
-`AREA_MINIMA_DO_CARTAO` — ficam no topo do arquivo.
-
-**Carregamento do OCR.** O EasyOCR leva ~30s para carregar. Em produção isso
-acontece no arranque; em desenvolvimento, sob demanda, para cada reload do
-uvicorn não custar meio minuto. Para forçar, use `CARREGAR_OCR_AO_INICIAR` no
-`.env`.
+**Prévia abandonada.** Quem sobe um lote e nunca confirma deixa as imagens na
+pasta temporária. A cada prévia nova o servidor varre o que tem mais de 12h e
+apaga — sem isso ficariam fotos de cartão de criança ocupando disco sem nenhuma
+linha no banco apontando para elas.
 
 ### Kits
 
@@ -635,7 +666,7 @@ npm run preview  # serve o build
 | `/acesso/usuarios` | Equipe, vínculos e instituições atribuídas | `gerenciar_usuarios` |
 | `/acesso/instituicoes` | Instituições da cidade | `gerenciar_cadastros` |
 | `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
-| `/acesso/criancas` | Lista, cadastro e importação de listas | `ver_criancas` |
+| `/acesso/criancas` | Lista, cadastro, importação e o comissário responsável | `ver_criancas` |
 | `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
 | `/acesso/pagamentos` | Pagamentos e o que cada um quita | `registrar_pagamentos` |
 | `/acesso/cartoes` | Digitalização, conferência e envio | `ver_criancas` |
@@ -809,12 +840,18 @@ Confira: `curl https://DOMINIO/acesso/api/saude` deve responder
 
 ```bash
 cd /var/www/natal-lumen
-./sistema/publicacao/publicar.sh
+DOMINIO=seu.dominio ./sistema/publicacao/publicar.sh
 ```
 
 Ele busca a versão nova, instala dependências, **roda as migrations antes de
 reiniciar** (o código novo costuma esperar o esquema novo), reconstrói o
 frontend, reinicia a API e confere se ela respondeu.
+
+A conferência é em duas etapas: primeiro direto no uvicorn
+(`127.0.0.1:8000/saude`), que responde "a API subiu?", e depois — só se você
+passar `DOMINIO` — a volta inteira pelo nginx e pelo HTTPS, que responde "o
+caminho público está certo?". Separar as duas diz onde olhar quando falha:
+journalctl para a primeira, log do nginx para a segunda.
 
 ### Detalhes que costumam morder
 
@@ -832,4 +869,5 @@ nginx.
 Apontar o nginx para essa pasta abriria as fotos a quem tivesse o link.
 
 **Backup.** O que não dá para refazer são dois: a base (`pg_dump natal_lumen`) e
-a pasta `sistema/arquivos/` (as imagens dos cartões). O resto está no git.
+a pasta `sistema/arquivos/` (imagens dos cartões e comprovantes de pagamento —
+registro financeiro, guarde com o mesmo cuidado da base). O resto está no git.

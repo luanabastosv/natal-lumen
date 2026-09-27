@@ -5,29 +5,33 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-class TextoDetectado(BaseModel):
-    texto: str
-    confianca: float
-    altura: float
+class ArquivoDoLote(BaseModel):
+    """Uma foto do lote, ja casada (ou nao) com uma crianca."""
+
+    arquivo: str
+    codigo: str | None = None
+    crianca_id: int | None = None
+    crianca_nome: str | None = None
+    instituicao: str | None = None
+    # Miniatura em base64, para conferir a foto certa antes de gravar.
+    miniatura: str | None = None
+    erros: list[str] = []
+    avisos: list[str] = []
+    valida: bool = False
 
 
-class AnaliseCartao(BaseModel):
+class PreviaLote(BaseModel):
     id: str
-    nome_sugerido: str
-    textos: list[TextoDetectado]
-    imagem_base64: str
-    aviso: str | None = None
-    # Crianca encontrada pelo codigo, para o monitor conferir antes de salvar.
-    crianca_id: int
-    crianca_nome: str
-    instituicao: str
+    tipo: str
+    total: int
+    validas: int
+    com_erro: int
+    arquivos: list[ArquivoDoLote]
 
 
-class ConfirmarCartao(BaseModel):
-    id: str
-    crianca_id: int
-    tipo: str = Field(pattern="^(cesta|festa)$")
-    texto_ocr: str | None = None
+class ResultadoLote(BaseModel):
+    gravados: int
+    ignorados: int
 
 
 class CartaoOut(BaseModel):

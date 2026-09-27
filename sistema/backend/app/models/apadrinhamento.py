@@ -64,6 +64,12 @@ class Pagamento(Base):
     # Caminho relativo dentro de ARQUIVOS_DIR; nunca servido publicamente.
     comprovante_arquivo: Mapped[str | None] = mapped_column(String(500))
 
+    # Copia no Drive Compartilhado do evento. O disco continua sendo o
+    # original: estes dois campos ficam vazios se o Drive nao estiver ligado,
+    # ou se o envio falhar — e o comprovante segue valendo do mesmo jeito.
+    comprovante_drive_id: Mapped[str | None] = mapped_column(String(120))
+    comprovante_drive_link: Mapped[str | None] = mapped_column(String(500))
+
     registrado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
@@ -121,3 +127,42 @@ class Apadrinhamento(Base):
     crianca: Mapped["Crianca"] = relationship(back_populates="apadrinhamentos")  # noqa: F821
     padrinho: Mapped[Padrinho] = relationship(back_populates="apadrinhamentos")
     pagamento: Mapped[Pagamento | None] = relationship(back_populates="apadrinhamentos")
+    envios: Mapped[list["EnvioCartao"]] = relationship(
+        back_populates="apadrinhamento", cascade="all, delete-orphan"
+    )
+
+
+class EnvioCartao(Base):
+    """Cada tentativa de mandar o cartao de agradecimento pelo WhatsApp.
+
+    Guarda tambem o que falhou, e de proposito: sem isso ninguem descobre que
+    o numero de um padrinho esta errado, nem da para saber quem ficou sem
+    receber. Uma linha por TENTATIVA — reenviar acrescenta, nao substitui.
+    """
+
+    __tablename__ = "envios_cartao"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('enviado', 'falhou')", name="ck_envios_cartao_status"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    apadrinhamento_id: Mapped[int] = mapped_column(
+        ForeignKey("apadrinhamentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Copiado no momento do envio: se o cadastro do padrinho mudar depois,
+    # continua sabendo para qual numero aquele cartao foi.
+    telefone: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False)
+    # wamid... devolvido pela Meta; vazio quando falhou.
+    mensagem_id: Mapped[str | None] = mapped_column(String(120))
+    erro: Mapped[str | None] = mapped_column(Text)
+
+    criado_em: Mapped[CriadoEm]
+    enviado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+
+    apadrinhamento: Mapped["Apadrinhamento"] = relationship(back_populates="envios")

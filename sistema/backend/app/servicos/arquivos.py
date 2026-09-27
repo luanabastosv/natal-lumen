@@ -33,6 +33,28 @@ def pasta_dos_cartoes(cidade: str, ano: int) -> Path:
     return config.caminho_arquivos / "cartoes" / limpar_texto(cidade) / str(ano)
 
 
+def nome_do_comprovante(padrinho: str, data, extensao: str) -> str:
+    """{NOME_DO_PADRINHO}_{AAAA_MM_DD}{.ext}"""
+    base = limpar_texto(padrinho) or "COMPROVANTE"
+    return f"{base}_{data:%Y_%m_%d}{extensao}"
+
+
+def nome_do_comprovante_drive(cidade: str, ano: int, padrinho: str, data, extensao: str) -> str:
+    """{CIDADE}_{ANO}_{NOME_DO_PADRINHO}_{AAAA_MM_DD}{.ext}
+
+    No disco, cidade e ano sao pastas. No Drive a pasta e uma so — a do
+    evento — entao eles entram no nome, senao dois comprovantes de edicoes
+    diferentes do mesmo padrinho colidiriam.
+    """
+    partes = [limpar_texto(cidade), str(ano), limpar_texto(padrinho) or "COMPROVANTE"]
+    return f"{'_'.join(p for p in partes if p)}_{data:%Y_%m_%d}{extensao}"
+
+
+def pasta_dos_comprovantes(cidade: str, ano: int) -> Path:
+    """{ARQUIVOS_DIR}/comprovantes/{cidade}/{ano}/"""
+    return config.caminho_arquivos / "comprovantes" / limpar_texto(cidade) / str(ano)
+
+
 def caminho_disponivel(pasta: Path, nome_arquivo: str) -> Path:
     """Caminho que ainda nao existe, acrescentando _2, _3 ... se preciso."""
     destino = pasta / nome_arquivo

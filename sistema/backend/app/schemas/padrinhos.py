@@ -24,13 +24,35 @@ class PadrinhoEditar(BaseModel):
 class ApadrinhamentoResumo(BaseModel):
     id: int
     crianca_id: int
-    # O padrinho recebe so o primeiro nome e a idade da crianca.
+    # O primeiro nome e o que vai para o PADRINHO — e o que o cartao de
+    # agradecimento usa (ver servicos/agradecimento.py, que le a crianca
+    # direto e nao passa por aqui).
     crianca_primeiro_nome: str
+    # Codigo e nome completo sao para quem opera o sistema: sem o codigo nao
+    # da para casar a linha da ficha com a linha da planilha. Nao alarga
+    # acesso nenhum — todo perfil que tem `ver_padrinhos` tambem tem
+    # `ver_criancas`, e esta saida so existe atras dessas rotas.
+    crianca_codigo: str
+    crianca_nome: str
     crianca_idade: int
     tipo: str
     valor: Decimal
     pago: bool
     vai_ao_evento: bool | None
+    # Ultimo envio do cartao pelo WhatsApp: None = nunca tentou.
+    cartao_status: str | None = None
+    cartao_enviado_em: datetime | None = None
+
+
+class EnvioCartaoOut(BaseModel):
+    """Resultado de uma tentativa de mandar o cartao pelo WhatsApp."""
+
+    apadrinhamento_id: int
+    status: str
+    telefone: str
+    mensagem_id: str | None = None
+    erro: str | None = None
+    enviado_em: datetime
 
 
 class PadrinhoOut(BaseModel):
@@ -96,6 +118,8 @@ class PagamentoOut(BaseModel):
     forma: str | None
     conferido: bool
     comprovante_arquivo: str | None
+    # Vazio = nao foi para o Drive (desligado, ou o envio falhou).
+    comprovante_drive_link: str | None = None
     apadrinhamentos: list[int]
 
 

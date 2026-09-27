@@ -11,13 +11,14 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import config
 from app.database import get_db
 from app.models import (
+    Crianca,
     Edicao,
     Instituicao,
     Perfil,
@@ -36,7 +37,10 @@ from app.schemas.usuarios import (
     VinculoIn,
 )
 from app.seguranca.contexto import ContextoAcesso
-from app.seeds.perfis_permissoes import PERFIS_FILTRADOS_POR_INSTITUICAO
+from app.seeds.perfis_permissoes import (
+    PERFIL_COMISSARIO,
+    PERFIS_FILTRADOS_POR_INSTITUICAO,
+)
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import tokens_acesso
 from app.servicos.log import registrar
@@ -182,6 +186,34 @@ def _definir_instituicoes(db: Session, vinculo: UsuarioEdicao, ids: list[int]) -
                 usuario_edicao_id=vinculo.id, instituicao_id=instituicao_id
             )
         )
+
+
+
+def _soltar_criancas_fora_do_alcance(db: Session, vinculo: UsuarioEdicao) -> int:
+    """Solta as criancas que estavam no nome dele e que ele nao alcanca mais.
+
+    criancas.comissario_id diz quem responde por cada crianca. Ele deixa de
+    alcancar quando a instituicao sai da atribuicao, quando o vinculo e
+    desativado ou quando o perfil deixa de ser comissario — e nos tres casos um
+    nome que nao enxerga mais a crianca e pior que nenhum.
+
+    Chamar DEPOIS de gravar a mudanca no vinculo (precisa do estado novo).
+    """
+    ainda_alcanca: set[int] = set()
+    if vinculo.ativo and vinculo.perfil.nome == PERFIL_COMISSARIO:
+        ainda_alcanca = {i.instituicao_id for i in vinculo.instituicoes if i.ativo}
+
+    condicoes = [
+        Crianca.edicao_id == vinculo.edicao_id,
+        Crianca.comissario_id == vinculo.usuario_id,
+    ]
+    if ainda_alcanca:
+        condicoes.append(Crianca.instituicao_id.not_in(ainda_alcanca))
+
+    soltas = db.execute(
+        update(Crianca).where(*condicoes).values(comissario_id=None)
+    ).rowcount
+    return soltas or 0
 
 
 def _gerar_link(db: Session, usuario: Usuario) -> tuple[str, datetime]:
@@ -362,10 +394,19 @@ def editar_vinculo(
         _conferir_instituicoes(db, vinculo.edicao_id, dados.instituicoes)
         _definir_instituicoes(db, vinculo, dados.instituicoes)
 
+    # O estado novo precisa estar na sessao antes de conferir o que ele ainda
+    # alcanca; sem o flush, as instituicoes recem-atribuidas nao apareceriam.
+    db.flush()
+    db.refresh(vinculo)
+    soltas = _soltar_criancas_fora_do_alcance(db, vinculo)
+
     registrar(
         db, "vinculo_editado", usuario_id=ctx.usuario.id,
         tabela="usuario_edicao", registro_id=vinculo.id,
-        detalhes={"campos": sorted(dados.model_dump(exclude_unset=True))},
+        detalhes={
+            "campos": sorted(dados.model_dump(exclude_unset=True)),
+            **({"criancas_soltas": soltas} if soltas else {}),
+        },
     )
     db.commit()
     return _saida(db, _carregar(db, usuario_id))

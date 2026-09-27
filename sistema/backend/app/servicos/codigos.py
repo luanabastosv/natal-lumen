@@ -101,6 +101,23 @@ def montar_codigo(sigla: str, numero: int) -> str:
     return f"{sigla}{numero:0{DIGITOS}d}"
 
 
+def trocar_sigla(codigo: str, antiga: str, nova: str) -> str | None:
+    """Mesmo numero, sigla nova: com antiga "ES" e nova "SL", ES04 vira SL04.
+
+    Nao e renumerar: a ordem e o numero de cada crianca ficam como estao, so o
+    prefixo muda. Renumerar desencontraria cracha e lista ja impressos, e por
+    isso acontece so quando alguem pede (POST /criancas/renumerar).
+
+    Devolve None quando o codigo nao comeca pela sigla antiga — um codigo que
+    veio escrito na planilha da instituicao ("001") nao tem sigla para trocar.
+    """
+    achado = re.match(rf"^{re.escape(antiga)}(\d+)$", codigo.strip(), re.IGNORECASE)
+    if achado is None:
+        return None
+    # Os digitos vao como estao: se a lista veio com ES004, continua com tres.
+    return f"{nova}{achado.group(1)}"
+
+
 def gerar_codigos(criancas: list, sigla: str, comecar_em: int = 0) -> list[tuple]:
     """Devolve [(crianca, codigo)] na ordem certa.
 

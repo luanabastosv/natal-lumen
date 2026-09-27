@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import Button from "../components/core/Button.jsx";
-import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import { Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import Modal from "../components/feedback/Modal.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 import { listarEdicoes } from "../services/cadastros.js";
 import {
-  analisarCartao,
-  confirmarCartao,
+  confirmarLote,
   listarCartoes,
   marcarEnviados,
+  subirLoteDeCartoes,
   urlDaImagem,
 } from "../services/cartoes.js";
 import { formatarDataHora } from "../utils/dinheiro.js";
@@ -28,15 +29,17 @@ export default function Cartoes() {
   const [sucesso, definirSucesso] = useState("");
 
   // Fluxo de digitalizacao
-  const [codigo, definirCodigo] = useState("");
-  const [arquivo, definirArquivo] = useState(null);
-  const [analise, definirAnalise] = useState(null);
+  // Envio em lote: o codigo da crianca vem do NOME DO ARQUIVO.
+  const [arquivos, definirArquivos] = useState([]);
   const [tipo, definirTipo] = useState("cesta");
-  const [nome, definirNome] = useState("");
-  const [analisando, definirAnalisando] = useState(false);
+  const [previa, definirPrevia] = useState(null);
+  const [subindo, definirSubindo] = useState(false);
   const [salvando, definirSalvando] = useState(false);
 
   const [marcados, definirMarcados] = useState([]);
+
+  // Qual cartao esta aberto para olhar.
+  const [vendo, definirVendo] = useState(null);
 
   useEffect(() => {
     let vivo = true;
@@ -67,37 +70,29 @@ export default function Cartoes() {
     if (edicaoId) buscar();
   }, [edicaoId, buscar]);
 
-  async function analisar(evento) {
+  async function enviarLote(evento) {
     evento.preventDefault();
     definirErro("");
     definirSucesso("");
-    definirAnalisando(true);
+    definirSubindo(true);
     try {
-      const resultado = await analisarCartao({
-        arquivo,
-        codigo: codigo.trim(),
-        edicaoId,
-      });
-      definirAnalise(resultado);
-      definirNome(resultado.nome_sugerido);
+      definirPrevia(await subirLoteDeCartoes({ arquivos, tipo, edicaoId }));
     } catch (e) {
       definirErro(e.message);
     } finally {
-      definirAnalisando(false);
+      definirSubindo(false);
     }
   }
 
-  async function salvar() {
+  async function gravarLote() {
     definirErro("");
     definirSalvando(true);
     try {
-      await confirmarCartao({
-        id: analise.id,
-        crianca_id: analise.crianca_id,
-        tipo,
-        texto_ocr: nome.trim() || null,
-      });
-      definirSucesso(`Cartão de ${tipo} de ${analise.crianca_nome} guardado.`);
+      const r = await confirmarLote(previa.id);
+      definirSucesso(
+        `${r.gravados} cartão(ões) de ${previa.tipo} guardado(s).` +
+          (r.ignorados ? ` ${r.ignorados} ignorado(s).` : ""),
+      );
       limpar();
       buscar();
     } catch (e) {
@@ -108,11 +103,10 @@ export default function Cartoes() {
   }
 
   function limpar() {
-    definirAnalise(null);
-    definirArquivo(null);
-    definirCodigo("");
-    definirNome("");
+    definirPrevia(null);
+    definirArquivos([]);
   }
+
 
   async function enviar() {
     definirErro("");
@@ -139,8 +133,10 @@ export default function Cartoes() {
       <div className="pagina__eyebrow">Monitoria</div>
       <h1 className="pagina__titulo">Cartões</h1>
       <p className="pagina__lede">
-        Cada criança escreve dois cartões, um para cada padrinho. Fotografe o cartão,
-        confira o nome lido e guarde — o sistema corrige a perspectiva da foto.
+        Cada criança escreve dois cartões, um para cada padrinho. Suba a pilha
+        digitalizada de uma vez: <strong>o nome de cada arquivo tem de ser o código
+        da criança</strong> (por exemplo <code>SL12.jpg</code>). O sistema confere
+        antes de gravar e endireita as fotos tortas.
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -148,118 +144,127 @@ export default function Cartoes() {
 
       {pode("subir_cartoes") && (
         <>
-          {!analise ? (
-            <form className="painel" onSubmit={analisar}>
-              <h2 className="painel__titulo">Digitalizar um cartão</h2>
+          {!previa ? (
+            <form className="painel" onSubmit={enviarLote}>
+              <h2 className="painel__titulo">Subir cartões digitalizados</h2>
               <div className="linha-campos">
                 <Selecao
                   rotulo="Edição"
                   value={edicaoId}
                   onChange={(e) => definirEdicaoId(e.target.value)}
                 >
-                  {edicoes.map((e) => (
-                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  {edicoes.map((ed) => (
+                    <option key={ed.id} value={ed.id}>{ed.nome}</option>
                   ))}
                 </Selecao>
-                <Entrada
-                  rotulo="Código da criança"
-                  value={codigo}
-                  onChange={(e) => definirCodigo(e.target.value)}
-                  dica="O mesmo código da lista da instituição."
-                  required
-                />
+                <Selecao
+                  rotulo="Estes cartões são de"
+                  value={tipo}
+                  onChange={(e) => definirTipo(e.target.value)}
+                >
+                  <option value="cesta">Cesta</option>
+                  <option value="festa">Festa</option>
+                </Selecao>
               </div>
 
               <label className="campo">
-                <span className="campo__rotulo">Foto do cartão</span>
+                <span className="campo__rotulo">Arquivos</span>
                 <input
                   type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="campo__controle"
-                  onChange={(e) => definirArquivo(e.target.files?.[0] ?? null)}
-                  required
+                  accept="image/jpeg,image/png"
+                  multiple
+                  onChange={(e) => definirArquivos([...(e.target.files ?? [])])}
                 />
                 <span className="campo__dica">
-                  Fotografe o cartão inteiro, sobre uma superfície de cor diferente da
-                  dele. Pelo celular, abre a câmera direto.
+                  Nomeie cada arquivo com o código da criança. Separe as pilhas de
+                  cesta e de festa antes de subir.
                 </span>
               </label>
 
-              <Button
-                type="submit"
-                carregando={analisando}
-                disabled={!arquivo || !codigo.trim()}
-              >
-                {analisando ? "Lendo o cartão..." : "Analisar"}
-              </Button>
+              <div className="barra-acoes barra-acoes--fim">
+                <Button
+                  type="submit"
+                  carregando={subindo}
+                  disabled={arquivos.length === 0 || !edicaoId}
+                >
+                  {arquivos.length > 0
+                    ? `Conferir ${arquivos.length} arquivo(s)`
+                    : "Conferir"}
+                </Button>
+              </div>
             </form>
           ) : (
-            <div className="painel painel--destaque">
+            <div className="painel">
               <h2 className="painel__titulo">
-                {analise.crianca_nome} · {analise.instituicao}
+                Conferência · {previa.validas} de {previa.total} prontos
               </h2>
+              <p className="campo__dica" style={{ marginTop: 0 }}>
+                Nada foi gravado ainda. Quem estiver com erro é ignorado — corrija o
+                nome do arquivo e suba de novo.
+              </p>
 
-              {analise.aviso && (
-                <Mensagem tipo="aviso">
-                  Não foi possível detectar as bordas do cartão. A foto vai ser guardada
-                  como está, sem correção de perspectiva.
-                </Mensagem>
-              )}
+              <div className="ficha__lista">
+                {previa.arquivos.map((a) => (
+                  <div key={a.arquivo} className="ficha__linha">
+                    {a.miniatura ? (
+                      <img
+                        src={`data:image/jpeg;base64,${a.miniatura}`}
+                        alt=""
+                        style={{
+                          width: 44,
+                          height: 44,
+                          objectFit: "cover",
+                          borderRadius: "var(--radius-sm)",
+                          border: "var(--stroke-hairline) solid var(--border-default)",
+                          flex: "none",
+                        }}
+                      />
+                    ) : (
+                      <span style={{ width: 44, flex: "none" }} />
+                    )}
 
-              <div className="linha-campos">
-                <div>
-                  <Selecao rotulo="Tipo" value={tipo} onChange={(e) => definirTipo(e.target.value)}>
-                    <option value="cesta">Cesta</option>
-                    <option value="festa">Festa</option>
-                  </Selecao>
-                  <Entrada
-                    rotulo="Nome lido no cartão"
-                    value={nome}
-                    onChange={(e) => definirNome(e.target.value)}
-                    dica="Guardado junto com a imagem, para busca depois."
-                  />
-
-                  {analise.textos.length > 0 && (
-                    <div className="campo">
-                      <span className="campo__rotulo">Outros textos detectados</span>
-                      <div className="marcaveis">
-                        {analise.textos.map((t, i) => (
-                          <button
-                            type="button"
-                            key={`${t.texto}-${i}`}
-                            className={`marcavel ${t.texto === nome ? "marcavel--marcado" : ""}`}
-                            onClick={() => definirNome(t.texto)}
-                          >
-                            {t.texto}
-                            <small style={{ opacity: 0.6 }}>
-                              {Math.round(t.confianca * 100)}%
-                            </small>
-                          </button>
+                    <div className="ficha__linha-corpo">
+                      <span className="ficha__linha-etiquetas">
+                        {a.valida ? (
+                          <span className="etiqueta etiqueta--ok">pronto</span>
+                        ) : (
+                          <span className="etiqueta etiqueta--parado">não vai subir</span>
+                        )}
+                        {a.avisos.map((aviso) => (
+                          <span key={aviso} className="etiqueta etiqueta--espera" title={aviso}>
+                            conferir
+                          </span>
                         ))}
-                      </div>
-                      <span className="campo__dica">Clique para usar como nome.</span>
-                    </div>
-                  )}
-                </div>
+                      </span>
 
-                <div>
-                  <span className="campo__rotulo">Cartão digitalizado</span>
-                  <img
-                    src={`data:image/jpeg;base64,${analise.imagem_base64}`}
-                    alt="Cartão digitalizado"
-                    style={{
-                      width: "100%",
-                      borderRadius: "var(--radius-md)",
-                      border: "var(--stroke-hairline) solid var(--border-default)",
-                    }}
-                  />
-                </div>
+                      <span className="ficha__linha-nome" title={a.arquivo}>
+                        {a.crianca_nome ? (
+                          <>
+                            <span className="ficha__linha-codigo">{a.codigo}</span>
+                            {a.crianca_nome}
+                          </>
+                        ) : (
+                          <span className="celula--vazia">{a.arquivo}</span>
+                        )}
+                      </span>
+
+                      {(a.erros.length > 0 || a.crianca_nome) && (
+                        <span className="campo__dica" style={{ marginTop: 2, display: "block" }}>
+                          {a.erros.length > 0 ? a.erros.join(" ") : `${a.arquivo} · ${a.instituicao}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="barra-acoes barra-acoes--fim">
-                <Button onClick={salvar} carregando={salvando}>Guardar cartão</Button>
-                <Button variant="ghost" onClick={limpar} disabled={salvando}>Descartar</Button>
+              <div className="barra-acoes barra-acoes--fim" style={{ marginTop: "var(--space-4)" }}>
+                <Button onClick={gravarLote} carregando={salvando} disabled={previa.validas === 0}>
+                  Guardar {previa.validas} cartão(ões)
+                </Button>
+                <Button variant="ghost" onClick={limpar} disabled={salvando}>
+                  Descartar
+                </Button>
               </div>
             </div>
           )}
@@ -273,7 +278,7 @@ export default function Cartoes() {
           <option value="enviado">Enviados</option>
         </Selecao>
         {podeMarcar && marcados.length > 0 && (
-          <Button size="sm" onClick={enviar}>
+          <Button variant="secondary" size="sm" onClick={enviar}>
             Marcar {marcados.length} como enviado(s)
           </Button>
         )}
@@ -337,13 +342,7 @@ export default function Cartoes() {
                     )}
                   </td>
                   <td>
-                    {/* Abre noutra aba: a imagem so sai por rota autenticada,
-                        entao o cookie da sessao precisa ir junto. */}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => window.open(urlDaImagem(c.id), "_blank", "noopener")}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => definirVendo(c)}>
                       Ver imagem
                     </Button>
                   </td>
@@ -352,6 +351,34 @@ export default function Cartoes() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* A imagem so sai por rota autenticada. Num <img> de mesma origem o
+          cookie da sessao vai junto, entao nao precisa de aba nova nem de
+          baixar o blob antes. */}
+      {vendo && (
+        <Modal
+          rotulo={`Cartão de ${vendo.tipo}`}
+          titulo={vendo.crianca_nome}
+          tamanho="largo"
+          aoFechar={() => definirVendo(null)}
+        >
+          <img
+            className="cartao-imagem"
+            src={urlDaImagem(vendo.id)}
+            alt={`Cartão de ${vendo.tipo} de ${vendo.crianca_nome}`}
+          />
+          <dl className="ficha ficha--duas" style={{ marginTop: "var(--space-4)" }}>
+            <dt>Instituição</dt>
+            <dd>{vendo.instituicao}</dd>
+            <dt>Padrinho</dt>
+            <dd>{vendo.padrinho_nome ?? "sem padrinho ainda"}</dd>
+            <dt>Situação</dt>
+            <dd>{vendo.status === "enviado" ? "Enviado" : "A enviar"}</dd>
+            <dt>Digitalizado</dt>
+            <dd>{formatarDataHora(vendo.criado_em)}</dd>
+          </dl>
+        </Modal>
       )}
     </div>
   );

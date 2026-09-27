@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Backup do sistema Natal Lumen.
 #
-# Duas coisas nao dao para refazer: a base de dados e as imagens dos cartoes.
+# Duas coisas nao dao para refazer: a base de dados e a pasta de arquivos
+# (imagens dos cartoes e comprovantes de pagamento).
 # O resto (codigo, configuracao) esta no git.
 #
 #   ./backup.sh                      guarda em ../backups/
@@ -49,7 +50,7 @@ case "$ARQUIVOS" in
 esac
 
 if [ -d "$PASTA" ] && [ -n "$(ls -A "$PASTA" 2>/dev/null)" ]; then
-  echo "==> Imagens dos cartoes"
+  echo "==> Cartoes e comprovantes"
   tar -czf "$DESTINO/arquivos_$QUANDO.tar.gz" -C "$(dirname "$PASTA")" "$(basename "$PASTA")"
 else
   echo "==> Sem imagens ainda, nada a guardar"

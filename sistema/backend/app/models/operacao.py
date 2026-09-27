@@ -173,14 +173,36 @@ class Crianca(Base):
     sexo: Mapped[str] = mapped_column(String(1), nullable=False)
     observacoes: Mapped[str | None] = mapped_column(Text)
 
+    # Comissario responsavel por ESTA crianca. Nao restringe acesso: a
+    # instituicao e atendida por um TIME de comissarios (2, 3), e todos eles
+    # veem e trabalham a lista inteira dela. Isto aqui diz apenas quem responde
+    # por esta crianca — quem cobra o padrinho, quem busca o cartao.
+    # Nulo = a instituicao ja esta atribuida ao time, mas esta crianca ainda
+    # nao tem nome ao lado.
+    comissario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), index=True
+    )
+
     checkin_em: Mapped[MomentoOpcional]
     checkin_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+
+    # Desistiu de ir ao evento. Nao apaga a crianca: ela continua na lista,
+    # riscada, porque o cartao, o kit e o padrinho dela ja existem e alguem
+    # ainda vai ter de decidir o que fazer com cada um. Voltar atras e so
+    # limpar estes dois campos.
+    desistiu_em: Mapped[MomentoOpcional]
+    desistiu_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
 
     edicao: Mapped[Edicao] = relationship(back_populates="criancas")
     instituicao: Mapped[Instituicao] = relationship(back_populates="criancas")
     dia_evento: Mapped[DiaEvento | None] = relationship(back_populates="criancas")
+    comissario: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[comissario_id]
+    )
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(  # noqa: F821
         back_populates="crianca"
     )

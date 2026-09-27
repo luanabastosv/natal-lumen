@@ -113,6 +113,34 @@ class InstituicaoOut(BaseModel):
     dia_evento_id: int | None = None
     dia_evento: date | None = None
     criancas: int = 0
+    # Quantos codigos de criancas mudaram de prefixo junto com a sigla. So a
+    # edicao preenche; a tela usa para avisar que a planilha mudou.
+    codigos_atualizados: int = 0
+
+
+class ItemDependencia(BaseModel):
+    """Uma linha da conta do modal de confirmacao: "132 criancas".
+
+    A chave vai sem acento e no plural cru ("criancas", "cartoes"); quem
+    escreve o rotulo lido na tela e o frontend, que e o lado acentuado do
+    sistema.
+    """
+
+    chave: str
+    quantidade: int
+
+
+class DependenciasOut(BaseModel):
+    """O que vai junto se este registro for apagado.
+
+    `total` zerado quer dizer que nada depende dele — a tela ainda confirma,
+    porque apagar continua sendo definitivo, mas sem a lista de estrago.
+    """
+
+    id: int
+    nome: str
+    total: int
+    itens: list[ItemDependencia]
 
 
 class PerfilOut(BaseModel):

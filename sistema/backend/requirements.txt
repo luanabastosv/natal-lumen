@@ -17,6 +17,9 @@ python-dotenv==1.2.3
 
 # Seguranca
 PyJWT==2.14.0
+# Assina o JWT RS256 da conta de servico do Google Drive. O PyJWT sozinho so
+# faz HS256, que e o que a sessao usa.
+cryptography==46.0.3
 pwdlib[argon2]==0.3.1
 argon2-cffi==25.1.0
 
@@ -28,10 +31,12 @@ RapidFuzz==3.14.6
 # Check-in
 qrcode[pil]==8.2
 
-# Digitalizacao e OCR dos cartoes (fase 7)
+# Digitalizacao dos cartoes: so corrige a perspectiva da foto.
+# O EasyOCR saiu na troca da identificacao por OCR pela identificacao por
+# codigo no nome do arquivo — com ele foram 609 MB (torch e torchvision).
 opencv-python==5.0.0.93
-easyocr==1.7.2
+numpy==2.5.3
 pillow==12.3.0
 
-# Testes
+# Cliente HTTP: WhatsApp Cloud API (app) e TestClient (testes)
 httpx2==2.13.0

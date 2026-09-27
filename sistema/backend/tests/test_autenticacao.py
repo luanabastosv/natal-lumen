@@ -384,7 +384,9 @@ def main() -> None:
         ctx_mon = montar_contexto(db, db.get(Usuario, cenario["monitor"].id))
         ctx_adm = montar_contexto(db, db.get(Usuario, cenario["admin"].id))
 
-        verifica("comissario pode registrar pagamentos", ctx_com.pode("registrar_pagamentos"))
+        verifica("comissario pode editar padrinhos", ctx_com.pode("editar_padrinhos"))
+        verifica("comissario NAO pode registrar pagamentos", not ctx_com.pode("registrar_pagamentos"))
+        verifica("comissario NAO pode fazer check-in", not ctx_com.pode("fazer_checkin"))
         verifica("comissario NAO pode subir cartoes", not ctx_com.pode("subir_cartoes"))
         verifica("comissario NAO pode gerenciar usuarios", not ctx_com.pode("gerenciar_usuarios"))
         verifica("monitor pode subir cartoes", ctx_mon.pode("subir_cartoes"))
@@ -413,6 +415,40 @@ def main() -> None:
     finally:
         limpar(db, log_inicial)
         db.close()
+
+    print("\nOs tres ambientes")
+    from app.config import Config
+
+    def monta(nome):
+        return Config(ambiente=nome, database_url="x", jwt_secret="y")
+
+    dev, hom, pro = monta("desenvolvimento"), monta("homologacao"), monta("producao")
+
+    verifica("desenvolvimento: cookie sem Secure (localhost e HTTP)", dev.cookie_secure is False)
+    verifica("homologacao: cookie COM Secure", hom.cookie_secure is True)
+    verifica("producao: cookie COM Secure", pro.cookie_secure is True)
+
+    verifica("so desenvolvimento libera CORS para o Vite",
+             bool(dev.origens_permitidas) and not hom.origens_permitidas
+             and not pro.origens_permitidas)
+
+    verifica("/docs aberta em desenvolvimento e homologacao, fechada em producao",
+             not dev.em_producao and not hom.em_producao and pro.em_producao)
+
+    # O atalho do link de senha nao pode existir num dominio publico.
+    verifica("link de definir senha so volta na resposta em desenvolvimento",
+             dev.mostra_link_de_senha and not hom.mostra_link_de_senha
+             and not pro.mostra_link_de_senha)
+
+    for errado in ("prod", "producao ", "PRODUCAO", "homologação", ""):
+        try:
+            monta(errado)
+            recusou = False
+        except Exception:
+            recusou = True
+        esperado = errado.strip().lower() in ("producao", "homologacao", "desenvolvimento")
+        verifica(f"AMBIENTE={errado!r} {'aceito' if esperado else 'RECUSADO'}",
+                 recusou != esperado)
 
     print(f"\n{ok} verificacoes ok, {len(falhas)} falha(s)")
     if falhas:

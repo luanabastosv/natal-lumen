@@ -1,22 +1,18 @@
 import { useEffect, useState } from "react";
+import Button from "../core/Button.jsx";
 import Carregando from "../feedback/Carregando.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
-import { detalharCrianca } from "../../services/criancas.js";
+import { detalharCrianca, marcarDesistencia } from "../../services/criancas.js";
 import { dinheiro, formatarData, formatarDataHora } from "../../utils/dinheiro.js";
+import { linkWhatsapp } from "../../utils/whatsapp.js";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
 
-/** Só dígitos: é o que o link do WhatsApp aceita. */
-function linkWhatsapp(numero) {
-  const so = (numero ?? "").replace(/\D/g, "");
-  if (so.length < 10) return null;
-  return `https://wa.me/${so.startsWith("55") ? so : `55${so}`}`;
-}
-
-export default function FichaCrianca({ criancaId, aoFechar }) {
+export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, aoMudar }) {
   const [ficha, definirFicha] = useState(null);
   const [erro, definirErro] = useState("");
+  const [mudandoDesistencia, definirMudandoDesistencia] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -28,15 +24,50 @@ export default function FichaCrianca({ criancaId, aoFechar }) {
     };
   }, [criancaId]);
 
+  const desistiu = Boolean(ficha?.desistiu_em);
+
+  /** Vai e volta: quem desistiu pode mudar de ideia ate a vespera. */
+  async function alternarDesistencia() {
+    definirErro("");
+    definirMudandoDesistencia(true);
+    try {
+      const atualizada = await marcarDesistencia(criancaId, !desistiu);
+      definirFicha((f) => ({ ...f, desistiu_em: atualizada.desistiu_em }));
+      aoMudar?.(atualizada);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirMudandoDesistencia(false);
+    }
+  }
+
   return (
-    <Modal titulo={ficha ? ficha.nome : "Criança"} aoFechar={aoFechar}>
+    <Modal
+      rotulo="Nome da criança:"
+      titulo={ficha ? ficha.nome : "Criança"}
+      aoFechar={aoFechar}
+      tamanho="grande"
+      rodape={
+        podeEditar &&
+        ficha && (
+          <Button
+            variant={desistiu ? "ghost" : "secondary"}
+            size="sm"
+            onClick={alternarDesistencia}
+            carregando={mudandoDesistencia}
+          >
+            {desistiu ? "Vai ao evento de novo" : "Marcar como desistente"}
+          </Button>
+        )
+      }
+    >
       <Mensagem tipo="erro">{erro}</Mensagem>
 
       {!ficha && !erro && <Carregando>Carregando...</Carregando>}
 
       {ficha && (
         <>
-          <dl className="ficha">
+          <dl className="ficha ficha--duas">
             <dt>Código</dt>
             <dd>{ficha.codigo}</dd>
             <dt>Idade</dt>
@@ -47,6 +78,8 @@ export default function FichaCrianca({ criancaId, aoFechar }) {
             <dd>{ficha.instituicao}</dd>
             <dt>Dia</dt>
             <dd>{ficha.dia_evento ? formatarData(ficha.dia_evento) : "sem dia marcado"}</dd>
+            <dt>Comissário</dt>
+            <dd>{ficha.comissario ?? "sem responsável"}</dd>
             <dt>Kit</dt>
             <dd>
               {ficha.kit_status}
@@ -56,8 +89,8 @@ export default function FichaCrianca({ criancaId, aoFechar }) {
             <dd>{ficha.checkin_em ? formatarDataHora(ficha.checkin_em) : "não fez"}</dd>
             {ficha.observacoes && (
               <>
-                <dt>Observações</dt>
-                <dd>{ficha.observacoes}</dd>
+                <dt className="ficha__dt-largo">Observações</dt>
+                <dd className="ficha__dd-largo">{ficha.observacoes}</dd>
               </>
             )}
           </dl>
@@ -75,7 +108,7 @@ export default function FichaCrianca({ criancaId, aoFechar }) {
               {ficha.padrinhos.map((p) => {
                 const zap = linkWhatsapp(p.whatsapp);
                 return (
-                  <div key={p.apadrinhamento_id} className="ficha__padrinho">
+                  <div key={p.apadrinhamento_id} className="ficha__vinculo">
                     <strong>{p.nome}</strong>
                     <span className="etiqueta etiqueta--neutra">{TIPOS[p.tipo] ?? p.tipo}</span>{" "}
                     <span className={`etiqueta ${p.pago ? "etiqueta--ok" : "etiqueta--espera"}`}>

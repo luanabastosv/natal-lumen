@@ -45,7 +45,7 @@ function LinkDeAcesso({ link, aoFechar }) {
       </p>
       <div className="link-copiavel">
         <code>{completo}</code>
-        <Button size="sm" onClick={copiar}>{copiado ? "Copiado!" : "Copiar"}</Button>
+        <Button variant="secondary" size="sm" onClick={copiar}>{copiado ? "Copiado!" : "Copiar"}</Button>
         <Button size="sm" variant="ghost" onClick={aoFechar}>Fechar</Button>
       </div>
     </div>
@@ -307,6 +307,7 @@ export default function Usuarios() {
 
           <div className="barra-acoes barra-acoes--fim">
             <Button
+              variant="secondary"
               type="submit"
               carregando={salvando}
               disabled={!campos.nome.trim() || !campos.email.trim()}
@@ -417,6 +418,7 @@ export default function Usuarios() {
                           </div>
                           <div className="barra-acoes barra-acoes--fim">
                             <Button
+                              variant="secondary"
                               size="sm"
                               onClick={() =>
                                 salvarInstituicoesDoVinculo(

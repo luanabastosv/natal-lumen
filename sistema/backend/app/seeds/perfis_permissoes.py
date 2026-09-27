@@ -35,8 +35,10 @@ PERMISSOES: dict[str, str] = {
 }
 
 # nome do perfil -> (descricao, permissoes)
-# Copiado ao pe da letra da especificacao. A coordenacao recebe todas as
-# permissoes, sempre limitadas as suas edicoes.
+# Vem da especificacao, com uma mudanca pedida depois: o comissario perdeu
+# registrar_pagamentos e fazer_checkin — pagamento e conferencia de dinheiro
+# ficam com a coordenacao, e o check-in do dia e do monitor e da estrutura.
+# A coordenacao recebe todas as permissoes, sempre limitadas as suas edicoes.
 # Nota: ver_painel so aparece na coordenacao — a especificacao nao a atribui
 # aos outros perfis. Se o painel tiver de abrir para todos, e acrescentar
 # "ver_painel" aqui (ou na base, sem mexer no codigo).
@@ -46,14 +48,12 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
         tuple(PERMISSOES),
     ),
     "Comissario": (
-        "Capta padrinhos, registra pagamentos e envia os cartoes",
+        "Capta padrinhos e envia os cartoes",
         (
             "ver_criancas",
             "ver_padrinhos",
             "editar_padrinhos",
-            "registrar_pagamentos",
             "enviar_cartoes",
-            "fazer_checkin",
         ),
     ),
     "Monitor": (
@@ -78,6 +78,11 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
 # Perfis filtrados pelas instituicoes atribuidas em usuario_instituicao.
 # Coordenacao e Estrutura veem a edicao inteira.
 PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitor")
+
+# Quem pode ser posto como responsavel por uma crianca (criancas.comissario_id).
+# O nome do perfil vive na base e pode ser mudado la; se for mudado, mude aqui
+# tambem — e a unica regra do sistema que olha um perfil pelo nome.
+PERFIL_COMISSARIO = "Comissario"
 
 
 def semear(db: Session) -> tuple[int, int]:

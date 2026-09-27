@@ -1,11 +1,32 @@
 import { useEffect, useRef } from "react";
 
-/** Janela pequena sobre a tela. Esc e o fundo fecham.
+/** Janela sobre a tela. Esc e o fundo fecham.
  *
  * Nao e um modal de pagina inteira: serve para olhar um detalhe sem perder o
  * lugar na planilha.
+ *
+ * Dois tamanhos, e a escolha e sobre o CONTEUDO, nao sobre a importancia:
+ *
+ * - `padrao` — formulario. O conteudo e fixo (N campos), entao a altura pode
+ *   acompanhar.
+ * - `grande` — ficha. O conteudo varia e muda com a janela aberta (apadrinhar
+ *   mais uma crianca, desfazer outra). A moldura fica FIXA e quem rola e o
+ *   corpo: se a altura acompanhasse, a janela pularia embaixo do ponteiro a
+ *   cada acao.
+ * - `largo` — visualizador. Largura de ficha, altura do conteudo. E o caso do
+ *   cartao aberto para olhar: nada ali muda enquanto a janela esta aberta,
+ *   entao travar a altura so deixaria um vao embaixo da imagem.
  */
-export default function Modal({ titulo, aoFechar, children, rodape }) {
+export default function Modal({
+  titulo,
+  // Eyebrow acima do titulo — "Nome do padrinho:". Numa ficha, o titulo e um
+  // nome proprio solto, e nome proprio sozinho nao diz de que ele e nome.
+  rotulo,
+  aoFechar,
+  children,
+  rodape,
+  tamanho = "padrao",
+}) {
   const botaoFechar = useRef(null);
   const caixa = useRef(null);
 
@@ -44,13 +65,16 @@ export default function Modal({ titulo, aoFechar, children, rodape }) {
     <div className="modal-fundo" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
       <div
         ref={caixa}
-        className="modal"
+        className={`modal ${tamanho === "padrao" ? "" : `modal--${tamanho}`}`}
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
       >
         <div className="modal__topo">
-          <h2 className="modal__titulo">{titulo}</h2>
+          <div className="modal__identificacao">
+            {rotulo && <span className="modal__rotulo">{rotulo}</span>}
+            <h2 className="modal__titulo">{titulo}</h2>
+          </div>
           <button
             ref={botaoFechar}
             type="button"

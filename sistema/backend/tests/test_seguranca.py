@@ -53,6 +53,16 @@ def bloqueado(d: str, c: bool, extra: str = "") -> None:
 
 
 def limpar(db, log_inicial: int = 0) -> None:
+    # Previa de lote que o teste nao confirmou deixa pasta e JSON no temp.
+    import shutil as _sh
+    temp = config.caminho_arquivos / "cartoes_temp"
+    if temp.is_dir():
+        for c in temp.iterdir():
+            if c.is_dir():
+                _sh.rmtree(c, ignore_errors=True)
+            elif c.suffix == ".json":
+                c.unlink(missing_ok=True)
+
     db.rollback()
     db.execute(delete(LogAtividade).where(LogAtividade.id > log_inicial))
     ids = [u.id for u in db.scalars(select(Usuario).where(Usuario.nome.like(f"{MARCA}%"))).all()]
@@ -285,14 +295,23 @@ def main() -> None:
         db.commit()
 
         cmon = TestClient(app); entrar(cmon, monitor.email)
-        r = cmon.post("/cartoes/confirmar", json={"id": "../../../etc/passwd",
-                                                  "crianca_id": minha.id, "tipo": "cesta"})
-        bloqueado("id de analise com travessia (com permissao de subir)",
+        # O id do lote vira nome de pasta: travessia aqui leria disco do servidor.
+        r = cmon.post("/cartoes/lote/..%2F..%2Fetc%2Fpasswd/confirmar")
+        bloqueado("id de lote com travessia", r.status_code in (400, 404), str(r.status_code))
+
+        r = cmon.post("/cartoes/lote/abc-def/confirmar")
+        bloqueado("id de lote com caractere fora de A-Z0-9",
                   r.status_code == 400, str(r.status_code))
 
-        r = cmon.post("/cartoes/confirmar", json={"id": "..%2F..%2Fetc%2Fpasswd",
-                                                  "crianca_id": minha.id, "tipo": "cesta"})
-        bloqueado("id de analise com %2F", r.status_code == 400, str(r.status_code))
+        # Nome de arquivo tambem vira caminho no fim das contas.
+        r = cmon.post(
+            "/cartoes/lote",
+            files=[("arquivos", ("../../../etc/passwd.jpg", b"\xff\xd8\xff" + b"x" * 50, "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": str(ea.id)},
+        )
+        escapou = list((config.caminho_arquivos / "cartoes_temp").glob("**/passwd*"))
+        bloqueado("nome de arquivo com travessia nao escapa da pasta",
+                  r.status_code == 200 and not escapou, str(escapou))
 
         ccoord = TestClient(app); entrar(ccoord, coord_a.email)
         r = ccoord.post("/criancas/importar/..%2F..%2Fetc%2Fpasswd/confirmar")
@@ -304,11 +323,13 @@ def main() -> None:
         # na memoria — e alguns pedidos simultaneos derrubariam o servidor.
         gigante = b"\xff\xd8\xff\xe0" + b"\x00" * (20 * 1024 * 1024)
         r = cmon.post(
-            "/cartoes/analisar",
-            files={"imagem": ("gigante.jpg", gigante, "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(ea.id)},
+            "/cartoes/lote",
+            files=[("arquivos", ("gigante.jpg", gigante, "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": str(ea.id)},
         )
-        bloqueado("foto de 20 MB e recusada", r.status_code == 413, str(r.status_code))
+        item = r.json()["arquivos"][0] if r.status_code == 200 else {}
+        bloqueado("foto de 20 MB nao vira cartao",
+                  r.status_code == 413 or item.get("valida") is False, str(r.status_code))
 
         r = ccoord.post(
             "/criancas/importar",
@@ -318,19 +339,25 @@ def main() -> None:
         bloqueado("planilha de 20 MB e recusada", r.status_code == 413, str(r.status_code))
 
         r = cmon.post(
-            "/cartoes/analisar",
-            files={"imagem": ("vazio.jpg", b"", "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(ea.id)},
+            "/cartoes/lote",
+            files=[("arquivos", ("vazio.jpg", b"", "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": str(ea.id)},
         )
-        bloqueado("arquivo vazio e recusado", r.status_code == 400, str(r.status_code))
+        item = r.json()["arquivos"][0] if r.status_code == 200 else {}
+        bloqueado("arquivo vazio nao vira cartao",
+                  r.status_code == 400 or item.get("valida") is False, str(r.status_code))
 
-        # Executavel com nome de foto: o OpenCV nao consegue abrir e recusa.
+        # Executavel com nome de foto: o OpenCV nao consegue abrir. No lote isso
+        # nao derruba a requisicao inteira — vira erro NAQUELE arquivo, e nada
+        # dele e gravado. O resto da pilha continua valendo.
         r = cmon.post(
-            "/cartoes/analisar",
-            files={"imagem": ("virus.jpg", b"MZ\x90\x00" + b"executavel" * 100, "image/jpeg")},
-            data={"codigo": "001", "edicao_id": str(ea.id)},
+            "/cartoes/lote",
+            files=[("arquivos", ("virus.jpg", b"MZ\x90\x00" + b"executavel" * 100, "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": str(ea.id)},
         )
-        bloqueado("arquivo que nao e imagem e recusado", r.status_code == 400, str(r.status_code))
+        item = r.json()["arquivos"][0] if r.status_code == 200 else {}
+        bloqueado("arquivo que nao e imagem nao vira cartao",
+                  r.status_code == 200 and item.get("valida") is False, str(r.status_code))
 
         print("\n10. Enumeracao de usuarios")
         c7 = TestClient(app)

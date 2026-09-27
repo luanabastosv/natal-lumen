@@ -1,11 +1,17 @@
-"""Cartoes de agradecimento: digitalizacao, OCR e envio aos padrinhos.
+"""Cartoes de agradecimento: digitalizacao em lote e envio aos padrinhos.
 
 Cada crianca escreve dois cartoes, um para cada padrinho. O destinatario nao
 fica gravado no cartao: e encontrado por crianca + tipo -> apadrinhamento ->
 padrinho. Assim o cartao pode ser digitalizado antes de haver padrinho.
+
+A crianca de cada foto e identificada pelo CODIGO no nome do arquivo, e nao
+pelo nome escrito no cartao — ver servicos/nomes_de_arquivo.py.
 """
 
 import base64
+import json
+import shutil
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated
@@ -22,16 +28,16 @@ from app.database import get_db
 from app.models import Apadrinhamento, Cartao, Crianca, Edicao, Padrinho
 from app.models.tipos import StatusCartao
 from app.schemas.cartoes import (
-    AnaliseCartao,
+    ArquivoDoLote,
     CartaoOut,
-    ConfirmarCartao,
     MarcarEnviados,
     PaginaCartoes,
-    TextoDetectado,
+    PreviaLote,
+    ResultadoLote,
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import arquivos, scanner
+from app.servicos import arquivos, nomes_de_arquivo, scanner
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
@@ -43,6 +49,42 @@ Enviar = Annotated[ContextoAcesso, Depends(exige_permissao("enviar_cartoes"))]
 Ver = Annotated[ContextoAcesso, Depends(exige_permissao("ver_criancas"))]
 
 PASTA_TEMP = config.caminho_arquivos / "cartoes_temp"
+
+# Teto por envio: cada arquivo e lido inteiro na memoria para endireitar.
+MAX_POR_LOTE = 120
+
+
+# Previa que ninguem confirma deixa as imagens na pasta temporaria. Sem
+# varredura elas ficam para sempre — e sao fotos de cartao de crianca ocupando
+# disco sem nenhuma linha no banco apontando para elas.
+HORAS_ATE_VARRER = 12
+
+
+def _limpar_lotes_velhos() -> None:
+    """Apaga previas abandonadas. Roda barato, a cada previa nova."""
+    if not PASTA_TEMP.is_dir():
+        return
+    limite = time.time() - HORAS_ATE_VARRER * 3600
+    for caminho in PASTA_TEMP.iterdir():
+        try:
+            if caminho.stat().st_mtime > limite:
+                continue
+            if caminho.is_dir():
+                shutil.rmtree(caminho, ignore_errors=True)
+            else:
+                # .json do manifesto, e tambem os .jpg soltos que sobraram do
+                # fluxo antigo de cartao avulso: nada mais aponta para eles.
+                caminho.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
+def _miniatura(imagem, largura: int = 220) -> str:
+    """JPEG pequeno em base64, so para conferir na previa."""
+    altura = max(1, int(imagem.shape[0] * largura / imagem.shape[1]))
+    pequena = cv2.resize(imagem, (largura, altura), interpolation=cv2.INTER_AREA)
+    ok, buffer = cv2.imencode(".jpg", pequena, [cv2.IMWRITE_JPEG_QUALITY, 60])
+    return base64.b64encode(buffer.tobytes()).decode() if ok else ""
 
 
 def _padrinho_do_cartao(db: Session, cartao: Cartao) -> Padrinho | None:
@@ -140,117 +182,197 @@ def listar(
     )
 
 
-@router.post("/analisar", response_model=AnaliseCartao)
-async def analisar(
+@router.post("/lote", response_model=PreviaLote)
+async def lote_previa(
     db: BD,
     ctx: Subir,
-    imagem: UploadFile = File(...),
-    codigo: str = Form(..., description="Codigo da crianca escrito no cartao"),
+    arquivos_enviados: list[UploadFile] = File(..., alias="arquivos"),
+    tipo: str = Form(..., pattern="^(cesta|festa)$"),
     edicao_id: int = Form(...),
 ):
-    """Digitaliza o cartao e le o nome. Nao grava nada na base ainda."""
-    crianca = db.scalar(
-        select(Crianca)
-        .where(
-            func.lower(Crianca.codigo) == codigo.strip().lower(),
-            Crianca.edicao_id == edicao_id,
-            ctx.filtro_criancas("subir_cartoes"),
-        )
-        .options(
-            joinedload(Crianca.instituicao),
-            joinedload(Crianca.edicao).joinedload(Edicao.cidade),
-        )
-    )
-    if crianca is None:
+    """Le a pilha de cartoes ja digitalizados e devolve a previa.
+
+    Nao grava nada na base: as imagens ficam numa pasta temporaria e a previa
+    num JSON ao lado, do mesmo jeito que a importacao de planilha.
+
+    A crianca e encontrada pelo CODIGO no nome do arquivo — nao pelo nome
+    escrito no cartao. Codigo e unico na edicao, nao tem acento e nao depende
+    da letra de uma crianca de oito anos.
+    """
+    if not ctx.alcanca_edicao(edicao_id, "subir_cartoes"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Voce nao sobe cartao nesta edicao.")
+
+    if len(arquivos_enviados) > MAX_POR_LOTE:
         raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            "Nenhuma crianca com este codigo entre as que voce alcanca.",
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"Envie no maximo {MAX_POR_LOTE} cartoes por vez.",
         )
 
-    conteudo = await ler_limitado(imagem)
+    # Os codigos que este usuario alcanca nesta edicao. A busca nunca inventa
+    # um codigo: ou casa com um destes, ou e erro na previa.
+    criancas = db.scalars(
+        select(Crianca)
+        .where(Crianca.edicao_id == edicao_id, ctx.filtro_criancas("subir_cartoes"))
+        .options(joinedload(Crianca.instituicao))
+    ).all()
+    por_codigo = {c.codigo: c for c in criancas}
 
-    try:
-        original = scanner.carregar_imagem(conteudo)
-    except Exception:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Nao foi possivel ler a imagem.")
+    ja_tem = set(
+        db.scalars(
+            select(Cartao.crianca_id).where(
+                Cartao.crianca_id.in_([c.id for c in criancas] or [0]),
+                Cartao.tipo == tipo,
+            )
+        ).all()
+    )
 
-    digitalizada, aviso = scanner.digitalizar(original)
-    textos = scanner.ler_textos(digitalizada)
-    sugerido = scanner.escolher_nome_sugerido(textos)
+    _limpar_lotes_velhos()
 
-    PASTA_TEMP.mkdir(parents=True, exist_ok=True)
-    id_temp = uuid.uuid4().hex
-    if not cv2.imwrite(str(PASTA_TEMP / f"{id_temp}.jpg"), digitalizada):
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Falha ao guardar a imagem.")
+    id_lote = uuid.uuid4().hex
+    pasta_lote = PASTA_TEMP / id_lote
+    pasta_lote.mkdir(parents=True, exist_ok=True)
 
-    _, buffer = cv2.imencode(".jpg", digitalizada)
+    saida: list[ArquivoDoLote] = []
+    manifesto: list[dict] = []
 
-    return AnaliseCartao(
-        id=id_temp,
-        nome_sugerido=sugerido,
-        textos=[TextoDetectado(**{k: t[k] for k in ("texto", "confianca", "altura")}) for t in textos],
-        imagem_base64=base64.b64encode(buffer.tobytes()).decode(),
-        aviso=aviso,
-        crianca_id=crianca.id,
-        crianca_nome=crianca.nome,
-        instituicao=crianca.instituicao.nome,
+    for indice, enviado in enumerate(arquivos_enviados):
+        nome = enviado.filename or f"arquivo_{indice}"
+        item = ArquivoDoLote(arquivo=nome, erros=[], avisos=[])
+
+        acerto = nomes_de_arquivo.casar(nome, list(por_codigo))
+        if acerto.erro:
+            item.erros.append(acerto.erro)
+        if acerto.aviso:
+            item.avisos.append(acerto.aviso)
+
+        crianca = por_codigo.get(acerto.codigo) if acerto.codigo else None
+        if crianca is not None:
+            item.codigo = crianca.codigo
+            item.crianca_id = crianca.id
+            item.crianca_nome = crianca.nome
+            item.instituicao = crianca.instituicao.nome
+            if crianca.id in ja_tem:
+                item.erros.append(f"Esta crianca ja tem cartao de {tipo}.")
+
+        try:
+            conteudo = await ler_limitado(enviado)
+            imagem = scanner.carregar_imagem(conteudo)
+        except HTTPException as erro:
+            item.erros.append(str(erro.detail))
+            imagem = None
+        except Exception:
+            item.erros.append("Nao foi possivel ler esta imagem.")
+            imagem = None
+
+        if imagem is not None and not item.erros:
+            # Endireita a foto torta. E OpenCV, custa ~1 ms, e cai de volta na
+            # foto original quando nao acha as bordas — nunca perde o cartao.
+            endireitada, aviso = scanner.digitalizar(imagem)
+            if aviso:
+                item.avisos.append("Bordas nao detectadas: a foto foi guardada como veio.")
+
+            caminho = pasta_lote / f"{indice}.jpg"
+            if not cv2.imwrite(str(caminho), endireitada):
+                item.erros.append("Falha ao guardar a imagem.")
+            else:
+                item.valida = True
+                item.miniatura = _miniatura(endireitada)
+                manifesto.append(
+                    {"indice": indice, "arquivo": nome, "crianca_id": item.crianca_id}
+                )
+
+        saida.append(item)
+
+    (PASTA_TEMP / f"{id_lote}.json").write_text(
+        json.dumps({"tipo": tipo, "edicao_id": edicao_id, "itens": manifesto}),
+        encoding="utf-8",
+    )
+
+    validas = sum(1 for i in saida if i.valida)
+    return PreviaLote(
+        id=id_lote,
+        tipo=tipo,
+        total=len(saida),
+        validas=validas,
+        com_erro=len(saida) - validas,
+        arquivos=saida,
     )
 
 
-@router.post("/confirmar", response_model=CartaoOut, status_code=status.HTTP_201_CREATED)
-def confirmar(dados: ConfirmarCartao, db: BD, ctx: Subir):
-    """Move a imagem para a pasta da edicao e grava o cartao."""
-    if not dados.id.isalnum():
+@router.post("/lote/{id_lote}/confirmar", response_model=ResultadoLote)
+def lote_confirmar(id_lote: str, db: BD, ctx: Subir):
+    """Grava os cartoes que passaram na previa."""
+    if not id_lote.isalnum():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Identificador invalido.")
 
-    caminho_temp = PASTA_TEMP / f"{dados.id}.jpg"
-    if not caminho_temp.is_file():
+    caminho_manifesto = PASTA_TEMP / f"{id_lote}.json"
+    if not caminho_manifesto.is_file():
         raise HTTPException(
-            status.HTTP_404_NOT_FOUND, "Analise nao encontrada. Fotografe o cartao de novo."
+            status.HTTP_404_NOT_FOUND, "Lote nao encontrado. Envie os arquivos de novo."
         )
 
-    crianca = _buscar_crianca(db, ctx, dados.crianca_id, "subir_cartoes")
+    dados = json.loads(caminho_manifesto.read_text(encoding="utf-8"))
+    tipo = dados["tipo"]
+    pasta_lote = PASTA_TEMP / id_lote
 
-    pasta = arquivos.pasta_dos_cartoes(crianca.edicao.cidade.nome, crianca.edicao.ano)
-    pasta.mkdir(parents=True, exist_ok=True)
+    gravados = 0
+    ignorados = 0
 
-    destino = arquivos.caminho_disponivel(
-        pasta, arquivos.nome_do_cartao(crianca.instituicao.nome, crianca.nome, dados.tipo)
-    )
-    relativo = str(destino.relative_to(config.caminho_arquivos))
+    for item in dados["itens"]:
+        origem = pasta_lote / f"{item['indice']}.jpg"
+        if not origem.is_file() or item["crianca_id"] is None:
+            ignorados += 1
+            continue
 
-    cartao = Cartao(
-        crianca_id=crianca.id,
-        tipo=dados.tipo,
-        arquivo=relativo,
-        texto_ocr=dados.texto_ocr,
-        monitor_id=ctx.usuario.id,
-    )
-    db.add(cartao)
-
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"Esta crianca ja tem cartao de {dados.tipo}.",
+        crianca = db.scalar(
+            select(Crianca)
+            .where(Crianca.id == item["crianca_id"], ctx.filtro_criancas("subir_cartoes"))
+            .options(
+                joinedload(Crianca.instituicao),
+                joinedload(Crianca.edicao).joinedload(Edicao.cidade),
+            )
         )
+        if crianca is None:
+            ignorados += 1
+            continue
 
-    # So move o arquivo depois de a base aceitar: assim nao fica imagem orfa.
-    caminho_temp.replace(destino)
+        pasta = arquivos.pasta_dos_cartoes(crianca.edicao.cidade.nome, crianca.edicao.ano)
+        pasta.mkdir(parents=True, exist_ok=True)
+        destino = arquivos.caminho_disponivel(
+            pasta, arquivos.nome_do_cartao(crianca.instituicao.nome, crianca.nome, tipo)
+        )
+        relativo = str(destino.relative_to(config.caminho_arquivos))
+
+        cartao = Cartao(
+            crianca_id=crianca.id,
+            tipo=tipo,
+            arquivo=relativo,
+            monitor_id=ctx.usuario.id,
+        )
+        db.add(cartao)
+        try:
+            db.flush()
+        except IntegrityError:
+            # Alguem subiu o cartao desta crianca entre a previa e o confirmar.
+            db.rollback()
+            ignorados += 1
+            continue
+
+        # So move depois de a base aceitar: assim nao fica imagem orfa.
+        origem.replace(destino)
+        gravados += 1
 
     registrar(
-        db, "cartao_digitalizado", usuario_id=ctx.usuario.id,
-        tabela="cartoes", registro_id=cartao.id,
-        detalhes={"crianca_id": crianca.id, "tipo": dados.tipo, "arquivo": relativo},
+        db, "cartoes_em_lote", usuario_id=ctx.usuario.id,
+        tabela="cartoes",
+        detalhes={"tipo": tipo, "gravados": gravados, "ignorados": ignorados},
     )
     db.commit()
 
-    return _saida(db, db.scalar(
-        select(Cartao).where(Cartao.id == cartao.id)
-        .options(joinedload(Cartao.crianca).joinedload(Crianca.instituicao))
-    ))
+    shutil.rmtree(pasta_lote, ignore_errors=True)
+    caminho_manifesto.unlink(missing_ok=True)
+
+    return ResultadoLote(gravados=gravados, ignorados=ignorados)
 
 
 @router.get("/{cartao_id}/imagem")

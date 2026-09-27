@@ -147,7 +147,7 @@ export default function Compras() {
               onChange={(e) => definirCampos({ ...campos, data: e.target.value })} required />
           </div>
           <div className="barra-acoes barra-acoes--fim">
-            <Button type="submit" carregando={salvando}>Salvar</Button>
+            <Button variant="secondary" type="submit" carregando={salvando}>Salvar</Button>
             <Button variant="ghost" onClick={() => definirFormAberto(false)}>Cancelar</Button>
           </div>
         </form>

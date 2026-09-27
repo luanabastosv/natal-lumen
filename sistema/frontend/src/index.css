@@ -21,8 +21,11 @@ a:hover {
   color: var(--text-link-hover);
 }
 
-/* Foco visivel para quem navega pelo teclado. */
+/* Foco visivel para quem navega pelo teclado. Navy, nao amarelo: amarelo
+   sobre branco da 1,6:1 e o WCAG pede 3:1 para indicador de foco — o anel
+   antigo praticamente nao existia. Sobre a lateral navy o amarelo volta
+   (ver layout.css), porque la ele da 7,4:1. */
 :focus-visible {
-  outline: 3px solid var(--amber-500);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }

@@ -213,6 +213,7 @@ export default function Pagamentos() {
 
           <div className="barra-acoes barra-acoes--fim">
             <Button
+              variant="secondary"
               type="submit"
               carregando={salvando}
               disabled={!campos.padrinho_id || (!campos.valor && somaMarcada === 0)}

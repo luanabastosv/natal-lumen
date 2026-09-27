@@ -3,6 +3,7 @@
 Rodar com:  python -m tests.test_padrinhos
 """
 
+import json
 from datetime import date
 
 from fastapi.testclient import TestClient
@@ -16,6 +17,7 @@ from app.models import (
     Cidade,
     Crianca,
     Edicao,
+    EnvioCartao,
     Instituicao,
     LogAtividade,
     Padrinho,
@@ -27,6 +29,7 @@ from app.models import (
     UsuarioInstituicao,
 )
 from app.seguranca.senhas import gerar_hash
+from app.servicos import arquivos
 
 MARCA = "ZZ_PAD"
 SENHA = "senha-de-teste-123"
@@ -183,9 +186,23 @@ def main() -> None:
             verifica("total combinado soma certo (120+60+120+150)",
                      cruzado["total_combinado"] == "450.00", str(cruzado["total_combinado"]))
 
+        # A ficha do padrinho tem de casar com a linha da planilha: sem o
+        # codigo, nao da para dizer QUAL Ana Clara e esta.
+        de_ana_na_ficha = cruzado["apadrinhamentos"][0]
+        verifica("o apadrinhamento traz o codigo da crianca",
+                 bool(de_ana_na_ficha.get("crianca_codigo")), str(de_ana_na_ficha.get("crianca_codigo")))
+        verifica("e o nome completo, nao so o primeiro",
+                 " " in (de_ana_na_ficha.get("crianca_nome") or ""), str(de_ana_na_ficha.get("crianca_nome")))
+        verifica("o primeiro nome continua saindo, para o cartao",
+                 de_ana_na_ficha.get("crianca_primeiro_nome", "").count(" ") == 0,
+                 str(de_ana_na_ficha.get("crianca_primeiro_nome")))
+
         print("\nPagamentos")
         ids_cesta = [a["id"] for a in cruzado["apadrinhamentos"] if a["tipo"] == "cesta"][:2]
-        r = ck.post("/pagamentos", json={
+        r = ck.get("/pagamentos")
+        verifica("comissario NAO ve pagamentos", r.status_code == 403, str(r.status_code))
+
+        r = cc.post("/pagamentos", json={
             "padrinho_id": jose["id"], "valor": "240.00", "data": str(date(2026, 11, 10)),
             "forma": "pix", "apadrinhamentos": ids_cesta,
         })
@@ -199,30 +216,170 @@ def main() -> None:
         pagos = [a for a in r.json()["apadrinhamentos"] if a["pago"]]
         verifica("dois apadrinhamentos aparecem como pagos", len(pagos) == 2, str(len(pagos)))
 
-        r = ck.post("/pagamentos", json={
+        r = cc.post("/pagamentos", json={
             "padrinho_id": jose["id"], "valor": "60.00", "data": str(date(2026, 11, 11)),
             "apadrinhamentos": ids_cesta[:1],
         })
         verifica("recusa quitar duas vezes o mesmo apadrinhamento", r.status_code == 409, str(r.status_code))
 
         outro = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Outro Doador"}).json()
-        r = ck.post("/pagamentos", json={
+        r = cc.post("/pagamentos", json={
             "padrinho_id": outro["id"], "valor": "10.00", "data": str(date(2026, 11, 12)),
             "apadrinhamentos": ids_cesta[:1],
         })
         verifica("recusa pagamento com apadrinhamento de outro padrinho", r.status_code == 422, str(r.status_code))
 
-        r = ck.patch(f"/pagamentos/{pagamento['id']}", json={"conferido": True})
+        r = cc.patch(f"/pagamentos/{pagamento['id']}", json={"conferido": True})
         verifica("marca o pagamento como conferido", r.status_code == 200 and r.json()["conferido"], r.text[:110])
 
-        r = ck.get("/pagamentos", params={"conferido": "true"})
+        r = cc.get("/pagamentos", params={"conferido": "true"})
         verifica("filtra pagamentos conferidos", r.json()["total"] == 1, str(r.json()["total"]))
+
+        print("\nComprovante")
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00"
+            b"\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        r = cc.post(
+            f"/pagamentos/{pagamento['id']}/comprovante",
+            files={"arquivo": ("comprovante.png", png, "image/png")},
+        )
+        verifica("sobe o comprovante", r.status_code == 200, r.text[:140])
+        caminho_1 = r.json().get("comprovante_arquivo") if r.status_code == 200 else None
+        verifica("o pagamento passa a apontar para o arquivo", bool(caminho_1), str(caminho_1))
+
+        r = cc.get(f"/pagamentos/{pagamento['id']}/comprovante")
+        verifica("baixa o comprovante de volta",
+                 r.status_code == 200 and r.content == png, str(r.status_code))
+
+        r = cc.post(
+            f"/pagamentos/{pagamento['id']}/comprovante",
+            files={"arquivo": ("planilha.xlsx", b"nao sou imagem", "application/vnd.ms-excel")},
+        )
+        verifica("recusa comprovante que nao e imagem nem PDF", r.status_code == 415, str(r.status_code))
+
+        # Trocar o comprovante nao pode deixar o anterior orfao no disco.
+        antigo = arquivos.dentro_da_pasta(caminho_1) if caminho_1 else None
+        r = cc.post(
+            f"/pagamentos/{pagamento['id']}/comprovante",
+            files={"arquivo": ("outro.pdf", b"%PDF-1.4 nada", "application/pdf")},
+        )
+        verifica("troca o comprovante", r.status_code == 200, r.text[:140])
+        verifica("o comprovante trocado sai do disco",
+                 antigo is not None and not antigo.exists(), str(antigo))
+
+        r = cm.post(
+            f"/pagamentos/{pagamento['id']}/comprovante",
+            files={"arquivo": ("c.png", png, "image/png")},
+        )
+        verifica("monitor NAO sobe comprovante", r.status_code == 403, str(r.status_code))
+        r = cm.get(f"/pagamentos/{pagamento['id']}/comprovante")
+        verifica("monitor NAO baixa comprovante", r.status_code == 403, str(r.status_code))
+
+        print("\nComprovante no Drive Compartilhado")
+        import httpx2 as httpx
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        from app.config import config as cfg
+        from app.servicos import drive
+
+        # Desligado: o comprovante sobe do mesmo jeito, so sem link do Drive.
+        cfg.drive_credenciais = ""
+        cfg.drive_pasta_id = ""
+        r = cc.post(
+            f"/pagamentos/{pagamento['id']}/comprovante",
+            files={"arquivo": ("c.png", png, "image/png")},
+        )
+        verifica("Drive desligado: o comprovante sobe assim mesmo", r.status_code == 200, r.text[:140])
+        verifica("e nao ha link do Drive",
+                 r.json().get("comprovante_drive_link") is None, str(r.json().get("comprovante_drive_link")))
+
+        # Chave de verdade: o codigo assina RS256 e o teste exercita isso.
+        chave = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = chave.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        cfg.drive_credenciais = json.dumps(
+            {"client_email": "nl@projeto.iam.gserviceaccount.com", "private_key": pem}
+        )
+        cfg.drive_pasta_id = "PASTA_DO_EVENTO"
+        drive.esquecer_token()
+
+        vistos = {}
+
+        def google_ok(req):
+            if req.url.host == "oauth2.googleapis.com":
+                return httpx.Response(200, json={"access_token": "TOK", "expires_in": 3600})
+            vistos["params"] = dict(req.url.params)
+            vistos["auth"] = req.headers.get("authorization")
+            vistos["corpo"] = req.content
+            return httpx.Response(
+                200, json={"id": "DRIVE_1", "webViewLink": "https://drive.google.com/file/d/DRIVE_1"}
+            )
+
+        original = drive._cliente
+        drive._cliente = lambda: httpx.Client(transport=httpx.MockTransport(google_ok))
+        try:
+            r = cc.post(
+                f"/pagamentos/{pagamento['id']}/comprovante",
+                files={"arquivo": ("c.png", png, "image/png")},
+            )
+            verifica("Drive ligado: sobe e devolve o link", r.status_code == 200, r.text[:140])
+            verifica("o link do Drive volta na resposta",
+                     r.json().get("comprovante_drive_link", "").endswith("DRIVE_1"),
+                     str(r.json().get("comprovante_drive_link")))
+            verifica("usou supportsAllDrives (senao nao enxerga Drive Compartilhado)",
+                     vistos.get("params", {}).get("supportsAllDrives") == "true", str(vistos.get("params")))
+            verifica("mandou o token no cabecalho", vistos.get("auth") == "Bearer TOK", str(vistos.get("auth")))
+            verifica("gravou dentro da pasta configurada",
+                     b"PASTA_DO_EVENTO" in vistos.get("corpo", b""), "pasta ausente no corpo")
+            verifica("o nome do arquivo leva cidade e ano",
+                     b"ZZ_PAD_FORTALEZA_2026" in vistos.get("corpo", b""), "nome sem cidade/ano")
+
+            # Falha do Drive nao pode derrubar o comprovante.
+            drive.esquecer_token()
+
+            def google_sem_cota(req):
+                if req.url.host == "oauth2.googleapis.com":
+                    return httpx.Response(200, json={"access_token": "TOK", "expires_in": 3600})
+                return httpx.Response(
+                    403, json={"error": {"errors": [{"reason": "storageQuotaExceeded"}]}}
+                )
+
+            drive._cliente = lambda: httpx.Client(transport=httpx.MockTransport(google_sem_cota))
+            r = cc.post(
+                f"/pagamentos/{pagamento['id']}/comprovante",
+                files={"arquivo": ("c.png", png, "image/png")},
+            )
+            verifica("Drive falhando: o comprovante AINDA sobe", r.status_code == 200, r.text[:140])
+            verifica("e o link fica vazio",
+                     r.json().get("comprovante_drive_link") is None, str(r.json().get("comprovante_drive_link")))
+            verifica("o arquivo local continua la",
+                     bool(r.json().get("comprovante_arquivo")), str(r.json().get("comprovante_arquivo")))
+
+            caiu = db.scalar(
+                select(LogAtividade).where(LogAtividade.acao == "comprovante_drive_falhou")
+                .order_by(LogAtividade.id.desc())
+            )
+            verifica("a falha ficou registrada no log", caiu is not None)
+            verifica("com a explicacao do Drive Compartilhado",
+                     caiu is not None and "Drive Compartilhado" in (caiu.detalhes or {}).get("erro", ""),
+                     str((caiu.detalhes or {}).get("erro") if caiu else None))
+        finally:
+            drive._cliente = original
+            drive.esquecer_token()
+            cfg.drive_credenciais = ""
+            cfg.drive_pasta_id = ""
 
         print("\nRemocao")
         r = ck.delete(f"/apadrinhamentos/{ids_cesta[0]}")
         verifica("recusa apagar apadrinhamento ja pago", r.status_code == 409, str(r.status_code))
 
-        r = ck.delete(f"/pagamentos/{pagamento['id']}")
+        r = cc.delete(f"/pagamentos/{pagamento['id']}")
         verifica("apaga o pagamento", r.status_code == 204, str(r.status_code))
 
         r = ck.get(f"/padrinhos/{jose['id']}")
@@ -244,6 +401,115 @@ def main() -> None:
                  "Jose Doador" in nomes, str(nomes))
         verifica("mas nao ve o padrinho sem ligacao com a cidade dele",
                  "Outro Doador" not in nomes, str(nomes))
+
+        print("\nCartao de agradecimento")
+        # Relido agora: o bloco de remocao acima ja apagou o de cesta da Ana.
+        vivos = ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]
+        de_ana = [a for a in vivos if a["crianca_id"] == ana.id][0]
+
+        r = ck.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
+        verifica("gera o cartao", r.status_code == 200, r.text[:110])
+        verifica("responde PNG", r.headers.get("content-type") == "image/png",
+                 str(r.headers.get("content-type")))
+        disposicao = r.headers.get("content-disposition", "")
+        verifica("baixa como anexo", "attachment" in disposicao, disposicao)
+        verifica("arquivo e CODIGO_NOME_DA_CRIANCA.png",
+                 f'filename="{ana.codigo}_ANA_CLARA_AVILA.png"' in disposicao, disposicao)
+        verifica("nome do arquivo e ASCII puro, sem espaco",
+                 disposicao.isascii() and " " not in disposicao.split('filename="')[-1],
+                 disposicao)
+
+        if r.status_code == 200:
+            from io import BytesIO
+            from PIL import Image
+            img = Image.open(BytesIO(r.content))
+            verifica("PNG abre e tem tamanho de arte", img.size[0] >= 800 and img.size[1] >= 800,
+                     str(img.size))
+
+        r = ck.get("/apadrinhamentos/99999999/agradecimento")
+        verifica("apadrinhamento inexistente da 404", r.status_code == 404, str(r.status_code))
+
+        # O cartao leva nome, codigo e instituicao: exige ver_criancas na
+        # edicao DA CRIANCA, e nao so ver_padrinhos.
+        r = cm.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
+        verifica("monitor (sem ver_padrinhos) nao baixa cartao",
+                 r.status_code == 403, str(r.status_code))
+
+        print("\nEnvio pelo WhatsApp (Cloud API)")
+        import httpx2 as httpx
+        from app.config import config as cfg
+        from app.servicos import whatsapp as ws
+
+        verifica("numero brasileiro ganha o 55",
+                 ws.telefone_e164("(27) 99999-8888") == "5527999998888",
+                 str(ws.telefone_e164("(27) 99999-8888")))
+        verifica("numero que ja tem 55 passa intacto",
+                 ws.telefone_e164("5527999998888") == "5527999998888")
+        verifica("numero curto demais e recusado", ws.telefone_e164("99998888") is None)
+
+        # Desligado: a rota avisa em vez de estourar.
+        cfg.whatsapp_token = ""
+        cfg.whatsapp_phone_number_id = ""
+        r = ck.post(f"/apadrinhamentos/{de_ana['id']}/agradecimento/enviar")
+        verifica("sem credenciais, responde 503 e explica", r.status_code == 503, r.text[:120])
+
+        cfg.whatsapp_token = "TOKEN_DE_TESTE"
+        cfg.whatsapp_phone_number_id = "999"
+
+        # A Meta nunca e chamada de verdade: trocamos o transporte.
+        chamadas = []
+
+        def meta_ok(req):
+            chamadas.append(req.url.path)
+            if req.url.path.endswith("/media"):
+                return httpx.Response(200, json={"id": "MEDIA_1"})
+            return httpx.Response(200, json={"messages": [{"id": "wamid.TESTE"}]})
+
+        original = ws._cliente
+        ws._cliente = lambda: httpx.Client(transport=httpx.MockTransport(meta_ok))
+        try:
+            r = ck.post(f"/apadrinhamentos/{de_ana['id']}/agradecimento/enviar")
+            verifica("envia o cartao", r.status_code == 200, r.text[:130])
+            if r.status_code == 200:
+                verifica("devolve o id da mensagem",
+                         r.json()["mensagem_id"] == "wamid.TESTE", r.text[:110])
+                verifica("status enviado", r.json()["status"] == "enviado")
+            verifica("subiu a imagem antes de mandar o template",
+                     len(chamadas) == 2 and chamadas[0].endswith("/media")
+                     and chamadas[1].endswith("/messages"), str(chamadas))
+
+            r = ck.get(f"/padrinhos/{jose['id']}")
+            do_cartao = [a for a in r.json()["apadrinhamentos"] if a["id"] == de_ana["id"]][0]
+            verifica("a tela passa a mostrar que o cartao foi enviado",
+                     do_cartao["cartao_status"] == "enviado", str(do_cartao["cartao_status"]))
+        finally:
+            ws._cliente = original
+
+        # Falha da Meta: o erro e traduzido e a tentativa fica gravada.
+        def meta_falha(req):
+            if req.url.path.endswith("/media"):
+                return httpx.Response(200, json={"id": "MEDIA_2"})
+            return httpx.Response(400, json={"error": {"code": 131026,
+                                                       "message": "Receiver incapable"}})
+
+        ws._cliente = lambda: httpx.Client(transport=httpx.MockTransport(meta_falha))
+        try:
+            r = ck.post(f"/apadrinhamentos/{de_ana['id']}/agradecimento/enviar")
+            verifica("falha da Meta vira 502", r.status_code == 502, str(r.status_code))
+            verifica("erro traduzido para portugues",
+                     "nao tem WhatsApp" in r.json().get("detail", ""), r.text[:130])
+
+            envios = db.scalars(
+                select(EnvioCartao).where(EnvioCartao.apadrinhamento_id == de_ana["id"])
+            ).all()
+            verifica("as duas tentativas ficaram gravadas", len(envios) == 2, str(len(envios)))
+            verifica("uma enviada e uma falhada",
+                     sorted(e.status for e in envios) == ["enviado", "falhou"],
+                     str([e.status for e in envios]))
+        finally:
+            ws._cliente = original
+            cfg.whatsapp_token = ""
+            cfg.whatsapp_phone_number_id = ""
 
         print("\nPermissoes")
         r = cm.get("/padrinhos")
