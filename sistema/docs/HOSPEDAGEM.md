@@ -450,12 +450,23 @@ Isso é proposital e importante: com as credenciais preenchidas, um teste de
 Salve (`Ctrl+O`, Enter, `Ctrl+X`) e tranque o arquivo:
 
 ```bash
-sudo chown natal-lumen:natal-lumen .env
-sudo chmod 600 .env
+sudo chown natal-lumen:lumen .env
+sudo chmod 640 .env
 ```
 
-> Agora só o usuário do serviço (e o administrador via `sudo`) consegue ler o
-> arquivo. É por isso que, mais adiante, o backup é rodado com `sudo`.
+**Dono `natal-lumen`, grupo `lumen`, e ninguém mais.** Os dois precisam ler,
+por motivos diferentes:
+
+- **`natal-lumen`** roda a aplicação, e a aplicação lê este arquivo além de
+  receber as variáveis pelo systemd. Com o dono errado ela sobe e morre em
+  `PermissionError`.
+- **`lumen`** roda o `publicar.sh`, que aplica as migrations — e para falar
+  com o banco precisa da senha que está aqui. Com `600` o script falharia
+  toda vez que houvesse migration nova.
+
+O `640` fecha para todo o resto: o usuário do Postgres, o do nginx, qualquer
+outro. Confira com `sudo -u postgres cat .env` — tem que dar
+*Permission denied*.
 
 ---
 
@@ -544,6 +555,40 @@ Resposta esperada: `{"ok":true,"ambiente":"homologacao"}`
 > sudo journalctl -u natal-lumen-api -n 40 --no-pager
 > ```
 > Os dois erros mais comuns estão no **Socorro**, no fim deste guia.
+
+### Deixar o reinício sem senha (para o `publicar.sh` não travar)
+
+O `publicar.sh` reinicia a API com `sudo`, e o `sudo` pede senha. Numa
+publicação feita à mão você digita e segue. Mas se um dia você quiser
+publicar por um comando só, de fora do servidor, o script trava esperando
+uma senha que ninguém vai digitar.
+
+A solução é liberar **exatamente aquele comando**, e mais nenhum:
+
+```bash
+sudo tee /etc/sudoers.d/natal-lumen-publicar > /dev/null <<'FIM'
+lumen ALL=(root) NOPASSWD: /usr/bin/systemctl restart natal-lumen-api, /usr/bin/systemctl status natal-lumen-api, /usr/bin/systemctl is-active natal-lumen-api
+FIM
+sudo chmod 440 /etc/sudoers.d/natal-lumen-publicar
+sudo visudo -c -f /etc/sudoers.d/natal-lumen-publicar
+```
+
+A última linha valida a sintaxe. **Ela importa:** um erro de digitação em
+arquivo de `sudoers` pode quebrar o `sudo` da máquina inteira, e aí não há
+mais como consertar sem o console de emergência.
+
+**Isto não é dar sudo livre.** Confira o alcance abrindo uma conexão nova
+(a senha do `sudo` fica em cache por 15 minutos, então o teste na mesma
+sessão engana):
+
+```bash
+sudo -k                       # limpa o cache
+sudo -n systemctl restart natal-lumen-api   # tem que FUNCIONAR
+sudo -n cat /var/www/natal-lumen/sistema/backend/.env   # tem que ser RECUSADO
+sudo -n whoami                # tem que ser RECUSADO
+```
+
+Quem tiver a chave do `lumen` pode reiniciar este serviço e nada além disso.
 
 ---
 
@@ -683,7 +728,12 @@ Isso roda o backup **todo dia às 3h da manhã**. Salve com `Ctrl+O`, Enter,
 
 # PARTE 14 — Repetir para produção
 
-Refaça as Partes 2 a 13, com **cinco diferenças**:
+Refaça as Partes 2 a 13. **Tudo igual, menos o que está na tabela abaixo** —
+inclusive a permissão `640` do `.env`, a regra de `sudo` sem senha e a
+localização, que na produção é **São Paulo** (vale o acréscimo regional de
+50%: é lá que as pessoas vão usar o sistema no dia do evento, pelo celular).
+
+As diferenças:
 
 | | teste | produção |
 | --- | --- | --- |
@@ -695,6 +745,8 @@ Refaça as Partes 2 a 13, com **cinco diferenças**:
 | WhatsApp e Drive | **vazios** | preenchidos |
 | `JWT_SECRET` | um | **outro, gerado de novo** |
 | `sed` do nginx | `teste.natallumen.com` | `acesso.natallumen.com` |
+| Localização (Vultr) | Miami (sem acréscimo) | **São Paulo** (+50%, vale a pena) |
+| Automatic Backups da Vultr | desligado | **ligado** (US$ 2/mês, imagem semanal da máquina) |
 
 > **Não repita o `JWT_SECRET` entre os dois.** Se forem iguais, um crachá
 > emitido no servidor de teste vale como entrada na produção.
@@ -708,16 +760,63 @@ para não cair no modo mais frouxo em silêncio.
 
 # PARTE 15 — O dia a dia, depois de tudo no ar
 
-### Publicar uma mudança
+### Publicar uma mudança no teste
 
 O fluxo é: você trabalha → `main` → teste → (tag) → produção.
 
-**No teste** (pega o que estiver no `main`):
+**Passo 1 — mandar o seu trabalho para o GitHub.** O servidor não lê o seu
+Mac: ele baixa do GitHub. Enquanto você não empurrar, o teste continua com a
+versão antiga, por mais que você tenha salvo tudo aqui.
 
 ```bash
-ssh lumen@teste.natallumen.com
+# no seu Mac, na pasta do projeto
+git add -A
+git commit -m "descreva o que mudou"
+git push origin main
+```
+
+**Passo 2 — mandar o servidor se atualizar.** Um comando só, direto do seu
+Mac, sem precisar entrar no servidor:
+
+```bash
+ssh teste.natallumen.com "cd /var/www/natal-lumen && DOMINIO=teste.natallumen.com ./sistema/publicacao/publicar.sh"
+```
+
+Se preferir acompanhar de dentro do servidor:
+
+```bash
+ssh teste.natallumen.com
 cd /var/www/natal-lumen
-./sistema/publicacao/publicar.sh
+DOMINIO=teste.natallumen.com ./sistema/publicacao/publicar.sh
+```
+
+**O que o script faz, nesta ordem:** busca a versão nova do GitHub → instala
+dependências que tenham mudado → **roda as migrations ANTES de reiniciar**
+(o código novo costuma esperar o banco novo) → recompila o frontend →
+reinicia a API → confere se respondeu.
+
+**Como saber que deu certo.** As duas últimas linhas têm que ser:
+
+```
+OK: a API respondeu.
+OK: o caminho publico tambem respondeu.
+```
+
+A conferência é em duas etapas de propósito. A primeira bate direto no
+uvicorn (`127.0.0.1:8000`) e responde *"a aplicação subiu?"*; a segunda dá a
+volta inteira pelo nginx e pelo HTTPS e responde *"o caminho público está
+certo?"*. Separar as duas diz onde olhar quando falha: `journalctl` para a
+primeira, log do nginx para a segunda.
+
+> O `DOMINIO=` é opcional, mas **use sempre**. Sem ele o script só faz a
+> primeira conferência — e você pode publicar com a API de pé e o site fora
+> do ar sem o script reclamar.
+
+**Se falhar**, nada foi perdido: o código antigo continua no ar até a API
+reiniciar com sucesso. Veja o motivo com:
+
+```bash
+ssh teste.natallumen.com "sudo journalctl -u natal-lumen-api -n 40 --no-pager"
 ```
 
 **Na produção** (só o que foi marcado com uma tag, depois de você ver
