@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
-import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import { Olho, Xis } from "../components/core/icones.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
 import { rotuloDoPerfil } from "../components/dados/perfis.js";
@@ -586,7 +587,10 @@ export default function Criancas() {
                     nao some — vira uma coluna vazia no fim, e a planilha
                     parece nao alcancar a borda do container. */}
                 {mostrarCheckin && <col style={{ width: 82 }} />}
-                {podeEditar && <col style={{ width: 66 }} />}
+                {/* Os mesmos 66 de antes, que agora levam dois botoes de 24px
+                    em vez de um de tres pontinhos. Sem o de apagar sobra a
+                    largura de um, e os 26px voltam para a coluna do nome. */}
+                <col style={{ width: podeEditar ? 66 : 40 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -616,7 +620,7 @@ export default function Criancas() {
                   <th title="Cartões digitalizados, de 2">Cartões</th>
                   <th>Kit</th>
                   {mostrarCheckin && <th>Check-in</th>}
-                  {podeEditar && <th className="planilha__acoes" />}
+                  <th className="planilha__acoes" />
                 </tr>
               </thead>
               <tbody>
@@ -788,24 +792,31 @@ export default function Criancas() {
                         </span>
                       </td>
                     )}
-                    {podeEditar && (
-                      <td className="planilha__acoes">
-                        <MenuAcoes
-                          titulo={`Ações de ${c.nome}`}
-                          itens={[
-                            {
-                              rotulo: "Ver ficha",
-                              aoEscolher: () => definirFichaAberta(c.id),
-                            },
-                            {
-                              rotulo: "Apagar",
-                              perigo: true,
-                              aoEscolher: () => pedirExclusao(c),
-                            },
-                          ]}
-                        />
-                      </td>
-                    )}
+                    {/* Duas acoes por linha, e as duas a um clique: com so
+                        isso, o menu de tres pontinhos cobrava um clique a mais
+                        para chegar na ficha — a acao mais comum da planilha. O
+                        X continua abrindo a janela de confirmacao. */}
+                    <td className="planilha__acoes">
+                      <span className="acoes-icone">
+                        <BotaoIcone
+                          titulo={`Ver ficha de ${c.nome}`}
+                          tamanho="sm"
+                          onClick={() => definirFichaAberta(c.id)}
+                        >
+                          <Olho />
+                        </BotaoIcone>
+                        {podeEditar && (
+                          <BotaoIcone
+                            perigo
+                            titulo={`Apagar ${c.nome}`}
+                            tamanho="sm"
+                            onClick={() => pedirExclusao(c)}
+                          >
+                            <Xis />
+                          </BotaoIcone>
+                        )}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

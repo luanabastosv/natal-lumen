@@ -14,6 +14,20 @@ export function pedeInstituicoes(perfil) {
   return PERFIS_POR_INSTITUICAO.includes(perfil?.nome);
 }
 
+/** Perfis filtrados tambem crianca a crianca, e nao so por instituicao.
+ *
+ *  So o comissario: ele ve apenas as criancas com o nome dele na coluna
+ *  Comissario, e nao a lista inteira das instituicoes dele. O monitor continua
+ *  com a instituicao toda. Mesma historia das listas acima — o backend manda
+ *  `so_criancas_atribuidas` no vinculo ja gravado, e esta lista vale enquanto
+ *  a escolha ainda esta na tela.
+ */
+export const PERFIS_POR_CRIANCA = ["Comissario"];
+
+export function veSoCriancasAtribuidas(perfil) {
+  return PERFIS_POR_CRIANCA.includes(perfil?.nome);
+}
+
 /** Perfis que respondem por um grupo da comunidade.
  *
  *  So o comissario: o monitor responde pela instituicao e a coordenacao pela

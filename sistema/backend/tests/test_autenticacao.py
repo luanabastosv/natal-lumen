@@ -167,6 +167,14 @@ def montar_cenario(db) -> dict:
     ))
     db.flush()
     db.add(UsuarioInstituicao(usuario_edicao_id=v_com.id, instituicao_id=inst_a.id))
+    db.flush()
+
+    # Dentro da Escola A, so a primeira crianca esta no nome dele. O comissario
+    # nao alcanca a lista inteira da instituicao — a instituicao diz ate onde
+    # ele PODERIA chegar, e o responsavel diz onde ele chega.
+    db.scalar(
+        select(Crianca).where(Crianca.codigo == f"{inst_a.id}-1")
+    ).comissario_id = comissario.id
     db.commit()
 
     return {
@@ -367,15 +375,34 @@ def main() -> None:
         todas = {f"{MARCA} Crianca {cenario['inst_a'].id}-1", f"{MARCA} Crianca {cenario['inst_a'].id}-2",
                  f"{MARCA} Crianca {cenario['inst_b'].id}-1", f"{MARCA} Crianca {cenario['inst_b'].id}-2",
                  f"{MARCA} Crianca {cenario['inst_c'].id}-1", f"{MARCA} Crianca {cenario['inst_c'].id}-2"}
-        so_escola_a = {n for n in todas if f" {cenario['inst_a'].id}-" in n}
         fortaleza_toda = {n for n in todas if f" {cenario['inst_c'].id}-" not in n}
+        # A parte dele dentro da Escola A: uma das duas.
+        do_comissario = {f"{MARCA} Crianca {cenario['inst_a'].id}-1"}
+        colega_na_mesma_escola = f"{MARCA} Crianca {cenario['inst_a'].id}-2"
 
         verifica("admin_geral alcanca as criancas das duas cidades",
                  criancas_visiveis(cenario["admin"].id) == todas)
         verifica("coordenacao alcanca a edicao dela inteira, e nao a outra cidade",
                  criancas_visiveis(cenario["coord"].id) == fortaleza_toda)
-        verifica("comissario so alcanca as criancas da instituicao atribuida",
-                 criancas_visiveis(cenario["comissario"].id) == so_escola_a)
+        verifica("comissario so alcanca as criancas atribuidas a ele",
+                 criancas_visiveis(cenario["comissario"].id) == do_comissario)
+        verifica("comissario nao alcanca a crianca sem dono da MESMA escola",
+                 colega_na_mesma_escola
+                 not in criancas_visiveis(cenario["comissario"].id))
+
+        # O vinculo diz a tela o que nao adianta oferecer: filtro por
+        # responsavel e colunas de responsavel, quando o unico possivel e ele.
+        c_com = TestClient(app)
+        entrar(c_com, cenario["comissario"].email)
+        v_com = c_com.get("/auth/eu").json()["vinculos"][0]
+        verifica("o vinculo do comissario avisa que ele so ve as dele",
+                 v_com.get("so_criancas_atribuidas") is True, str(v_com))
+
+        c_mon = TestClient(app)
+        entrar(c_mon, cenario["monitor"].email)
+        v_mon = c_mon.get("/auth/eu").json()["vinculos"][0]
+        verifica("o do monitor nao: ele alcanca a instituicao inteira",
+                 v_mon.get("so_criancas_atribuidas") is False, str(v_mon))
         verifica("monitor sem instituicao atribuida nao alcanca nenhuma crianca",
                  criancas_visiveis(cenario["monitor"].id) == set())
 

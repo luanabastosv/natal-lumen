@@ -125,13 +125,19 @@ def main() -> None:
     ib = Instituicao(cidade_id=cb.id, nome=f"{MARCA} EscolaB")
     db.add_all([ia, ia2, ib]); db.flush()
 
+    # As tres primeiras sao da MESMA instituicao do atacante: a instituicao
+    # inteira e dele, mas dentro dela so a primeira esta no nome dele.
     minha = Crianca(edicao_id=ea.id, instituicao_id=ia.id, codigo="001",
                     nome="Crianca Minha Instituicao", idade=8, sexo="F")
+    do_colega = Crianca(edicao_id=ea.id, instituicao_id=ia.id, codigo="004",
+                        nome="Crianca Do Colega", idade=8, sexo="M")
+    sem_dono = Crianca(edicao_id=ea.id, instituicao_id=ia.id, codigo="005",
+                       nome="Crianca Sem Responsavel", idade=10, sexo="F")
     vizinha = Crianca(edicao_id=ea.id, instituicao_id=ia2.id, codigo="002",
                       nome="Crianca Outra Instituicao", idade=9, sexo="M")
     secreta = Crianca(edicao_id=eb.id, instituicao_id=ib.id, codigo="003",
                       nome="Crianca Segredo Outra Cidade", idade=7, sexo="F")
-    db.add_all([minha, vizinha, secreta]); db.flush()
+    db.add_all([minha, do_colega, sem_dono, vizinha, secreta]); db.flush()
 
     padrinho_b = Padrinho(edicao_id=eb.id, nome=f"{MARCA} Padrinho Secreto B")
     db.add(padrinho_b); db.flush()
@@ -151,7 +157,12 @@ def main() -> None:
 
     # O atacante: comissario da cidade A, responsavel por UMA instituicao.
     atacante = usuario("Atacante", "Comissario", ea.id, [ia.id])
+    # Um colega do mesmo time, na mesma instituicao: a lista dela e dividida
+    # entre os dois, e nenhum dos dois alcanca a parte do outro.
+    colega = usuario("Colega", "Comissario", ea.id, [ia.id])
     coord_b = usuario("CoordB", "Coordenacao", eb.id)
+    minha.comissario_id = atacante.id
+    do_colega.comissario_id = colega.id
     db.commit()
 
     try:
@@ -182,8 +193,24 @@ def main() -> None:
 
         r = c.get("/criancas")
         nomes = [x["nome"] for x in r.json()["itens"]]
-        bloqueado("listagem so traz a instituicao dele",
+        bloqueado("listagem so traz as criancas atribuidas a ele",
                   nomes == ["Crianca Minha Instituicao"], str(nomes))
+
+        r = c.get(f"/criancas/{do_colega.id}")
+        bloqueado("ler crianca do colega, na propria instituicao",
+                  r.status_code == 404, str(r.status_code))
+
+        r = c.get(f"/criancas/{sem_dono.id}")
+        bloqueado("ler crianca sem responsavel, na propria instituicao",
+                  r.status_code == 404, str(r.status_code))
+
+        r = c.get("/criancas", params={"comissario_id": colega.id})
+        bloqueado("forcar comissario_id do colega nao vaza",
+                  r.json()["total"] == 0, str(r.json()["total"]))
+
+        r = c.get("/criancas", params={"sem_comissario": True})
+        bloqueado("pedir as criancas sem responsavel nao vaza",
+                  r.json()["total"] == 0, str(r.json()["total"]))
 
         r = c.get("/criancas", params={"instituicao_id": ia2.id})
         bloqueado("forcar instituicao_id de outra instituicao nao vaza",

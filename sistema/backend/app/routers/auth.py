@@ -70,6 +70,7 @@ def _montar_saida(db: Session, ctx: ContextoAcesso) -> UsuarioOut:
                     if vinculo.filtrado_por_instituicao
                     else None
                 ),
+                so_criancas_atribuidas=vinculo.filtrado_por_crianca,
             )
         )
 

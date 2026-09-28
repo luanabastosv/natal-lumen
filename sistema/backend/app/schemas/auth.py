@@ -26,6 +26,10 @@ class VinculoOut(BaseModel):
     permissoes: list[str]
     # So preenchido para comissario e monitor, que respondem por instituicoes.
     instituicoes: list[int] | None = None
+    # O comissario ve apenas as criancas atribuidas a ele, e nao a lista
+    # inteira da instituicao. O frontend usa isto para nao oferecer o filtro
+    # por responsavel a quem so tem um responsavel possivel: ele mesmo.
+    so_criancas_atribuidas: bool = False
 
 
 class UsuarioOut(BaseModel):

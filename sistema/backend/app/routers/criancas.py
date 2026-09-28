@@ -1,7 +1,8 @@
 """Criancas e importacao das listas enviadas pelas instituicoes.
 
 Dado sensivel (LGPD). Toda consulta aqui passa pelo filtro do contexto, que
-limita por edicao e, para comissario e monitor, tambem por instituicao.
+limita por edicao, para comissario e monitor tambem por instituicao, e para o
+comissario ainda pelas criancas atribuidas a ele.
 """
 
 import json
@@ -164,9 +165,11 @@ def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int], str]]:
     id -> (nome, instituicoes que ele alcanca, papel).
 
     O comissario e quem faz isto no dia a dia. Uma instituicao e atendida por
-    um TIME — as vezes 2 ou 3 comissarios — e todos eles alcancam a lista
-    inteira dela, e so a dela: e a atribuicao em usuario_instituicao que diz
-    por quais ele responde.
+    um TIME — as vezes 2 ou 3 comissarios — mas cada um so alcanca as criancas
+    atribuidas a ele: a instituicao (usuario_instituicao) diz ate onde ele
+    poderia chegar, e criancas.comissario_id diz onde ele chega de fato. Esta
+    lista aqui e de quem PODE receber uma crianca, e quem distribui e a
+    coordenacao.
 
     Coordenacao e administracao geral entram na lista pelo mesmo motivo por que
     entram em todo o resto do sistema: elas fazem tudo o que a equipe faz, e

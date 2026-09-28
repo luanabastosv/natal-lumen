@@ -10,6 +10,7 @@ import {
   pedeInstituicoes,
   rotuloDoPerfil,
   valeCidadeInteira,
+  veSoCriancasAtribuidas,
 } from "./perfis.js";
 
 function mesmaLista(a, b) {
@@ -160,6 +161,14 @@ function BlocoVinculo({
               </div>
               <span className="campo__dica">
                 Sem nenhuma marcada, a pessoa não alcança nenhuma criança.
+                {veSoCriancasAtribuidas(perfil) && (
+                  <>
+                    {" "}
+                    O comissário ainda não vê a lista inteira delas: só as
+                    crianças em que o nome dele estiver na coluna Comissário,
+                    na tela de Crianças.
+                  </>
+                )}
               </span>
             </>
           )}

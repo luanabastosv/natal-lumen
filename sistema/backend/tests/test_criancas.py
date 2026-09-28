@@ -159,6 +159,10 @@ def main() -> None:
         ana = r.json() if r.status_code == 201 else {}
         verifica("espacos extras do nome sao limpos", ana.get("nome") == "Ana Clara Avila", str(ana.get("nome")))
 
+        # O comissario so alcanca as criancas atribuidas a ele: sem este passo
+        # a lista dele fica vazia mesmo com a Escola A inteira no vinculo.
+        cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": comissario.id})
+
         r = cc.post("/criancas", json={
             "edicao_id": edicao.id, "instituicao_id": inst_a.id,
             "codigo": "001", "nome": "Outra Crianca", "idade": 9, "sexo": "F",
@@ -184,10 +188,10 @@ def main() -> None:
         })
         verifica("recusa idade fora da faixa", r.status_code == 422)
 
-        print("\nIsolamento por instituicao")
+        print("\nIsolamento por instituicao e por crianca")
         r = ck.get("/criancas")
         nomes = [c["nome"] for c in r.json()["itens"]]
-        verifica("comissario so ve as criancas da instituicao dele", nomes == ["Ana Clara Avila"], str(nomes))
+        verifica("comissario so ve as criancas atribuidas a ele", nomes == ["Ana Clara Avila"], str(nomes))
 
         r = cc.get("/criancas")
         verifica("coordenacao ve as duas", r.json()["total"] == 2, str(r.json()["total"]))
@@ -918,12 +922,17 @@ def main() -> None:
         verifica("e devolve para a comissaria de sempre",
                  r.status_code == 200, r.text[:140])
 
+        # A Bia esta na mesma Escola A, mas ainda sem nenhuma crianca no nome
+        # dela: o time divide a lista da escola, nao a compartilha.
         r = cb.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 100})
         quantas_bia = r.json()["total"]
         r = ck.get("/criancas", params={"instituicao_id": inst_a.id, "por_pagina": 100})
-        verifica("duas comissarias da mesma escola veem a MESMA lista",
-                 quantas_bia == r.json()["total"] and quantas_bia > 0,
-                 f"{quantas_bia} x {r.json()['total']}")
+        verifica("comissaria nova na escola comeca sem ver nada",
+                 quantas_bia == 0, str(quantas_bia))
+        verifica("e a outra continua vendo so a parte dela",
+                 r.json()["total"] > 0
+                 and all(c["comissario_id"] == comissario.id for c in r.json()["itens"]),
+                 r.text[:160])
 
         print("\nComissario responsavel pela crianca")
         r = cc.patch(f"/criancas/{ana['id']}", json={"comissario_id": bia.id})
@@ -944,12 +953,15 @@ def main() -> None:
                  r.json().get("comissario_grupo") == "Elyon",
                  str(r.json().get("comissario_grupo")))
 
-        # O ponto do time: quem NAO e responsavel continua alcancando a crianca.
+        # O ponto do recorte: passar a crianca para a Bia tira a crianca da
+        # lista de quem a tinha, na mesma hora e sem mexer no vinculo dele.
         r = ck.get(f"/criancas/{ana['id']}")
-        verifica("o outro comissario do time ainda abre a ficha",
-                 r.status_code == 200, str(r.status_code))
-        verifica("e ve de quem ela e",
-                 r.json().get("comissario") == f"{MARCA} Bia", str(r.json().get("comissario")))
+        verifica("quem deixou de ser o responsavel perde a ficha",
+                 r.status_code == 404, str(r.status_code))
+        r = cb.get(f"/criancas/{ana['id']}")
+        verifica("e a nova responsavel passa a abri-la",
+                 r.status_code == 200 and r.json().get("comissario") == f"{MARCA} Bia",
+                 r.text[:140])
 
         r = ck.patch(f"/criancas/{ana['id']}", json={"comissario_id": comissario.id})
         verifica("comissario NAO se atribui a crianca (e da coordenacao)",

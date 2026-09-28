@@ -47,11 +47,16 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
       titulo={ficha ? ficha.nome : "Criança"}
       aoFechar={aoFechar}
       tamanho="grande"
+      /* Ghost nos dois sentidos, e nao so na volta: solido, este botao ficava
+         com a cara do CTA da ficha — e o que se vem fazer aqui e LER a ficha da
+         crianca, nao tira-la do evento. Aparece so para quem pode editar
+         crianca (coordenacao e administracao geral), a mesma regra que o
+         backend cobra na rota. */
       rodape={
         podeEditar &&
         ficha && (
           <Button
-            variant={desistiu ? "ghost" : "secondary"}
+            variant="ghost"
             size="sm"
             onClick={alternarDesistencia}
             carregando={mudandoDesistencia}

@@ -7,7 +7,9 @@ E aqui que mora o isolamento de dados exigido pela LGPD. Regras:
   - a permissao e por edicao (o mesmo usuario pode ser coordenacao numa e
     comissario noutra), por isso as consultas sao filtradas pelas edicoes em
     que ele tem AQUELA permissao, e nao por todas as suas edicoes;
-  - comissarios e monitores ainda sao limitados as instituicoes atribuidas.
+  - comissarios e monitores ainda sao limitados as instituicoes atribuidas;
+  - o comissario e limitado mais uma vez, crianca a crianca: so alcanca as
+    que estao atribuidas a ele em criancas.comissario_id.
 """
 
 from dataclasses import dataclass, field
@@ -17,7 +19,10 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 
 from app.models import Crianca, Perfil, Usuario, UsuarioEdicao
-from app.seeds.perfis_permissoes import PERFIS_FILTRADOS_POR_INSTITUICAO
+from app.seeds.perfis_permissoes import (
+    PERFIS_FILTRADOS_POR_CRIANCA,
+    PERFIS_FILTRADOS_POR_INSTITUICAO,
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +37,10 @@ class Vinculo:
     @property
     def filtrado_por_instituicao(self) -> bool:
         return self.perfil in PERFIS_FILTRADOS_POR_INSTITUICAO
+
+    @property
+    def filtrado_por_crianca(self) -> bool:
+        return self.perfil in PERFIS_FILTRADOS_POR_CRIANCA
 
 
 @dataclass(frozen=True)
@@ -84,8 +93,9 @@ class ContextoAcesso:
     def filtro_criancas(self, permissao: str = "ver_criancas") -> ColumnElement[bool]:
         """Condicao SQL que limita as criancas que este usuario alcanca.
 
-        Aplica os dois niveis: edicao e, para comissario e monitor, tambem as
-        instituicoes atribuidas. Usar em toda consulta de criancas.
+        Aplica os tres niveis: edicao; para comissario e monitor, tambem as
+        instituicoes atribuidas; e, so para o comissario, a propria crianca.
+        Usar em toda consulta de criancas.
         """
         if self.admin_geral:
             return true()
@@ -102,11 +112,21 @@ class ContextoAcesso:
             # Comissario ou monitor sem instituicao atribuida nao ve nenhuma
             # crianca daquela edicao — de proposito: o vinculo existe, mas o
             # coordenador ainda nao definiu por quais instituicoes ele responde.
-            if vinculo.instituicoes:
-                condicoes.append(
-                    (Crianca.edicao_id == vinculo.edicao_id)
-                    & (Crianca.instituicao_id.in_(vinculo.instituicoes))
-                )
+            if not vinculo.instituicoes:
+                continue
+
+            alcance = (Crianca.edicao_id == vinculo.edicao_id) & (
+                Crianca.instituicao_id.in_(vinculo.instituicoes)
+            )
+
+            # O comissario nao alcanca a lista inteira da instituicao: dentro
+            # dela, so as criancas atribuidas a ele. A instituicao continua
+            # valendo como cerca externa — atribuicao em instituicao que saiu
+            # do vinculo dele para de valer na hora.
+            if vinculo.filtrado_por_crianca:
+                alcance = alcance & (Crianca.comissario_id == self.usuario.id)
+
+            condicoes.append(alcance)
 
         return or_(*condicoes) if condicoes else false()
 
