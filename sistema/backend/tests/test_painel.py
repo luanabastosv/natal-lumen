@@ -1,7 +1,10 @@
-"""Testa o painel e os relatorios (fase 9).
+"""Testa o painel: apadrinhamento de cesta e de festa (fase 9).
 
-O ponto delicado: os numeros tem de respeitar o mesmo filtro das telas. Quem so
-alcanca uma instituicao ve os numeros dela, nao os da edicao inteira.
+Dois pontos delicados. O primeiro: os numeros tem de respeitar o mesmo filtro
+das telas — quem so alcanca uma instituicao ve os numeros dela, nao os da
+edicao inteira. O segundo: a lista de comissarios comeca pelo TIME da edicao, e
+nao pelas criancas atribuidas, senao o comissario sem nenhuma crianca na mao —
+que e exatamente quem a coordenacao precisa achar — nao apareceria.
 
 Rodar com:  python -m tests.test_painel
 """
@@ -22,6 +25,7 @@ from app.models import (
     Crianca,
     DiaEvento,
     Edicao,
+    Grupo,
     Instituicao,
     Kit,
     LogAtividade,
@@ -83,6 +87,7 @@ def limpar(db, log_inicial: int = 0) -> None:
             db.execute(delete(DiaEvento).where(DiaEvento.edicao_id.in_(eds)))
             db.execute(delete(Edicao).where(Edicao.id.in_(eds)))
         db.execute(delete(Instituicao).where(Instituicao.cidade_id.in_(cids)))
+        db.execute(delete(Grupo).where(Grupo.cidade_id.in_(cids)))
         db.execute(delete(Cidade).where(Cidade.id.in_(cids)))
 
     if ids:
@@ -166,18 +171,30 @@ def main() -> None:
     criancas_a[0].checkin_em = func.now()
     db.flush()
 
-    def usuario(sufixo, perfil, instituicoes=()):
+    def usuario(sufixo, perfil, instituicoes=(), grupo_id=None):
         u = Usuario(nome=f"{MARCA} {sufixo}", email=f"{MARCA.lower()}.{sufixo.lower()}@exemplo.org",
                     senha_hash=gerar_hash(SENHA))
         db.add(u); db.flush()
-        v = UsuarioEdicao(usuario_id=u.id, edicao_id=edicao.id, perfil_id=perfis[perfil].id)
+        v = UsuarioEdicao(usuario_id=u.id, edicao_id=edicao.id, perfil_id=perfis[perfil].id,
+                          grupo_id=grupo_id)
         db.add(v); db.flush()
         for i in instituicoes:
             db.add(UsuarioInstituicao(usuario_edicao_id=v.id, instituicao_id=i))
         return u
 
+    grupo = Grupo(cidade_id=cidade.id, nome="Elyon", nome_normalizado="elyon")
+    db.add(grupo); db.flush()
+
     coord = usuario("Coord", "Coordenacao")
     so_a = usuario("SoA", "Monitor", [inst_a.id])
+    # Dois comissarios: um com criancas na mao, outro sem nenhuma ainda.
+    com_a = usuario("ComA", "Comissario", [inst_a.id], grupo_id=grupo.id)
+    usuario("ComVazio", "Comissario", [inst_b.id], grupo_id=grupo.id)
+
+    # A1 (completa) e A3 (sem nenhum padrinho) sao do ComA. A2 e as da B ficam
+    # sem responsavel, para a linha "Sem comissario" ter o que contar.
+    criancas_a[0].comissario_id = com_a.id
+    criancas_a[2].comissario_id = com_a.id
     db.commit()
 
     try:
@@ -191,46 +208,57 @@ def main() -> None:
 
         verifica("conta as 5 criancas", resumo.get("criancas") == 5, str(resumo.get("criancas")))
         verifica("conta as 2 instituicoes", resumo.get("instituicoes") == 2, str(resumo.get("instituicoes")))
-        verifica("apadrinhamentos possiveis sao 2 por crianca",
-                 resumo.get("apadrinhamentos_possiveis") == 10, str(resumo.get("apadrinhamentos_possiveis")))
-        verifica("conta os 4 apadrinhamentos feitos",
-                 resumo.get("apadrinhamentos_feitos") == 4, str(resumo.get("apadrinhamentos_feitos")))
-        verifica("separa cesta e festa",
-                 resumo.get("cesta_feitos") == 3 and resumo.get("festa_feitos") == 1,
-                 f"{resumo.get('cesta_feitos')}/{resumo.get('festa_feitos')}")
-        verifica("conta 1 crianca com os dois padrinhos",
-                 resumo.get("criancas_completas") == 1, str(resumo.get("criancas_completas")))
-        verifica("conta 2 criancas sem nenhum padrinho",
-                 resumo.get("criancas_sem_nenhum_padrinho") == 2,
-                 str(resumo.get("criancas_sem_nenhum_padrinho")))
-        verifica("soma o valor combinado (120+60+120+120)",
-                 resumo.get("valor_combinado") == "420.00", str(resumo.get("valor_combinado")))
-        verifica("soma so o que foi pago", resumo.get("valor_pago") == "120.00", str(resumo.get("valor_pago")))
-        verifica("conta os 3 cartoes digitalizados",
-                 resumo.get("cartoes_digitalizados") == 3, str(resumo.get("cartoes_digitalizados")))
-        verifica("conta 1 cartao enviado", resumo.get("cartoes_enviados") == 1, str(resumo.get("cartoes_enviados")))
-        verifica("kits: 1 entregue, 1 montado, 3 pendentes",
-                 (resumo.get("kits_entregues"), resumo.get("kits_montados"), resumo.get("kits_pendentes")) == (1, 1, 3),
-                 f"{resumo.get('kits_entregues')}/{resumo.get('kits_montados')}/{resumo.get('kits_pendentes')}")
-        verifica("soma as compras", resumo.get("compras_total") == "1000.00", str(resumo.get("compras_total")))
-        verifica("conta 1 check-in", resumo.get("checkin_feitos") == 1, str(resumo.get("checkin_feitos")))
+        verifica("conta 3 cestas apadrinhadas",
+                 resumo.get("cesta_feitos") == 3, str(resumo.get("cesta_feitos")))
+        verifica("conta 1 festa apadrinhada",
+                 resumo.get("festa_feitos") == 1, str(resumo.get("festa_feitos")))
+        verifica("o painel nao carrega mais numero que nao seja de apadrinhamento",
+                 not (set(resumo) & {"cartoes_digitalizados", "kits_entregues", "valor_pago",
+                                     "checkin_feitos", "compras_total"}),
+                 str(sorted(resumo)))
 
-        print("\nQuebra por instituicao e por dia")
+        print("\nQuebra por instituicao")
         por_inst = {l["instituicao"]: l for l in rel.get("por_instituicao", [])}
         verifica("quebra pelas 2 instituicoes", len(por_inst) == 2, str(list(por_inst)))
         verifica("Escola A tem 3 criancas",
                  por_inst.get(f"{MARCA} Escola A", {}).get("criancas") == 3,
                  str(por_inst.get(f"{MARCA} Escola A")))
-        verifica("Escola A tem 2 criancas apadrinhadas",
-                 por_inst.get(f"{MARCA} Escola A", {}).get("apadrinhados") == 2,
-                 str(por_inst.get(f"{MARCA} Escola A", {}).get("apadrinhados")))
-        verifica("Escola A tem 2 cartoes",
-                 por_inst.get(f"{MARCA} Escola A", {}).get("cartoes") == 2,
-                 str(por_inst.get(f"{MARCA} Escola A", {}).get("cartoes")))
+        verifica("Escola A tem 2 cestas e 1 festa",
+                 (por_inst.get(f"{MARCA} Escola A", {}).get("cesta"),
+                  por_inst.get(f"{MARCA} Escola A", {}).get("festa")) == (2, 1),
+                 str(por_inst.get(f"{MARCA} Escola A")))
+        verifica("Escola B tem 1 cesta e nenhuma festa",
+                 (por_inst.get(f"{MARCA} Escola B", {}).get("cesta"),
+                  por_inst.get(f"{MARCA} Escola B", {}).get("festa")) == (1, 0),
+                 str(por_inst.get(f"{MARCA} Escola B")))
 
-        por_dia = rel.get("por_dia", [])
-        verifica("quebra por dia", len(por_dia) == 1 and por_dia[0]["criancas"] == 5, str(por_dia))
-        verifica("mostra os check-ins do dia", por_dia[0]["checkin"] == 1, str(por_dia[0]["checkin"]))
+        print("\nQuebra por comissario")
+        por_com = {l["comissario"]: l for l in rel.get("por_comissario", [])}
+        linha_a = por_com.get(f"{MARCA} ComA", {})
+        verifica("o comissario aparece com o grupo dele",
+                 linha_a.get("grupo") == "Elyon", str(linha_a.get("grupo")))
+        verifica("conta as 2 criancas atribuidas a ele",
+                 linha_a.get("criancas") == 2, str(linha_a.get("criancas")))
+        verifica("uma delas esta completa, a outra falta",
+                 (linha_a.get("completas"), linha_a.get("faltam")) == (1, 1),
+                 f"{linha_a.get('completas')}/{linha_a.get('faltam')}")
+        verifica("separa cesta e festa das criancas dele",
+                 (linha_a.get("cesta"), linha_a.get("festa")) == (1, 1),
+                 f"{linha_a.get('cesta')}/{linha_a.get('festa')}")
+
+        vazio = por_com.get(f"{MARCA} ComVazio", {})
+        verifica("o comissario sem nenhuma crianca tambem aparece, zerado",
+                 vazio.get("criancas") == 0 and vazio.get("faltam") == 0,
+                 str(vazio))
+
+        sem = por_com.get("Sem comissário", {})
+        verifica("as 3 criancas sem responsavel viram uma linha propria",
+                 sem.get("criancas") == 3 and sem.get("comissario_id") is None, str(sem))
+        verifica("a linha sem responsavel e a ultima",
+                 rel.get("por_comissario", [])[-1]["comissario_id"] is None,
+                 str([l["comissario"] for l in rel.get("por_comissario", [])]))
+        verifica("a coordenacao, que nao assumiu crianca, fica fora da lista",
+                 f"{MARCA} Coord" not in por_com, str(list(por_com)))
 
         print("\nSem ver_painel nao ha relatorio")
         ca = TestClient(app); entrar(ca, so_a.email)
@@ -260,13 +288,22 @@ def main() -> None:
         verifica("ve so as 3 criancas da instituicao dele",
                  so_escola_a.get("criancas") == 3, str(so_escola_a.get("criancas")))
         verifica("ve so 1 instituicao", so_escola_a.get("instituicoes") == 1, str(so_escola_a.get("instituicoes")))
-        verifica("ve so os 3 apadrinhamentos da Escola A",
-                 so_escola_a.get("apadrinhamentos_feitos") == 3, str(so_escola_a.get("apadrinhamentos_feitos")))
-        verifica("ve so os 2 cartoes da Escola A",
-                 so_escola_a.get("cartoes_digitalizados") == 2, str(so_escola_a.get("cartoes_digitalizados")))
+        verifica("ve so as 2 cestas e 1 festa da Escola A",
+                 (so_escola_a.get("cesta_feitos"), so_escola_a.get("festa_feitos")) == (2, 1),
+                 f"{so_escola_a.get('cesta_feitos')}/{so_escola_a.get('festa_feitos')}")
         verifica("a quebra por instituicao mostra so a dele",
                  len(r.json().get("por_instituicao", [])) == 1,
                  str(len(r.json().get("por_instituicao", []))))
+        # O time inteiro continua na lista — inclusive o comissario da Escola B,
+        # que nao e alcancada por ele. O que o filtro esconde sao as CRIANCAS,
+        # nao os nomes de quem trabalha na edicao.
+        com_filtrado = {l["comissario"]: l for l in r.json().get("por_comissario", [])}
+        verifica("o comissario da Escola A conta so 2 criancas",
+                 com_filtrado.get(f"{MARCA} ComA", {}).get("criancas") == 2,
+                 str(com_filtrado.get(f"{MARCA} ComA")))
+        verifica("a linha sem responsavel so conta a crianca da Escola A",
+                 com_filtrado.get("Sem comissário", {}).get("criancas") == 1,
+                 str(com_filtrado.get("Sem comissário")))
 
         perfil_monitor.permissoes.remove(ver_painel)
         db.commit()

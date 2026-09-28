@@ -304,7 +304,10 @@ export default function Cartoes() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela">
+          <table className="tabela tabela--larga">
+            <caption className="tabela-dica">
+              Arraste a lista para o lado para ver todas as colunas.
+            </caption>
             <thead>
               <tr>
                 {podeMarcar && <th className="tabela__acoes" />}

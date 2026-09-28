@@ -222,7 +222,10 @@ export default function Padrinhos() {
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="planilha">
+            <table className="planilha planilha--padrinhos">
+              <caption className="tabela-dica">
+                Arraste a lista para o lado para ver todas as colunas.
+              </caption>
               {/* As larguras ficam aqui, e nao no conteudo: trocar de edicao
                   nao move nenhuma coluna de lugar. */}
               {/* A coluna solta e a das criancas, nao a do nome: e ela que

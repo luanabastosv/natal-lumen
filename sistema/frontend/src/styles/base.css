@@ -405,6 +405,19 @@ textarea.campo__controle {
 /* ---------- Tabelas ---------- */
 .tabela-rolagem {
   overflow-x: auto;
+  /* O arraste do dedo para o lado morre na borda da tabela em vez de virar
+     navegacao de "voltar" do celular no meio da leitura. */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Aviso de que a tabela continua para o lado. No celular a barra de rolagem so
+   aparece depois que alguem arrasta, e sem isto a impressao e de que as colunas
+   que faltam simplesmente nao existem. So no celular: no desktop a tabela
+   inteira cabe na tela. Vai como <caption> para nao precisar de um elemento a
+   mais fora da tabela em cada pagina. */
+.tabela-dica {
+  display: none;
 }
 
 .tabela {
@@ -603,36 +616,6 @@ textarea.campo__controle {
   .pagina__acoes {
     padding-top: 0;
   }
-}
-
-/* ---------- Atalhos do painel ---------- */
-.atalhos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-4);
-}
-
-.atalho {
-  display: flex;
-  align-items: center;
-  min-height: 84px;
-  padding: var(--space-5);
-  border: var(--stroke-hairline) solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
-  text-decoration: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.atalho:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-.atalho__rotulo {
-  font-size: var(--size-h3);
-  font-weight: var(--weight-h3);
-  color: var(--color-primary);
 }
 
 /* ---------- Paineis e barras de acao ---------- */
@@ -859,6 +842,13 @@ textarea.campo__controle {
   color: var(--color-primary);
 }
 
+/* O total contra o qual o numero se compara. Fica no mesmo bloco para ler como
+   "8 de 12", mas recuado: o valor e que e a manchete. */
+.numero__de {
+  font-size: 18px;
+  opacity: 0.5;
+}
+
 .numero__nota {
   display: block;
   font-size: var(--size-caption);
@@ -883,6 +873,116 @@ textarea.campo__controle {
 
 .barra__preenchida--completa {
   background: var(--color-primary);
+}
+
+/* ---------- Cesta e festa ----------------------------------------------
+   As duas series do painel. Sao as mesmas duas cores em toda a tela — no
+   numero do topo, na linha da instituicao — para que a leitura seja uma so.
+   O par foi escolhido pela distancia entre as duas em visao normal e em
+   daltonismo (deltaE 38 e 34), e nao pelo gosto: azul contra amarelo e a
+   separacao que sobrevive aos tres tipos de CVD.
+
+   Ainda assim nenhuma das duas carrega sentido sozinha: cesta e festa vao
+   escritas ao lado de cada barra. A cor so confirma o que o rotulo ja diz. */
+.barra__preenchida--cesta,
+.progresso__marca--cesta {
+  background: var(--navy-500);
+}
+
+.barra__preenchida--festa,
+.progresso__marca--festa {
+  background: var(--amarelo-600);
+}
+
+/* ---------- Lista de progresso (uma linha por instituicao) ---------- */
+.lista-progresso {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.lista-progresso__item {
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-card);
+}
+
+.lista-progresso__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.lista-progresso__nome {
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+.lista-progresso__total {
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+}
+
+/* Uma barra rotulada: rotulo, trilho e numero na mesma linha. O rotulo tem
+   largura fixa para que os trilhos de todas as linhas comecem no mesmo ponto —
+   sem isso "Cesta" e "Festa" desalinhariam as barras entre si. */
+.progresso {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.progresso + .progresso {
+  margin-top: var(--space-2);
+}
+
+.progresso__rotulo {
+  font-family: var(--font-condensed);
+  font-size: var(--size-caption);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-on-light-muted);
+}
+
+.progresso__trilho {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--navy-100);
+  overflow: hidden;
+}
+
+.progresso__marca {
+  height: 100%;
+  /* So a ponta de chegada e arredondada: a de partida fica reta, colada na
+     origem da barra, que e de onde a contagem sai. */
+  border-radius: 0 4px 4px 0;
+  /* Uma fatia minima para que 1 de 900 ainda apareca como risco, e nao como
+     barra vazia. */
+  min-width: 3px;
+}
+
+.progresso__valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+  white-space: nowrap;
+}
+
+.progresso__de {
+  font-weight: 400;
+  color: var(--text-on-light-muted);
+}
+
+/* O que ainda falta. Nao e erro — e trabalho — entao pesa sem alarmar. */
+.tabela__pendente {
+  font-weight: 700;
+  color: var(--color-primary);
 }
 
 /* ---------- Abas (uma por instituicao) ---------- */
@@ -1022,11 +1122,33 @@ textarea.campo__controle {
      redimensiona tudo conforme o conteudo, e trocar de aba faz a informacao
      pular de posicao. As larguras vem do <colgroup>. */
   table-layout: fixed;
-  /* Abaixo disto a tabela rola em vez de espremer as colunas. */
+  /* Abaixo disto a tabela rola em vez de espremer as colunas.
+   *
+   * O numero nao e um chute: em `table-layout: fixed` a coluna SEM largura no
+   * <colgroup> — o nome da crianca, a lista de criancas do padrinho — fica com
+   * a SOBRA depois das fixas. Se a largura util for menor que a soma das
+   * fixas, a sobra e zero: a coluna some e o resto ainda encolhe junto. Era
+   * isso que acontecia no celular (e ja acontecia num notebook de 1440px): a
+   * lista virava codigo e mais nada, com o nome espremido a nada.
+   *
+   * Entao cada planilha declara aqui a soma das suas colunas fixas mais a
+   * folga da flexivel, e abaixo disso a `.tabela-rolagem` rola de lado. */
   min-width: 1080px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--size-body-sm);
+}
+
+/* Fixas: 34 + 92 + 64 + 58 + 112 + 190 + 150 + 120 + 84 + 72 + 72 + 82 + 66 =
+   1196. Os 204 restantes sao o nome. */
+.planilha--criancas {
+  min-width: 1400px;
+}
+
+/* Fixas: 230 + 140 + 224 + 56 + 104 + 104 + 66 = 924. O resto e a coluna de
+   criancas, que e a que ganha a folga. */
+.planilha--padrinhos {
+  min-width: 1160px;
 }
 
 /* O texto que nao couber na largura fixa e cortado com reticencias, em vez de
@@ -1254,11 +1376,37 @@ textarea.campo__controle {
   border: none;
 }
 
+/* No celular a planilha continua inteira e rola de lado.
+ *
+ * Antes daqui saia uma regra que escondia da setima coluna em diante. Ela
+ * fazia o oposto do que prometia: `display: none` na celula NAO tira a coluna
+ * de uma tabela `fixed` — o <col> continua reservando os 190px da instituicao,
+ * os 150 do comissario e por ai. As larguras somavam mais que a tabela toda, a
+ * coluna do nome ficava com zero, e o que sobrava na tela era o codigo. De
+ * quebra levava junto a coluna de acoes, entao no celular nao dava nem para
+ * abrir a ficha de ninguem.
+ *
+ * Rolar de lado mostra tudo e nao esconde nada. */
 @media (max-width: 860px) {
-  .planilha th:nth-child(n + 7),
-  .planilha td:nth-child(n + 7) {
-    /* No celular sobram nome, codigo e os marcadores; o resto sai de cena. */
-    display: none;
+  .tabela-dica {
+    display: table-caption;
+    padding-bottom: var(--space-2);
+    font-size: var(--size-caption);
+    font-weight: 700;
+    text-align: left;
+    color: var(--text-on-light-muted);
+    /* Alinhada a esquerda (caption e centralizada por padrao): centrada numa
+       tabela de 1400px ela nasceria fora da tela. */
+    white-space: normal;
+  }
+
+  /* As tabelas simples nao tem <colgroup>, entao nenhuma coluna ia a zero —
+     mas de cinco colunas para cima o celular quebrava cada nome em uma palavra
+     por linha. Com uma largura minima elas rolam de lado em vez de empilhar
+     letras. E opt-in: as curtas (cidades, encontros) cabem na tela e nao
+     devem ganhar rolagem nenhuma. */
+  .tabela--larga {
+    min-width: 680px;
   }
 }
 

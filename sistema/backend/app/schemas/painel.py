@@ -1,16 +1,12 @@
-"""Numeros do painel e dos relatorios."""
+"""Numeros do painel.
 
-from datetime import date
-from decimal import Decimal
+O painel responde a duas perguntas, e so a elas: quanto do apadrinhamento de
+cesta e de festa ja esta feito, e quem ainda tem trabalho pela frente —
+instituicao por instituicao, comissario por comissario. Numero que nao ajuda a
+decidir o que fazer hoje mora na tela do assunto dele, nao aqui.
+"""
 
 from pydantic import BaseModel
-
-
-class Contagem(BaseModel):
-    rotulo: str
-    total: int
-    # Para barras de progresso: quanto isto representa do total geral.
-    de: int
 
 
 class ResumoEdicao(BaseModel):
@@ -22,51 +18,41 @@ class ResumoEdicao(BaseModel):
     criancas: int
     instituicoes: int
 
-    # Apadrinhamento: cada crianca precisa de dois padrinhos.
-    apadrinhamentos_possiveis: int
-    apadrinhamentos_feitos: int
+    # Cada crianca precisa de um padrinho de cesta e um de festa. Por isso os
+    # dois se comparam sempre ao total de criancas, e nunca entre si.
     cesta_feitos: int
     festa_feitos: int
-    criancas_sem_nenhum_padrinho: int
-    criancas_completas: int
-
-    padrinhos: int
-    valor_combinado: Decimal
-    valor_pago: Decimal
-
-    # Cartoes: dois por crianca.
-    cartoes_possiveis: int
-    cartoes_digitalizados: int
-    cartoes_enviados: int
-
-    kits_pendentes: int
-    kits_montados: int
-    kits_entregues: int
-
-    compras_total: Decimal
-
-    checkin_feitos: int
 
 
 class LinhaInstituicao(BaseModel):
     instituicao_id: int
     instituicao: str
     criancas: int
-    apadrinhados: int
-    cartoes: int
-    kits_entregues: int
-    checkin: int
+    cesta: int
+    festa: int
 
 
-class LinhaDia(BaseModel):
-    dia_evento_id: int | None
-    data: date | None
-    descricao: str | None
+class LinhaComissario(BaseModel):
+    """Um comissario e o tanto que falta no time dele.
+
+    `comissario_id` nulo e a linha das criancas que ainda nao tem responsavel:
+    elas existem e contam, mas nao estao na mao de ninguem — e essa e
+    exatamente a informacao que a coordenacao precisa ver.
+    """
+
+    comissario_id: int | None
+    comissario: str
+    grupo: str | None
     criancas: int
-    checkin: int
+    cesta: int
+    festa: int
+    # Crianca completa: tem cesta E festa. `faltam` sao as que ainda nao tem
+    # os dois, que e o que sobra de trabalho para o comissario.
+    completas: int
+    faltam: int
 
 
 class Relatorio(BaseModel):
     resumo: ResumoEdicao
     por_instituicao: list[LinhaInstituicao]
-    por_dia: list[LinhaDia]
+    por_comissario: list[LinhaComissario]

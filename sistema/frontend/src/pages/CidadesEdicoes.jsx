@@ -415,7 +415,10 @@ export default function CidadesEdicoes() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela">
+          <table className="tabela tabela--larga">
+            <caption className="tabela-dica">
+              Arraste a lista para o lado para ver todas as colunas.
+            </caption>
             <thead>
               <tr><th>Edição</th><th>Cidade</th><th>Ano</th><th>Cesta</th><th>Festa</th><th>Situação</th><th className="tabela__acoes" /></tr>
             </thead>

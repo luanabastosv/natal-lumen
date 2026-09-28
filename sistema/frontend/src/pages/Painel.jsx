@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Numero from "../components/feedback/Numero.jsx";
-import { itensVisiveis } from "../components/layout/menu.js";
+import Progresso from "../components/feedback/Progresso.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 import { buscarRelatorio } from "../services/painel.js";
-import { dinheiro, formatarData } from "../utils/dinheiro.js";
 
 function primeiroNome(nome) {
   return nome?.trim().split(" ")[0] ?? "";
+}
+
+function plural(n, um, muitos) {
+  return `${n} ${n === 1 ? um : muitos}`;
 }
 
 export default function Painel() {
@@ -38,8 +40,6 @@ export default function Painel() {
       vivo = false;
     };
   }, [podeVerNumeros, edicaoAtiva]);
-
-  const atalhos = itensVisiveis(pode).filter((i) => i.para !== "/painel");
 
   const r = relatorio?.resumo;
 
@@ -83,78 +83,89 @@ export default function Painel() {
             <>
               <h2 className="painel__titulo">{r.edicao}</h2>
 
+              {/* Cada crianca precisa de um padrinho de cesta e um de festa.
+                  Os dois se comparam ao total de criancas, nunca entre si. */}
               <div className="numeros">
-                <Numero rotulo="Crianças" valor={r.criancas}
-                  nota={`${r.instituicoes} instituição(ões)`} />
-                <Numero rotulo="Apadrinhamentos" valor={r.apadrinhamentos_feitos}
-                  de={r.apadrinhamentos_possiveis}
-                  nota={`${r.cesta_feitos} cesta · ${r.festa_feitos} festa`} />
-                <Numero rotulo="Crianças completas" valor={r.criancas_completas} de={r.criancas}
-                  nota={`${r.criancas_sem_nenhum_padrinho} sem nenhum padrinho`} />
-                <Numero rotulo="Padrinhos" valor={r.padrinhos} />
-                <Numero rotulo="Cartões" valor={r.cartoes_digitalizados} de={r.cartoes_possiveis}
-                  nota={`${r.cartoes_enviados} já enviado(s)`} />
-                <Numero rotulo="Kits entregues" valor={r.kits_entregues} de={r.criancas}
-                  nota={`${r.kits_montados} montado(s) · ${r.kits_pendentes} pendente(s)`} />
-                <Numero rotulo="Check-in" valor={r.checkin_feitos} de={r.criancas} />
-              </div>
-
-              <div className="numeros">
-                <Numero rotulo="Combinado com padrinhos" valor={dinheiro(r.valor_combinado)} />
-                <Numero rotulo="Já pago" valor={dinheiro(r.valor_pago)}
-                  nota={
-                    Number(r.valor_combinado) > 0
-                      ? `${Math.round((Number(r.valor_pago) / Number(r.valor_combinado)) * 100)}% do combinado`
-                      : null
-                  } />
-                <Numero rotulo="Gasto em compras" valor={dinheiro(r.compras_total)} />
+                <Numero
+                  rotulo="Crianças"
+                  valor={r.criancas}
+                  nota={plural(r.instituicoes, "instituição", "instituições")}
+                />
+                <Numero
+                  rotulo="Cesta apadrinhada"
+                  valor={r.cesta_feitos}
+                  de={r.criancas}
+                  tom="cesta"
+                  nota={`faltam ${r.criancas - r.cesta_feitos}`}
+                />
+                <Numero
+                  rotulo="Festa apadrinhada"
+                  valor={r.festa_feitos}
+                  de={r.criancas}
+                  tom="festa"
+                  nota={`faltam ${r.criancas - r.festa_feitos}`}
+                />
               </div>
 
               {relatorio.por_instituicao.length > 0 && (
                 <>
                   <h2 className="painel__titulo">Por instituição</h2>
-                  <div className="tabela-rolagem">
-                    <table className="tabela">
-                      <thead>
-                        <tr>
-                          <th>Instituição</th><th>Crianças</th><th>Apadrinhadas</th>
-                          <th>Cartões</th><th>Kits entregues</th><th>Check-in</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {relatorio.por_instituicao.map((l) => (
-                          <tr key={l.instituicao_id}>
-                            <td>{l.instituicao}</td>
-                            <td>{l.criancas}</td>
-                            <td>{l.apadrinhados}</td>
-                            <td>{l.cartoes}</td>
-                            <td>{l.kits_entregues}</td>
-                            <td>{l.checkin}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="lista-progresso">
+                    {relatorio.por_instituicao.map((l) => (
+                      <div key={l.instituicao_id} className="lista-progresso__item">
+                        <div className="lista-progresso__topo">
+                          <span className="lista-progresso__nome">{l.instituicao}</span>
+                          <span className="lista-progresso__total">
+                            {plural(l.criancas, "criança", "crianças")}
+                          </span>
+                        </div>
+                        <Progresso rotulo="Cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
+                        <Progresso rotulo="Festa" valor={l.festa} de={l.criancas} tom="festa" />
+                      </div>
+                    ))}
                   </div>
                 </>
               )}
 
-              {relatorio.por_dia.length > 0 && (
+              {relatorio.por_comissario.length > 0 && (
                 <>
                   <h2 className="painel__titulo" style={{ marginTop: "var(--space-7)" }}>
-                    Por dia
+                    Por comissário
                   </h2>
+                  <p className="pagina__lede">
+                    Completa é a criança que já tem os dois padrinhos, de cesta e de festa.
+                  </p>
                   <div className="tabela-rolagem">
-                    <table className="tabela">
+                    <table className="tabela tabela--larga">
+                      <caption className="tabela-dica">
+                        Arraste a lista para o lado para ver todas as colunas.
+                      </caption>
                       <thead>
-                        <tr><th>Dia</th><th>Descrição</th><th>Crianças</th><th>Check-in</th></tr>
+                        <tr>
+                          <th>Comissário</th>
+                          <th>Crianças</th>
+                          <th>Cesta</th>
+                          <th>Festa</th>
+                          <th>Completas</th>
+                          <th>Faltam</th>
+                        </tr>
                       </thead>
                       <tbody>
-                        {relatorio.por_dia.map((l) => (
-                          <tr key={l.dia_evento_id ?? "sem-dia"}>
-                            <td>{l.data ? formatarData(l.data) : "sem dia marcado"}</td>
-                            <td>{l.descricao ?? "—"}</td>
+                        {relatorio.por_comissario.map((l) => (
+                          <tr key={l.comissario_id ?? "sem-comissario"}>
+                            <td>
+                              {l.comissario}
+                              {/* O grupo e dado de apoio do nome logo acima:
+                                  le-se depois dele, nao no lugar dele. */}
+                              <div className="vinculo-linha__detalhe">{l.grupo ?? "—"}</div>
+                            </td>
                             <td>{l.criancas}</td>
-                            <td>{l.checkin}</td>
+                            <td>{l.cesta}</td>
+                            <td>{l.festa}</td>
+                            <td>{l.completas}</td>
+                            <td className={l.faltam > 0 ? "tabela__pendente" : undefined}>
+                              {l.faltam}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -165,20 +176,15 @@ export default function Painel() {
             </>
           )}
 
-          <h2 className="painel__titulo" style={{ marginTop: "var(--space-7)" }}>
-            {podeVerNumeros ? "Ir para" : "Escolha por onde começar"}
-          </h2>
-          <p className="pagina__lede">
-            O menu mostra apenas o que o seu perfil alcança.
-          </p>
-
-          <div className="atalhos">
-            {atalhos.map((item) => (
-              <Link key={item.para} to={item.para} className="atalho">
-                <span className="atalho__rotulo">{item.rotulo}</span>
-              </Link>
-            ))}
-          </div>
+          {/* Sem ver_painel nao ha o que mostrar aqui, e a pagina ficaria so
+              com a saudacao. O caminho e o menu — que ja lista o que o perfil
+              alcanca — entao o que falta dizer e so isso. */}
+          {!podeVerNumeros && (
+            <EmptyState
+              titulo="Escolha por onde começar"
+              corpo="Seu perfil não acompanha os números da edição. Use o menu ao lado: ele mostra tudo o que você alcança."
+            />
+          )}
         </>
       )}
     </div>

@@ -563,7 +563,10 @@ export default function Criancas() {
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="planilha">
+            <table className="planilha planilha--criancas">
+              <caption className="tabela-dica">
+                Arraste a lista para o lado para ver todas as colunas.
+              </caption>
               {/* As larguras ficam aqui, e nao no conteudo: trocar de aba nao
                   move nenhuma coluna de lugar. */}
               <colgroup>
