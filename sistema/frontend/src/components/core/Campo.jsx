@@ -46,6 +46,29 @@ export function Entrada({ rotulo, dica, erro, classe, tipo = "text", sugestoes, 
   );
 }
 
+/** Caixa de texto de varias linhas.
+ *
+ * Existe para o que e escrito em frase, e nao em palavra: a observacao de um
+ * pagamento ("pagou 200 e pediu para descontar da festa da irma") nao cabe numa
+ * linha de campo, e num `input` a pessoa perde de vista o comeco do que
+ * escreveu. A altura vem de `linhas`, e nao do conteudo: um campo que estica
+ * empurra o botao de salvar para baixo enquanto se digita.
+ */
+export function AreaTexto({ rotulo, dica, erro, classe, linhas = 3, ...resto }) {
+  const id = useId();
+  return (
+    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
+      <textarea
+        id={id}
+        rows={linhas}
+        className={`campo__controle ${erro ? "campo__controle--erro" : ""}`}
+        aria-invalid={erro ? true : undefined}
+        {...resto}
+      />
+    </Campo>
+  );
+}
+
 export function Selecao({ rotulo, dica, erro, classe, children, ...resto }) {
   const id = useId();
   return (

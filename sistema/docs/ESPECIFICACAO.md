@@ -35,10 +35,11 @@ Operação:
 - criancas: id, edicao_id, instituicao_id, dia_evento_id (opcional), comissario_id (usuario, opcional), codigo, nome, idade, sexo, observacoes, checkin_em, checkin_por (usuario) — único (edicao_id, instituicao_id, codigo)
 - padrinhos: id, edicao_id, nome, whatsapp, email, observacoes, criado_por, criado_em (padrinhos pertencem a uma edição — cidade + ano; não persistem entre anos: todo ano são padrinhos novos)
 - apadrinhamentos: id, crianca_id, padrinho_id, tipo (cesta|festa), valor, pagamento_id (opcional), comissario_id (usuario), vai_ao_evento (opcional), criado_em — único (crianca_id, tipo). A restrição única é do lado da criança: ela tem no máximo um padrinho de cesta e um de festa. **Um mesmo padrinho pode apadrinhar várias crianças.** O padrinho pode ser de outra edição/cidade: apadrinhamento entre cidades é permitido.
-- pagamentos: id, padrinho_id, valor, data, forma, comprovante_arquivo, registrado_por, conferido (bool). Um pagamento pode quitar vários apadrinhamentos.
+- pagamentos: id, padrinho_id, valor, data, forma, observacoes, comprovante_arquivo, comprovante_drive_id, comprovante_drive_link, registrado_por, conferido (bool). Um pagamento pode quitar vários apadrinhamentos.
 - cartoes: id, crianca_id, tipo (cesta|festa), arquivo, texto_ocr, status (digitalizado|enviado), monitor_id, enviado_por, enviado_em, criado_em — único (crianca_id, tipo). O destinatário é encontrado via criança + tipo → apadrinhamento → padrinho (o cartão pode existir antes de haver padrinho).
 - kits: id, crianca_id (único), status (pendente|montado|entregue), entregue_em, entregue_por, observacoes
-- compras: id, edicao_id, descricao, categoria, quantidade, valor_total, fornecedor, responsavel_id, data
+- compras: id, edicao_id, descricao, categoria, quantidade, valor_total, fornecedor, responsavel_id, data. São as **saídas** do financeiro (todo gasto da edição, não só compra); a tabela mantém o nome original.
+- recebimentos: id, edicao_id, descricao, categoria (doacao|outros), valor, data, doador, forma, observacoes, comprovante_arquivo, comprovante_drive_id, comprovante_drive_link, conferido (bool), registrado_por, criado_em. O dinheiro que entra **fora** do apadrinhamento (doação, patrocínio, rifa). Os pagamentos dos padrinhos não são copiados para cá: continuam em `pagamentos`, e a lista do financeiro junta as duas origens na hora de mostrar. Comprovante e `conferido` são os mesmos campos de `pagamentos`, com o mesmo significado.
 
 Acesso:
 - usuarios: id, nome, email (único), whatsapp, senha_hash, admin_geral (bool), ativo, ultimo_login, tentativas_falhas, bloqueado_ate, criado_em
@@ -53,6 +54,7 @@ Acesso:
 ## Perfis e permissões
 Permissões: importar_listas, editar_criancas, ver_criancas, gerenciar_usuarios, subir_cartoes, ver_padrinhos, editar_padrinhos, registrar_pagamentos, enviar_cartoes, gerenciar_kits, gerenciar_compras, fazer_checkin, ver_painel, gerenciar_cadastros.
 - Coordenação da cidade: todas as permissões, limitadas às suas edições.
+  (`registrar_pagamentos` cobre o dinheiro que ENTRA por inteiro: o pagamento do padrinho e o recebimento solto da edição.)
 - Comissário: ver_criancas, ver_padrinhos, editar_padrinhos, enviar_cartoes. (Mudança posterior à especificação original: pagamento é da coordenação e check-in é do monitor e da estrutura.)
 - Monitor: ver_criancas, subir_cartoes, fazer_checkin.
 - Estrutura: ver_criancas, gerenciar_kits, gerenciar_compras, fazer_checkin.
@@ -64,7 +66,8 @@ Os perfis e permissões são criados por seed e podem ser alterados na base sem 
 - Cada rota da API declara a permissão exigida (dependência do FastAPI, ex.: exige_permissao("subir_cartoes")).
 - Toda consulta é filtrada pelas edições em que o usuário tem vínculo ativo em usuario_edicao (exceto admin_geral).
 - Num apadrinhamento entre cidades, o registro é visível para quem tem vínculo ativo na edição do padrinho OU na edição da criança. Os dados da criança continuam sujeitos à permissão ver_criancas.
-- Comissários e monitores só alcançam crianças das instituições atribuídas a eles em usuario_instituicao. Coordenação e estrutura veem a edição inteira. **Uma instituição pode ter vários comissários**, e todos eles alcançam a lista inteira dela: é um time. `criancas.comissario_id` diz quem responde por cada criança, e não restringe nada — nem o alcance nem a edição.
+- Comissários e monitores só alcançam crianças das instituições atribuídas a eles em usuario_instituicao. Coordenação e estrutura veem a edição inteira.
+- **O comissário é filtrado mais uma vez, criança a criança**: dentro das instituições dele, só alcança as que têm o nome dele em `criancas.comissario_id`. Uma instituição pode ter vários comissários, e o time DIVIDE a lista — cada um vê a parte dele, e nenhum vê a do colega. Criança sem responsável não aparece para nenhum comissário: só para a coordenação, que é quem distribui. O monitor continua com a instituição inteira, porque o trabalho dele é da lista toda.
 - Escape para o caso entre cidades: a busca por **código exato** da criança alcança qualquer instituição das edições do usuário, mesmo fora das atribuídas — e é gravada em log_atividades. Listagens e exportações nunca escapam do filtro.
 - O coordenador de cidade só cria/edita usuários e vínculos da sua própria cidade, e é quem atribui as instituições de cada comissário e monitor.
 - Ações sensíveis (criar/editar/excluir registros, exportar listas, login) são gravadas em log_atividades.
@@ -196,7 +199,7 @@ são 2 ou 3, e cada um responde por um punhado de crianças dali.
 | | Versão inicial | Agora |
 | --- | --- | --- |
 | Comissários por instituição | já eram vários (nada impedia) | continuam vários, agora é a regra declarada |
-| Quem alcança as crianças da instituição | todos os comissários dela | sem mudança: **todos**, o time inteiro |
+| Quem alcança as crianças da instituição | todos os comissários dela | **só quem responde por cada uma** (ver 2026-09-28, abaixo) |
 | Quem responde por cada criança | não existia | `criancas.comissario_id`, uma coluna na planilha |
 
 Consequências práticas:
@@ -205,6 +208,7 @@ Consequências práticas:
   continua vendo e trabalhando todas as crianças das instituições dele, mesmo
   as que estão no nome de outro — é o que significa ser um time. O campo
   responde a outra pergunta: com quem eu falo sobre esta criança.
+  *(Revertido em 2026-09-28: o campo passou a restringir o acesso.)*
 - O responsável tem de ser do **time daquela instituição**: um comissário de
   outra escola, de outra cidade ou um monitor é recusado (422). A conferência
   vive em `_conferir_comissario`, no router de crianças.
@@ -217,3 +221,120 @@ Consequências práticas:
 - `GET /criancas/comissarios?edicao_id=` devolve o time da edição com as
   instituições de cada um — é o que alimenta o seletor da coluna. Sai só o
   nome, e pede `ver_criancas`.
+
+### 2026-09-28 — O comissário vê só as crianças dele
+
+Decidido pela Luana. `criancas.comissario_id` deixou de ser só organizacional:
+agora **restringe o acesso**. O comissário não vê mais a lista inteira da
+instituição pela qual responde — vê a parte dela que está no nome dele.
+
+| | Antes | Agora |
+| --- | --- | --- |
+| Comissário alcança | a lista inteira das instituições dele | só as crianças com o nome dele |
+| Criança sem responsável | todo o time da instituição via | **nenhum comissário vê**, só a coordenação |
+| Monitor | instituição inteira | sem mudança: instituição inteira |
+| Coordenação, estrutura, admin geral | edição / tudo | sem mudança |
+
+Consequências práticas:
+
+- A instituição continua valendo como cerca externa, e a criança é a cerca de
+  dentro. Tirar a instituição do vínculo dele derruba o acesso mesmo que o nome
+  dele siga na coluna.
+- Tirar o nome dele de uma criança tira a criança da lista dele **na hora** —
+  não há passo de sincronização.
+- Enquanto a coordenação não distribuir a lista, o comissário vê a tela vazia.
+  É o mesmo comportamento já existente para quem não tem instituição atribuída.
+- Vale para toda consulta de criança, porque o filtro é um só
+  (`ContextoAcesso.filtro_criancas`): planilha, ficha, busca, resumo das abas,
+  cartões, kits e check-in.
+- Na planilha dele somem o filtro "responsável" e as colunas Comissário e
+  Grupo: repetiriam o próprio nome em todas as linhas. Quem manda nisso é o
+  backend; o `so_criancas_atribuidas` do vínculo em `/auth/eu` só diz à tela
+  para não oferecer o que não faz sentido.
+- **Não mudou a tela de padrinhos**: ela é filtrada por edição, e um padrinho
+  carrega o nome da criança que apadrinhou. Um comissário ainda alcança por ali
+  o nome de crianças que não são dele.
+
+### 2026-09-28 — Financeiro: uma tela para todo o dinheiro da edição
+
+Decidido pela Luana, em duas etapas no mesmo dia. A primeira renomeava duas
+telas; a segunda juntou as duas numa só, que é o que ficou.
+
+| | Antes | Agora |
+| --- | --- | --- |
+| Tela das compras | **Compras** (`/acesso/compras`) | **Financeiro** (`/acesso/financeiro`), em duas abas: Saídas e Recebimentos |
+| Tela dos pagamentos dos padrinhos | **Pagamentos** (`/acesso/pagamentos`) | não existe: cada pagamento é uma **linha** da aba Recebimentos |
+| Dinheiro que entra sem padrinho | não existia | tabela `recebimentos` — doação ou outros |
+| Categoria do dinheiro que entra | não existia | quatro na hora de registrar; nas linhas de apadrinhamento ela é **derivada** |
+| Comprovante | só de pagamento | de qualquer recebimento, pela mesma máquina |
+| Total de tabelas | 19 | **20** (12 de operação e financeiro + 8 de acesso) |
+
+Consequências práticas:
+
+- **A lista de recebimentos junta duas tabelas, sem copiar nada.** As linhas de
+  apadrinhamento são os próprios registros de `pagamentos`, lidos pela edição do
+  **padrinho** (num apadrinhamento entre cidades, o dinheiro entrou no caixa de
+  quem recebeu o pagamento); as demais são de `recebimentos`. Cada linha carrega
+  `fonte`, e é por ela que a tela sabe em qual rota conferir, subir comprovante
+  e remover batem. Copiar pagamento para `recebimentos` criaria a mesma verdade
+  em dois lugares, com duas chances de divergir.
+- **A categoria de um apadrinhamento não é digitada: ela sai do que o pagamento
+  quita** — só cesta, só festa, ou "Apadrinhamento" quando cobre os dois juntos
+  (ou quando ainda não quita nada). Um campo escolhido à mão poderia dizer
+  "cesta" num dinheiro que pagou festa; isto não pode. Gravadas em
+  `recebimentos.categoria`, com CHECK, ficam só `doacao` e `outros` — ver
+  `CategoriaRecebimento` em `app/models/tipos.py`.
+- **Registrar escolhendo "apadrinhamento - cesta" cria um `pagamento`**, não um
+  recebimento solto: o formulário pede o padrinho e marca quais cestas em aberto
+  aquele dinheiro quita. É o mesmo lançamento que a ficha do padrinho faz, com o
+  valor solto para o caso de desconto ou arredondamento.
+- **Comprovante e `conferido` passam a valer para as duas origens.** Uma coluna
+  de comprovante que só funcionasse em metade das linhas mentiria na outra
+  metade. O trabalho (tipo do arquivo, teto de tamanho, gravação no disco,
+  remoção do anterior, espelho no Drive, entrega autenticada) saiu do router de
+  padrinhos para `app/servicos/comprovantes.py`, compartilhado pelos dois donos.
+- **Duas permissões na mesma tela, e basta uma.** `gerenciar_compras` abre as
+  saídas; `registrar_pagamentos` abre os recebimentos. A estrutura continua
+  lançando o que gastou **sem ver** quanto a edição arrecadou, e o saldo só
+  aparece para quem alcança as duas metades. Nenhuma permissão nova foi criada.
+- **Os filtros cortam a lista, nunca os totais.** Os totais respondem "qual é o
+  caixa"; um caixa que muda quando se filtra a tela não é caixa nenhum. A tela
+  avisa quantas linhas existem e quantas está mostrando.
+- **A tabela `compras` não foi renomeada.** Na tela ela é "Saídas", que é o nome
+  certo do que se lança ali (aluguel de som e combustível não são compras de
+  item), mas o nome da tabela é o que as migrations e o histórico em
+  `log_atividades` já apontam.
+- `/acesso/compras`, `/acesso/pagamentos` e `/acesso/comprovantes` redirecionam
+  para `/acesso/financeiro`: quem tem o link antigo guardado chega na tela certa
+  em vez de num 404.
+- `GET /pagamentos` continua existindo na API (listagem do módulo de padrinhos,
+  com filtros de conferido e de comprovante), mas nenhuma tela o chama mais:
+  quem lista o dinheiro que entrou é `GET /recebimentos`.
+- Migração `c47b3e9a1052_recebimentos_da_edicao`. `recebimentos` cai no cascade
+  da edição, entra na conta do modal de exclusão, e o recibo dela sai do disco
+  junto — como o comprovante do pagamento.
+
+Ainda no mesmo dia, sobre o comprovante e a ficha do padrinho:
+
+- **Pagamento de padrinho não se registra sem comprovante.** O botão espera o
+  arquivo, nos dois lugares onde se registra (a aba Pagamento da ficha e o
+  formulário do Financeiro). Sem ele ninguém confere depois se aquele valor
+  chegou. Doação e "outros" continuam podendo entrar sem arquivo: dinheiro
+  deixado na caixinha às vezes não tem recibo, e recusar o lançamento faria a
+  edição perder o registro do dinheiro em vez de ganhar a prova dele.
+- A exigência é **da tela, não do servidor**, e de propósito. O arquivo sobe numa
+  segunda requisição; se ela falhar, o dinheiro já está gravado, e recusar o
+  pagamento nesse ponto perderia a quitação por causa do arquivo — o contrário
+  do que a separação em duas requisições existe para evitar. Pagamentos antigos
+  também existem sem comprovante, e uma regra retroativa no servidor os tornaria
+  impossíveis de editar.
+- **A aba Pagamento da ficha passa a listar os pagamentos já registrados**, cada
+  um com o comprovante para baixar ou trocar — era a única coisa que a tela
+  removida ainda fazia e que a ficha não. Usa `GET /pagamentos?padrinho_id=`,
+  que deixou de ser rota sem chamador.
+- `pagamentos` ganha **observacoes** (migração `e8c1a4f2b930`), o mesmo campo que
+  `recebimentos` já tinha: as duas origens da lista do financeiro precisam poder
+  se explicar. Aparece como dica do mouse na linha do Financeiro.
+- O sistema ganhou seu primeiro campo de texto de várias linhas (`AreaTexto` em
+  `components/core/Campo.jsx`) — as outras "Observações" do sistema seguem em
+  campo de uma linha, e não foram tocadas.

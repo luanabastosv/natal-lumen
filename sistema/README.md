@@ -304,15 +304,23 @@ Um comissário ou monitor **sem instituição atribuída não vê nenhuma crian�
 de propósito: o vínculo existe, mas a coordenação ainda não definiu por quais
 instituições ele responde.
 
-**Uma instituição é atendida por um time.** Quase nunca é um comissário só: são
-2 ou 3, e todos eles alcançam a lista inteira dela. Quem responde por cada
-criança fica em `criancas.comissario_id`, que aparece como uma coluna na
-planilha — e **não restringe nada**: o comissário continua vendo e trabalhando
-as crianças que estão no nome de outro. O campo responde a outra pergunta (com
-quem eu falo sobre esta criança), e só a coordenação o preenche. Quando alguém
-deixa de alcançar a criança — ela muda de escola, a instituição sai do vínculo
-dele, o vínculo é desativado, o perfil deixa de ser comissário — o nome cai
-sozinho.
+**Uma instituição é atendida por um time, e o time divide a lista.** Quase
+nunca é um comissário só: são 2 ou 3, e cada um responde por um punhado de
+crianças dali. Quem responde por cada uma fica em `criancas.comissario_id` —
+que **também é o acesso**: o comissário só alcança as crianças com o nome dele,
+e não a lista inteira da instituição. A instituição é a cerca de fora, a
+criança é a cerca de dentro.
+
+Criança sem responsável não aparece para nenhum comissário: só para a
+coordenação, que é quem distribui a lista (`editar_criancas`). Enquanto ela não
+distribuir, o comissário vê a tela vazia — de propósito, como já acontecia com
+quem não tem instituição atribuída. O **monitor não muda**: ele continua com a
+instituição inteira, porque o trabalho dele é da lista toda.
+
+Tirar o nome dele de uma criança tira a criança da lista dele na hora. E quando
+alguém deixa de alcançar a criança — ela muda de escola, a instituição sai do
+vínculo dele, o vínculo é desativado, o perfil deixa de ser comissário — o nome
+cai sozinho.
 
 `admin_geral` alcança tudo, em todas as cidades.
 
@@ -517,15 +525,95 @@ depois, o que já foi combinado com o padrinho não muda.
 Do lado do padrinho, a criança aparece apenas pelo **primeiro nome e idade**,
 como a especificação exige.
 
-### Pagamentos
+A ficha do padrinho tem três abas, e a de **Pagamento** faz duas coisas: registra
+o próximo pagamento (marcando o que ele quita, com o comprovante obrigatório e
+uma observação) e lista os que já existem, cada um com o comprovante para baixar
+ou trocar. A pergunta "ele já pagou isso?" nasce no mesmo lugar em que se
+registra o pagamento.
 
-Um pagamento pertence a um padrinho e pode **quitar vários apadrinhamentos** de
-uma vez — é o caso comum de quem apadrinha duas ou três crianças e paga tudo
-junto. Ao registrar, marque quais ele cobre; o valor em branco usa a soma do que
-foi marcado.
+### Financeiro
 
-Um apadrinhamento já quitado não pode ser apagado nem quitado por outro
-pagamento. Apagar o pagamento solta os apadrinhamentos de volta para "a pagar".
+Todo o dinheiro da edição numa tela só, em duas abas — porque são dois
+lançamentos e **duas permissões**:
+
+| Aba | O que entra | Permissão |
+| --- | --- | --- |
+| Saídas | todo gasto da edição: cestas, presentes, estrutura, transporte | `gerenciar_compras` |
+| Recebimentos | tudo o que entrou: o pagamento dos padrinhos e o que chega solto | `registrar_pagamentos` |
+
+Quem tem só uma das duas permissões vê só a sua aba — e nesse caso a faixa de
+abas nem aparece. O **saldo** (recebido menos saídas) só existe para quem alcança
+as duas metades: com meia conta na mão, um saldo seria um número errado com cara
+de certo.
+
+#### A lista de recebimentos junta duas tabelas
+
+Não existe tela separada de pagamentos: **o pagamento de um padrinho é uma linha
+da lista de recebimentos.** Quem fecha o caixa quer ver todo o dinheiro que
+entrou de uma vez, e não em dois lugares.
+
+| Origem | Tabela | Como nasce |
+| --- | --- | --- |
+| apadrinhamento | `pagamentos` | o padrinho paga o que apadrinhou — pela ficha dele, ou pelo formulário do financeiro |
+| solto | `recebimentos` | doação, patrocínio, rifa: dinheiro sem criança do outro lado |
+
+A linha **não é uma copia**: é o próprio pagamento, lido de lado. `fonte` diz de
+qual tabela ela veio, e é por ela que a tela sabe onde cada ação bate — conferir,
+subir comprovante e remover mudam de endereço, não de significado.
+
+#### A categoria do apadrinhamento é derivada, não digitada
+
+São quatro categorias na hora de registrar:
+
+| Escolha | O que acontece |
+| --- | --- |
+| Apadrinhamento - cesta | pede o padrinho e marca quais **cestas** em aberto o dinheiro quita → grava um `pagamento` |
+| Apadrinhamento - festa | o mesmo, com as **festas** em aberto |
+| Doação | grava um `recebimentos` com quem doou |
+| Outros | idem, para o que não é doação nem apadrinhamento |
+
+Na lista, a categoria de uma linha de apadrinhamento **sai do que o pagamento
+quita** (só cesta, só festa, ou "Apadrinhamento" quando cobre os dois juntos, ou
+quando ainda não quita nada). Não é um campo gravado: um campo poderia dizer
+"cesta" num dinheiro que pagou festa, e isto não pode.
+
+Só `doacao` e `outros` são gravadas, com CHECK na base — a lista fechada está em
+`CategoriaRecebimento`, e acrescentar uma categoria é uma migration de CHECK.
+
+#### Comprovante e conferência valem para as duas origens
+
+Qualquer linha guarda comprovante, e a coluna mostra o arquivo (baixar, trocar,
+link do Drive quando existe) ou a etiqueta `falta`.
+
+**Pagamento de padrinho não se registra sem comprovante**: o botão espera o
+arquivo, nos dois lugares onde se registra (a ficha do padrinho e o formulário
+do Financeiro). Sem ele ninguém confere depois se o valor chegou. Doação e
+"outros" seguem podendo entrar sem arquivo — dinheiro deixado na caixinha às
+vezes não tem recibo, e recusar o lançamento faria a edição perder o registro do
+dinheiro em vez de ganhar a prova dele.
+
+A exigência é da **tela**, não do servidor: o arquivo sobe numa segunda
+requisição, e se ela falhar o dinheiro já está gravado — recusá-lo aí perderia a
+quitação por causa do arquivo. Quem ficou sem arquivo aparece com `falta` e
+recebe o comprovante depois.
+
+Tanto o pagamento quanto o recebimento têm **observação** (caixa de texto), para
+o que não cabe em valor, data e forma. Ela aparece como dica do mouse na linha do
+Financeiro e embaixo do valor na ficha do padrinho. O recibo de uma doação prova
+a mesma coisa que o de um apadrinhamento, e uma coluna que só funcionasse em
+metade das linhas mentiria na outra metade. O trabalho de guardar, trocar,
+espelhar no Drive e entregar o arquivo é um só: `app/servicos/comprovantes.py`.
+
+Mesma coisa com `conferido`: é a marca de quem conferiu o dinheiro contra o
+comprovante, e vale para as duas origens.
+
+Três filtros, que é para isso que a tela existe no dia a dia: **categoria**, o
+que ainda não foi **conferido** e o que está **sem comprovante**. Os filtros
+cortam a lista e **nunca os totais** — os totais respondem "qual é o caixa", e um
+caixa que muda quando se filtra a tela não é caixa nenhum.
+
+No banco, as saídas continuam na tabela `compras` — é o que ela era quando
+nasceu, e o histórico em `log_atividades` aponta para esse nome.
 
 ### Cartões
 
@@ -668,10 +756,9 @@ npm run preview  # serve o build
 | `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
 | `/acesso/criancas` | Lista, cadastro, importação e o comissário responsável | `ver_criancas` |
 | `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
-| `/acesso/pagamentos` | Pagamentos e o que cada um quita | `registrar_pagamentos` |
 | `/acesso/cartoes` | Digitalização, conferência e envio | `ver_criancas` |
 | `/acesso/kits` | Montagem e entrega dos kits | `gerenciar_kits` |
-| `/acesso/compras` | Compras da edição, com total por categoria | `gerenciar_compras` |
+| `/acesso/financeiro` | Saídas e recebimentos da edição (com os pagamentos dos padrinhos), comprovantes e saldo | `gerenciar_compras` **ou** `registrar_pagamentos` |
 | `/acesso/checkin` | Entrada das crianças no dia | `fazer_checkin` |
 
 `/acesso` sem sessão cai no login; com sessão, vai para o painel.
@@ -682,7 +769,7 @@ npm run preview  # serve o build
 | --- | --- |
 | `src/services/` | `api.js` (fetch com cookie e CSRF) e `auth.js` |
 | `src/contexts/` | sessão: usuário, permissões e edição ativa |
-| `src/routes/` | `RotaProtegida` — exige sessão e, se pedido, permissão |
+| `src/routes/` | `RotaProtegida` — exige sessão e, se pedido, uma permissão (ou qualquer uma de uma lista) |
 | `src/components/core/` | `Button` (portado do site), `Campo` |
 | `src/components/layout/` | cabeçalho, menu, rodapé e a casca |
 | `src/components/feedback/` | `EmptyState` (portado), `Carregando`, `Mensagem` |

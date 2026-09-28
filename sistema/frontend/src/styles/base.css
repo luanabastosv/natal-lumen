@@ -159,10 +159,15 @@
     box-shadow var(--dur) var(--ease-out);
 }
 
-/* textarea nao tem uma linha so: precisa do padding vertical de volta. */
+/* textarea nao tem uma linha so: precisa do padding vertical de volta.
+   A altura vem das linhas pedidas (`rows`), e nao do conteudo: um campo que
+   cresce enquanto se digita empurra o botao de salvar para baixo. Arrastar para
+   abrir continua valendo, e so na vertical — na horizontal estouraria a
+   largura da janela. */
 textarea.campo__controle {
   padding: var(--space-3) var(--space-4);
   line-height: var(--lh-body-sm);
+  resize: vertical;
 }
 
 .campo__controle:focus {
@@ -413,9 +418,13 @@ textarea.campo__controle {
 
 /* Aviso de que a tabela continua para o lado. No celular a barra de rolagem so
    aparece depois que alguem arrasta, e sem isto a impressao e de que as colunas
-   que faltam simplesmente nao existem. So no celular: no desktop a tabela
-   inteira cabe na tela. Vai como <caption> para nao precisar de um elemento a
-   mais fora da tabela em cada pagina. */
+   que faltam simplesmente nao existem. Vai como <caption> para nao precisar de
+   um elemento a mais fora da tabela em cada pagina.
+
+   Escondido por padrao: so aparece na largura em que a tabela em questao
+   realmente rola, e cada tipo de tabela rola a partir de uma largura diferente
+   (as regras estao junto de cada uma). Prometer arraste numa tabela que cabe e
+   pior que nao avisar nada. */
 .tabela-dica {
   display: none;
 }
@@ -444,6 +453,12 @@ textarea.campo__controle {
   border-bottom: var(--stroke-hairline) solid var(--border-light);
   color: var(--text-on-light-secondary);
   vertical-align: top;
+  /* Um endereco de email ou um nome de arquivo nao tem espaco onde quebrar, e
+     uma palavra que nao quebra empurra a tabela inteira para fora da tela: no
+     monitor a lista de comprovantes rolava de lado so por causa de
+     "comprovante-pagamento-fulano-2026-12-01.jpg". `anywhere` deixa quebrar no
+     meio da palavra quando nao ha alternativa — e so quando nao ha. */
+  overflow-wrap: anywhere;
 }
 
 .tabela td:first-child {
@@ -842,6 +857,20 @@ textarea.campo__controle {
   color: var(--color-primary);
 }
 
+/* Dinheiro: o valor vem formatado, com "R$" e separadores, e ocupa o triplo da
+   largura de uma contagem. Nos 30px do numero cru ele quebraria a linha dentro
+   do card. */
+.numero--dinheiro .numero__valor {
+  font-size: 22px;
+  letter-spacing: var(--tracking-titulo);
+}
+
+/* Saldo negativo — o unico numero do sistema que e ma noticia. Mesmo vermelho
+   da mensagem de erro, que ja passa no AA sobre branco. */
+.numero__valor--negativo {
+  color: #8f2c2c;
+}
+
 /* O total contra o qual o numero se compara. Fica no mesmo bloco para ler como
    "8 de 12", mas recuado: o valor e que e a manchete. */
 .numero__de {
@@ -977,6 +1006,29 @@ textarea.campo__controle {
 .progresso__de {
   font-weight: 400;
   color: var(--text-on-light-muted);
+}
+
+/* Icones lado a lado dentro de uma celula — o par "baixar / abrir no Drive"
+   dos comprovantes. Irmao de .ficha__linha-acoes, que faz o mesmo dentro da
+   ficha; aqui o contexto e a planilha, e o alinhamento e com o texto da linha.
+   Um link de texto no meio deles fica discreto: ele e a alternativa, nao a
+   acao principal da celula. */
+.acoes-icone {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.acoes-icone a {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-link);
+  text-decoration: none;
+  padding: 0 2px;
+}
+
+.acoes-icone a:hover {
+  text-decoration: underline;
 }
 
 /* O que ainda falta. Nao e erro — e trabalho — entao pesa sem alarmar. */
@@ -1122,33 +1174,49 @@ textarea.campo__controle {
      redimensiona tudo conforme o conteudo, e trocar de aba faz a informacao
      pular de posicao. As larguras vem do <colgroup>. */
   table-layout: fixed;
-  /* Abaixo disto a tabela rola em vez de espremer as colunas.
-   *
-   * O numero nao e um chute: em `table-layout: fixed` a coluna SEM largura no
-   * <colgroup> — o nome da crianca, a lista de criancas do padrinho — fica com
-   * a SOBRA depois das fixas. Se a largura util for menor que a soma das
-   * fixas, a sobra e zero: a coluna some e o resto ainda encolhe junto. Era
-   * isso que acontecia no celular (e ja acontecia num notebook de 1440px): a
-   * lista virava codigo e mais nada, com o nome espremido a nada.
-   *
-   * Entao cada planilha declara aqui a soma das suas colunas fixas mais a
-   * folga da flexivel, e abaixo disso a `.tabela-rolagem` rola de lado. */
-  min-width: 1080px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--size-body-sm);
 }
 
-/* Fixas: 34 + 92 + 64 + 58 + 112 + 190 + 150 + 120 + 84 + 72 + 72 + 82 + 66 =
-   1196. Os 204 restantes sao o nome. */
-.planilha--criancas {
-  min-width: 1400px;
-}
+/* ---------- Como a planilha cabe no monitor sem rolar ----------
+ *
+ * No monitor ela cabe inteira: nenhuma rolagem lateral, e o texto que nao
+ * couber e cortado com reticencias. Para isso as colunas se dividem em duas
+ * especies no <colgroup> de cada pagina:
+ *
+ *   dado curto (codigo, idade, sexo, dia, os marcadores, as acoes) vai em px,
+ *     e o px e o MINIMO: o que o rotulo do cabecalho e o conteudo ocupam, sem
+ *     folga. Elas nunca mudam de tamanho.
+ *   texto (nome, instituicao, comissario) vai SEM largura nenhuma. Numa tabela
+ *     `fixed`, coluna sem largura recebe a sobra, repartida em partes iguais:
+ *     sao elas que crescem quando a janela e maior, e so elas que apertam
+ *     quando e menor.
+ *
+ * Duas coisas que parecem detalhe e nao sao:
+ *
+ * Por que px e nao %. Em `fixed`, % escala tudo junto — num monitor de 1680px
+ * a coluna "Sexo" ganharia 20px de vao que a do nome usaria melhor.
+ *
+ * Por que o px tem de ser o minimo. Coluna em px NAO encolhe: o navegador
+ * mantem os px e estica a tabela para fora do container. Medido no Chrome, num
+ * espaco de 960px: as larguras antigas, que somavam 1196, mantiveram a tabela
+ * em 1196px e deixaram a coluna do nome com zero — era isso que espremia a
+ * lista num notebook. Somando 666, a planilha de criancas sempre deixa sobra
+ * para as tres de texto.
+ *
+ * Por isso tambem o cabecalho manda no px de uma coluna estreita: "Padrinhos"
+ * escrito ocupa mais que os dois marcadores que a coluna mostra. */
 
-/* Fixas: 230 + 140 + 224 + 56 + 104 + 104 + 66 = 924. O resto e a coluna de
-   criancas, que e a que ganha a folga. */
-.planilha--padrinhos {
-  min-width: 1160px;
+/* Abaixo de 1280px nao ha espaco e a planilha volta a rolar de lado, como no
+   celular: a barra lateral leva 256px e as margens da pagina 80, e as onze
+   colunas de dado curto mais tres de texto legiveis pedem perto de 950.
+   A largura propria e a mesma para as duas planilhas — na de padrinhos, que
+   tem menos colunas, ela so deixa as de texto mais folgadas. */
+@media (max-width: 1279px) {
+  .planilha {
+    min-width: 1200px;
+  }
 }
 
 /* O texto que nao couber na largura fixa e cortado com reticencias, em vez de
@@ -1167,14 +1235,26 @@ textarea.campo__controle {
   background: var(--white);
   text-align: left;
   font-family: var(--font-condensed);
-  font-size: 11px;
+  /* 10px e nao 11, e o espacejamento menor junto. Numa planilha o rotulo manda
+     na largura das colunas estreitas — "Padrinhos" escrito ocupa mais que os
+     dois marcadores que a coluna mostra — entao um ponto a menos no cabecalho
+     devolve uns 30px para as colunas de texto. E o que faz as catorze colunas
+     caberem numa janela de 1280 em vez de so numa de 1366. */
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--text-on-light-muted);
-  padding: 6px 8px;
+  /* 6px, e nao 8, nas laterais: sao 4px por coluna, 56px na planilha inteira. */
+  padding: 6px 6px;
   border-bottom: 1.5px solid var(--border-default);
   white-space: nowrap;
+  /* Rede de seguranca: as larguras ja reservam o rotulo inteiro, mas se um dia
+     um cabecalho crescer sem que a coluna cresca, ele corta com reticencias em
+     vez de vazar por cima da coluna vizinha — celula de tabela nao recorta
+     sozinha, e "Comissario" apareceria escrito sobre "Grupo". */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .planilha td {
@@ -1215,8 +1295,8 @@ textarea.campo__controle {
   white-space: nowrap;
 }
 
-/* A coluna do menu e estreita de proposito: cabe um botao de tres pontinhos e
-   mais nada. Escrever "Ver ficha · Apagar" em 1500 linhas seria ruido. */
+/* A coluna das acoes e estreita de proposito: cabem o olho e o X, e mais nada.
+   Escrever "Ver ficha · Apagar" em 1500 linhas seria ruido. */
 .planilha__acoes {
   padding: 0 6px !important;
   text-align: center;
@@ -1227,7 +1307,9 @@ textarea.campo__controle {
   display: block;
   width: 100%;
   min-height: 28px;
-  padding: 5px 8px;
+  /* As laterais acompanham o cabecalho (6px): o dado tem de comecar na mesma
+     coluna que o rotulo dele. */
+  padding: 5px 6px;
   border: 1.5px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1314,7 +1396,7 @@ textarea.campo__controle {
   /* A planilha e nowrap por padrao; aqui a lista precisa quebrar para que
      existam as duas linhas que o clamp vai cortar. */
   white-space: normal;
-  padding: 5px 8px;
+  padding: 5px 6px;
   /* Altura de linha FIXA e maior que os 17px do marcador. O clamp corta na
      altura calculada pelo line-height; se um chip esticar a linha real para
      alem disso, sobra uma fatia da linha seguinte aparecendo por baixo do
@@ -1376,37 +1458,55 @@ textarea.campo__controle {
   border: none;
 }
 
-/* No celular a planilha continua inteira e rola de lado.
+/* ---------- Onde cada tabela comeca a rolar ----------
  *
- * Antes daqui saia uma regra que escondia da setima coluna em diante. Ela
- * fazia o oposto do que prometia: `display: none` na celula NAO tira a coluna
- * de uma tabela `fixed` — o <col> continua reservando os 190px da instituicao,
- * os 150 do comissario e por ai. As larguras somavam mais que a tabela toda, a
- * coluna do nome ficava com zero, e o que sobrava na tela era o codigo. De
- * quebra levava junto a coluna de acoes, entao no celular nao dava nem para
- * abrir a ficha de ninguem.
+ * No celular e no tablet a planilha continua inteira e rola de lado. Nenhuma
+ * coluna e escondida: `display: none` na celula NAO tira a coluna de uma
+ * tabela `fixed` — o <col> segue reservando o espaco dela — entao esconder
+ * colunas espremia as que ficavam em vez de dar lugar a elas, e levava junto a
+ * coluna de acoes, sem a qual nao se abre a ficha de ninguem.
  *
- * Rolar de lado mostra tudo e nao esconde nada. */
-@media (max-width: 860px) {
-  .tabela-dica {
-    display: table-caption;
-    padding-bottom: var(--space-2);
-    font-size: var(--size-caption);
-    font-weight: 700;
-    text-align: left;
-    color: var(--text-on-light-muted);
-    /* Alinhada a esquerda (caption e centralizada por padrao): centrada numa
-       tabela de 1400px ela nasceria fora da tela. */
-    white-space: normal;
-  }
+ * A aparencia da dica e uma so; quem decide quando ela aparece sao as duas
+ * regras de largura abaixo. */
+.planilha > .tabela-dica,
+.tabela--larga > .tabela-dica {
+  padding-bottom: var(--space-2);
+  font-size: var(--size-caption);
+  font-weight: 700;
+  text-align: left;
+  color: var(--text-on-light-muted);
+  /* Alinhada a esquerda (caption e centralizada por padrao): centrada numa
+     tabela de 1200px ela nasceria fora da tela. */
+  white-space: normal;
+}
 
-  /* As tabelas simples nao tem <colgroup>, entao nenhuma coluna ia a zero —
-     mas de cinco colunas para cima o celular quebrava cada nome em uma palavra
-     por linha. Com uma largura minima elas rolam de lado em vez de empilhar
-     letras. E opt-in: as curtas (cidades, encontros) cabem na tela e nao
-     devem ganhar rolagem nenhuma. */
+/* A planilha rola ate 1279px — o mesmo ponto em que ela ganha `min-width`. */
+@media (max-width: 1279px) {
+  .planilha > .tabela-dica {
+    display: table-caption;
+  }
+}
+
+/* As tabelas simples nao tem <colgroup> e sao de layout automatico: no monitor
+   e no tablet elas se ajustam sozinhas, repartindo a largura entre as colunas.
+   So no celular, de cinco colunas para cima, a reparticao virava uma palavra
+   por linha — ai uma largura minima e a rolagem leem melhor. E opt-in: as
+   curtas (cidades, encontros) cabem em qualquer tela e nao devem ganhar
+   rolagem nenhuma. */
+@media (max-width: 860px) {
   .tabela--larga {
     min-width: 680px;
+  }
+}
+
+/* A dica vem depois, e num ponto mais estreito: 680px de tabela dentro de uma
+   tela que ja so tem 16px de margem de cada lado quer dizer que ela comeca a
+   rolar em 712px de janela, e nao nos 860 em que ganhou a largura minima.
+   Entre um numero e outro a tabela cabe — e avisar que rola uma lista que nao
+   rola e pior do que nao avisar nada. */
+@media (max-width: 712px) {
+  .tabela--larga > .tabela-dica {
+    display: table-caption;
   }
 }
 
@@ -1988,31 +2088,83 @@ textarea.campo__controle {
   margin: 0;
 }
 
-/* So o cabecalho e agrupado, em tinta neutra: e o que a pessoa confere contra
-   o comprovante. */
-.pagamento__topo {
+/* Um assunto por bloco, separados por respiro e nao por caixa: caixa dentro de
+   caixa dentro do modal e moldura demais para tres campos. O rotulo de secao
+   (`.ficha__secao`) e o que diz onde um assunto termina e o outro comeca. */
+.pagamento__secao + .pagamento__secao {
+  margin-top: var(--space-6);
+}
+
+.pagamento__secao-topo {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-3);
-  border: var(--stroke-hairline) solid var(--border-light);
-  border-radius: var(--radius-sm);
-  background: var(--surface-card-alt);
+}
+
+/* O rotulo de secao carrega margem de baixo por conta propria; na linha com o
+   botao de marcar todas ela desalinha os dois. */
+.pagamento__secao-topo .ficha__secao {
+  margin-bottom: 0;
+}
+
+/* A lista comeca logo abaixo do rotulo da secao: o filete de cima dela ja
+   separa. */
+.pagamento__secao .pagamento__lista {
+  margin-top: var(--space-2);
+}
+
+/* A barra de confirmacao, grudada no pe da area que rola.
+   A versao anterior punha total, data, forma e os dois botoes numa linha so no
+   ALTO da aba: cinco coisas sem relacao entre si, sem rotulo, e um total grande
+   antes de a pessoa ter marcado nada. Agora a aba le de cima para baixo na
+   ordem da tarefa — o que o dinheiro quita, como ele chegou, confirmar — e a
+   unica coisa que precisa estar sempre a vista e esta barra: e nela que o valor
+   e conferido contra o comprovante na mao.
+
+   `sticky` resolve o motivo pelo qual o total morava no alto (com vinte
+   criancas, um botao no pe da lista fica longe de onde se esta olhando) sem
+   inverter a leitura. Nao leva margem negativa para sangrar a largura: o corpo
+   do modal tem `overflow-y: auto`, e o CSS forca o outro eixo a `auto` junto —
+   qualquer filho mais largo que o conteudo viraria barra de rolagem horizontal. */
+.pagamento__barra {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: var(--space-3) 0;
+  background: var(--white);
+  border-top: var(--stroke-hairline) solid var(--border-default);
+}
+
+/* O que falta para poder registrar, escrito. Um botao inativo sem explicacao
+   faz a pessoa procurar o defeito na tela; a frase diz o proximo passo. */
+.pagamento__falta {
+  flex: 1;
+  min-width: 140px;
+  font-family: var(--font-serif);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-on-light-secondary);
 }
 
 .pagamento__soma {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-width: 150px;
+  flex: none;
+  min-width: 128px;
   line-height: 1.2;
 }
 
-/* O numero e o que a pessoa confere contra o comprovante: e o maior texto do
-   painel de proposito. */
+/* O numero e o que a pessoa confere contra o comprovante: e o maior texto da
+   barra de proposito. */
 .pagamento__valor {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: var(--tracking-titulo);
   color: var(--text-on-light-primary);
@@ -2023,39 +2175,50 @@ textarea.campo__controle {
   color: var(--text-on-light-secondary);
 }
 
-.pagamento__topo .campo {
-  margin-bottom: 0;
-  flex: none;
+/* ---------- Escolher um arquivo ----------
+   Um `input[type=file]` cru nao diz de que ele e: o botao do navegador escreve
+   "Choose file" e o resto da linha fica vazio. Aqui o controle inteiro e o
+   alvo do clique, com rotulo proprio, e MUDA de estado quando o arquivo entra —
+   e assim que a pessoa sabe que anexou sem precisar reler a linha.
+
+   Borda tracejada no vazio, inteira no cheio: a tracejada e a convencao de
+   "cai aqui", e a diferenca de traco se ve de canto de olho, sem depender da
+   cor. */
+.arquivo {
+  /* Ancora do input, que fica escondido em posicao absoluta. */
+  position: relative;
+  display: block;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  cursor: pointer;
+  transition:
+    border-color var(--dur) var(--ease-out),
+    background-color var(--dur) var(--ease-out);
 }
 
-.pagamento__topo .campo__controle {
-  height: 34px;
-  min-height: 34px;
-  font-size: 13px;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
+.arquivo:hover {
+  border-color: var(--color-primary);
+  background: var(--cream-100);
 }
 
-.pagamento__topo .campo__controle--selecao {
-  min-width: 132px;
-  padding-right: 34px;
-  background-position: calc(100% - 19px) 55%, calc(100% - 13px) 55%;
+.arquivo:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
-.pagamento__topo .botao--sm {
-  height: 34px;
+.arquivo--cheio {
+  border-style: solid;
+  border-color: var(--color-primary);
+  background: var(--navy-100);
 }
 
-.pagamento__comprovante {
+.arquivo__rotulo {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-3);
-  font-size: 13px;
-}
-
-.pagamento__comprovante-rotulo {
   font-family: var(--font-body);
   font-size: var(--size-label);
   font-weight: var(--weight-label);
@@ -2064,9 +2227,46 @@ textarea.campo__controle {
   color: var(--text-on-light-secondary);
 }
 
-.pagamento__comprovante input[type="file"] {
+.arquivo--cheio .arquivo__rotulo {
+  color: var(--color-primary);
+}
+
+/* "obrigatorio" escrito, e nao um asterisco: asterisco e uma convencao que
+   exige legenda, e esta e a unica exigencia da aba. */
+.arquivo__exigido {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-destaque);
+  color: var(--navy-900);
+}
+
+.arquivo__estado {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-serif);
   font-size: 12px;
-  max-width: 100%;
+  line-height: 1.4;
+  color: var(--text-on-light-muted);
+  overflow-wrap: anywhere;
+}
+
+.arquivo--cheio .arquivo__estado {
+  color: var(--text-on-light-secondary);
+}
+
+/* O input do navegador fica fora da vista, mas alcancavel pelo teclado: quem
+   clica no bloco abre o seletor pelo `label`, e quem chega pelo Tab foca o
+   input e abre com Enter. */
+.arquivo input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* A lista rola junto com a janela, nao por dentro: rolagem dentro de rolagem
@@ -2108,6 +2308,16 @@ textarea.campo__controle {
   flex: none;
   font-variant-numeric: tabular-nums;
   color: var(--text-on-light-secondary);
+}
+
+/* O que este padrinho JA pagou, embaixo do formulario. Separado por um filete
+   e um respiro generoso: e outra coisa — ali se confere o passado, no bloco de
+   cima se registra o proximo. Sem a separacao, a lista de comprovantes parecia
+   continuacao da lista de apadrinhamentos a marcar. */
+.pagamento__ja-pagos {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: var(--stroke-hairline) solid var(--border-default);
 }
 
 /* ---------- Acao compacta dentro da ficha ----------

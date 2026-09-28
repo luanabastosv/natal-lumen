@@ -350,6 +350,53 @@ componente das instituições em Crianças:
   sumir com ela: sumir mudaria o tamanho da faixa, que é o que as abas vieram
   resolver.
 
+### A mesma faixa serve à página com dois livros
+
+`Financeiro` tem duas abas — **Saídas** e **Recebimentos** — e usa a faixa em
+pílula da página (`.abas`), a mesma das instituições em Crianças, e não a faixa
+sublinhada da ficha: aqui não há janela com rolagem própria para grudar em cima,
+e a faixa é do conteúdo da página, não de um modal.
+
+Três coisas que essa tela resolve com a mesma regra de sempre:
+
+- **A conta fica ACIMA da faixa.** Recebido, Saídas e Saldo são a resposta que a
+  coordenação vem buscar, e não mudam quando se troca de aba — se estivessem
+  dentro de uma delas, trocar de aba pareceria trocar de número.
+- **A contagem de cada aba é o total em dinheiro**, não a quantidade de linhas:
+  é o que diz se vale a pena entrar. Dez lançamentos de R$ 20 e um de R$ 8.000
+  são a mesma contagem e nada parecidos.
+- **Aba que a permissão não alcança não existe** — e com uma só, a faixa não
+  aparece (§ 5). Quem cuida da estrutura lança o que gastou sem descobrir que
+  existe uma metade do caixa que ele não vê. O CTA acompanha a aba aberta
+  (`Nova saída` / `Novo recebimento`): dois `primary` no código, nunca os dois
+  na tela.
+
+### Uma lista de duas origens continua sendo uma lista
+
+A aba Recebimentos mostra numa tabela só o que vem de duas tabelas: os
+pagamentos dos padrinhos e os recebimentos soltos. Quem fecha o caixa quer ver
+todo o dinheiro que entrou de uma vez — duas tabelas empilhadas na mesma tela
+seriam o mesmo trabalho de antes, com mais rolagem.
+
+O que isso exige da tela:
+
+- **Cada linha diz de onde veio** (`fonte`), e é isso que decide em qual rota a
+  ação dela bate. Conferir, subir comprovante e remover são a mesma ação para
+  quem olha, e endereços diferentes por baixo — um mapa de rotas por origem
+  (`rotas(linha)`) resolve isso num lugar, em vez de um `if` dentro de cada
+  handler.
+- **A chave do React é `fonte + id`**, nunca o id sozinho: os ids vêm de tabelas
+  diferentes e colidem. Com a chave errada, subir o comprovante de uma linha
+  pisca o estado de outra.
+- **As colunas são o denominador comum.** O que só existe numa das origens (os
+  apadrinhamentos que o pagamento quita, as observações da doação) vira texto na
+  coluna que ambas têm — a descrição — ou a dica do mouse. Coluna que só
+  preenche em metade das linhas é coluna que mente na outra metade.
+- **Filtro corta a lista; total, nunca.** Os números do alto respondem "qual é o
+  caixa da edição", e um caixa que muda quando se filtra a tela não é caixa
+  nenhum. Quando o filtro (ou o teto de linhas) deixou coisa de fora, a barra
+  diz quantas existem e quantas estão à vista.
+
 ### Botão não muda de função debaixo do ponteiro
 
 Irmão da mesma regra. Na primeira versão do apadrinhar, achada a criança o
@@ -403,28 +450,118 @@ base diz que foi quitado e o que o pagamento diz que custou — e nada garantiri
 que batem. O total cresce conforme se marca, e o resumo é escrito como o
 comissário fala: **"5 cestas + 2 festas"**.
 
-Pagamento de valor diferente da soma (desconto, arredondamento) continua na
-tela de Pagamentos, que edita o valor solto. A ficha cobre o caso normal.
+Pagamento de valor diferente da soma (desconto, arredondamento) tem campo de
+valor no formulário do **Financeiro** (aba Recebimentos), que o aceita solto. A
+ficha cobre o caso normal.
 
-Três detalhes que a forma resolve:
+### A aba lê na ordem da tarefa, e a confirmação gruda no pé
 
-- **O total e os botões ficam no alto do painel**, acima da lista de marcar.
-  Com vinte crianças, um botão no pé da lista fica longe de onde a pessoa está
-  olhando — e o número que ela confere contra o comprovante é o maior texto do
-  painel, de propósito.
+A primeira versão desta aba punha **total, data, forma e os dois botões numa
+linha só, no alto**. A ideia era boa — com vinte crianças para marcar, um botão
+no pé da lista fica longe de onde a pessoa está olhando — mas o resultado juntava
+cinco coisas sem relação entre si, sem rótulo visível (data e forma tinham só
+`aria-label`), e abria a aba com um **total grande antes de existir qualquer
+marcação**: um número morto, que só dizia `R$ 0,00`. E os botões apareciam
+*acima* dos campos que eles gravam.
+
+A forma atual é uma coluna só, na ordem em que a tarefa acontece:
+
+| | Bloco | Por quê nessa posição |
+| --- | --- | --- |
+| 1 | **O que este pagamento quita** — a lista de marcar | é a decisão, e é dela que o valor sai. Perguntar data e forma antes é pedir o detalhe de um pagamento que ainda não existe |
+| 2 | **Como o dinheiro chegou** — data, forma, comprovante, observação | campos com rótulo de verdade, um assunto por bloco |
+| 3 | **Pagamentos deste padrinho** — o histórico | conferir o passado é outra coisa; vem depois, atrás de um filete |
+| — | **Barra de confirmação** | `position: sticky; bottom: 0` |
+
+A barra grudada no pé resolve o motivo original (o botão longe do olho) **sem
+inverter a leitura**: o total e o `Registrar` seguem a rolagem e estão sempre à
+vista, e o número — que é o que se confere contra o comprovante na mão — continua
+sendo o maior texto dali.
+
+Dois cuidados que ela exige:
+
+- **A barra diz o que falta.** `Marque o que este dinheiro quita.` →
+  `Escolha o comprovante para poder registrar.` O texto e o `disabled` saem da
+  mesma variável, então não há como um dizer uma coisa e o outro dizer outra.
+  Botão inativo sem explicação faz a pessoa procurar o defeito na tela.
+- **Nada de margem negativa para sangrar a largura.** O corpo do modal é
+  `overflow-y: auto`, e o CSS força o outro eixo a `auto` junto: um filho mais
+  largo que o conteúdo viraria barra de rolagem horizontal (é a mesma armadilha
+  documentada em `.abas--ficha`).
+
+Um detalhe que custou um bug: **`.ficha__secao` carrega margem vertical, e
+margem vertical não se aplica a `span`.** O rótulo de seção é `div` — como em
+`FichaCrianca` — senão o respiro que a classe promete simplesmente não acontece,
+sem erro nenhum para avisar.
+
+### Escolher arquivo é um controle, não um `input` solto
+
+Um `input[type=file]` cru não diz de que ele é: o navegador escreve "Choose
+file" e o resto da linha fica vazio. `.arquivo` embrulha o input num bloco que é
+todo o alvo do clique, com rótulo próprio, e que **muda de estado quando o
+arquivo entra** — borda tracejada e a etiqueta `obrigatório` no vazio; borda
+inteira, visto e o nome do arquivo no cheio.
+
+A diferença de *traço* (tracejado → inteiro) é o que se vê de canto de olho, sem
+depender da cor. A palavra "obrigatório" está escrita em vez de um asterisco:
+asterisco é convenção que exige legenda, e aqui há uma única exigência na tela.
+O input fica escondido em posição absoluta, mas alcançável pelo teclado — quem
+clica abre pelo `label`, quem chega pelo Tab foca o input e abre com Enter.
+
+### Mais três detalhes que a forma resolve
+
 - **A lista rola junto com a janela**, não por dentro. Rolagem dentro de
-  rolagem é armadilha de ponteiro; foi por isso que o total subiu.
+  rolagem é armadilha de ponteiro — e é também por isso que a barra de
+  confirmação é `sticky` em vez de a lista ter rolagem própria.
 - **O comprovante sobe numa requisição separada** (`POST
-  /pagamentos/{id}/comprovante`), depois do `POST /pagamentos`. A quitação é a
-  parte que não pode falhar: misturar o upload nela faria um arquivo grande
-  demais derrubar o vínculo junto. Sem comprovante o pagamento existe; o
-  arquivo entra depois e pode ser trocado. Se o upload falha, a tela diz que o
-  pagamento foi gravado e que só o arquivo faltou.
+  /pagamentos/{id}/comprovante`, ou `/recebimentos/{id}/comprovante` para uma
+  doação), depois do lançamento do dinheiro. A quitação é a parte que não pode
+  falhar: misturar o upload nela faria um arquivo grande demais derrubar o
+  vínculo junto. Se o upload falha, a tela diz que o dinheiro foi gravado e que
+  só o arquivo faltou — e a linha fica com a etiqueta `falta` até ele vir.
+- **A observação é uma caixa de texto, não um campo de uma linha.** O que se
+  escreve ali é frase ("pagou 200 e pediu para descontar da festa da irmã"), e
+  num `input` a pessoa perde de vista o começo do que escreveu. `AreaTexto` tem
+  altura fixa em linhas, e não crescendo com o texto: um campo que estica
+  empurra o botão de salvar para baixo enquanto se digita.
 
 O arquivo é aceito só como JPG, PNG ou PDF, fica fora das pastas do frontend e
 só sai por rota autenticada. Trocar o comprovante apaga o anterior do disco, e
 apagar o pagamento apaga o arquivo — senão sobra arquivo que ninguém mais
 alcança.
+
+### O botão de registrar espera o comprovante
+
+**Pagamento de padrinho não se registra sem arquivo.** O botão fica inativo até
+escolherem um, nos dois lugares onde se registra: a aba Pagamento da ficha e o
+formulário do Financeiro. Sem comprovante, ninguém confere depois se aquele
+valor chegou de verdade — a linha seria uma promessa, e quem for conferir não
+tem contra o que comparar.
+
+Isso **não** vale para doação e "outros": dinheiro que alguém deixa na caixinha
+às vezes não tem recibo nenhum, e recusar o lançamento faria a edição perder o
+registro do dinheiro em vez de ganhar a prova dele.
+
+A exigência é **da tela, não do servidor**, e isso é deliberado. O arquivo sobe
+na segunda requisição, e se ela falhar o dinheiro já está gravado — recusar o
+pagamento nesse ponto perderia a quitação por causa do arquivo, que é
+exatamente o que a separação em duas requisições existe para evitar. Além disso
+pagamentos antigos existem sem comprovante, e uma regra retroativa no servidor
+os tornaria impossíveis de editar. Quem ficou sem arquivo aparece com a etiqueta
+`falta`, na ficha e no Financeiro, e o arquivo entra depois.
+
+### Conferir o passado é outro bloco, não outra tela
+
+O histórico (bloco 3 da tabela acima) fica na mesma aba porque a pergunta "ele
+já pagou isso?" nasce no mesmo lugar em que se registra o pagamento: mandar a
+pessoa a outra tela para responder significaria fechar a ficha, perder o lugar
+na planilha e voltar.
+
+O filete e o respiro generoso entre os dois existem para não parecerem a mesma
+lista — em cima se marca o que **vai** ser pago, embaixo se confere o que **já**
+foi. Cada linha do histórico traz valor, data, forma, a observação e o
+comprovante para baixar ou trocar, mais as etiquetas de conferido e de
+`falta o comprovante`.
 
 ---
 
