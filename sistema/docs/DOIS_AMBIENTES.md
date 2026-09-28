@@ -4,9 +4,17 @@ Duas máquinas, dois bancos, dois domínios. O que entra em produção passou an
 por homologação.
 
 ```
-teste.DOMINIO     VPS 2 GB   AMBIENTE=homologacao   segue o main
-DOMINIO           VPS 2 GB   AMBIENTE=producao      só o que tem tag
+teste.natallumen.com    VPS   AMBIENTE=homologacao   segue o main
+acesso.natallumen.com   VPS   AMBIENTE=producao      só o que tem tag
 ```
+
+O domínio raiz, `natallumen.com`, não é de nenhum dos dois: é o Shopify, onde
+fica a loja e o site público.
+
+> **Para montar qualquer um dos dois servidores do zero**, siga o
+> [HOSPEDAGEM.md](HOSPEDAGEM.md) — passo a passo, do contratar a VPS ao
+> cadeado do HTTPS. Este documento aqui explica *por que* são dois e o que
+> muda entre eles.
 
 ---
 
@@ -80,7 +88,7 @@ você trabalha  ──▶  main  ──▶  homologação  ──(tag)──▶ 
 **Homologação segue o `main`.** Todo commit que entra no main pode ir para lá:
 
 ```bash
-ssh teste.DOMINIO
+ssh lumen@teste.natallumen.com
 cd /var/www/natal-lumen
 SERVICO=natal-lumen-api ./sistema/publicacao/publicar.sh
 ```
@@ -96,9 +104,9 @@ git push origin v2026.1
 E publica exatamente aquela marca:
 
 ```bash
-ssh DOMINIO
+ssh lumen@acesso.natallumen.com
 cd /var/www/natal-lumen
-REF=v2026.1 DOMINIO=natallumen.org ./sistema/publicacao/publicar.sh
+REF=v2026.1 DOMINIO=acesso.natallumen.com ./sistema/publicacao/publicar.sh
 ```
 
 A tag é o portão. Sem ela, "publicar em produção" seria pegar o que estivesse
@@ -200,7 +208,7 @@ Igual ao de produção, no [README § Publicação](../README.md) — com quatro
 diferenças:
 
 1. `AMBIENTE=homologacao` e `UVICORN_WORKERS=1`.
-2. O `server_name` do nginx é `teste.DOMINIO`, e o certbot roda para ele.
+2. O `server_name` do nginx é `teste.natallumen.com`, e o certbot roda para ele.
 3. Depois de instalar, restaure o dump e rode o `anonimizar`.
 4. **Não coloque credencial de WhatsApp nem de Drive.**
 

@@ -20,9 +20,13 @@ EnvironmentFile=/var/www/natal-lumen/sistema/backend/.env
 
 # Sem --reload: em producao ele so gasta memoria.
 #
-# O numero de workers vem do .env porque muda por ambiente: cada worker carrega
-# o EasyOCR (~1 GB de RAM), entao producao usa 2 e homologacao usa 1 com o OCR
-# desligado. Deixar fixo aqui obrigaria a manter dois arquivos quase iguais.
+# O numero de workers vem do .env porque muda por ambiente: producao usa 2 e
+# homologacao usa 1. Deixar fixo aqui obrigaria a manter dois arquivos quase
+# iguais.
+#
+# A justificativa antiga era o EasyOCR, que comia ~1 GB por worker. Ele saiu na
+# troca da identificacao por OCR pela identificacao por codigo no nome do
+# arquivo: hoje cada worker ocupa ~152 MB.
 ExecStart=/var/www/natal-lumen/sistema/backend/.venv/bin/uvicorn app.main:app \
     --host 127.0.0.1 --port ${UVICORN_PORTA} --workers ${UVICORN_WORKERS}
 

@@ -738,16 +738,31 @@ cd backend
 > Se a porta 5173 estiver ocupada, o Vite sobe noutra e avisa no terminal — mas
 > aí o endereço muda. Confira a linha `Local:` antes de abrir o navegador.
 
-## Publicação em /acesso
+## Publicação
+
+> **Nunca publicou este sistema?** Comece pelo
+> [docs/HOSPEDAGEM.md](docs/HOSPEDAGEM.md) — passo a passo completo, do
+> contratar a VPS ao cadeado do HTTPS, escrito para quem não administra
+> servidor. Esta seção aqui é o resumo para quem já conhece o caminho.
 
 ```
-https://DOMINIO/            → site público        site/dist
-https://DOMINIO/acesso      → sistema             sistema/frontend/dist
-https://DOMINIO/acesso/api  → API                 uvicorn em 127.0.0.1:8000
+natallumen.com                      → Shopify: loja e site público
+acesso.natallumen.com/acesso        → sistema   sistema/frontend/dist
+acesso.natallumen.com/acesso/api    → API       uvicorn em 127.0.0.1:8000
+teste.natallumen.com                → homologação, mesma coisa noutra máquina
 ```
+
+O site público **não é servido por este servidor**: ele vive no Shopify, no
+domínio raiz. O nginx daqui atende só o subdomínio do sistema.
 
 Frontend e API no mesmo domínio é o que permite o cookie de sessão `httpOnly`
 com `SameSite=Strict` e `path=/acesso`, sem CORS em produção.
+
+O prefixo `/acesso` continua no caminho mesmo agora que o sistema tem
+subdomínio próprio: ele está gravado no `base` do [vite.config.js](frontend/vite.config.js),
+no `cookie_path` e no `root_path` do [config.py](backend/app/config.py). O nginx
+redireciona a raiz do subdomínio para `/acesso/`, então quem digita
+`acesso.natallumen.com` cai direto na tela de entrada.
 
 Os arquivos prontos estão em [publicacao/](publicacao/):
 
@@ -762,12 +777,28 @@ Os arquivos prontos estão em [publicacao/](publicacao/):
 No servidor (Ubuntu/Debian):
 
 ```bash
-sudo apt install python3.12 python3.12-venv postgresql nginx nodejs npm
+sudo apt install python3.12 python3.12-venv postgresql nginx git curl rsync
+
+# O OpenCV endireita a foto do cartao e exige estas duas, que nao vem num
+# servidor sem tela. Sem elas a API NAO SOBE: libGL.so.1: cannot open shared
+# object file.
+sudo apt install libgl1 libglib2.0-0
+
+# O nodejs do Ubuntu 24.04 e o 18; o Vite 8 exige 20+.
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install nodejs
+```
+
+Dois usuarios, com papeis diferentes: um administrador que publica (`lumen`,
+dono da pasta e com `sudo`) e um usuario de servico sem poder nenhum
+(`natal-lumen`), que so roda o uvicorn.
+
+```bash
 sudo adduser --system --group natal-lumen
 
 sudo mkdir -p /var/www/natal-lumen
-sudo chown natal-lumen:natal-lumen /var/www/natal-lumen
-sudo -u natal-lumen git clone SEU_REPO /var/www/natal-lumen
+sudo chown lumen:lumen /var/www/natal-lumen
+git clone SEU_REPO /var/www/natal-lumen
 cd /var/www/natal-lumen
 ```
 
@@ -799,11 +830,24 @@ ARQUIVOS_DIR=/var/www/natal-lumen/sistema/arquivos
 
 ```bash
 ./.venv/bin/python -c "import secrets; print(secrets.token_urlsafe(48))"
-chmod 600 .env          # o systemd lê este arquivo; ninguém mais precisa
-./.venv/bin/alembic upgrade head
-./.venv/bin/python -m app.seeds.perfis_permissoes
-./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
+
+# O .env é do usuário do serviço: é ele quem roda a aplicação, e a aplicação
+# lê este arquivo além de recebê-lo pelo systemd. Com o dono errado, a API
+# sobe e morre em PermissionError.
+sudo chown natal-lumen:natal-lumen .env
+sudo chmod 600 .env
+
+sudo mkdir -p /var/www/natal-lumen/sistema/arquivos
+sudo chown -R natal-lumen:natal-lumen /var/www/natal-lumen/sistema/arquivos
+
+# Daqui em diante, como o usuário do serviço — é quem consegue ler o .env.
+sudo -u natal-lumen ./.venv/bin/alembic upgrade head
+sudo -u natal-lumen ./.venv/bin/python -m app.seeds.perfis_permissoes
+sudo -u natal-lumen ./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
 ```
+
+> O `criar_admin` imprime o link de primeiro acesso, válido por 72 horas.
+> **Guarde:** é por ele que você define a própria senha. Perdeu? Rode de novo.
 
 > `AMBIENTE=producao` muda três coisas: o cookie passa a exigir HTTPS
 > (`Secure`), o CORS é desligado (desnecessário no mesmo domínio) e o `/docs`
@@ -826,21 +870,24 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now natal-lumen-api
 
 sudo cp nginx.conf /etc/nginx/sites-available/natal-lumen
-# troque DOMINIO e os caminhos dentro do arquivo
+sudo sed -i 's/SUBDOMINIO/acesso.natallumen.com/g' /etc/nginx/sites-available/natal-lumen
 sudo ln -s /etc/nginx/sites-available/natal-lumen /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default /var/www/html/index.nginx-debian.html
 sudo nginx -t && sudo systemctl reload nginx
 
-sudo certbot --nginx -d DOMINIO -d www.DOMINIO
+# O nginx.conf é só HTTP de propósito: é o certbot que promove para HTTPS,
+# aponta o certificado e cria o redirect de 80 para 443.
+sudo certbot --nginx -d acesso.natallumen.com
 ```
 
-Confira: `curl https://DOMINIO/acesso/api/saude` deve responder
+Confira: `curl https://acesso.natallumen.com/acesso/api/saude` deve responder
 `{"ok":true,"ambiente":"producao"}`.
 
 ### Atualizações
 
 ```bash
 cd /var/www/natal-lumen
-DOMINIO=seu.dominio ./sistema/publicacao/publicar.sh
+DOMINIO=acesso.natallumen.com REF=v2026.1 ./sistema/publicacao/publicar.sh
 ```
 
 Ele busca a versão nova, instala dependências, **roda as migrations antes de
