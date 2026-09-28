@@ -10,10 +10,20 @@ export const ITENS_MENU = [
   { para: "/painel", rotulo: "Painel" },
   { para: "/criancas", rotulo: "Crianças", permissao: "ver_criancas" },
   { para: "/padrinhos", rotulo: "Padrinhos", permissao: "ver_padrinhos" },
-  { para: "/pagamentos", rotulo: "Pagamentos", permissao: "registrar_pagamentos" },
   { para: "/cartoes", rotulo: "Cartões", permissao: "subir_cartoes" },
   { para: "/kits", rotulo: "Kits", permissao: "gerenciar_kits" },
-  { para: "/compras", rotulo: "Compras", permissao: "gerenciar_compras" },
+  // Duas permissoes, e basta UMA: a estrutura entra pelas saidas, a
+  // coordenacao pelas duas abas. Quem tem so uma delas ve so a sua metade —
+  // quem cuida de compras nao precisa saber quanto a edicao arrecadou.
+  //
+  // Nao ha destino separado para os pagamentos dos padrinhos: eles sao linhas
+  // da aba Recebimentos, com o comprovante na propria linha. Dinheiro que
+  // entra tem um lugar so.
+  {
+    para: "/financeiro",
+    rotulo: "Financeiro",
+    permissoes: ["gerenciar_compras", "registrar_pagamentos"],
+  },
   { para: "/checkin", rotulo: "Check-in", permissao: "fazer_checkin" },
   { para: "/usuarios", rotulo: "Usuários", permissao: "gerenciar_usuarios" },
   { para: "/instituicoes", rotulo: "Instituições", permissao: "gerenciar_cadastros" },
@@ -35,6 +45,17 @@ export const ITEM_ADMIN = {
 /** Tudo o que tem rota, menu ou nao — e disto que o App monta as rotas. */
 export const ROTAS = [...ITENS_MENU, ITEM_ADMIN];
 
+/** Se este destino aparece para quem tem estas permissoes.
+ *
+ * `permissao` e o caso comum: uma, obrigatoria. `permissoes` e o destino que
+ * junta assuntos de donos diferentes — basta UMA da lista, e a propria tela se
+ * encarrega de mostrar so a parte que a pessoa alcanca.
+ */
+export function alcanca(item, pode) {
+  if (item.permissoes) return item.permissoes.some((p) => pode(p));
+  return !item.permissao || pode(item.permissao);
+}
+
 export function itensVisiveis(pode) {
-  return ITENS_MENU.filter((item) => !item.permissao || pode(item.permissao));
+  return ITENS_MENU.filter((item) => alcanca(item, pode));
 }

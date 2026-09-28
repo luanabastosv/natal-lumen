@@ -12,12 +12,11 @@ DOIS_DECIMAIS = Decimal("0.01")
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.config import config
 from app.database import get_db
 from app.models import Apadrinhamento, Crianca, Edicao, EnvioCartao, Padrinho, Pagamento
 from app.models.tipos import TipoApadrinhamento
@@ -37,9 +36,8 @@ from app.schemas.padrinhos import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import agradecimento, arquivos, drive, whatsapp
+from app.servicos import agradecimento, comprovantes, whatsapp
 from app.servicos.log import registrar
-from app.servicos.upload import ler_limitado
 
 router = APIRouter(tags=["padrinhos"])
 
@@ -491,6 +489,7 @@ def _saida_pagamento(pagamento: Pagamento) -> PagamentoOut:
         valor=pagamento.valor,
         data=pagamento.data,
         forma=pagamento.forma,
+        observacoes=pagamento.observacoes,
         conferido=pagamento.conferido,
         comprovante_arquivo=pagamento.comprovante_arquivo,
         comprovante_drive_link=pagamento.comprovante_drive_link,
@@ -538,6 +537,7 @@ def listar_pagamentos(
     ctx: Pagar,
     padrinho_id: int | None = None,
     conferido: bool | None = None,
+    comprovante: bool | None = None,
     pagina: int = Query(default=1, ge=1),
     por_pagina: int = Query(default=50, ge=1, le=200),
 ):
@@ -548,6 +548,15 @@ def listar_pagamentos(
         condicao = condicao & (Pagamento.padrinho_id == padrinho_id)
     if conferido is not None:
         condicao = condicao & (Pagamento.conferido.is_(conferido))
+    # Quem cobra comprovante precisa achar os que ainda nao tem. O filtro olha
+    # o arquivo no disco, e nao a copia no Drive: o disco e o original, e o
+    # Drive pode estar desligado sem que falte comprovante nenhum.
+    if comprovante is not None:
+        condicao = condicao & (
+            Pagamento.comprovante_arquivo.is_not(None)
+            if comprovante
+            else Pagamento.comprovante_arquivo.is_(None)
+        )
 
     total = db.scalar(select(func.count()).select_from(Pagamento).where(condicao)) or 0
 
@@ -575,6 +584,7 @@ def criar_pagamento(dados: PagamentoIn, db: BD, ctx: Pagar):
         valor=dados.valor,
         data=dados.data,
         forma=dados.forma,
+        observacoes=dados.observacoes,
         registrado_por=ctx.usuario.id,
     )
     db.add(pagamento)
@@ -637,11 +647,7 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Pagar):
 
     # O comprovante sai do disco junto: sem a linha, ninguem mais alcanca o
     # arquivo, e ele ficaria ocupando lugar para sempre.
-    if pagamento.comprovante_arquivo:
-        try:
-            arquivos.dentro_da_pasta(pagamento.comprovante_arquivo).unlink(missing_ok=True)
-        except ValueError:
-            pass
+    comprovantes.apagar_arquivo(pagamento)
 
     registrar(
         db, "pagamento_apagado", usuario_id=ctx.usuario.id,
@@ -653,15 +659,11 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Pagar):
 
 
 # ------------------------------------------------------------- comprovantes
-
-# Comprovante e foto de tela ou PDF do banco. Nada mais entra: o arquivo fica
-# guardado para conferencia e nunca e executado, mas aceitar qualquer extensao
-# convida a usar a pasta como deposito.
-EXTENSOES_COMPROVANTE = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "application/pdf": ".pdf",
-}
+#
+# O trabalho de guardar, trocar, espelhar no Drive e entregar o arquivo vive em
+# servicos/comprovantes.py, compartilhado com os recebimentos do financeiro: as
+# duas origens guardam os mesmos tres campos e merecem o mesmo cuidado. Aqui
+# fica so o que e do pagamento — quem pode, e qual edicao nomeia o arquivo.
 
 
 @router.post("/pagamentos/{pagamento_id}/comprovante", response_model=PagamentoOut)
@@ -685,73 +687,15 @@ async def subir_comprovante(
 
     padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
 
-    extensao = EXTENSOES_COMPROVANTE.get(arquivo.content_type or "")
-    if extensao is None:
-        raise HTTPException(
-            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            "O comprovante precisa ser uma imagem (JPG ou PNG) ou um PDF.",
-        )
-
-    conteudo = await ler_limitado(arquivo)
-
-    pasta = arquivos.pasta_dos_comprovantes(padrinho.edicao.cidade.nome, padrinho.edicao.ano)
-    pasta.mkdir(parents=True, exist_ok=True)
-    destino = arquivos.caminho_disponivel(
-        pasta, arquivos.nome_do_comprovante(padrinho.nome, pagamento.data, extensao)
+    await comprovantes.guardar(
+        db, pagamento, arquivo,
+        cidade=padrinho.edicao.cidade.nome,
+        ano=padrinho.edicao.ano,
+        titular=padrinho.nome,
+        data=pagamento.data,
+        tabela="pagamentos",
+        usuario_id=ctx.usuario.id,
     )
-    destino.write_bytes(conteudo)
-
-    # O anterior sai do disco: trocar o comprovante duas vezes deixaria dois
-    # arquivos orfaos que ninguem mais alcanca.
-    antigo = pagamento.comprovante_arquivo
-    pagamento.comprovante_arquivo = str(destino.relative_to(config.caminho_arquivos))
-
-    if antigo:
-        try:
-            arquivos.dentro_da_pasta(antigo).unlink(missing_ok=True)
-        except ValueError:
-            pass
-
-    registrar(
-        db, "comprovante_subido", usuario_id=ctx.usuario.id,
-        tabela="pagamentos", registro_id=pagamento.id,
-        detalhes={"arquivo": pagamento.comprovante_arquivo},
-    )
-
-    # O Drive e espelho, nunca o original. Ja esta gravado em disco a esta
-    # altura, entao uma falha aqui NAO derruba a requisicao: o comprovante
-    # vale do mesmo jeito, e subir o arquivo de novo refaz a tentativa.
-    pagamento.comprovante_drive_id = None
-    pagamento.comprovante_drive_link = None
-
-    if drive.configurado():
-        try:
-            enviado = drive.enviar(
-                conteudo,
-                arquivos.nome_do_comprovante_drive(
-                    padrinho.edicao.cidade.nome,
-                    padrinho.edicao.ano,
-                    padrinho.nome,
-                    pagamento.data,
-                    extensao,
-                ),
-                arquivo.content_type or "application/octet-stream",
-            )
-            pagamento.comprovante_drive_id = enviado.id
-            pagamento.comprovante_drive_link = enviado.link
-            registrar(
-                db, "comprovante_no_drive", usuario_id=ctx.usuario.id,
-                tabela="pagamentos", registro_id=pagamento.id,
-                detalhes={"drive_id": enviado.id},
-            )
-        except drive.ErroDrive as erro:
-            # Fica no log para alguem investigar, e a tela mostra que o link
-            # do Drive nao veio.
-            registrar(
-                db, "comprovante_drive_falhou", usuario_id=ctx.usuario.id,
-                tabela="pagamentos", registro_id=pagamento.id,
-                detalhes={"erro": erro.mensagem, "detalhe": erro.detalhe[:200]},
-            )
 
     db.commit()
     db.refresh(pagamento)
@@ -762,17 +706,8 @@ async def subir_comprovante(
 def baixar_comprovante(pagamento_id: int, db: BD, ctx: Pagar):
     """Devolve o comprovante. Unica porta para o arquivo, sempre autenticada."""
     pagamento = db.get(Pagamento, pagamento_id)
-    if pagamento is None or not pagamento.comprovante_arquivo:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comprovante nao encontrado.")
+    if pagamento is None:
+        raise comprovantes.NAO_ENCONTRADO
 
     _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
-
-    try:
-        caminho = arquivos.dentro_da_pasta(pagamento.comprovante_arquivo)
-    except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comprovante nao encontrado.")
-
-    if not caminho.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comprovante nao encontrado.")
-
-    return FileResponse(caminho, filename=caminho.name)
+    return comprovantes.entregar(pagamento)

@@ -29,6 +29,21 @@ class StatusKit(StrEnum):
     ENTREGUE = "entregue"
 
 
+class CategoriaRecebimento(StrEnum):
+    """Categorias GRAVADAS em recebimentos — as duas que alguem escolhe.
+
+    As de apadrinhamento nao estao aqui de proposito: elas nao sao escolhidas,
+    sao DERIVADAS do que o pagamento quita (so cesta, so festa, ou os dois).
+    Guardar a categoria de um pagamento ao lado dos apadrinhamentos que ele
+    quita abriria a porta para as duas divergirem — uma linha dizendo "cesta"
+    num dinheiro que pagou festa. Os rotulos das derivadas vivem no router do
+    financeiro, que e quem as calcula.
+    """
+
+    DOACAO = "doacao"
+    OUTROS = "outros"
+
+
 class TipoToken(StrEnum):
     PRIMEIRO_ACESSO = "primeiro_acesso"
     REDEFINIR_SENHA = "redefinir_senha"

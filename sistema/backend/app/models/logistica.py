@@ -1,12 +1,12 @@
-"""Modelos de logistica: cartoes, kits e compras."""
+"""Modelos de logistica: os cartoes das criancas e os kits.
 
-from datetime import date
+Compras saiu daqui para models/financeiro.py: ela e uma SAIDA de dinheiro,
+e passou a dividir tela com os recebimentos.
+"""
 
 from sqlalchemy import (
     CheckConstraint,
-    Date,
     ForeignKey,
-    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -17,7 +17,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.tipos import (
     CriadoEm,
-    Dinheiro,
     MomentoOpcional,
     StatusCartao,
     StatusKit,
@@ -99,26 +98,3 @@ class Kit(Base):
     observacoes: Mapped[str | None] = mapped_column(Text)
 
     crianca: Mapped["Crianca"] = relationship(back_populates="kit")  # noqa: F821
-
-
-class Compra(Base):
-    """Compra feita pela equipe de estrutura para uma edicao."""
-
-    __tablename__ = "compras"
-    __table_args__ = (
-        CheckConstraint("quantidade > 0", name="ck_compras_quantidade"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    edicao_id: Mapped[int] = mapped_column(
-        ForeignKey("edicoes.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    descricao: Mapped[str] = mapped_column(String(255), nullable=False)
-    categoria: Mapped[str | None] = mapped_column(String(80), index=True)
-    quantidade: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    valor_total: Mapped[Dinheiro] = mapped_column(nullable=False)
-    fornecedor: Mapped[str | None] = mapped_column(String(180))
-    responsavel_id: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios.id", ondelete="SET NULL")
-    )
-    data: Mapped[date] = mapped_column(Date, nullable=False)

@@ -1,9 +1,12 @@
-"""Kits, compras e check-in das criancas no dia do evento."""
+"""Kits e check-in das criancas no dia do evento.
+
+As compras sairam daqui: viraram as SAIDAS do financeiro, em
+routers/financeiro.py, ao lado dos recebimentos da edicao.
+"""
 
 import io
 from collections import defaultdict
 from datetime import UTC, date, datetime
-from decimal import Decimal
 from typing import Annotated
 
 import qrcode
@@ -13,17 +16,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Apadrinhamento, Cartao, Compra, Crianca, DiaEvento, Kit, Usuario
+from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Kit
 from app.models.tipos import StatusKit
 from app.schemas.logistica import (
     CheckinIn,
     CheckinOut,
-    CompraEditar,
-    CompraIn,
-    CompraOut,
     KitMudar,
     KitOut,
-    PaginaCompras,
     PaginaKits,
 )
 from app.seguranca.contexto import ContextoAcesso
@@ -34,10 +33,7 @@ router = APIRouter(tags=["logistica"])
 
 BD = Annotated[Session, Depends(get_db)]
 Kits = Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_kits"))]
-Compras = Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_compras"))]
 Checkin = Annotated[ContextoAcesso, Depends(exige_permissao("fazer_checkin"))]
-
-DOIS_DECIMAIS = Decimal("0.01")
 
 
 # ---------------------------------------------------------------- kits
@@ -163,109 +159,6 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
     )
     db.commit()
     return saida
-
-
-# ---------------------------------------------------------------- compras
-
-def _saida_compra(compra: Compra, responsavel: str | None) -> CompraOut:
-    return CompraOut(
-        id=compra.id, edicao_id=compra.edicao_id, descricao=compra.descricao,
-        categoria=compra.categoria, quantidade=compra.quantidade,
-        valor_total=compra.valor_total, fornecedor=compra.fornecedor,
-        data=compra.data, responsavel=responsavel,
-    )
-
-
-@router.get("/compras", response_model=PaginaCompras)
-def listar_compras(db: BD, ctx: Compras, edicao_id: int | None = None):
-    edicoes = ctx.edicoes_com("gerenciar_compras")
-
-    if ctx.admin_geral:
-        condicao = Compra.id.is_not(None)
-    elif edicoes:
-        condicao = Compra.edicao_id.in_(edicoes)
-    else:
-        condicao = Compra.id.is_(None)
-
-    if edicao_id is not None:
-        condicao = condicao & (Compra.edicao_id == edicao_id)
-
-    compras = db.scalars(
-        select(Compra).where(condicao).order_by(Compra.data.desc(), Compra.id.desc())
-    ).all()
-
-    nomes = {
-        u.id: u.nome
-        for u in db.scalars(
-            select(Usuario).where(Usuario.id.in_({c.responsavel_id for c in compras if c.responsavel_id}))
-        ).all()
-    }
-
-    total = sum((c.valor_total for c in compras), Decimal("0"))
-    por_categoria: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-    for c in compras:
-        por_categoria[c.categoria or "sem categoria"] += c.valor_total
-
-    return PaginaCompras(
-        total=len(compras),
-        itens=[_saida_compra(c, nomes.get(c.responsavel_id)) for c in compras],
-        total_gasto=total.quantize(DOIS_DECIMAIS),
-        por_categoria={k: v.quantize(DOIS_DECIMAIS) for k, v in sorted(por_categoria.items())},
-    )
-
-
-@router.post("/compras", response_model=CompraOut, status_code=status.HTTP_201_CREATED)
-def criar_compra(dados: CompraIn, db: BD, ctx: Compras):
-    if not ctx.alcanca_edicao(dados.edicao_id, "gerenciar_compras"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Voce nao registra compras nesta edicao.")
-
-    compra = Compra(**dados.model_dump(), responsavel_id=ctx.usuario.id)
-    db.add(compra)
-    db.flush()
-
-    registrar(
-        db, "compra_registrada", usuario_id=ctx.usuario.id,
-        tabela="compras", registro_id=compra.id,
-        detalhes={"descricao": compra.descricao, "valor_total": str(compra.valor_total)},
-    )
-    db.commit()
-    db.refresh(compra)
-    return _saida_compra(compra, ctx.usuario.nome)
-
-
-@router.patch("/compras/{compra_id}", response_model=CompraOut)
-def editar_compra(compra_id: int, dados: CompraEditar, db: BD, ctx: Compras):
-    compra = db.get(Compra, compra_id)
-    if compra is None or not ctx.alcanca_edicao(compra.edicao_id, "gerenciar_compras"):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Compra nao encontrada.")
-
-    mudancas = dados.model_dump(exclude_unset=True)
-    for campo, valor in mudancas.items():
-        setattr(compra, campo, valor)
-
-    registrar(
-        db, "compra_editada", usuario_id=ctx.usuario.id,
-        tabela="compras", registro_id=compra.id,
-        detalhes={"campos": sorted(mudancas)},
-    )
-    db.commit()
-    db.refresh(compra)
-    return _saida_compra(compra, None)
-
-
-@router.delete("/compras/{compra_id}", status_code=status.HTTP_204_NO_CONTENT)
-def apagar_compra(compra_id: int, db: BD, ctx: Compras):
-    compra = db.get(Compra, compra_id)
-    if compra is None or not ctx.alcanca_edicao(compra.edicao_id, "gerenciar_compras"):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Compra nao encontrada.")
-
-    registrar(
-        db, "compra_apagada", usuario_id=ctx.usuario.id,
-        tabela="compras", registro_id=compra.id,
-        detalhes={"descricao": compra.descricao, "valor_total": str(compra.valor_total)},
-    )
-    db.delete(compra)
-    db.commit()
 
 
 # ---------------------------------------------------------------- check-in

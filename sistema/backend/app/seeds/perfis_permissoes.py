@@ -24,11 +24,14 @@ PERMISSOES: dict[str, str] = {
     "importar_listas": "Importar listas de criancas enviadas pelas instituicoes",
     "ver_padrinhos": "Ver a lista e os dados dos padrinhos",
     "editar_padrinhos": "Criar e editar padrinhos e apadrinhamentos",
-    "registrar_pagamentos": "Registrar e conferir pagamentos dos padrinhos",
+    # Cobre as duas metades do dinheiro que ENTRA: o pagamento do padrinho,
+    # conferido contra o comprovante, e o recebimento esporadico (doacao,
+    # patrocinio, rifa) lancado na aba Recebimentos do financeiro.
+    "registrar_pagamentos": "Registrar pagamentos dos padrinhos e os recebimentos da edicao",
     "subir_cartoes": "Digitalizar e subir os cartoes das criancas",
     "enviar_cartoes": "Marcar cartoes como enviados aos padrinhos",
     "gerenciar_kits": "Montar e registrar a entrega dos kits",
-    "gerenciar_compras": "Registrar as compras da edicao",
+    "gerenciar_compras": "Registrar as saidas (gastos) da edicao",
     "fazer_checkin": "Fazer o check-in das criancas no dia do evento",
     "gerenciar_usuarios": "Criar usuarios e definir vinculos, perfis e instituicoes",
     "gerenciar_cadastros": "Cadastrar instituicoes e os dias do evento da edicao",
@@ -81,6 +84,15 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
 # Perfis filtrados pelas instituicoes atribuidas em usuario_instituicao.
 # Coordenacao e Estrutura veem a edicao inteira.
 PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitor")
+
+# Perfis filtrados tambem crianca a crianca: nao basta a instituicao estar
+# atribuida, a crianca tem de ter o nome dele em criancas.comissario_id.
+# So o comissario. O monitor continua vendo a instituicao inteira porque o
+# trabalho dele e da lista toda: recolher e digitalizar os cartoes do dia.
+#
+# Consequencia de proposito: crianca sem responsavel nao aparece para nenhum
+# comissario — ela so existe para a coordenacao, que e quem distribui a lista.
+PERFIS_FILTRADOS_POR_CRIANCA = ("Comissario",)
 
 # Perfis que respondem por um grupo da comunidade (usuario_edicao.grupo_id).
 # So o comissario: o monitor responde pela instituicao e a coordenacao pela

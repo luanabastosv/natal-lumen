@@ -167,6 +167,11 @@ def main() -> None:
     comissario = usuario("Comissario", "Comissario", [inst_a.id])
     # Sem instituicao atribuida: a coordenacao alcanca a edicao inteira.
     coord = usuario("Coord", "Coordenacao")
+    # O comissario so alcanca as criancas atribuidas a ele. O monitor nao
+    # precisa disto: ele continua com a instituicao inteira, que e o que o
+    # trabalho dele exige.
+    ana.comissario_id = comissario.id
+    joao.comissario_id = comissario.id
     db.commit()
 
     try:

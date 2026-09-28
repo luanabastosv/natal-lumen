@@ -19,9 +19,10 @@ router.
 
 O grosso da remocao e do banco: as chaves estrangeiras ja tem ON DELETE CASCADE
 (crianca -> cartoes, kits, apadrinhamentos; edicao -> criancas, padrinhos,
-dias, compras, acessos). Aqui ficam so as pontas que o cascade nao resolve: a
-ordem das tabelas cujo vinculo e RESTRICT — criancas.instituicao_id e uma — e
-os arquivos no disco, que nenhuma chave estrangeira alcanca.
+dias, compras, recebimentos, acessos). Aqui ficam so as pontas que o cascade
+nao resolve: a ordem das tabelas cujo vinculo e RESTRICT —
+criancas.instituicao_id e uma — e os arquivos no disco, que nenhuma chave
+estrangeira alcanca.
 """
 
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ from app.models import (
     Kit,
     Padrinho,
     Pagamento,
+    Recebimento,
     Usuario,
     UsuarioEdicao,
     UsuarioInstituicao,
@@ -190,6 +192,10 @@ def contar(db: Session, alcance: Alcance) -> list[ItemDependencia]:
             _quantos(db, Pagamento, Pagamento.padrinho_id.in_(alcance.padrinhos)),
         ),
         ("compras", _quantos(db, Compra, Compra.edicao_id.in_(alcance.edicoes))),
+        (
+            "recebimentos",
+            _quantos(db, Recebimento, Recebimento.edicao_id.in_(alcance.edicoes)),
+        ),
         ("grupos", _quantos(db, Grupo, Grupo.id.in_(alcance.grupos))),
         ("acessos", _quantos(db, UsuarioEdicao, UsuarioEdicao.id.in_(acessos))),
         # A atribuicao cai por dois caminhos, um por chave estrangeira: some
@@ -283,7 +289,7 @@ def criancas_sob_responsabilidade(db: Session, usuario_id: int) -> int:
 
 
 def _arquivos_do_alcance(db: Session, alcance: Alcance) -> list[str]:
-    """Caminhos dos cartoes e comprovantes que vao ficar sem dono.
+    """Caminhos dos cartoes e dos comprovantes que vao ficar sem dono.
 
     Lido ANTES dos DELETEs, porque depois nao ha mais linha apontando para
     eles. Nenhum ON DELETE alcanca o disco: sem isto, apagar uma edicao
@@ -301,6 +307,17 @@ def _arquivos_do_alcance(db: Session, alcance: Alcance) -> list[str]:
             select(Pagamento.comprovante_arquivo).where(
                 Pagamento.padrinho_id.in_(alcance.padrinhos),
                 Pagamento.comprovante_arquivo.is_not(None),
+            )
+        ).all()
+    )
+    # O recibo da doacao mora na mesma pasta e cai pelo mesmo motivo: a linha
+    # dele sai no cascade da edicao, e sem isto o arquivo ficaria no servidor
+    # sem nada apontando para ele.
+    caminhos += list(
+        db.scalars(
+            select(Recebimento.comprovante_arquivo).where(
+                Recebimento.edicao_id.in_(alcance.edicoes),
+                Recebimento.comprovante_arquivo.is_not(None),
             )
         ).all()
     )

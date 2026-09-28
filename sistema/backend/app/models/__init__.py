@@ -17,7 +17,8 @@ from app.models.apadrinhamento import (
     Padrinho,
     Pagamento,
 )
-from app.models.logistica import Cartao, Compra, Kit
+from app.models.financeiro import Compra, Recebimento
+from app.models.logistica import Cartao, Kit
 from app.models.operacao import (
     Cidade,
     Crianca,
@@ -45,7 +46,9 @@ __all__ = [
     # logistica
     "Cartao",
     "Kit",
+    # financeiro
     "Compra",
+    "Recebimento",
     # acesso
     "Usuario",
     "Perfil",

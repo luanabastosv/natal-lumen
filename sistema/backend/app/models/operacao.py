@@ -204,12 +204,13 @@ class Crianca(Base):
     sexo: Mapped[str] = mapped_column(String(1), nullable=False)
     observacoes: Mapped[str | None] = mapped_column(Text)
 
-    # Comissario responsavel por ESTA crianca. Nao restringe acesso: a
-    # instituicao e atendida por um TIME de comissarios (2, 3), e todos eles
-    # veem e trabalham a lista inteira dela. Isto aqui diz apenas quem responde
-    # por esta crianca — quem cobra o padrinho, quem busca o cartao.
+    # Comissario responsavel por ESTA crianca: quem cobra o padrinho, quem
+    # busca o cartao. E tambem quem a ALCANCA — a instituicao e atendida por um
+    # TIME de comissarios (2, 3), mas cada um so ve as criancas com o nome dele
+    # aqui; a lista inteira da instituicao e da coordenacao e do monitor.
     # Nulo = a instituicao ja esta atribuida ao time, mas esta crianca ainda
-    # nao tem nome ao lado.
+    # nao tem nome ao lado — e entao nenhum comissario a ve, so a coordenacao,
+    # que e quem distribui a lista.
     comissario_id: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL"), index=True
     )

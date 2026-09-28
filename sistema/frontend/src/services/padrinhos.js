@@ -29,10 +29,14 @@ export const obterAgradecimento = (id) =>
 export const enviarAgradecimento = (id) =>
   api.post(`/apadrinhamentos/${id}/agradecimento/enviar`);
 
+/** Os pagamentos de um padrinho, para a aba Pagamento da ficha dele: e de
+ *  onde se confere o comprovante de cada um. A lista do dinheiro da EDICAO
+ *  inteira e outra — GET /recebimentos, no financeiro. */
 export const listarPagamentos = (filtros) => comFiltros("/pagamentos", filtros);
 
 /** Sobe o comprovante deste pagamento. Separado do POST /pagamentos: a
- *  quitacao nao pode falhar por causa de um arquivo grande demais. */
+ *  quitacao nao pode falhar por causa de um arquivo grande demais. Trocar o
+ *  comprovante e subir outro: o anterior sai do disco no servidor. */
 export function subirComprovante(id, arquivo) {
   const dados = new FormData();
   dados.append("arquivo", arquivo);

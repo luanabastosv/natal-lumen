@@ -1,7 +1,9 @@
-"""Entrada e saida de kits, compras e check-in."""
+"""Entrada e saida de kits e check-in.
+
+As compras viraram as SAIDAS do financeiro e moram em schemas/financeiro.py.
+"""
 
 from datetime import date, datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -30,45 +32,6 @@ class KitMudar(BaseModel):
     criancas: list[int] = Field(min_length=1)
     status: str = Field(pattern="^(pendente|montado|entregue)$")
     observacoes: str | None = None
-
-
-class CompraIn(BaseModel):
-    edicao_id: int
-    descricao: str = Field(min_length=2, max_length=255)
-    categoria: str | None = Field(default=None, max_length=80)
-    quantidade: int = Field(default=1, gt=0)
-    valor_total: Decimal = Field(ge=0, decimal_places=2)
-    fornecedor: str | None = Field(default=None, max_length=180)
-    data: date
-
-
-class CompraEditar(BaseModel):
-    descricao: str | None = Field(default=None, min_length=2, max_length=255)
-    categoria: str | None = Field(default=None, max_length=80)
-    quantidade: int | None = Field(default=None, gt=0)
-    valor_total: Decimal | None = Field(default=None, ge=0, decimal_places=2)
-    fornecedor: str | None = Field(default=None, max_length=180)
-    data: date | None = None
-
-
-class CompraOut(BaseModel):
-    id: int
-    edicao_id: int
-    descricao: str
-    categoria: str | None
-    quantidade: int
-    valor_total: Decimal
-    fornecedor: str | None
-    data: date
-    responsavel: str | None
-
-
-class PaginaCompras(BaseModel):
-    total: int
-    itens: list[CompraOut]
-    total_gasto: Decimal
-    # Gasto por categoria, para o relatorio da edicao.
-    por_categoria: dict[str, Decimal]
 
 
 class CheckinIn(BaseModel):

@@ -3,12 +3,21 @@ import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 
-/** Exige sessao e, opcionalmente, uma permissao.
+/** Exige sessao e, opcionalmente, permissao.
+ *
+ * `permissao` exige aquela. `permissoes` exige QUALQUER uma da lista — e a
+ * tela que junta assuntos de donos diferentes, como o financeiro, onde cada
+ * aba tem a sua e a pessoa entra pela que alcanca.
  *
  * Esconder a rota e conveniencia de navegacao. A porta de verdade e o backend:
  * cada rota da API confere a permissao por conta propria.
  */
-export default function RotaProtegida({ permissao, apenasAdmin = false, children }) {
+export default function RotaProtegida({
+  permissao,
+  permissoes,
+  apenasAdmin = false,
+  children,
+}) {
   const { autenticado, carregando, pode, usuario } = useSessao();
   const local = useLocation();
 
@@ -30,7 +39,9 @@ export default function RotaProtegida({ permissao, apenasAdmin = false, children
     );
   }
 
-  if (permissao && !pode(permissao)) {
+  const exigidas = permissoes ?? (permissao ? [permissao] : []);
+
+  if (exigidas.length > 0 && !exigidas.some((p) => pode(p))) {
     return (
       <EmptyState
         titulo="Você não tem acesso a esta seção"

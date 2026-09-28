@@ -222,24 +222,29 @@ export default function Padrinhos() {
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="planilha planilha--padrinhos">
+            <table className="planilha">
               <caption className="tabela-dica">
                 Arraste a lista para o lado para ver todas as colunas.
               </caption>
               {/* As larguras ficam aqui, e nao no conteudo: trocar de edicao
-                  nao move nenhuma coluna de lugar. */}
-              {/* A coluna solta e a das criancas, nao a do nome: e ela que
-                  ganha a folga da tela larga, e cada nome a mais que couber
-                  nas duas linhas e uma ida a menos a ficha. */}
+                  nao move nenhuma coluna de lugar.
+
+                  Duas especies de coluna, pelo motivo que esta em base.css, em
+                  "Como a planilha cabe no monitor sem rolar": dado curto em px
+                  — o minimo que o rotulo e o conteudo pedem, e nada alem — e
+                  texto sem largura nenhuma, dividindo a sobra em partes iguais.
+                  As de texto aqui sao o nome, o email e a lista de criancas:
+                  sao as tres que crescem no monitor grande e as tres que
+                  cortam com reticencias quando a janela aperta. */}
               <colgroup>
-                <col style={{ width: 230 }} />
-                <col style={{ width: 140 }} />
-                <col style={{ width: 224 }} />
-                <col style={{ width: 56 }} />
                 <col />
-                <col style={{ width: 104 }} />
-                <col style={{ width: 104 }} />
-                <col style={{ width: 66 }} />
+                <col style={{ width: 120 }} />
+                <col />
+                <col style={{ width: 36 }} />
+                <col />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 40 }} />
               </colgroup>
               <thead>
                 <tr>

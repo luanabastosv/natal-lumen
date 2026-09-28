@@ -61,6 +61,11 @@ class Pagamento(Base):
     data: Mapped[date] = mapped_column(Date, nullable=False)
     forma: Mapped[str | None] = mapped_column(String(40))
 
+    # O que aconteceu naquele dinheiro e nao cabe nos campos acima. Mesmo campo
+    # de `recebimentos`: na lista do financeiro as duas origens sao linhas da
+    # mesma tabela, e as duas precisam poder se explicar.
+    observacoes: Mapped[str | None] = mapped_column(Text)
+
     # Caminho relativo dentro de ARQUIVOS_DIR; nunca servido publicamente.
     comprovante_arquivo: Mapped[str | None] = mapped_column(String(500))
 

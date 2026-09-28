@@ -97,6 +97,7 @@ class PagamentoIn(BaseModel):
     valor: Decimal = Field(gt=0, decimal_places=2)
     data: date
     forma: str | None = Field(default=None, max_length=40)
+    observacoes: str | None = None
     # Apadrinhamentos que este pagamento quita.
     apadrinhamentos: list[int] = Field(default_factory=list)
 
@@ -105,6 +106,7 @@ class PagamentoEditar(BaseModel):
     valor: Decimal | None = Field(default=None, gt=0, decimal_places=2)
     data: date | None = None
     forma: str | None = Field(default=None, max_length=40)
+    observacoes: str | None = None
     conferido: bool | None = None
     apadrinhamentos: list[int] | None = None
 
@@ -116,6 +118,7 @@ class PagamentoOut(BaseModel):
     valor: Decimal
     data: date
     forma: str | None
+    observacoes: str | None
     conferido: bool
     comprovante_arquivo: str | None
     # Vazio = nao foi para o Drive (desligado, ou o envio falhou).

@@ -1,4 +1,4 @@
-"""Testa kits, compras e check-in (fase 8).
+"""Testa kits, financeiro (saidas e recebimentos) e check-in (fase 8).
 
 Rodar com:  python -m tests.test_logistica
 """
@@ -24,6 +24,7 @@ from app.models import (
     LogAtividade,
     Padrinho,
     Perfil,
+    Recebimento,
     TokenAcesso,
     Usuario,
     UsuarioEdicao,
@@ -70,6 +71,7 @@ def limpar(db, log_inicial: int = 0) -> None:
             if pads:
                 db.execute(delete(Padrinho).where(Padrinho.id.in_(pads)))
             db.execute(delete(Compra).where(Compra.edicao_id.in_(eds)))
+            db.execute(delete(Recebimento).where(Recebimento.edicao_id.in_(eds)))
             db.execute(delete(Crianca).where(Crianca.edicao_id.in_(eds)))
             vs = list(db.scalars(select(UsuarioEdicao.id).where(UsuarioEdicao.edicao_id.in_(eds))).all())
             if vs:
@@ -132,11 +134,31 @@ def main() -> None:
 
     estrutura = usuario("Estrutura", "Estrutura")
     comissario = usuario("Comissario", "Comissario")
+    # Os recebimentos sao da coordenacao: e a mesma permissao dos pagamentos.
+    coord = usuario("Coord", "Coordenacao")
+    padrinho = Padrinho(edicao_id=edicao.id, nome=f"{MARCA} Padrinho")
+    db.add(padrinho); db.flush()
+    # No Bruno e na Carla, nunca na Ana: o check-in dela confere justamente o
+    # aviso de crianca SEM padrinho, e apadrinha-la aqui calaria esse aviso.
+    cesta_bruno = Apadrinhamento(
+        crianca_id=bruno.id, padrinho_id=padrinho.id, tipo="cesta", valor=120
+    )
+    festa_bruno = Apadrinhamento(
+        crianca_id=bruno.id, padrinho_id=padrinho.id, tipo="festa", valor=60
+    )
+    cesta_carla = Apadrinhamento(
+        crianca_id=carla.id, padrinho_id=padrinho.id, tipo="cesta", valor=120
+    )
+    festa_carla = Apadrinhamento(
+        crianca_id=carla.id, padrinho_id=padrinho.id, tipo="festa", valor=60
+    )
+    db.add_all([cesta_bruno, festa_bruno, cesta_carla, festa_carla]); db.flush()
     db.commit()
 
     try:
         ce = TestClient(app); entrar(ce, estrutura.email)
         ck = TestClient(app); entrar(ck, comissario.email)
+        cc = TestClient(app); entrar(cc, coord.email)
 
         print("\nKits")
         r = ce.get("/kits")
@@ -164,7 +186,7 @@ def main() -> None:
         r = ck.post("/kits", json={"criancas": [ana.id], "status": "entregue"})
         verifica("comissario NAO mexe em kits", r.status_code == 403, str(r.status_code))
 
-        print("\nCompras")
+        print("\nFinanceiro — saidas")
         r = ce.post("/compras", json={
             "edicao_id": edicao.id, "descricao": "Cestas basicas", "categoria": "cesta",
             "quantidade": 100, "valor_total": "5000.00", "fornecedor": "Atacado X",
@@ -190,6 +212,173 @@ def main() -> None:
 
         r = ck.get("/compras")
         verifica("comissario NAO ve compras", r.status_code == 403, str(r.status_code))
+
+        print("\nFinanceiro — recebimentos")
+        r = cc.post("/recebimentos", json={
+            "edicao_id": edicao.id, "descricao": "Doacao da padaria", "categoria": "doacao",
+            "valor": "1000.00", "data": str(date.today()), "doador": "Padaria do Bairro",
+            "forma": "Pix",
+        })
+        verifica("registra recebimento solto", r.status_code == 201, r.text[:130])
+        doacao_id = r.json()["id"] if r.status_code == 201 else None
+        verifica("guarda quem lancou", r.json().get("responsavel") == coord.nome,
+                 str(r.json().get("responsavel")))
+        verifica("nasce a conferir e sem comprovante",
+                 r.json().get("conferido") is False
+                 and r.json().get("comprovante_arquivo") is None, r.text[:130])
+
+        cc.post("/recebimentos", json={
+            "edicao_id": edicao.id, "descricao": "Patrocinio do buffet", "categoria": "outros",
+            "valor": "500.00", "data": str(date.today()),
+        })
+
+        r = cc.post("/recebimentos", json={
+            "edicao_id": edicao.id, "descricao": "Valor invalido", "categoria": "doacao",
+            "valor": "0", "data": str(date.today()),
+        })
+        verifica("recusa recebimento de valor zero", r.status_code == 422, str(r.status_code))
+
+        # A categoria e conjunto fechado: apadrinhamento nao se digita, vem do
+        # que o pagamento quita.
+        r = cc.post("/recebimentos", json={
+            "edicao_id": edicao.id, "descricao": "Apadrinhamento na mao",
+            "categoria": "apadrinhamento_cesta", "valor": "120.00", "data": str(date.today()),
+        })
+        verifica("recusa categoria de apadrinhamento digitada",
+                 r.status_code == 422, str(r.status_code))
+
+        r = cc.post("/recebimentos", json={
+            "edicao_id": edicao.id, "descricao": "Sem categoria",
+            "valor": "10.00", "data": str(date.today()),
+        })
+        verifica("categoria e obrigatoria", r.status_code == 422, str(r.status_code))
+
+        r = ce.get("/recebimentos")
+        verifica("estrutura NAO ve recebimentos", r.status_code == 403, str(r.status_code))
+
+        # Tres pagamentos, um de cada forma: so cesta, so festa, e os dois no
+        # mesmo pagamento.
+        pagou = {}
+        for nome, apadrinhamentos, valor in (
+            ("cesta", [cesta_bruno.id], "120.00"),
+            ("festa", [festa_bruno.id], "60.00"),
+            ("misto", [cesta_carla.id, festa_carla.id], "180.00"),
+        ):
+            r = cc.post("/pagamentos", json={
+                "padrinho_id": padrinho.id, "valor": valor, "data": str(date.today()),
+                "forma": "Pix", "apadrinhamentos": apadrinhamentos,
+                "observacoes": f"pagamento de {nome}",
+            })
+            pagou[nome] = r.json().get("id")
+            verifica(f"registra o pagamento de {nome}", r.status_code == 201, r.text[:130])
+
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id})
+        dados = r.json()
+        verifica("a lista junta as duas origens", dados["total"] == 5, str(dados["total"]))
+        verifica("soma tudo o que entrou",
+                 dados["total_recebido"] == "1860.00", dados["total_recebido"])
+        verifica("conta quantos pagamentos de padrinho sao",
+                 dados["pagamentos"] == 3, str(dados["pagamentos"]))
+        verifica("separa o que veio do apadrinhamento",
+                 dados["apadrinhamento"] == "360.00", dados["apadrinhamento"])
+        verifica("a categoria do apadrinhamento vem do que ele quita",
+                 dados["por_categoria"] == {
+                     "apadrinhamento": "180.00",
+                     "apadrinhamento_cesta": "120.00",
+                     "apadrinhamento_festa": "60.00",
+                     "doacao": "1000.00",
+                     "outros": "500.00",
+                 },
+                 str(dados["por_categoria"]))
+        verifica("tudo nasce a conferir", dados["a_conferir"] == "1860.00", dados["a_conferir"])
+        verifica("e tudo nasce sem comprovante",
+                 dados["sem_comprovante"] == 5, str(dados["sem_comprovante"]))
+
+        linha_paga = next(
+            (l for l in dados["itens"] if l["fonte"] == "pagamento" and l["id"] == pagou["misto"]),
+            None,
+        )
+        verifica("o pagamento aparece como linha de recebimento", linha_paga is not None)
+        if linha_paga:
+            verifica("com o nome do padrinho", linha_paga["quem"] == padrinho.nome,
+                     str(linha_paga["quem"]))
+            verifica("e com o que ele quita escrito",
+                     linha_paga["descricao"] == "1 cesta + 1 festa", linha_paga["descricao"])
+            verifica("a observacao do pagamento chega na linha",
+                     linha_paga["observacoes"] == "pagamento de misto",
+                     str(linha_paga["observacoes"]))
+
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id, "categoria": "doacao"})
+        verifica("filtra por categoria", r.json()["total"] == 1, str(r.json()["total"]))
+        verifica("mas o total continua o da edicao inteira",
+                 r.json()["total_recebido"] == "1860.00", r.json()["total_recebido"])
+
+        cc.patch(f"/pagamentos/{pagou['cesta']}", json={"conferido": True})
+        r = cc.patch(f"/recebimentos/{doacao_id}", json={"conferido": True})
+        verifica("confere um recebimento solto",
+                 r.status_code == 200 and r.json()["conferido"] is True, r.text[:130])
+
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id})
+        verifica("conferir desconta do que falta conferir",
+                 r.json()["a_conferir"] == "740.00", r.json()["a_conferir"])
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id, "conferido": "false"})
+        verifica("e da para listar so o que falta conferir",
+                 r.json()["total"] == 3, str(r.json()["total"]))
+
+        # Comprovante de doacao: mesma maquina do comprovante de pagamento.
+        png = bytes.fromhex(
+            "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+            "890000000a49444154789c6300010000050001"
+            "0d0a2db40000000049454e44ae426082"
+        )
+        r = cc.post(
+            f"/recebimentos/{doacao_id}/comprovante",
+            files={"arquivo": ("recibo.png", png, "image/png")},
+        )
+        verifica("sobe o comprovante de uma doacao", r.status_code == 200, r.text[:140])
+        caminho = r.json().get("comprovante_arquivo") if r.status_code == 200 else None
+        verifica("guardou o caminho do arquivo", bool(caminho), str(caminho))
+        if caminho:
+            verifica("o arquivo existe no disco",
+                     (config.caminho_arquivos / caminho).is_file(), caminho)
+
+        r = cc.get(f"/recebimentos/{doacao_id}/comprovante")
+        verifica("baixa o comprovante da doacao de volta",
+                 r.status_code == 200 and r.content == png, str(r.status_code))
+
+        r = cc.post(
+            f"/recebimentos/{doacao_id}/comprovante",
+            files={"arquivo": ("recibo.txt", b"nao sou imagem", "text/plain")},
+        )
+        verifica("recusa comprovante que nao e imagem nem PDF",
+                 r.status_code == 415, str(r.status_code))
+
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id})
+        verifica("o que falta comprovante acompanha",
+                 r.json()["sem_comprovante"] == 4, str(r.json()["sem_comprovante"]))
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id, "comprovante": "true"})
+        verifica("e da para listar so o que ja tem comprovante",
+                 r.json()["total"] == 1, str(r.json()["total"]))
+
+        r = ce.post(
+            f"/recebimentos/{doacao_id}/comprovante",
+            files={"arquivo": ("recibo.png", png, "image/png")},
+        )
+        verifica("estrutura NAO sobe comprovante de recebimento",
+                 r.status_code == 403, str(r.status_code))
+
+        r = cc.delete(f"/recebimentos/{doacao_id}")
+        verifica("apaga recebimento", r.status_code == 204, str(r.status_code))
+        if caminho:
+            verifica("e o comprovante sai do disco junto",
+                     not (config.caminho_arquivos / caminho).is_file(), caminho)
+
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id})
+        verifica("o total acompanha a remocao",
+                 r.json()["total_recebido"] == "860.00", r.json()["total_recebido"])
+
+        r = ck.get("/recebimentos")
+        verifica("comissario NAO ve recebimentos", r.status_code == 403, str(r.status_code))
 
         print("\nCheck-in")
         r = ck.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})

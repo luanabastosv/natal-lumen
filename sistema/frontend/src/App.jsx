@@ -10,11 +10,10 @@ import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
 import Cartoes from "./pages/Cartoes.jsx";
 import Checkin from "./pages/Checkin.jsx";
-import Compras from "./pages/Compras.jsx";
+import Financeiro from "./pages/Financeiro.jsx";
 import Kits from "./pages/Kits.jsx";
 import Criancas from "./pages/Criancas.jsx";
 import Padrinhos from "./pages/Padrinhos.jsx";
-import Pagamentos from "./pages/Pagamentos.jsx";
 import CidadesEdicoes from "./pages/CidadesEdicoes.jsx";
 import Instituicoes from "./pages/Instituicoes.jsx";
 import Painel from "./pages/Painel.jsx";
@@ -26,10 +25,9 @@ const PRONTAS = {
   "/criancas": <Criancas />,
   "/cartoes": <Cartoes />,
   "/kits": <Kits />,
-  "/compras": <Compras />,
+  "/financeiro": <Financeiro />,
   "/checkin": <Checkin />,
   "/padrinhos": <Padrinhos />,
-  "/pagamentos": <Pagamentos />,
   "/usuarios": <Usuarios />,
   "/instituicoes": <Instituicoes />,
   "/cidades-edicoes": <CidadesEdicoes />,
@@ -66,12 +64,24 @@ export default function App() {
                   key={item.para}
                   path={item.para}
                   element={
-                    <RotaProtegida permissao={item.permissao} apenasAdmin={item.apenasAdmin}>
+                    <RotaProtegida
+                      permissao={item.permissao}
+                      permissoes={item.permissoes}
+                      apenasAdmin={item.apenasAdmin}
+                    >
                       {PRONTAS[item.para] ?? <EmBreve />}
                     </RotaProtegida>
                   }
                 />
               ))}
+
+              {/* Os enderecos antigos. Compras virou Financeiro, e a tela de
+                  pagamentos/comprovantes virou a aba Recebimentos dele — quem
+                  tem o link guardado no navegador chega no lugar certo em vez
+                  de num 404. */}
+              <Route path="/compras" element={<Navigate to="/financeiro" replace />} />
+              <Route path="/pagamentos" element={<Navigate to="/financeiro" replace />} />
+              <Route path="/comprovantes" element={<Navigate to="/financeiro" replace />} />
 
               <Route path="*" element={<NaoEncontrada />} />
             </Route>

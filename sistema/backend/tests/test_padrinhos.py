@@ -229,11 +229,27 @@ def main() -> None:
         })
         verifica("recusa pagamento com apadrinhamento de outro padrinho", r.status_code == 422, str(r.status_code))
 
+        r = cc.patch(
+            f"/pagamentos/{pagamento['id']}",
+            json={"observacoes": "Pagou no balcao, comprovante fotografado."},
+        )
+        verifica("guarda a observacao do pagamento",
+                 r.status_code == 200
+                 and r.json()["observacoes"] == "Pagou no balcao, comprovante fotografado.",
+                 r.text[:140])
+
         r = cc.patch(f"/pagamentos/{pagamento['id']}", json={"conferido": True})
         verifica("marca o pagamento como conferido", r.status_code == 200 and r.json()["conferido"], r.text[:110])
 
         r = cc.get("/pagamentos", params={"conferido": "true"})
         verifica("filtra pagamentos conferidos", r.json()["total"] == 1, str(r.json()["total"]))
+
+        r = cc.get("/pagamentos", params={"comprovante": "false"})
+        verifica("acha os pagamentos que ainda nao tem comprovante",
+                 r.json()["total"] == 1, str(r.json()["total"]))
+        r = cc.get("/pagamentos", params={"comprovante": "true"})
+        verifica("e nao confunde com os que ja tem",
+                 r.json()["total"] == 0, str(r.json()["total"]))
 
         print("\nComprovante")
         png = (

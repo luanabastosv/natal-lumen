@@ -14,10 +14,6 @@ export const listarKits = (filtros) => comFiltros("/kits", filtros);
 export const mudarKits = (criancas, status, observacoes = null) =>
   api.post("/kits", { criancas, status, observacoes });
 
-export const listarCompras = (filtros) => comFiltros("/compras", filtros);
-export const criarCompra = (dados) => api.post("/compras", dados);
-export const apagarCompra = (id) => api.delete(`/compras/${id}`);
-
 export const fazerCheckin = (codigo, edicaoId) =>
   api.post("/checkin", { codigo, edicao_id: edicaoId });
 
