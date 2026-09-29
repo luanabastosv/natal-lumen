@@ -26,6 +26,12 @@ export default function Modal({
   children,
   rodape,
   tamanho = "padrao",
+  // Sem a faixa de topo (rotulo, titulo e o X). E para a janela que nao abre
+  // uma tarefa: o convite de oracao do dia, que nao tem o que ser fechado
+  // "sem fazer" — a saida dele e o proprio botao de Amem. Um X ali convidaria
+  // a descartar, que e o contrario do que a janela pede. `titulo` continua
+  // obrigatorio: ele vira o aria-label, e um dialog sem nome nao se anuncia.
+  cabecalho = true,
 }) {
   const botaoFechar = useRef(null);
   const caixa = useRef(null);
@@ -39,7 +45,9 @@ export default function Modal({
     const primeiro = caixa.current?.querySelector(
       "input:not([type=hidden]), select, textarea",
     );
-    (primeiro ?? botaoFechar.current)?.focus();
+    // Sem cabecalho nao ha botao de fechar; o foco cai na propria caixa,
+    // senao ele ficaria para tras na pagina e o Tab sairia por baixo da janela.
+    (primeiro ?? botaoFechar.current ?? caixa.current)?.focus();
   }, []);
 
   // Trava a rolagem do fundo enquanto a janela esta aberta.
@@ -69,22 +77,25 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
+        tabIndex={-1}
       >
-        <div className="modal__topo">
-          <div className="modal__identificacao">
-            {rotulo && <span className="modal__rotulo">{rotulo}</span>}
-            <h2 className="modal__titulo">{titulo}</h2>
+        {cabecalho && (
+          <div className="modal__topo">
+            <div className="modal__identificacao">
+              {rotulo && <span className="modal__rotulo">{rotulo}</span>}
+              <h2 className="modal__titulo">{titulo}</h2>
+            </div>
+            <button
+              ref={botaoFechar}
+              type="button"
+              className="modal__fechar"
+              onClick={aoFechar}
+              aria-label="Fechar"
+            >
+              ×
+            </button>
           </div>
-          <button
-            ref={botaoFechar}
-            type="button"
-            className="modal__fechar"
-            onClick={aoFechar}
-            aria-label="Fechar"
-          >
-            ×
-          </button>
-        </div>
+        )}
 
         <div className="modal__corpo">{children}</div>
 

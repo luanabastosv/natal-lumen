@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import ConviteDeOracao from "../feedback/ConviteDeOracao.jsx";
 import BarraLateral from "./BarraLateral.jsx";
 import BarraMobile from "./BarraMobile.jsx";
 import RodapeSistema from "./RodapeSistema.jsx";
@@ -29,6 +30,11 @@ export default function LayoutSistema() {
 
   return (
     <div className="layout">
+      {/* Fica aqui, e nao numa pagina: no primeiro acesso do dia a pessoa entra
+          por onde o trabalho dela pede, e muita gente nunca passa pelo painel.
+          Ele mesmo decide se aparece. */}
+      <ConviteDeOracao />
+
       <BarraMobile
         menuAberto={menuAberto}
         aoAbrirMenu={() => definirMenuAberto((aberto) => !aberto)}
