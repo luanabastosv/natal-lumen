@@ -209,7 +209,7 @@ export default function Padrinhos() {
       )}
 
       {carregando ? (
-        <Carregando>Carregando padrinhos...</Carregando>
+        <Carregando tela>Carregando padrinhos...</Carregando>
       ) : padrinhos.itens.length === 0 ? (
         <EmptyState
           titulo="Nenhum padrinho ainda"

@@ -107,7 +107,7 @@ export default function Kits() {
       )}
 
       {carregando ? (
-        <Carregando>Carregando kits...</Carregando>
+        <Carregando tela>Carregando kits...</Carregando>
       ) : dados.itens.length === 0 ? (
         <EmptyState
           titulo="Nenhuma criança nesta lista"

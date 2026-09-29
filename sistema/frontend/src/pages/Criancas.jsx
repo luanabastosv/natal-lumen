@@ -589,7 +589,7 @@ export default function Criancas() {
       )}
 
       {carregando ? (
-        <Carregando>Carregando crianças...</Carregando>
+        <Carregando tela>Carregando crianças...</Carregando>
       ) : criancas.itens.length === 0 ? (
         <EmptyState
           titulo="Nenhuma criança aqui"

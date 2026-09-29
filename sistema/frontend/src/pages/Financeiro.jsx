@@ -313,7 +313,7 @@ export default function Financeiro() {
       )}
 
       {carregando ? (
-        <Carregando>Somando o caixa da edição...</Carregando>
+        <Carregando tela>Somando o caixa da edição...</Carregando>
       ) : (
         <>
           {/* A conta da edicao, antes das abas: e a resposta que a coordenacao

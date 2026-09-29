@@ -296,7 +296,7 @@ export default function Cartoes() {
       </div>
 
       {carregando ? (
-        <Carregando>Carregando cartões...</Carregando>
+        <Carregando tela>Carregando cartões...</Carregando>
       ) : cartoes.itens.length === 0 ? (
         <EmptyState
           titulo="Nenhum cartão ainda"

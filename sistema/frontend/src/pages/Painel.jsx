@@ -106,7 +106,7 @@ export default function Painel() {
         />
       ) : (
         <>
-          {podeVerNumeros && carregando && <Carregando>Somando os números...</Carregando>}
+          {podeVerNumeros && carregando && <Carregando tela>Somando os números...</Carregando>}
 
           {podeVerNumeros && r && (
             <>

@@ -380,11 +380,14 @@ textarea.campo__controle {
 }
 
 /* Na tela vazia as estrelinhas sobem para cima da frase: no meio de uma area
-   grande, uma linha unica de 200px fica perdida no branco. */
+   grande, uma linha unica de 200px fica perdida no branco. E a frase cresce
+   junto — empilhada no meio de uma area grande ela e o unico texto da tela, e
+   texto de 14px ali le como legenda de uma coisa que nao esta la. */
 .carregando--tela {
   flex-direction: column;
   gap: var(--space-4);
   text-align: center;
+  font-size: var(--size-body-md);
 }
 
 /* Tres estrelinhas piscando em fila, no lugar da roda girando. E a estrela
@@ -448,6 +451,10 @@ textarea.campo__controle {
   }
 }
 
+/* A espera de uma area inteira ocupa a area inteira. A altura vem de vh para
+   que a espera acompanhe a tela de quem olha: assim as estrelinhas caem no
+   meio do vazio onde o conteudo vai entrar, e nao encostadas no canto de
+   cima, tanto na pagina em branco quanto embaixo dos filtros de uma lista. */
 .carregando-tela {
   min-height: 60vh;
   display: grid;

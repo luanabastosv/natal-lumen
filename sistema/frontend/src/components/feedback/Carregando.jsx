@@ -13,7 +13,7 @@ import Estrelinhas from "./Estrelinhas.jsx";
 export default function Carregando({ children = "Carregando...", tela = false }) {
   const conteudo = (
     <div className={tela ? "carregando carregando--tela" : "carregando"} role="status">
-      <Estrelinhas tamanho={tela ? 34 : 16} />
+      <Estrelinhas tamanho={tela ? 40 : 16} />
       <span>{children}</span>
     </div>
   );
