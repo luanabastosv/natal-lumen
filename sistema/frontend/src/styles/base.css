@@ -520,6 +520,23 @@ textarea.campo__controle {
   color: var(--text-on-light-primary);
 }
 
+/* A linha de total. Fecha a tabela com o mesmo traco que a abre, e vem em
+   texto cheio — e o numero que se procura primeiro, nao um rotulo de coluna. */
+.tabela tfoot th,
+.tabela tfoot td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  border-top: 2px solid var(--border-default);
+  border-bottom: none;
+  font-weight: 800;
+  color: var(--text-on-light-primary);
+}
+
+.tabela tfoot th {
+  text-transform: none;
+  font-size: var(--size-body-sm);
+  letter-spacing: normal;
+}
+
 /* A coluna do menu de acoes so precisa da largura do botao.
  *
  * `width: 1%` e o jeito de dizer isso numa tabela de layout automatico: o
@@ -1095,7 +1112,35 @@ textarea.campo__controle {
   color: var(--text-on-light-primary);
 }
 
+/* A sigla acompanha o nome, e nao o substitui: quem nao decorou os codigos le
+   o nome inteiro do mesmo jeito. */
+.lista-progresso__sigla {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
 .lista-progresso__total {
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+}
+
+/* O que ainda falta na instituicao. Pesa mais que o total ao lado — e a parte
+   da linha que pede acao — mas sem virar alarme: e trabalho, nao erro. */
+.lista-progresso__falta {
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+/* A logistica do dia, no pe do card: a etiqueta do dia e quantos onibus. Le-se
+   depois das barras, que sao o assunto principal da linha. */
+.lista-progresso__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--stroke-hairline) solid var(--border-default);
   font-size: var(--size-caption);
   color: var(--text-on-light-secondary);
 }

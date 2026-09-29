@@ -7,6 +7,7 @@ de ser o da edicao para ser o dele: as criancas que estao na mao dele, e quanto
 ainda falta apadrinhar delas.
 """
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,16 +18,20 @@ from app.database import get_db
 from app.models import (
     Apadrinhamento,
     Crianca,
+    DiaEvento,
     Edicao,
     Grupo,
     Instituicao,
+    InstituicaoDia,
     Perfil,
     Usuario,
     UsuarioEdicao,
 )
-from app.models.tipos import TipoApadrinhamento
+from app.models.tipos import Sexo, TipoApadrinhamento
 from app.schemas.painel import (
+    FaixaIdade,
     LinhaComissario,
+    LinhaDia,
     LinhaInstituicao,
     Relatorio,
     ResumoEdicao,
@@ -43,7 +48,30 @@ Painel = Annotated[ContextoAcesso, Depends(exige_permissao("ver_painel"))]
 CESTA = TipoApadrinhamento.CESTA.value
 FESTA = TipoApadrinhamento.FESTA.value
 
+MASCULINO = Sexo.MASCULINO.value
+FEMININO = Sexo.FEMININO.value
+
 SEM_COMISSARIO = "Sem comissário"
+
+
+def _tipos_por_crianca(criancas_visiveis):
+    """Cesta e festa de cada crianca, uma linha por crianca.
+
+    Sai de um agrupamento, e nao de um join direto, porque quem pergunta quer
+    saber quantas criancas estao COMPLETAS — e isso e uma conta sobre a
+    crianca, nao sobre o apadrinhamento. A unicidade de (crianca, tipo)
+    garante que cada coluna aqui valha 0 ou 1.
+    """
+    return (
+        select(
+            Apadrinhamento.crianca_id.label("crianca_id"),
+            func.count(case((Apadrinhamento.tipo == CESTA, 1))).label("cesta"),
+            func.count(case((Apadrinhamento.tipo == FESTA, 1))).label("festa"),
+        )
+        .where(Apadrinhamento.crianca_id.in_(criancas_visiveis))
+        .group_by(Apadrinhamento.crianca_id)
+        .subquery()
+    )
 
 
 @router.get("/{edicao_id}", response_model=Relatorio)
@@ -100,47 +128,162 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     # nao tem o que quebrar, e traria os colegas todos zerados. Ela e da
     # coordenacao, que e quem distribui a lista e cobra o time.
     so_minhas_criancas = ctx.so_proprias_criancas(edicao_id)
+    por_instituicao = _por_instituicao(db, alcance, criancas_visiveis, edicao_id)
 
     return Relatorio(
         resumo=resumo,
         so_minhas_criancas=so_minhas_criancas,
-        por_instituicao=_por_instituicao(db, alcance),
+        por_instituicao=por_instituicao,
         por_comissario=(
             []
             if so_minhas_criancas
             else _por_comissario(db, alcance, criancas_visiveis, edicao_id)
         ),
+        por_idade=_por_idade(db, alcance),
+        por_dia=_por_dia(por_instituicao),
     )
 
 
-def _por_instituicao(db: Session, alcance) -> list[LinhaInstituicao]:
-    """Quantas criancas a instituicao tem, e quanto ja esta apadrinhado.
+def _por_instituicao(
+    db: Session, alcance, criancas_visiveis, edicao_id: int
+) -> list[LinhaInstituicao]:
+    """Quantas criancas a instituicao tem, quanto ja esta apadrinhado, e a
+    logistica do dia dela.
 
-    A unicidade de (crianca, tipo) nos apadrinhamentos e o que deixa contar por
-    um LEFT JOIN direto: cada crianca traz no maximo duas linhas, uma de cada
-    tipo, entao nao ha o que se multiplicar.
+    So aparece instituicao que tem crianca nesta edicao. A que foi marcada para
+    um dia mas ainda nao mandou a lista fica de fora — ela nao tem numero
+    nenhum para mostrar, e a pergunta "quem ainda nao mandou a lista" e da tela
+    de instituicoes, que lista o cadastro inteiro.
     """
+    tipos = _tipos_por_crianca(criancas_visiveis)
+
     linhas = db.execute(
         select(
             Crianca.instituicao_id,
             Instituicao.nome,
-            func.count(func.distinct(Crianca.id)),
-            func.count(func.distinct(case((Apadrinhamento.tipo == CESTA, Crianca.id)))),
-            func.count(func.distinct(case((Apadrinhamento.tipo == FESTA, Crianca.id)))),
+            Instituicao.sigla,
+            func.count(Crianca.id),
+            func.coalesce(func.sum(tipos.c.cesta), 0),
+            func.coalesce(func.sum(tipos.c.festa), 0),
+            func.count(case(((tipos.c.cesta > 0) & (tipos.c.festa > 0), Crianca.id))),
+            InstituicaoDia.dia_evento_id,
+            DiaEvento.data,
+            DiaEvento.descricao,
+            func.coalesce(InstituicaoDia.onibus, 0),
         )
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
-        .outerjoin(Apadrinhamento, Apadrinhamento.crianca_id == Crianca.id)
+        .outerjoin(tipos, tipos.c.crianca_id == Crianca.id)
+        # Nenhum destes tres multiplica a linha: instituicao_dia e unica por
+        # edicao + instituicao, o dia e um so, e `tipos` ja vem agrupado por
+        # crianca. Por isso as somas acima contam cada crianca uma vez.
+        .outerjoin(
+            InstituicaoDia,
+            (InstituicaoDia.instituicao_id == Crianca.instituicao_id)
+            & (InstituicaoDia.edicao_id == edicao_id),
+        )
+        .outerjoin(DiaEvento, DiaEvento.id == InstituicaoDia.dia_evento_id)
         .where(alcance)
-        .group_by(Crianca.instituicao_id, Instituicao.nome)
+        .group_by(
+            Crianca.instituicao_id,
+            Instituicao.nome,
+            Instituicao.sigla,
+            InstituicaoDia.dia_evento_id,
+            DiaEvento.data,
+            DiaEvento.descricao,
+            InstituicaoDia.onibus,
+        )
         .order_by(Instituicao.nome)
     ).all()
 
     return [
         LinhaInstituicao(
-            instituicao_id=i, instituicao=nome, criancas=c, cesta=cesta, festa=festa
+            instituicao_id=i,
+            instituicao=nome,
+            sigla=sigla,
+            criancas=c,
+            cesta=cesta,
+            festa=festa,
+            completas=completas,
+            faltam=c - completas,
+            dia_evento_id=dia_id,
+            dia_evento=data,
+            dia_evento_descricao=descricao,
+            onibus=onibus,
         )
-        for i, nome, c, cesta, festa in linhas
+        for i, nome, sigla, c, cesta, festa, completas, dia_id, data, descricao, onibus
+        in linhas
     ]
+
+
+def _por_idade(db: Session, alcance) -> list[FaixaIdade]:
+    """A distribuicao de idade, separada por sexo.
+
+    A faixa sai continua — do menor ao maior, sem pular idade sem crianca. Um
+    zero no meio da lista e informacao ("nao veio nenhuma de 7"); um buraco
+    entre 6 e 8 se le como se a idade nem existisse.
+    """
+    contagem: dict[int, dict[str, int]] = {}
+    for idade, sexo, quantas in db.execute(
+        select(Crianca.idade, Crianca.sexo, func.count())
+        .where(alcance)
+        .group_by(Crianca.idade, Crianca.sexo)
+    ).all():
+        faixa = contagem.setdefault(idade, {MASCULINO: 0, FEMININO: 0})
+        if sexo in faixa:
+            faixa[sexo] = quantas
+
+    if not contagem:
+        return []
+
+    vazia = {MASCULINO: 0, FEMININO: 0}
+    return [
+        FaixaIdade(
+            idade=idade,
+            masculino=contagem.get(idade, vazia)[MASCULINO],
+            feminino=contagem.get(idade, vazia)[FEMININO],
+        )
+        for idade in range(min(contagem), max(contagem) + 1)
+    ]
+
+
+def _por_dia(instituicoes: list[LinhaInstituicao]) -> list[LinhaDia]:
+    """O total de cada dia do evento, somado das instituicoes que vao nele.
+
+    Sai das linhas que ja foram calculadas, e nao de uma consulta propria: sao
+    os mesmos numeros somados de outro jeito, e duas consultas para a mesma
+    verdade acabariam discordando uma hora.
+    """
+    dias: dict[int | None, LinhaDia] = {}
+
+    for linha in instituicoes:
+        dia = dias.get(linha.dia_evento_id)
+        if dia is None:
+            dia = dias[linha.dia_evento_id] = LinhaDia(
+                dia_evento_id=linha.dia_evento_id,
+                data=linha.dia_evento,
+                descricao=linha.dia_evento_descricao,
+                instituicoes=0,
+                criancas=0,
+                onibus=0,
+                completas=0,
+                faltam=0,
+            )
+        dia.instituicoes += 1
+        dia.criancas += linha.criancas
+        dia.onibus += linha.onibus
+        dia.completas += linha.completas
+        dia.faltam += linha.faltam
+
+    # So ha quebra se houver mais de um dia. Com um dia so — ou com nenhum
+    # marcado — a tabela repetiria o resumo do topo linha por linha.
+    if len(dias) < 2:
+        return []
+
+    # Pela data, e as sem dia marcado por ultimo: elas sao a pendencia, nao o
+    # comeco da lista.
+    return sorted(
+        dias.values(), key=lambda d: (d.data is None, d.data or date.min)
+    )
 
 
 def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
@@ -150,17 +293,7 @@ def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
     comissario sem nenhuma crianca na mao e justamente o que a coordenacao
     precisa enxergar, e ele nao apareceria se a contagem mandasse.
     """
-    # Cesta e festa por crianca, para saber quais estao completas.
-    tipos = (
-        select(
-            Apadrinhamento.crianca_id.label("crianca_id"),
-            func.count(case((Apadrinhamento.tipo == CESTA, 1))).label("cesta"),
-            func.count(case((Apadrinhamento.tipo == FESTA, 1))).label("festa"),
-        )
-        .where(Apadrinhamento.crianca_id.in_(criancas_visiveis))
-        .group_by(Apadrinhamento.crianca_id)
-        .subquery()
-    )
+    tipos = _tipos_por_crianca(criancas_visiveis)
 
     contagens = {
         responsavel: (total, cesta, festa, completas)

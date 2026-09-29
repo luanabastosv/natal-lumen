@@ -29,6 +29,7 @@ from app.models import (
     Edicao,
     Grupo,
     Instituicao,
+    InstituicaoDia,
     Kit,
     LogAtividade,
     Padrinho,
@@ -120,12 +121,23 @@ def main() -> None:
     cidade = Cidade(nome=f"{MARCA} Cidade", uf="CE"); db.add(cidade); db.flush()
     edicao = Edicao(cidade_id=cidade.id, ano=2026, nome=f"{MARCA} Edicao",
                     valor_cesta=120, valor_festa=60); db.add(edicao); db.flush()
+    # Dois dias, para a quebra por dia ter o que quebrar: a Escola A vai no
+    # sabado e a B no domingo, como numa edicao de verdade.
     dia = DiaEvento(edicao_id=edicao.id, data=date(2026, 12, 20), descricao="sabado")
-    db.add(dia); db.flush()
+    dia_dom = DiaEvento(edicao_id=edicao.id, data=date(2026, 12, 21), descricao="domingo")
+    db.add_all([dia, dia_dom]); db.flush()
 
-    inst_a = Instituicao(cidade_id=cidade.id, nome=f"{MARCA} Escola A")
-    inst_b = Instituicao(cidade_id=cidade.id, nome=f"{MARCA} Escola B")
+    inst_a = Instituicao(cidade_id=cidade.id, nome=f"{MARCA} Escola A", sigla="EA")
+    inst_b = Instituicao(cidade_id=cidade.id, nome=f"{MARCA} Escola B", sigla="EB")
     db.add_all([inst_a, inst_b]); db.flush()
+
+    # O dia e o transporte sao da instituicao, e e de la que o painel os le.
+    db.add_all([
+        InstituicaoDia(edicao_id=edicao.id, instituicao_id=inst_a.id,
+                       dia_evento_id=dia.id, onibus=2),
+        InstituicaoDia(edicao_id=edicao.id, instituicao_id=inst_b.id,
+                       dia_evento_id=dia_dom.id, onibus=1),
+    ])
 
     # 3 criancas na A, 2 na B.
     criancas_a = [
@@ -134,7 +146,7 @@ def main() -> None:
         for i in range(1, 4)
     ]
     criancas_b = [
-        Crianca(edicao_id=edicao.id, instituicao_id=inst_b.id, dia_evento_id=dia.id,
+        Crianca(edicao_id=edicao.id, instituicao_id=inst_b.id, dia_evento_id=dia_dom.id,
                 codigo=f"B{i}", nome=f"Crianca B{i} Sobrenome", idade=9, sexo="M")
         for i in range(1, 3)
     ]
@@ -237,6 +249,48 @@ def main() -> None:
                  (por_inst.get(f"{MARCA} Escola B", {}).get("cesta"),
                   por_inst.get(f"{MARCA} Escola B", {}).get("festa")) == (1, 0),
                  str(por_inst.get(f"{MARCA} Escola B")))
+        escola_a = por_inst.get(f"{MARCA} Escola A", {})
+        verifica("a instituicao traz a sigla, que e como a equipe a chama",
+                 escola_a.get("sigla") == "EA", str(escola_a.get("sigla")))
+        # A1 tem cesta e festa; A2 so cesta; A3 nenhum. So a A1 esta completa.
+        verifica("Escola A: 1 crianca completa e 2 a completar",
+                 (escola_a.get("completas"), escola_a.get("faltam")) == (1, 2),
+                 f"{escola_a.get('completas')}/{escola_a.get('faltam')}")
+        verifica("a instituicao traz o dia dela e os onibus",
+                 (escola_a.get("dia_evento_descricao"), escola_a.get("onibus"))
+                 == ("sabado", 2),
+                 f"{escola_a.get('dia_evento_descricao')}/{escola_a.get('onibus')}")
+
+        print("\nQuebra por idade e sexo")
+        por_idade = {f["idade"]: f for f in rel.get("por_idade", [])}
+        verifica("as 3 criancas de 8 anos sao todas meninas",
+                 (por_idade.get(8, {}).get("feminino"),
+                  por_idade.get(8, {}).get("masculino")) == (3, 0),
+                 str(por_idade.get(8)))
+        verifica("as 2 de 9 anos sao meninos",
+                 (por_idade.get(9, {}).get("masculino"),
+                  por_idade.get(9, {}).get("feminino")) == (2, 0),
+                 str(por_idade.get(9)))
+        verifica("a faixa vai so de 8 a 9 — nao inventa idade sem crianca",
+                 sorted(por_idade) == [8, 9], str(sorted(por_idade)))
+
+        print("\nQuebra por dia do evento")
+        por_dia = rel.get("por_dia", [])
+        verifica("um dia por linha, o sabado antes do domingo",
+                 [d["descricao"] for d in por_dia] == ["sabado", "domingo"],
+                 str([d["descricao"] for d in por_dia]))
+        sabado = next((d for d in por_dia if d["descricao"] == "sabado"), {})
+        verifica("o sabado soma a Escola A: 3 criancas e 2 onibus",
+                 (sabado.get("instituicoes"), sabado.get("criancas"),
+                  sabado.get("onibus")) == (1, 3, 2), str(sabado))
+        verifica("e o que falta do sabado sao as 2 criancas incompletas",
+                 (sabado.get("completas"), sabado.get("faltam")) == (1, 2),
+                 f"{sabado.get('completas')}/{sabado.get('faltam')}")
+        domingo = next((d for d in por_dia if d["descricao"] == "domingo"), {})
+        verifica("o domingo soma a Escola B: 2 criancas, 1 onibus, nenhuma completa",
+                 (domingo.get("criancas"), domingo.get("onibus"),
+                  domingo.get("completas"), domingo.get("faltam")) == (2, 1, 0, 2),
+                 str(domingo))
 
         print("\nQuebra por comissario")
         por_com = {l["comissario"]: l for l in rel.get("por_comissario", [])}

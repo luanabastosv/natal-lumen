@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
@@ -13,6 +14,20 @@ function primeiroNome(nome) {
 
 function plural(n, um, muitos) {
   return `${n} ${n === 1 ? um : muitos}`;
+}
+
+/** Quanto de `de` ja esta feito, em porcento inteiro.
+ *
+ * Sem criancas a pergunta nao tem resposta — e a planilha antiga respondia
+ * #DIV/0! justamente aqui. Um travessao diz a mesma coisa sem assustar.
+ */
+function percentual(valor, de) {
+  return de > 0 ? `${Math.round((valor / de) * 100)}%` : "—";
+}
+
+/** A soma de uma coluna da tabela de idades. */
+function totalIdade(faixas, coluna) {
+  return faixas.reduce((soma, f) => soma + f[coluna], 0);
 }
 
 /** A frase de abertura do comissario: o trabalho dele, em uma linha.
@@ -160,13 +175,45 @@ export default function Painel() {
                     {relatorio.por_instituicao.map((l) => (
                       <div key={l.instituicao_id} className="lista-progresso__item">
                         <div className="lista-progresso__topo">
-                          <span className="lista-progresso__nome">{l.instituicao}</span>
+                          <span className="lista-progresso__nome">
+                            {l.instituicao}
+                            {/* A sigla e como a equipe chama a instituicao no
+                                dia a dia ("faltam tres da KN"), e e o prefixo
+                                do codigo de cada crianca dela. */}
+                            {l.sigla && (
+                              <span className="etiqueta etiqueta--neutra lista-progresso__sigla">
+                                {l.sigla}
+                              </span>
+                            )}
+                          </span>
                           <span className="lista-progresso__total">
                             {plural(l.criancas, "criança", "crianças")}
+                            {/* Completa e a crianca com os dois padrinhos; o
+                                que falta dela e o trabalho que sobra aqui. */}
+                            {l.faltam > 0 && (
+                              <span className="lista-progresso__falta">
+                                {" "}
+                                · faltam {l.faltam} ({percentual(l.faltam, l.criancas)})
+                              </span>
+                            )}
                           </span>
                         </div>
                         <Progresso rotulo="Cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
                         <Progresso rotulo="Festa" valor={l.festa} de={l.criancas} tom="festa" />
+                        {/* A logistica do dia fecha o card: quando ela vai, e
+                            quantos onibus a buscam. Some enquanto a
+                            coordenacao nao marcou nada. */}
+                        {(l.dia_evento || l.onibus > 0) && (
+                          <div className="lista-progresso__rodape">
+                            {l.dia_evento && (
+                              <EtiquetaDia
+                                data={l.dia_evento}
+                                descricao={l.dia_evento_descricao}
+                              />
+                            )}
+                            {l.onibus > 0 && <span>{l.onibus} ônibus</span>}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -194,6 +241,7 @@ export default function Painel() {
                           <th>Festa</th>
                           <th>Completas</th>
                           <th>Faltam</th>
+                          <th>% feito</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -212,9 +260,116 @@ export default function Painel() {
                             <td className={l.faltam > 0 ? "tabela__pendente" : undefined}>
                               {l.faltam}
                             </td>
+                            {/* A planilha antiga media o que FALTAVA. Aqui a
+                                coluna mede o que esta feito: e o mesmo dado,
+                                e ler "80%" como boa noticia cansa menos o
+                                time do que ler "20%" como ma. */}
+                            <td>{percentual(l.completas, l.criancas)}</td>
                           </tr>
                         ))}
                       </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {relatorio.por_dia.length > 0 && (
+                <>
+                  <h2 className="painel__titulo" style={{ marginTop: "var(--space-7)" }}>
+                    Por dia do evento
+                  </h2>
+                  <p className="pagina__lede">
+                    Quantas crianças cada dia recebe, e o transporte já combinado para
+                    buscá-las.
+                  </p>
+                  <div className="tabela-rolagem">
+                    <table className="tabela tabela--larga">
+                      <caption className="tabela-dica">
+                        Arraste a lista para o lado para ver todas as colunas.
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th>Dia</th>
+                          <th>Instituições</th>
+                          <th>Crianças</th>
+                          <th>Ônibus</th>
+                          <th>Completas</th>
+                          <th>Faltam</th>
+                          <th>% feito</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {relatorio.por_dia.map((d) => (
+                          <tr key={d.dia_evento_id ?? "sem-dia"}>
+                            <td>
+                              {d.data ? (
+                                <EtiquetaDia data={d.data} descricao={d.descricao} />
+                              ) : (
+                                // A pendencia da coordenacao: instituicoes que
+                                // ninguem marcou ainda, e que por isso nao
+                                // entram em nenhum onibus.
+                                <span className="dia-vazio">sem dia</span>
+                              )}
+                            </td>
+                            <td>{d.instituicoes}</td>
+                            <td>{d.criancas}</td>
+                            <td>{d.onibus || "—"}</td>
+                            <td>{d.completas}</td>
+                            <td className={d.faltam > 0 ? "tabela__pendente" : undefined}>
+                              {d.faltam}
+                            </td>
+                            <td>{percentual(d.completas, d.criancas)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {relatorio.por_idade.length > 0 && (
+                <>
+                  <h2 className="painel__titulo" style={{ marginTop: "var(--space-7)" }}>
+                    Por idade
+                  </h2>
+                  <p className="pagina__lede">
+                    O perfil das crianças da edição — é por ele que se decide o que
+                    comprar e quantos presentes de cada tipo separar.
+                  </p>
+                  <div className="tabela-rolagem">
+                    <table className="tabela">
+                      <thead>
+                        <tr>
+                          <th>Idade</th>
+                          <th>Meninos</th>
+                          <th>Meninas</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {relatorio.por_idade.map((f) => (
+                          <tr key={f.idade}>
+                            <td>{f.idade} anos</td>
+                            <td>{f.masculino}</td>
+                            <td>{f.feminino}</td>
+                            <td>{f.masculino + f.feminino}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {/* O rodape e o que a planilha tinha embaixo das colunas,
+                          e e o numero que se procura primeiro: quantos meninos
+                          e quantas meninas no total. */}
+                      <tfoot>
+                        <tr>
+                          <th scope="row">Total</th>
+                          <td>{totalIdade(relatorio.por_idade, "masculino")}</td>
+                          <td>{totalIdade(relatorio.por_idade, "feminino")}</td>
+                          <td>
+                            {totalIdade(relatorio.por_idade, "masculino") +
+                              totalIdade(relatorio.por_idade, "feminino")}
+                          </td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </>
