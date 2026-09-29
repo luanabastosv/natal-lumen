@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
@@ -354,6 +355,7 @@ export default function Criancas() {
         <div className="pagina__texto">
           <div className="pagina__eyebrow">Dados sensíveis</div>
           <h1 className="pagina__titulo">Crianças</h1>
+          <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
             {estreita
               ? "Uma aba por instituição. Toque em Ver ficha para o resto dos dados da criança."

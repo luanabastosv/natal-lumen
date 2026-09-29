@@ -2885,3 +2885,794 @@ textarea.campo__controle {
 .botao-icone .estrelinhas {
   gap: 1px;
 }
+
+/* ==========================================================================
+   CAMADA GRAFICA
+   As pecas decorativas do design system. A regra de lugar e uma so:
+   decoracao mora nas BORDAS do trabalho, nunca dentro dele. Tabela,
+   formulario e barra de acoes seguem limpos.
+   ========================================================================== */
+
+/* ---------- Rabiscos ----------------------------------------------------
+   As duas marcas de caneta. Herdam a cor de quem as contem — sobre papel
+   ficam em --color-support, sobre navy em --text-on-dark-muted. Amarelo
+   nunca: sobre branco ele da 1,6:1 e o rabisco some. */
+.rabisco {
+  display: block;
+  flex: none;
+}
+
+/* A onda embaixo do titulo da pagina, no lugar de uma regua reta. */
+.pagina__onda {
+  color: var(--color-support);
+  margin: var(--space-3) 0;
+}
+
+/* Os riscos ao lado de um numero: acompanham a linha, nao a quebram. */
+.numero__riscos {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: var(--space-2);
+  color: var(--color-support);
+}
+
+/* ---------- Fita listrada ------------------------------------------------
+   12px no topo de card, modal e cartao, no lugar de uma barra chapada de
+   cor. E o unico lugar onde as listras aparecem: fundo inteiro de listras
+   foi testado e descartado — em tela de trabalho vira ruido.
+
+   As paradas sao DURAS: sao faixas chapadas, nao um gradiente. A alternancia
+   de tres tons e o que faz a fita parecer pintada; listra de um tom so vira
+   codigo de barras. */
+.fita {
+  height: 12px;
+  flex: none;
+  background-color: var(--white);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--navy-700) 0 11px,
+    transparent 11px 20px,
+    var(--navy-500) 20px 31px,
+    transparent 31px 40px,
+    var(--navy-400) 40px 51px,
+    transparent 51px 60px
+  );
+}
+
+/* ---------- Abertura do painel, com arte --------------------------------
+   O painel e a unica tela de momento que a pessoa ve todo dia, e era a mais
+   lisa do sistema. A arte vive no ArtePainel.jsx; aqui fica so o palco. */
+.abertura--arte {
+  position: relative;
+  background: var(--surface-dark);
+  /* border: none, nao border-color: transparent. Borda transparente continua
+     OCUPANDO espaco, e a fita — absoluta em inset:0 — parava dentro dela:
+     sobrava um risco claro por cima e dos lados da fita. */
+  border: none;
+  /* Menos altura: o banner passa a ocupar LARGURA. O respiro cai de space-7
+     para space-6 e o bloco inteiro encurta. Os 12px que este topo somava eram
+     a altura da fita; sem ela, o respiro e igual dos quatro lados. */
+  padding: var(--space-6) var(--space-7);
+  /* SEM overflow: hidden. Os adesivos precisam passar da borda, e quem
+     recorta a fita e o ceu e a camada de dentro. */
+}
+
+/* Saudacao a esquerda, contexto a direita, na mesma linha. A regua que
+   separava os dois sumiu junto: com os chips subindo, ela nao dividia mais
+   nada — ficava atravessada no meio do banner sem funcao. */
+.abertura__linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5) var(--space-6);
+  flex-wrap: wrap;
+  /* O espaco dos adesivos, a direita. */
+  padding-right: 200px;
+}
+
+/* A camada que recorta: fita e ceu ficam presos ao raio do card; os adesivos,
+   que moram fora dela, passam por cima da borda como adesivo de verdade. */
+.abertura__recorte {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.abertura__arte {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* O conteudo sobe por cima da arte.
+   A lista e EXPLICITA de proposito. A versao anterior era um seletor
+   abrangente com :not(), e cada camada decorativa nova precisava entrar na
+   lista de excecoes — com especificidade maior que a da propria camada, ela
+   vencia e jogava a peca de volta para dentro do fluxo. Duas vezes seguidas.
+   Nomeando o conteudo, as camadas decorativas nao disputam com nada. */
+.abertura--arte .abertura__texto,
+.abertura--arte .abertura__saudacao,
+.abertura--arte .abertura__lede,
+.abertura--arte .abertura__contexto {
+  position: relative;
+}
+
+/* A coluna da esquerda: saudacao e lede juntas. E ela que da altura a linha, e
+   por isso os chips do outro lado tem contra o que se centrar. */
+.abertura__texto {
+  flex: 1 1 320px;
+  /* Sem isto uma palavra longa no lede estoura a coluna em vez de quebrar. */
+  min-width: 0;
+}
+
+/* A saudacao e a onda na MESMA linha: embaixo do titulo a onda virava uma
+   regua e separava a saudacao da lede, que sao a mesma frase em duas partes.
+   Ao lado, ela fecha o titulo em vez de cortar o bloco. */
+.abertura__saudacao {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.abertura--arte .abertura__titulo {
+  color: var(--text-on-dark-primary);
+}
+
+/* O acento do primeiro nome continua sendo COR, nao amarelo: sobre fundo
+   claro o amarelo em tipo da 1,6:1, e a regra vale igual aqui para que nao
+   existam duas gramaticas. O creme separa do branco sem virar tinta amarela. */
+.abertura--arte .abertura__nome {
+  color: var(--text-on-dark-secondary);
+}
+
+.abertura--arte .abertura__lede {
+  color: var(--text-on-dark-secondary);
+  /* Com a onda ao lado do titulo, nao ha mais nada separando a saudacao da
+     lede — o respiro tem de vir da margem. */
+  margin-top: var(--space-4);
+}
+
+.abertura--arte .abertura__onda {
+  color: var(--color-destaque);
+  margin: 0;
+}
+
+.abertura--arte .abertura__contexto {
+  /* Sem regua e sem respiro proprio: ela agora e a metade direita da linha
+     da saudacao, nao um bloco abaixo dela. */
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+  max-width: none;
+  /* Centrados na altura do banner, e nao no alto dele: soltos em cima, os
+     chips ficavam boiando longe do texto que explicam. `align-self` porque
+     quem manda no eixo vertical aqui e a linha, nao este bloco. */
+  align-self: center;
+  /* Quando a linha quebra, os chips vao para a direita — do lado em que
+     estavam, e nao encostados no titulo. */
+  justify-content: flex-end;
+}
+
+.abertura--arte .chip {
+  color: var(--text-on-dark-primary);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.abertura--arte .chip--discreto {
+  background: transparent;
+  border-color: var(--border-dark);
+  color: var(--text-on-dark-secondary);
+}
+
+/* A contagem para a festa. O marcador e amarelo; a letra, nao — amarelo e
+   elemento, nunca tipo, e a regra vale igual sobre navy. */
+.chip--contagem {
+  gap: var(--space-2);
+}
+
+.chip--contagem::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-destaque);
+  flex: none;
+}
+
+/* No celular a arte encolhe antes de sumir: o mascote e os brilhos ficam
+   fora da area do texto porque o SVG e ancorado a direita (xMaxYMid slice). */
+/* No celular o banner fica so com o texto. Os adesivos ja saem nesta mesma
+   largura (regra propria, adiante) e o ceu sai junto: o SVG e ancorado a
+   direita, e numa tela estreita as estrelinhas que eram cenario no canto
+   passam a correr por tras da propria saudacao. Cenario atras do que se
+   precisa ler vira ruido. */
+@media (max-width: 860px) {
+  .abertura__arte {
+    display: none;
+  }
+}
+
+/* ---------- A fita no topo do modal -------------------------------------
+   O modal e flex em coluna, entao o ::before entra como primeiro item e
+   empurra o cabecalho para baixo sozinho — sem posicionamento e sem mexer
+   no Modal.jsx. O overflow:hidden da caixa ja recorta a fita no raio. */
+.modal::before {
+  content: "";
+  display: block;
+  flex: none;
+  height: 12px;
+  background-color: var(--white);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--navy-700) 0 11px,
+    transparent 11px 20px,
+    var(--navy-500) 20px 31px,
+    transparent 31px 40px,
+    var(--navy-400) 40px 51px,
+    transparent 51px 60px
+  );
+}
+
+/* Os adesivos da abertura. Eles PASSAM da borda do card de proposito: e o
+   que faz a peca parecer colada nele, e nao desenhada dentro. O contorno
+   branco vem no proprio arquivo, como num adesivo recortado.
+   O giro fica entre -8 e 8 graus, como manda a identidade de campanha. */
+.abertura__mascote {
+  position: absolute;
+  width: auto;
+  pointer-events: none;
+  /* Duas sombras, e a de baixo e a que importa: curta, escura e quase sem
+     deslocamento, ela e a sombra de CONTATO — a linha fina de escuro onde o
+     adesivo encosta na superficie. Sozinha, a sombra larga fazia a peca
+     parecer um card flutuando acima do banner, nao um adesivo colado nele. */
+  filter:
+    drop-shadow(0 1px 1px rgba(13, 35, 82, 0.55))
+    drop-shadow(0 6px 12px rgba(13, 35, 82, 0.28));
+}
+
+.abertura__mascote--principal {
+  /* A folga para fora cabe no respiro de .layout__conteudo (40px em cima e
+     nas laterais), que nao recorta nada. Passar disso encostaria na barra. */
+  height: 158px;
+  right: -14px;
+  top: -30px;
+  transform: rotate(-7deg);
+}
+
+/* O segundo adesivo: menor, do outro lado da altura, saindo por baixo. O
+   tamanho e o afastamento sao o que o separam de um SINAL — estrela grande e
+   sozinha quer dizer alguma coisa (ver o banner de conclusao); duas, de
+   tamanhos diferentes e girando para lados opostos, sao cenario. */
+.abertura__mascote--apoio {
+  height: 92px;
+  /* Mais perto do adesivo grande e descendo um pouco mais: a dupla passa a
+     ler como um grupo apoiado no canto, e nao como duas pecas soltas cada
+     uma no seu canto. */
+  right: 146px;
+  bottom: -32px;
+  transform: rotate(9deg);
+}
+
+/* Abaixo de 860px o texto precisa da largura inteira, e os mascotes saem. */
+@media (max-width: 860px) {
+  .abertura__mascote {
+    display: none;
+  }
+
+  /* Sem adesivos, a linha usa a largura toda. */
+  .abertura__linha {
+    padding-right: 0;
+  }
+}
+
+/* ---------- Abertura de dominio ------------------------------------------
+   A tela que abre uma area recebe a cena do dominio a direita do titulo.
+   Uma por pagina, e so na tela de entrada da area. */
+.abertura-dominio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.abertura-dominio__cena {
+  flex: none;
+  width: 260px;
+  height: auto;
+}
+
+/* No celular a cena sai: o texto precisa da largura inteira. */
+@media (max-width: 860px) {
+  .abertura-dominio__cena {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   PAINEL EM GRADE
+   O painel era uma coluna de cinco blocos empilhados e so terminava depois de
+   tres rolagens. Aqui ele vira grade: os numeros numa fileira, e as quebras
+   lado a lado. O objetivo e caber na tela, nao ficar bonito.
+   ========================================================================== */
+
+.painel__grade {
+  display: grid;
+  gap: var(--layout-gap);
+  margin-top: var(--space-6);
+  /* stretch, nao start: com `start` o card mais baixo termina antes da celula
+     e o que sobra vira um buraco de fundo de pagina ao lado do outro. Esticando,
+     o branco do card cobre a celula inteira e a linha fecha. */
+  align-items: stretch;
+}
+
+/* A quebra por dia e a leitura principal; o anel e o resumo dela. */
+.painel__grade--larga {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.painel__grade--meio {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* ---------- Cartao: a moldura de cada quebra ---------- */
+.cartao {
+  background: var(--surface-card);
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  min-width: 0;
+}
+
+.cartao__topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+/* h3, nao h4: com 16px o titulo do cartao empatava com o nome da instituicao
+   logo abaixo, e dois niveis do mesmo tamanho nao sao dois niveis. A escala
+   dentro do cartao passa a ser 18 (titulo) → 14 (item) → 12 (numeros). */
+.cartao__titulo {
+  font-family: var(--font-body);
+  font-size: var(--size-h3);
+  line-height: var(--lh-h3);
+  font-weight: var(--weight-h3);
+  letter-spacing: var(--tracking-titulo-solto);
+  color: var(--text-on-light-primary);
+  margin: 0;
+}
+
+.cartao__lede {
+  font-family: var(--font-serif);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+  color: var(--text-on-light-secondary);
+  margin: 0 0 var(--space-5);
+  text-wrap: pretty;
+}
+
+.cartao--anel {
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+}
+
+/* ---------- Legenda ------------------------------------------------------
+   Toda barra empilhada tem uma. Cor nunca e o unico sinal: o nome de cada
+   parte fica escrito, e quem nao separa os tons le a legenda do mesmo jeito. */
+.legenda {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.legenda__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  color: var(--text-on-light-secondary);
+  white-space: nowrap;
+}
+
+.legenda__item::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.legenda__item--feito::before { background: var(--navy-600); }
+.legenda__item--falta::before { background: var(--navy-200); }
+.legenda__item--cesta::before { background: var(--navy-500); }
+.legenda__item--festa::before { background: var(--amarelo-600); }
+.legenda__item--meninos::before { background: var(--navy-600); }
+.legenda__item--meninas::before { background: var(--navy-300); }
+
+/* ---------- Metrica: o tile compacto ------------------------------------ */
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--layout-gap);
+  margin-top: var(--space-5);
+}
+
+.metrica {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  background: var(--surface-card);
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  min-width: 0;
+}
+
+/* O total da edicao e o numero de onde todos os outros saem: ele abre a
+   fileira com tinta quente atras, para nao se perder entre iguais. */
+.metrica--destaque {
+  background: var(--surface-card-alt);
+  border-color: var(--border-light);
+}
+
+.metrica__rotulo {
+  font-family: var(--font-condensed);
+  font-size: var(--size-caption);
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+
+.metrica__valor {
+  font-family: var(--font-body);
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: var(--tracking-titulo);
+  color: var(--text-on-light-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrica__de {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}
+
+.metrica__trilho {
+  height: 6px;
+  background: var(--navy-100);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.metrica__parte {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--navy-600);
+}
+
+.metrica__trilho--cesta { background: var(--navy-500); }
+.metrica__trilho--festa { background: var(--amarelo-600); }
+
+.metrica__nota {
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  color: var(--text-on-light-muted);
+}
+
+/* ---------- Anel: medidor em arco --------------------------------------- */
+.anel {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.anel__grafico {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.anel__trilho { stroke: var(--navy-100); }
+.anel__parte { stroke: var(--navy-600); }
+
+.anel__centro {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.anel__numero {
+  font-family: var(--font-body);
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: var(--tracking-titulo);
+  color: var(--text-on-light-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.anel__fracao {
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  color: var(--text-on-light-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.anel__rotulo {
+  font-family: var(--font-condensed);
+  font-size: var(--size-caption);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+
+.anel__nota {
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  color: var(--text-on-light-muted);
+  max-width: 30ch;
+}
+
+/* ---------- Barra dupla ------------------------------------------------- */
+.barras {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.barra-dupla {
+  display: grid;
+  grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Com numero DENTRO de cada parte, a barra cresce para o texto caber. */
+.barra-dupla--rotulada .barra-dupla__barra {
+  height: 22px;
+}
+
+.barra-dupla__numero {
+  font-size: var(--size-caption);
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+}
+
+.barra-dupla__rotulo {
+  font-size: var(--size-small);
+  color: var(--text-on-light-primary);
+  white-space: nowrap;
+}
+
+.barras__idade {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.barra-dupla__pista {
+  min-width: 0;
+}
+
+.barra-dupla__barra {
+  display: flex;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  /* A fresta entre as partes e a propria superficie: sem ela, dois tons
+     vizinhos encostam e a divisa some. */
+  gap: 2px;
+  background: transparent;
+}
+
+.barra-dupla__parte {
+  min-width: 3px;
+  display: grid;
+  place-items: center;
+  /* Parte estreita demais para o numero: ele corta em vez de vazar por cima
+     da parte vizinha e virar dois numeros grudados. */
+  overflow: hidden;
+}
+
+.barra-dupla__parte:first-child {
+  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+}
+
+.barra-dupla__parte:last-child {
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+}
+
+.barra-dupla__parte:only-child {
+  border-radius: var(--radius-pill);
+}
+
+.barra-dupla__parte--feito { background: var(--navy-600); }
+.barra-dupla__parte--falta { background: var(--navy-200); }
+/* O par mudou quando o numero entrou na barra. Texto claro sobre um tom medio
+   nao fechava (branco em navy-400 da 3,6:1), entao um tom foi para o escuro e
+   o outro para o claro, cada um com a sua cor de texto:
+     navy-600 + numero branco    → 9,2:1
+     navy-300 + numero navy-900  → 7,1:1
+   De quebra, os dois tons ficaram a 4,3:1 um do outro — separacao bem maior
+   do que o par anterior dava. */
+.barra-dupla__parte--meninos { background: var(--navy-600); }
+.barra-dupla__parte--meninos .barra-dupla__numero { color: var(--white); }
+.barra-dupla__parte--meninas { background: var(--navy-300); }
+.barra-dupla__parte--meninas .barra-dupla__numero { color: var(--navy-900); }
+
+.barra-dupla__valor {
+  font-size: var(--size-small);
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.barra-dupla__de {
+  font-weight: 450;
+  color: var(--text-on-light-muted);
+}
+
+.barra-dupla__meta {
+  font-weight: 450;
+  font-size: var(--size-caption);
+  color: var(--text-on-light-muted);
+}
+
+.barras__rodape {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--stroke-hairline) solid var(--border-light);
+  font-size: var(--size-small);
+  font-weight: 700;
+  color: var(--text-on-light-secondary);
+}
+
+/* A lista de instituicoes dentro do cartao: mesma anatomia, menos respiro, e
+   com rolagem propria para nao esticar a grade inteira. */
+/* Dentro de um cartao, a lista nao repete a moldura: caixa dentro de caixa
+   cria duas bordas concorrentes e come largura util. Quem separa uma
+   instituicao da outra e uma linha. */
+.lista-progresso--densa {
+  gap: 0;
+  margin-bottom: 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.lista-progresso--densa .lista-progresso__item {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0;
+}
+
+.lista-progresso--densa .lista-progresso__item + .lista-progresso__item {
+  border-top: var(--stroke-hairline) solid var(--border-light);
+}
+
+.lista-progresso--densa .lista-progresso__item:first-child {
+  padding-top: 0;
+}
+
+/* A barra de rolagem precisa de um corredor proprio: colada no conteudo ela
+   encosta nos numeros da direita. `scrollbar-gutter` reserva o espaco mesmo
+   quando ela nao esta visivel, para a lista nao pular de largura ao rolar. */
+.lista-progresso--densa {
+  padding-right: var(--space-4);
+  scrollbar-gutter: stable;
+  /* O cartao__topo nao tem margem embaixo suficiente para uma lista que
+     comeca com um nome em negrito: colados, titulo e primeira instituicao
+     leem como um bloco so. */
+  margin-top: var(--space-4);
+}
+
+/* ---- Hierarquia dentro do cartao ---------------------------------------
+   O nome da instituicao herdava 16px/700 — o mesmo do titulo do cartao. Dois
+   niveis com o mesmo peso e tamanho nao sao dois niveis. A escala aqui e
+   16 (titulo do cartao) → 14 (instituicao) → 12 (numeros e rotulos). */
+.lista-progresso--densa .lista-progresso__nome {
+  font-size: var(--size-body-sm);
+}
+
+.lista-progresso--densa .lista-progresso__falta,
+.lista-progresso--densa .progresso__valor {
+  font-size: var(--size-caption);
+}
+
+.lista-progresso--densa .progresso__rotulo {
+  font-weight: 700;
+}
+
+/* ---------- A grade cede antes de quebrar ------------------------------- */
+@media (max-width: 1200px) {
+  .metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .painel__grade--larga,
+  .painel__grade--meio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  /* Duas colunas, e nao uma. Empilhados, os quatro numeros do topo viravam
+     uma lista de meia tela e empurravam o resto do painel para baixo — e sao
+     justamente os que se le de relance ao abrir o sistema. Em 2x2 os quatro
+     cabem numa olhada so. */
+  .metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  /* O tile encolhe junto: na metade da largura, o respiro e o corpo do numero
+     de antes botavam "1546/1546" para fora da caixa. */
+  .metrica {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .metrica__valor {
+    font-size: 24px;
+  }
+
+  .metrica__de {
+    font-size: 13px;
+  }
+
+  .barra-dupla {
+    grid-template-columns: minmax(64px, auto) minmax(0, 1fr) auto;
+    gap: var(--space-2);
+  }
+}
+
+/* A tabela de comissarios fecha a pagina, fora das grades: o respiro dela
+   tem de vir daqui, porque ela nao herda o gap de nenhuma grade. */
+.painel__grade + .cartao {
+  margin-top: var(--layout-gap);
+}
+
+/* ---------- Tabela densa -------------------------------------------------
+   A de comissarios e uma LISTA de nomes com numeros do lado, nao um
+   documento: linha alta ali so empurra o resto da pagina para baixo. Metade
+   do respiro vertical, e o grupo volta para a linha do nome em vez de abrir
+   uma segunda. */
+.tabela--densa td,
+.tabela--densa th {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  vertical-align: middle;
+}
+
+.tabela--densa td {
+  font-size: var(--size-small);
+}
+
+.tabela--densa .comissario__nome {
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+.tabela--densa .comissario__grupo {
+  color: var(--text-on-light-muted);
+  font-size: var(--size-caption);
+}

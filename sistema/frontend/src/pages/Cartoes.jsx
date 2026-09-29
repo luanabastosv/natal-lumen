@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import ConferirCartoes from "../components/dados/ConferirCartoes.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
@@ -134,6 +135,7 @@ export default function Cartoes() {
     <div>
       <div className="pagina__eyebrow">Monitoria</div>
       <h1 className="pagina__titulo">Cartões</h1>
+      <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         Cada criança escreve dois cartões, um para cada padrinho. Suba a pilha
         digitalizada de uma vez: <strong>o nome de cada arquivo tem de ser o código

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Entrada } from "../components/core/Campo.jsx";
@@ -124,6 +125,7 @@ export default function Padrinhos() {
     <div>
       <div className="pagina__eyebrow">Captação</div>
       <h1 className="pagina__titulo">Padrinhos</h1>
+      <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         Cada padrinho pertence a uma edição e pode apadrinhar várias crianças, inclusive
         de outra cidade. Clique em qualquer célula para editar; o olho abre a ficha com

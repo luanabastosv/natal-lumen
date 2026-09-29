@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada } from "../components/core/Campo.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
@@ -45,12 +46,20 @@ export default function Checkin() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">Dia do evento</div>
-      <h1 className="pagina__titulo">Check-in</h1>
-      <p className="pagina__lede">
-        Leia o QR do crachá ou digite o código. O check-in nunca é recusado — o que
-        estiver estranho aparece como aviso.
-      </p>
+      {/* Abertura de dominio: a cena da area a direita do titulo. Uma por
+          pagina, e so na tela que abre a area — nao se repete la dentro. */}
+      <div className="abertura-dominio">
+        <div>
+          <div className="pagina__eyebrow">Dia do evento</div>
+          <h1 className="pagina__titulo">Check-in</h1>
+          <Rabisco className="pagina__onda" />
+          <p className="pagina__lede">
+            Leia o QR do crachá ou digite o código. O check-in nunca é recusado — o que
+            estiver estranho aparece como aviso.
+          </p>
+        </div>
+        <img className="abertura-dominio__cena" src="/acesso/images/cena-onibus.png" alt="" />
+      </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
 

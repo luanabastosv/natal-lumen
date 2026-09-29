@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -65,6 +66,7 @@ export default function ImportarLista({ edicao, instituicoes, aoTerminar }) {
     <div>
       <div className="pagina__eyebrow">Crianças</div>
       <h1 className="pagina__titulo">Importar lista</h1>
+      <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         Envie a planilha que a instituição mandou. Nada é gravado até você conferir e
         confirmar.

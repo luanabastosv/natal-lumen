@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
@@ -339,6 +340,7 @@ export default function CidadesEdicoes() {
     <div>
       <div className="pagina__eyebrow">Administração geral</div>
       <h1 className="pagina__titulo">Cidades e edições</h1>
+      <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         Cada cidade num ano é uma edição independente. Os valores de cesta e festa
         valem para os apadrinhamentos registrados a partir daí.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
@@ -240,6 +241,7 @@ export default function Financeiro() {
         <div className="pagina__texto">
           <div className="pagina__eyebrow">Edição</div>
           <h1 className="pagina__titulo">Financeiro</h1>
+          <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
             Todo o dinheiro da edição num lugar: o que a equipe gastou, o que os
             padrinhos pagaram e as doações que chegam soltas.

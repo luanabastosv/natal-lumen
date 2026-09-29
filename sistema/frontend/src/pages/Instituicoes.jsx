@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
@@ -238,6 +239,7 @@ export default function Instituicoes() {
         <div className="pagina__texto">
           <div className="pagina__eyebrow">Cadastros</div>
           <h1 className="pagina__titulo">Instituições</h1>
+          <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
             Pertencem a uma cidade e continuam de um ano para o outro. São elas que
             enviam as listas. <strong>O dia do evento é definido aqui</strong>, e vale

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
@@ -333,6 +334,7 @@ export default function Usuarios() {
         <div className="pagina__texto">
           <div className="pagina__eyebrow">Equipe</div>
           <h1 className="pagina__titulo">Usuários</h1>
+          <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
             A equipe da edição escolhida na lateral. Cada pessoa define a própria senha
             pelo link de primeiro acesso; comissários e monitores só alcançam as

@@ -74,3 +74,33 @@
     padding: var(--space-6) var(--space-5);
   }
 }
+
+/* ---------- A fita no topo do cartao de acesso --------------------------
+   O fundo continua navy liso — o cartao e a unica coisa solida da tela, que
+   era o argumento desta folha desde o inicio. A fita de 12px e todo o
+   acento de que a tela precisa.
+
+   Ela e absoluta porque o cartao tem padding: como item normal ela pararia
+   dentro do respiro e nao encostaria nas bordas. */
+.acesso__cartao {
+  position: relative;
+  overflow: hidden;
+  padding-top: calc(var(--space-7) + 12px);
+}
+
+.acesso__cartao::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 12px;
+  background-color: var(--white);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--navy-700) 0 11px,
+    transparent 11px 20px,
+    var(--navy-500) 20px 31px,
+    transparent 31px 40px,
+    var(--navy-400) 40px 51px,
+    transparent 51px 60px
+  );
+}

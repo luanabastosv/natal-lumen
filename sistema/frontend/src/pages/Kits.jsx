@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -71,6 +72,7 @@ export default function Kits() {
     <div>
       <div className="pagina__eyebrow">Estrutura</div>
       <h1 className="pagina__titulo">Kits</h1>
+      <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         Um kit por criança: cesta, presente e kit de higiene. A lista parte das
         crianças, então quem ainda não tem kit aparece como pendente.
