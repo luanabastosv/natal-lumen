@@ -803,35 +803,56 @@ textarea.campo__controle {
    separa os dois grupos antes de qualquer leitura — e e essa a pergunta que
    se faz correndo, na vespera do evento.
 
-   Cada tom guarda DUAS cores, porque o dia aparece de duas formas e elas nao
-   pedem a mesma tinta: a etiqueta e uma area com tipo por cima, e precisa de
-   fundo claro (inclusive dentro da aba ativa, que e navy); o pontinho da aba
-   nao carrega tipo nenhum e pode ser saturado, que e o que o faz enxergar a
-   7px. Definir os dois juntos mantem o pontinho e a etiqueta lendo como a
-   mesma cor, que e a coisa toda. */
+   Separar nao e chamar atencao. O dia aparece em toda linha de tabela e em
+   toda aba, e nessa quantidade fundo saturado vira mancha: a lista passa a
+   ser lida pelas cores, e nao pelos nomes das criancas. Entao o tom mora na
+   ponta mais clara da escala, sem contorno, e o contraste vem de dentro do
+   proprio tom — a letra e a mesma cor do fundo, varios passos mais escura.
+   Uma etiqueta monocromatica pesa menos na pagina do que uma de duas cores,
+   e mesmo assim sabado e domingo continuam inconfundiveis lado a lado, que e
+   o que a pergunta corrida pede.
+
+   Cada tom guarda TRES cores, porque o dia aparece de tres formas: o fundo
+   da etiqueta e a letra por cima dele, e o pontinho da aba, que nao carrega
+   tipo nenhum e precisa de um passo a mais de cor para se enxergar a 7px.
+   Definir os tres juntos mantem pontinho e etiqueta lendo como a mesma cor,
+   que e a coisa toda.
+
+   A letra do sabado e amarelo-900 (5,9:1 sobre o amarelo-100), e tinta
+   amarela em cima de tipo — o que a nota do DS em tokens.css desaconselha.
+   Aqui a escolha foi da edicao, sabendo disso: o par so le como par se cada
+   dia for de uma cor so. */
 .dia--1 {
-  --dia-fundo: var(--amarelo-200);
-  --dia-ponto: var(--amarelo-400);
+  --dia-fundo: var(--amarelo-100);
+  --dia-tinta: var(--amarelo-900);
+  --dia-ponto: var(--amarelo-300);
 }
 
 .dia--2 {
   --dia-fundo: var(--navy-100);
+  --dia-tinta: var(--navy-500);
   --dia-ponto: var(--navy-300);
 }
 
+/* Os dois tons de sobra, para um dia batizado de outro nome. O 4 volta ao
+   navy-200 porque sem contorno o fundo e a unica coisa que o separa do
+   domingo — e um "Sexta" que le como domingo e pior do que um tom a mais. */
 .dia--3 {
   --dia-fundo: var(--cream-300);
+  --dia-tinta: var(--amarelo-900);
   --dia-ponto: var(--cream-500);
 }
 
 .dia--4 {
   --dia-fundo: var(--navy-200);
+  --dia-tinta: var(--navy-700);
   --dia-ponto: var(--navy-400);
 }
 
 /* Dia cadastrado sem descricao: cai na data, e a data nao merece cor. */
 .dia--0 {
   --dia-fundo: var(--cream-100);
+  --dia-tinta: var(--text-on-light-muted);
   --dia-ponto: var(--cream-500);
 }
 
@@ -842,16 +863,12 @@ textarea.campo__controle {
    lado — a cor ja faz o trabalho de separar os dois grupos. */
 .dia {
   background: var(--dia-fundo);
-  color: var(--navy-900);
+  color: var(--dia-tinta);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
   padding: 1px 6px;
-}
-
-.dia.dia--0 {
-  color: var(--text-on-light-muted);
 }
 
 /* Sem dia marcado. Texto simples, nao etiqueta: uma pilula aqui competiria
