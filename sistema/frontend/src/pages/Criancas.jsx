@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import { Olho, Xis } from "../components/core/icones.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
@@ -13,6 +14,7 @@ import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import { listarInstituicoes } from "../services/cadastros.js";
 import {
   apagarCrianca,
@@ -24,7 +26,8 @@ import {
   listarCriancas,
   resumoInstituicoes,
 } from "../services/criancas.js";
-import { formatarData } from "../utils/dinheiro.js";
+import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
+import { tomDoDia } from "../utils/dias.js";
 import ImportarLista from "./ImportarLista.jsx";
 
 /** Como um responsavel se escreve nas listas desta tela.
@@ -96,6 +99,11 @@ export default function Criancas() {
   const [exclusao, definirExclusao] = useState(null);
 
   const podeEditar = pode("editar_criancas");
+
+  // No celular a planilha inteira nao cabe: ficam de pe as tres colunas que
+  // fazem alguem reconhecer a crianca e saber o que falta nela — codigo, nome
+  // e os padrinhos — e o resto vai para a ficha, a um toque de distancia.
+  const estreita = useTelaEstreita();
 
   // O check-in so acontece no dia do evento. Ate la a coluna seria uma fileira
   // de "nao" ocupando largura que o nome e a instituicao precisam mais — entao
@@ -347,15 +355,20 @@ export default function Criancas() {
           <div className="pagina__eyebrow">Dados sensíveis</div>
           <h1 className="pagina__titulo">Crianças</h1>
           <p className="pagina__lede">
-            Uma aba por instituição. Clique na célula para editar — Enter salva, Esc
-            desfaz.
+            {estreita
+              ? "Uma aba por instituição. Toque em Ver ficha para o resto dos dados da criança."
+              : "Uma aba por instituição. Clique na célula para editar — Enter salva, Esc desfaz."}
           </p>
         </div>
 
         {/* Importar e acao da pagina, nao da lista: na folga lateral do titulo
             ela nao custa nenhuma linha de altura. Sem permissao de importar,
-            o cabecalho fica so com o texto. */}
-        {pode("importar_listas") && (
+            o cabecalho fica so com o texto.
+
+            No celular ela nao aparece: a importacao e escolher um arquivo de
+            planilha e conferir o que veio, e isso se faz onde a planilha
+            esta. */}
+        {pode("importar_listas") && !estreita && (
           <div className="pagina__acoes">
             <Button size="sm" variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
               Importar lista
@@ -366,9 +379,11 @@ export default function Criancas() {
 
       <Mensagem tipo="erro">{erro}</Mensagem>
 
-      {/* Abas: uma por instituição, com o que falta em cada uma. */}
+      {/* Abas: uma por instituição, com o que falta em cada uma. Passam de
+          lado por chevron — numa cidade grande são mais de vinte, e elas nunca
+          caberiam na largura da tela. */}
       {abas.length > 0 && (
-        <div className="abas" role="tablist">
+        <FaixaDeAbas reiniciarEm={edicaoAtiva}>
           <button
             type="button"
             role="tab"
@@ -400,15 +415,25 @@ export default function Criancas() {
             >
               <span>
                 {a.instituicao}
-                {(a.sem_padrinho > 0 || !a.dia_evento) && <span className="aba__alerta" />}
+                {/* O pontinho e o dia, na mesma cor da etiqueta logo abaixo:
+                    de longe a faixa de abas vira dois grupos, sabado e
+                    domingo. Sem dia marcado nao ha pontinho — a ausencia ja
+                    diz que falta resolver aquela escola. */}
+                {a.dia_evento && (
+                  <span className={`aba__ponto dia--${tomDoDia(a.dia_evento_descricao)}`} />
+                )}
               </span>
               <span className="aba__contagem">
-                {a.criancas} ·{" "}
-                {a.dia_evento ? formatarData(a.dia_evento) : "sem dia"}
+                {a.criancas}
+                {a.dia_evento ? (
+                  <EtiquetaDia data={a.dia_evento} descricao={a.dia_evento_descricao} />
+                ) : (
+                  <>· sem dia</>
+                )}
               </span>
             </button>
           ))}
-        </div>
+        </FaixaDeAbas>
       )}
 
       <form
@@ -419,69 +444,82 @@ export default function Criancas() {
           buscar();
         }}
       >
+        {/* O campo do nome e o unico que sobrevive ao celular: e a busca que
+            se faz de pe, com a lista da instituicao na mao. Sozinho num
+            formulario, ele ainda submete no Enter — o teclado do celular mostra
+            "Buscar" na tecla, e nenhum botao precisa ocupar a linha. */}
         <Entrada
           value={busca}
           onChange={(e) => definirBusca(e.target.value)}
           placeholder="Buscar por nome"
         />
-        <Entrada
-          value={codigo}
-          onChange={(e) => definirCodigo(e.target.value)}
-          placeholder="Código exato"
-        />
-        {comissarios.length > 0 && (
-          <Selecao
-            value={filtroComissario}
-            onChange={(e) => {
-              definirFiltroComissario(e.target.value);
-              definirPagina(1);
-              definirMarcadas([]);
-            }}
-            aria-label="Filtrar por responsável"
-          >
-            <option value="">Todos os responsáveis</option>
-            <option value={SEM_RESPONSAVEL}>Sem responsável</option>
-            {comissarios.map((c) => (
-              <option key={c.id} value={c.id}>{comoAparece(c)}</option>
-            ))}
-          </Selecao>
-        )}
-        <Button type="submit" size="sm" variant="ghost">Buscar</Button>
-        {(busca || codigo) && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              definirBusca("");
-              definirCodigo("");
-              definirFiltroComissario("");
-              definirPagina(1);
-            }}
-          >
-            Limpar
-          </Button>
-        )}
-        <span className="campo__dica">{criancas.total} nesta aba</span>
 
-        {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos de
-            busca, sem roubar uma linha so para ele. */}
-        {podeEditar && (
-          <div className="barra-acoes__ponta">
-            <Button
-              size="sm"
-              onClick={() => {
-                definirCampos({
-                  ...NOVA,
-                  instituicao_id:
-                    abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
-                });
-                definirFormAberto(true);
-              }}
-              disabled={instituicoesDaCidade.length === 0}
-            >
-              Nova criança
-            </Button>
-          </div>
+        {/* Busca por código exato, filtro de responsável, contagem e o CTA de
+            cadastrar sao trabalho de mesa: no celular a barra inteira nao cabe
+            numa linha, e empilhada empurrava a lista para fora da primeira
+            tela. Quem cadastra e filtra faz isso no computador. */}
+        {!estreita && (
+          <>
+            <Entrada
+              value={codigo}
+              onChange={(e) => definirCodigo(e.target.value)}
+              placeholder="Código exato"
+            />
+            {comissarios.length > 0 && (
+              <Selecao
+                value={filtroComissario}
+                onChange={(e) => {
+                  definirFiltroComissario(e.target.value);
+                  definirPagina(1);
+                  definirMarcadas([]);
+                }}
+                aria-label="Filtrar por responsável"
+              >
+                <option value="">Todos os responsáveis</option>
+                <option value={SEM_RESPONSAVEL}>Sem responsável</option>
+                {comissarios.map((c) => (
+                  <option key={c.id} value={c.id}>{comoAparece(c)}</option>
+                ))}
+              </Selecao>
+            )}
+            <Button type="submit" size="sm" variant="ghost">Buscar</Button>
+            {(busca || codigo) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  definirBusca("");
+                  definirCodigo("");
+                  definirFiltroComissario("");
+                  definirPagina(1);
+                }}
+              >
+                Limpar
+              </Button>
+            )}
+            <span className="campo__dica">{criancas.total} nesta aba</span>
+
+            {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos
+                de busca, sem roubar uma linha so para ele. */}
+            {podeEditar && (
+              <div className="barra-acoes__ponta">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    definirCampos({
+                      ...NOVA,
+                      instituicao_id:
+                        abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
+                    });
+                    definirFormAberto(true);
+                  }}
+                  disabled={instituicoesDaCidade.length === 0}
+                >
+                  Nova criança
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </form>
 
@@ -564,37 +602,56 @@ export default function Criancas() {
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="planilha planilha--criancas">
-              <caption className="tabela-dica">
-                Arraste a lista para o lado para ver todas as colunas.
-              </caption>
+            <table
+              className={`planilha planilha--criancas ${
+                estreita ? "planilha--compacta" : ""
+              }`}
+            >
+              {/* So faz sentido onde a lista de fato rola. Na versao estreita
+                  as colunas cabem todas na tela, e prometer arraste ali seria
+                  mandar a pessoa procurar o que nao existe. */}
+              {!estreita && (
+                <caption className="tabela-dica">
+                  Arraste a lista para o lado para ver todas as colunas.
+                </caption>
+              )}
               {/* As larguras ficam aqui, e nao no conteudo: trocar de aba nao
                   move nenhuma coluna de lugar. */}
               <colgroup>
-                {podeEditar && <col style={{ width: 34 }} />}
-                <col style={{ width: 92 }} />
+                {podeEditar && !estreita && <col style={{ width: 34 }} />}
+                <col style={{ width: estreita ? 74 : 92 }} />
                 <col />
-                <col style={{ width: 64 }} />
-                <col style={{ width: 58 }} />
-                <col style={{ width: 112 }} />
-                <col style={{ width: 190 }} />
-                <col style={{ width: 150 }} />
-                <col style={{ width: 120 }} />
-                <col style={{ width: 84 }} />
-                <col style={{ width: 72 }} />
-                <col style={{ width: 72 }} />
+                {!estreita && (
+                  <>
+                    <col style={{ width: 64 }} />
+                    <col style={{ width: 58 }} />
+                    <col style={{ width: 112 }} />
+                    <col style={{ width: 190 }} />
+                    <col style={{ width: 150 }} />
+                    <col style={{ width: 120 }} />
+                  </>
+                )}
+                <col style={{ width: estreita ? 62 : 84 }} />
+                {!estreita && (
+                  <>
+                    <col style={{ width: 72 }} />
+                    <col style={{ width: 72 }} />
+                  </>
+                )}
                 {/* Condicional junto com o <th>: um <col> a mais que as celulas
                     nao some — vira uma coluna vazia no fim, e a planilha
                     parece nao alcancar a borda do container. */}
-                {mostrarCheckin && <col style={{ width: 82 }} />}
+                {mostrarCheckin && !estreita && <col style={{ width: 82 }} />}
                 {/* Os mesmos 66 de antes, que agora levam dois botoes de 24px
                     em vez de um de tres pontinhos. Sem o de apagar sobra a
-                    largura de um, e os 26px voltam para a coluna do nome. */}
-                <col style={{ width: podeEditar ? 66 : 40 }} />
+                    largura de um, e os 26px voltam para a coluna do nome.
+                    No celular e um olho so, mas de 40px: alvo de dedo, e nao
+                    de ponteiro. */}
+                <col style={{ width: estreita ? 48 : podeEditar ? 66 : 40 }} />
               </colgroup>
               <thead>
                 <tr>
-                  {podeEditar && (
+                  {podeEditar && !estreita && (
                     <th className="planilha__marcar">
                       <input
                         type="checkbox"
@@ -606,20 +663,28 @@ export default function Criancas() {
                   )}
                   <th>Código</th>
                   <th>Nome</th>
-                  <th>Idade</th>
-                  <th>Sexo</th>
-                  <th>Dia</th>
-                  <th>Instituição</th>
-                  <th title="Comissário responsável por esta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
-                    Comissário
-                  </th>
-                  <th title="O grupo do comissário responsável na comunidade. Vem do cadastro dele nesta edição e não se edita aqui.">
-                    Grupo
-                  </th>
+                  {!estreita && (
+                    <>
+                      <th>Idade</th>
+                      <th>Sexo</th>
+                      <th>Dia</th>
+                      <th>Instituição</th>
+                      <th title="Comissário responsável por esta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
+                        Comissário
+                      </th>
+                      <th title="O grupo do comissário responsável na comunidade. Vem do cadastro dele nesta edição e não se edita aqui.">
+                        Grupo
+                      </th>
+                    </>
+                  )}
                   <th title="Padrinho de cesta e de festa">Padrinhos</th>
-                  <th title="Cartões digitalizados, de 2">Cartões</th>
-                  <th>Kit</th>
-                  {mostrarCheckin && <th>Check-in</th>}
+                  {!estreita && (
+                    <>
+                      <th title="Cartões digitalizados, de 2">Cartões</th>
+                      <th>Kit</th>
+                    </>
+                  )}
+                  {mostrarCheckin && !estreita && <th>Check-in</th>}
                   <th className="planilha__acoes" />
                 </tr>
               </thead>
@@ -632,8 +697,20 @@ export default function Criancas() {
                       c.desistiu_em ? "planilha__linha--desistiu" : "",
                     ].filter(Boolean).join(" ")}
                     title={c.desistiu_em ? `${c.nome} desistiu de ir ao evento` : undefined}
+                    /* No celular a linha inteira abre a ficha: o olho e um
+                       alvo de 40px numa faixa de 48 por toda a largura da
+                       tela, e mirar nele nao deveria ser exigencia de nada.
+                       So no celular — no desktop o clique na celula e o que
+                       abre a edicao dela, e os dois nao cabem no mesmo lugar.
+
+                       O olho fica: ele e quem anuncia a acao para quem navega
+                       por teclado ou leitor de tela, e quem diz de que crianca
+                       e a ficha. A linha e atalho de dedo, e por isso nao ganha
+                       `role` nem foco proprio — seria um segundo botao dizendo
+                       a mesma coisa no caminho de quem usa Tab. */
+                    onClick={estreita ? () => definirFichaAberta(c.id) : undefined}
                   >
-                    {podeEditar && (
+                    {podeEditar && !estreita && (
                       <td className="planilha__marcar">
                         <input
                           type="checkbox"
@@ -643,106 +720,127 @@ export default function Criancas() {
                         />
                       </td>
                     )}
+                    {/* No celular as duas viram texto, mesmo para quem pode
+                        editar: a celula que vira campo ao toque abriria o
+                        teclado em quem so queria rolar a lista, e um codigo
+                        trocado sem querer nao avisa que foi trocado. Edicao e
+                        no computador. */}
                     <td>
-                      {podeEditar ? (
+                      {podeEditar && !estreita ? (
                         <CelulaEditavel
                           valor={c.codigo}
                           aoSalvar={(v) => salvarCampo(c, "codigo", v)}
                         />
                       ) : (
-                        <span className="celula">{c.codigo}</span>
+                        <span className="celula celula--fixa">{c.codigo}</span>
                       )}
                     </td>
                     <td>
-                      {podeEditar ? (
+                      {podeEditar && !estreita ? (
                         <CelulaEditavel
                           valor={c.nome}
                           aoSalvar={(v) => salvarCampo(c, "nome", v)}
                         />
                       ) : (
-                        <span className="celula">{c.nome}</span>
-                      )}
-                    </td>
-                    <td>
-                      {podeEditar ? (
-                        <CelulaEditavel
-                          valor={c.idade}
-                          tipo="number"
-                          aoSalvar={(v) => salvarCampo(c, "idade", Number(v))}
-                        />
-                      ) : (
-                        <span className="celula">{c.idade}</span>
-                      )}
-                    </td>
-                    <td>
-                      {podeEditar ? (
-                        <CelulaEditavel
-                          valor={c.sexo}
-                          opcoes={SEXOS}
-                          aoSalvar={(v) => salvarCampo(c, "sexo", v)}
-                        />
-                      ) : (
-                        <span className="celula">{c.sexo}</span>
-                      )}
-                    </td>
-                    <td>
-                      {/* Somente leitura: o dia e da instituicao, e se muda na
-                          aba dela. Editar por crianca deixaria duas da mesma
-                          escola em dias diferentes. */}
-                      <span
-                        className={`celula ${c.dia_evento ? "" : "celula--vazia"}`}
-                        style={{ cursor: "default" }}
-                        title="O dia vem da instituição"
-                      >
-                        {c.dia_evento ? formatarData(c.dia_evento) : "sem dia"}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="celula" title={c.instituicao}>
-                        {c.instituicao}
-                      </span>
-                    </td>
-                    <td>
-                      {/* Responsavel por ESTA crianca. Nao muda quem alcanca o
-                          que: o time inteiro da instituicao continua vendo e
-                          trabalhando a lista toda dela. */}
-                      {podeEditar ? (
-                        <CelulaEditavel
-                          valor={c.comissario_id}
-                          opcoes={opcoesComissario(c.instituicao_id)}
-                          aoSalvar={(v) =>
-                            salvarCampo(c, "comissario_id", v === "" ? null : Number(v))
-                          }
-                        />
-                      ) : (
-                        <span
-                          className={`celula ${c.comissario ? "" : "celula--vazia"}`}
-                          style={{ cursor: "default" }}
-                          title={c.comissario ?? "Nenhum comissário responsável"}
-                        >
-                          {c.comissario ?? "sem responsável"}
+                        <span className="celula celula--fixa" title={c.nome}>
+                          {c.nome}
                         </span>
                       )}
                     </td>
+                    {!estreita && (
+                      <>
+                        <td>
+                        {podeEditar ? (
+                          <CelulaEditavel
+                            valor={c.idade}
+                            tipo="number"
+                            aoSalvar={(v) => salvarCampo(c, "idade", Number(v))}
+                          />
+                        ) : (
+                          <span className="celula">{c.idade}</span>
+                        )}
+                      </td>
+                      <td>
+                        {podeEditar ? (
+                          <CelulaEditavel
+                            valor={c.sexo}
+                            opcoes={SEXOS}
+                            aoSalvar={(v) => salvarCampo(c, "sexo", v)}
+                          />
+                        ) : (
+                          <span className="celula">{c.sexo}</span>
+                        )}
+                      </td>
+                      <td>
+                        {/* Somente leitura: o dia e da instituicao, e se muda na
+                            aba dela. Editar por crianca deixaria duas da mesma
+                            escola em dias diferentes. */}
+                        <span
+                          className={`celula ${c.dia_evento ? "" : "celula--vazia"}`}
+                          style={{ cursor: "default" }}
+                          title="O dia vem da instituição"
+                        >
+                          {c.dia_evento ? (
+                            <EtiquetaDia data={c.dia_evento} descricao={c.dia_evento_descricao} />
+                          ) : (
+                            "sem dia"
+                          )}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="celula" title={c.instituicao}>
+                          {c.instituicao}
+                        </span>
+                      </td>
+                      <td>
+                        {/* Responsavel por ESTA crianca. Nao muda quem alcanca o
+                            que: o time inteiro da instituicao continua vendo e
+                            trabalhando a lista toda dela. */}
+                        {podeEditar ? (
+                          <CelulaEditavel
+                            valor={c.comissario_id}
+                            opcoes={opcoesComissario(c.instituicao_id)}
+                            aoSalvar={(v) =>
+                              salvarCampo(c, "comissario_id", v === "" ? null : Number(v))
+                            }
+                          />
+                        ) : (
+                          <span
+                            className={`celula ${c.comissario ? "" : "celula--vazia"}`}
+                            style={{ cursor: "default" }}
+                            title={c.comissario ?? "Nenhum comissário responsável"}
+                          >
+                            {c.comissario ?? "sem responsável"}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {/* So leitura: o grupo e do cadastro do comissario, na
+                            tela de usuarios. Editar aqui mudaria o grupo dele
+                            para TODAS as criancas de uma vez, o que ninguem
+                            esperaria de um clique na linha de uma. */}
+                        <span
+                          className={`celula ${c.comissario_grupo ? "" : "celula--vazia"}`}
+                          style={{ cursor: "default" }}
+                          title={
+                            c.comissario
+                              ? (c.comissario_grupo ?? `${c.comissario} ainda não tem grupo nomeado`)
+                              : "Nenhum comissário responsável"
+                          }
+                        >
+                          {c.comissario_grupo ?? (c.comissario ? "sem grupo" : "—")}
+                        </span>
+                      </td>
+                      </>
+                    )}
                     <td>
-                      {/* So leitura: o grupo e do cadastro do comissario, na
-                          tela de usuarios. Editar aqui mudaria o grupo dele
-                          para TODAS as criancas de uma vez, o que ninguem
-                          esperaria de um clique na linha de uma. */}
+                      {/* O cursor de "aqui nao se clica" so vale onde a celula
+                          e mesmo o alvo. No celular o alvo e a linha, e ela
+                          toda mostra a mao. */}
                       <span
-                        className={`celula ${c.comissario_grupo ? "" : "celula--vazia"}`}
-                        style={{ cursor: "default" }}
-                        title={
-                          c.comissario
-                            ? (c.comissario_grupo ?? `${c.comissario} ainda não tem grupo nomeado`)
-                            : "Nenhum comissário responsável"
-                        }
+                        className="celula"
+                        style={estreita ? undefined : { cursor: "default" }}
                       >
-                        {c.comissario_grupo ?? (c.comissario ? "sem grupo" : "—")}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="celula" style={{ cursor: "default" }}>
                         <span
                           className={`marcador ${c.tem_padrinho_cesta ? "marcador--feito" : ""}`}
                           title={c.tem_padrinho_cesta ? "Tem padrinho de cesta" : "Sem padrinho de cesta"}
@@ -757,33 +855,37 @@ export default function Criancas() {
                         </span>
                       </span>
                     </td>
-                    <td>
-                      <span className="celula" style={{ cursor: "default" }}>
-                        <span
-                          className={`marcador ${
-                            c.cartoes >= 2 ? "marcador--feito" : c.cartoes > 0 ? "marcador--parcial" : ""
-                          }`}
-                        >
-                          {c.cartoes}/2
+                    {!estreita && (
+                      <>
+                        <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          <span
+                            className={`marcador ${
+                              c.cartoes >= 2 ? "marcador--feito" : c.cartoes > 0 ? "marcador--parcial" : ""
+                            }`}
+                          >
+                            {c.cartoes}/2
+                          </span>
                         </span>
-                      </span>
-                    </td>
-                    <td>
-                      <span className="celula" style={{ cursor: "default" }}>
-                        <span
-                          className={`marcador ${
-                            c.kit_status === "entregue"
-                              ? "marcador--feito"
-                              : c.kit_status === "montado"
-                                ? "marcador--parcial"
-                                : ""
-                          }`}
-                        >
-                          {c.kit_status.slice(0, 4)}
+                      </td>
+                      <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          <span
+                            className={`marcador ${
+                              c.kit_status === "entregue"
+                                ? "marcador--feito"
+                                : c.kit_status === "montado"
+                                  ? "marcador--parcial"
+                                  : ""
+                            }`}
+                          >
+                            {c.kit_status.slice(0, 4)}
+                          </span>
                         </span>
-                      </span>
-                    </td>
-                    {mostrarCheckin && (
+                      </td>
+                      </>
+                    )}
+                    {mostrarCheckin && !estreita && (
                       <td>
                         <span className="celula" style={{ cursor: "default" }}>
                           <span className={`marcador ${c.checkin_em ? "marcador--feito" : ""}`}>
@@ -795,7 +897,12 @@ export default function Criancas() {
                     {/* Duas acoes por linha, e as duas a um clique: com so
                         isso, o menu de tres pontinhos cobrava um clique a mais
                         para chegar na ficha — a acao mais comum da planilha. O
-                        X continua abrindo a janela de confirmacao. */}
+                        X continua abrindo a janela de confirmacao.
+
+                        No celular fica so o olho, e maior: o apagar e acao de
+                        planilha, e a planilha inteira mora na tela grande —
+                        alem de ser o vizinho mais perigoso que um dedo podia
+                        ter ao lado da acao que se repete em toda linha. */}
                     <td className="planilha__acoes">
                       <span className="acoes-icone">
                         <BotaoIcone
@@ -803,9 +910,9 @@ export default function Criancas() {
                           tamanho="sm"
                           onClick={() => definirFichaAberta(c.id)}
                         >
-                          <Olho />
+                          <Olho t={estreita ? 20 : undefined} />
                         </BotaoIcone>
-                        {podeEditar && (
+                        {podeEditar && !estreita && (
                           <BotaoIcone
                             perigo
                             titulo={`Apagar ${c.nome}`}
@@ -837,7 +944,7 @@ export default function Criancas() {
             </div>
           )}
 
-          {podeEditar && marcadas.length > 0 && (
+          {podeEditar && !estreita && marcadas.length > 0 && (
             <div className="lote">
               <span className="lote__texto">{marcadas.length} marcada(s)</span>
               <Selecao

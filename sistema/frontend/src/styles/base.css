@@ -670,6 +670,14 @@ textarea.campo__controle {
   margin-bottom: 0;
 }
 
+/* Campo sozinho na barra ocupa a linha inteira. Acontece no celular, onde a
+   lista de criancas fica so com a busca por nome: como item de flex sem mais
+   ninguem ao lado, ele nasceria do tamanho do texto do placeholder e deixaria
+   meia tela de vao a direita. */
+.barra-acoes > .campo:only-child {
+  flex: 1 1 100%;
+}
+
 .barra-acoes > .botao,
 .barra-acoes .barra-acoes__ponta > .botao,
 .barra-acoes .campo__controle {
@@ -1110,8 +1118,70 @@ textarea.campo__controle {
   padding-bottom: var(--space-2);
   margin-bottom: var(--space-4);
   border-bottom: var(--stroke-hairline) solid var(--border-default);
-  /* Com 20+ instituicoes a barra rola; a rolagem fica discreta. */
   scrollbar-width: thin;
+}
+
+/* ---------- Faixa de abas com chevron nas pontas ----------
+   Numa cidade grande sao 20+ instituicoes, e elas nao cabem na largura da
+   tela. A barra de rolagem dava conta, mas em silencio: fina, aparecendo so
+   quando o ponteiro chega perto, sem dizer que ha mais coisa do outro lado.
+   O chevron diz. O filete e as margens sobem da faixa de abas para este
+   involucro, senao a linha passaria por baixo das abas e por cima dos
+   chevrons, em alturas diferentes. */
+.faixa-abas {
+  display: flex;
+  /* stretch, e nao center: o chevron acompanha a altura da aba (que tem duas
+     linhas), e os tres viram um bloco so. */
+  align-items: stretch;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: var(--stroke-hairline) solid var(--border-default);
+}
+
+.abas--rolavel {
+  flex: 1;
+  /* Sem isto o item flex nao encolhe abaixo do conteudo: a faixa esticaria a
+     pagina inteira para a direita em vez de rolar por dentro dela. */
+  min-width: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+  /* A barra sai de cena; quem passa de lado agora e o chevron. A rolagem em
+     si continua ligada, entao o arrasto por trackpad segue funcionando. */
+  scrollbar-width: none;
+}
+
+.abas--rolavel::-webkit-scrollbar {
+  display: none;
+}
+
+.faixa-abas__seta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text-on-light-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.faixa-abas__seta:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Na ponta o chevron fica apagado, e nao some: sumir mudaria a largura da
+   faixa no meio do caminho, e as abas andariam sozinhas debaixo do ponteiro
+   justo no clique seguinte. */
+.faixa-abas__seta:disabled {
+  color: var(--color-disabled-text);
+  border-color: var(--border-light);
+  cursor: default;
 }
 
 .aba {
@@ -1285,9 +1355,57 @@ textarea.campo__controle {
    A largura propria e a mesma para as duas planilhas — na de padrinhos, que
    tem menos colunas, ela so deixa as de texto mais folgadas. */
 @media (max-width: 1279px) {
-  .planilha {
+  .planilha:not(.planilha--compacta) {
     min-width: 1200px;
   }
+}
+
+/* ---------- A mesma planilha no celular ----------
+ *
+ * Ate 720px a lista nao tenta ser planilha: ficam codigo, nome, padrinhos e o
+ * botao da ficha — o suficiente para achar a crianca e ver o que falta nela —
+ * e as outras nove colunas viram a ficha, que ja existia e ja traz tudo.
+ *
+ * Quem tira as colunas e o JSX (`useTelaEstreita`), nao este arquivo: numa
+ * tabela `fixed`, `display: none` na celula deixa o <col> reservando a largura
+ * dela, e a coluna sumia da vista sem devolver o espaco. Aqui ficam so as
+ * consequencias: sem largura minima, a lista cabe na tela e nao rola de lado.
+ */
+.planilha--compacta {
+  min-width: 0;
+}
+
+/* Linha de 48px, e nao de 29: o alvo aqui e um dedo, e o mesmo dedo esta
+   rolando a lista — com a altura do desktop, encostar na linha certa vira
+   sorte. Os 20px vem da celula, e nao de um `height` na linha: assim o texto
+   segue cortado com reticencias (o `.celula` continua block) e o alinhamento
+   vertical do <td> centraliza o que for mais baixo.
+
+   48 e o alvo de toque que Android e iOS pedem, e e o que o olho da acao ao
+   lado tambem mede. */
+.planilha--compacta td {
+  padding: 10px 0;
+}
+
+.planilha--compacta .botao-icone--sm {
+  width: 40px;
+  height: 40px;
+}
+
+/* A linha toda abre a ficha, entao ela toda se comporta como alvo: sem cursor
+   de texto herdado da celula, e com o realce no :active — em tela de toque nao
+   existe hover, e sem esse piscar nada confirma que o dedo pegou a linha certa
+   antes de a ficha abrir. */
+.planilha--compacta tbody tr {
+  cursor: pointer;
+}
+
+.planilha--compacta tbody tr:active td {
+  background: var(--cream-100);
+}
+
+.planilha--compacta tbody .celula {
+  cursor: pointer;
 }
 
 /* O texto que nao couber na largura fixa e cortado com reticencias, em vez de
@@ -1373,6 +1491,12 @@ textarea.campo__controle {
   text-align: center;
 }
 
+/* A mesma conta de altura das outras celulas, por cima de um botao de 40:
+   4 + 40 + 4 da os mesmos 48 da linha, e a coluna nao e quem manda na altura. */
+.planilha--compacta .planilha__acoes {
+  padding: 4px !important;
+}
+
 /* ---------- Celula que vira campo ao clicar ---------- */
 .celula {
   display: block;
@@ -1400,6 +1524,18 @@ textarea.campo__controle {
   outline: none;
   border-color: var(--color-primary);
   background: var(--white);
+}
+
+/* Celula que nunca vira campo — porque quem ve nao pode editar, ou porque o
+   toque no celular abriria o teclado em quem so queria rolar a lista. Sem o
+   cursor de texto e sem a borda no hover, ela para de prometer o clique que
+   nao acontece. */
+.celula--fixa {
+  cursor: default;
+}
+
+.celula--fixa:hover {
+  border-color: transparent;
 }
 
 .celula--vazia {
@@ -1531,11 +1667,14 @@ textarea.campo__controle {
 
 /* ---------- Onde cada tabela comeca a rolar ----------
  *
- * No celular e no tablet a planilha continua inteira e rola de lado. Nenhuma
- * coluna e escondida: `display: none` na celula NAO tira a coluna de uma
- * tabela `fixed` — o <col> segue reservando o espaco dela — entao esconder
- * colunas espremia as que ficavam em vez de dar lugar a elas, e levava junto a
- * coluna de acoes, sem a qual nao se abre a ficha de ninguem.
+ * No tablet a planilha continua inteira e rola de lado; abaixo de 720px ela
+ * passa a `.planilha--compacta`, com quatro colunas so, e nao rola mais.
+ *
+ * Nenhuma das duas esconde coluna por CSS: `display: none` na celula NAO tira
+ * a coluna de uma tabela `fixed` — o <col> segue reservando o espaco dela —
+ * entao esconder colunas espremia as que ficavam em vez de dar lugar a elas, e
+ * levava junto a coluna de acoes, sem a qual nao se abre a ficha de ninguem.
+ * Quem decide o que existe no HTML e a pagina.
  *
  * A aparencia da dica e uma so; quem decide quando ela aparece sao as duas
  * regras de largura abaixo. */
