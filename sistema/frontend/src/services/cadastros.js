@@ -25,10 +25,15 @@ export const criarDia = (edicaoId, dados) => api.post(`/edicoes/${edicaoId}/dias
 export const apagarDia = (edicaoId, diaId) =>
   api.delete(`/edicoes/${edicaoId}/dias/${diaId}`);
 
-/** O dia e da instituicao: definir aqui move todas as criancas dela. */
-export const definirDiaDaInstituicao = (edicaoId, instituicaoId, diaEventoId) =>
+/** O dia e da instituicao: definir aqui move todas as criancas dela.
+ *
+ * `onibus` indefinido deixa o transporte como esta — so quem manda o numero
+ * quer muda-lo.
+ */
+export const definirDiaDaInstituicao = (edicaoId, instituicaoId, diaEventoId, onibus) =>
   api.put(`/edicoes/${edicaoId}/instituicoes/${instituicaoId}/dia`, {
     dia_evento_id: diaEventoId,
+    ...(onibus === undefined ? {} : { onibus }),
   });
 
 // Instituicoes

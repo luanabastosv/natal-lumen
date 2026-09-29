@@ -307,7 +307,12 @@ def definir_dia_da_instituicao(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, "Este dia nao e desta edicao."
             )
 
-    quantas = dias.definir(db, edicao_id, instituicao_id, dados.dia_evento_id)
+    quantas = dias.definir(
+        db, edicao_id, instituicao_id, dados.dia_evento_id, dados.onibus
+    )
+    # Lido depois de gravar: `definir` pode ter criado a ligacao agora, e
+    # quando `onibus` vem omitido o numero certo e o que ja estava la.
+    onibus = dias.onibus_da_instituicao(db, edicao_id, instituicao_id)
 
     registrar(
         db, "dia_da_instituicao", usuario_id=ctx.usuario.id,
@@ -316,6 +321,7 @@ def definir_dia_da_instituicao(
             "edicao_id": edicao_id,
             "instituicao_id": instituicao_id,
             "dia_evento_id": dados.dia_evento_id,
+            "onibus": onibus,
             "criancas": quantas,
         },
     )
@@ -325,6 +331,7 @@ def definir_dia_da_instituicao(
         instituicao_id=instituicao_id,
         instituicao=instituicao.nome,
         dia_evento_id=dados.dia_evento_id,
+        onibus=onibus,
         criancas_atualizadas=quantas,
     )
 

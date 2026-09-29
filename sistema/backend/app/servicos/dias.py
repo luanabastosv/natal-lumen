@@ -21,12 +21,31 @@ def dia_da_instituicao(db: Session, edicao_id: int, instituicao_id: int) -> int 
     )
 
 
+def onibus_da_instituicao(db: Session, edicao_id: int, instituicao_id: int) -> int:
+    """Quantos onibus buscam esta instituicao nesta edicao. Sem dia, zero."""
+    return (
+        db.scalar(
+            select(InstituicaoDia.onibus).where(
+                InstituicaoDia.edicao_id == edicao_id,
+                InstituicaoDia.instituicao_id == instituicao_id,
+            )
+        )
+        or 0
+    )
+
+
 def definir(
-    db: Session, edicao_id: int, instituicao_id: int, dia_evento_id: int | None
+    db: Session,
+    edicao_id: int,
+    instituicao_id: int,
+    dia_evento_id: int | None,
+    onibus: int | None = None,
 ) -> int:
     """Marca o dia da instituicao e leva todas as criancas dela junto.
 
-    dia_evento_id None desmarca. Devolve quantas criancas foram atualizadas.
+    dia_evento_id None desmarca. `onibus` None deixa o numero como esta — quem
+    so troca o dia de uma instituicao nao perde o transporte ja combinado.
+    Devolve quantas criancas foram atualizadas.
     """
     ligacao = db.scalar(
         select(InstituicaoDia).where(
@@ -36,6 +55,8 @@ def definir(
     )
 
     if dia_evento_id is None:
+        # Desmarcar o dia leva o numero de onibus junto, e esta certo: onibus e
+        # o transporte PARA aquele dia. Sem dia nao ha o que transportar.
         if ligacao is not None:
             db.delete(ligacao)
     elif ligacao is None:
@@ -44,10 +65,13 @@ def definir(
                 edicao_id=edicao_id,
                 instituicao_id=instituicao_id,
                 dia_evento_id=dia_evento_id,
+                onibus=onibus or 0,
             )
         )
     else:
         ligacao.dia_evento_id = dia_evento_id
+        if onibus is not None:
+            ligacao.onibus = onibus
 
     # Em massa: numa instituicao de 300 criancas, uma a uma seria lento e o
     # resultado, o mesmo.

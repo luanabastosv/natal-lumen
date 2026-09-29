@@ -69,12 +69,16 @@ class DiaOut(BaseModel):
 class DiaDaInstituicaoIn(BaseModel):
     # None desmarca o dia da instituicao.
     dia_evento_id: int | None = None
+    # Quantos onibus buscam a instituicao nesse dia. Omitido deixa o numero
+    # como esta — quem so corrige o dia nao zera o transporte ja combinado.
+    onibus: int | None = Field(default=None, ge=0, le=99)
 
 
 class DiaDaInstituicaoOut(BaseModel):
     instituicao_id: int
     instituicao: str
     dia_evento_id: int | None
+    onibus: int
     criancas_atualizadas: int
 
 
@@ -113,6 +117,9 @@ class InstituicaoOut(BaseModel):
     dia_evento_id: int | None = None
     dia_evento: date | None = None
     dia_evento_descricao: str | None = None
+    # Onibus e por edicao e so existe junto com o dia: sem dia marcado nao ha
+    # transporte combinado, e o numero e zero.
+    onibus: int = 0
     criancas: int = 0
     # Quantos codigos de criancas mudaram de prefixo junto com a sigla. So a
     # edicao preenche; a tela usa para avisar que a planilha mudou.

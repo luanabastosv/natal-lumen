@@ -155,6 +155,7 @@ class InstituicaoDia(Base):
     __tablename__ = "instituicao_dia"
     __table_args__ = (
         UniqueConstraint("edicao_id", "instituicao_id", name="uq_instituicao_dia"),
+        CheckConstraint("onibus >= 0", name="ck_instituicao_dia_onibus"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -166,6 +167,14 @@ class InstituicaoDia(Base):
     )
     dia_evento_id: Mapped[int] = mapped_column(
         ForeignKey("dias_evento.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Quantos onibus buscam esta instituicao no dia dela. Mora aqui, e nao no
+    # cadastro da instituicao, porque e numero de UM ano: a escola que precisou
+    # de dois onibus em 2026 pode precisar de um em 2027. Zero e o estado
+    # honesto de quem ainda nao fechou o transporte — e nao "nao precisa".
+    onibus: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
     )
 
     edicao: Mapped["Edicao"] = relationship()

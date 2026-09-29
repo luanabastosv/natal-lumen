@@ -34,6 +34,7 @@ const VAZIO = {
   nome: "",
   sigla: "",
   dia_evento_id: "",
+  onibus: "",
   responsavel: "",
   telefone: "",
   endereco: "",
@@ -116,6 +117,9 @@ export default function Instituicoes() {
       nome: inst.nome,
       sigla: inst.sigla ?? "",
       dia_evento_id: inst.dia_evento_id ?? "",
+      // Zero e "ainda nao fechei o transporte", e o campo mostra isso vazio:
+      // um "0" escrito se leria como uma decisao ja tomada.
+      onibus: inst.onibus ? String(inst.onibus) : "",
       responsavel: inst.responsavel ?? "",
       telefone: inst.telefone ?? "",
       endereco: inst.endereco ?? "",
@@ -147,15 +151,19 @@ export default function Instituicoes() {
         ? await editarInstituicao(emEdicao.id, corpo)
         : await criarInstituicao({ ...corpo, cidade_id: Number(campos.cidade_id) });
 
-      // O dia vive noutra tabela (e por edicao), entao vai numa chamada
-      // propria — mas do ponto de vista de quem preenche e o mesmo cadastro.
+      // O dia e os onibus vivem noutra tabela (e sao por edicao), entao vao
+      // numa chamada propria — mas do ponto de vista de quem preenche e o
+      // mesmo cadastro.
       const diaMudou =
         String(campos.dia_evento_id ?? "") !== String(emEdicao?.dia_evento_id ?? "");
-      if (edicaoAtiva && diaMudou && cidadeBateComEdicao) {
+      const onibusMudou =
+        String(campos.onibus ?? "") !== (emEdicao?.onibus ? String(emEdicao.onibus) : "");
+      if (edicaoAtiva && (diaMudou || onibusMudou) && cidadeBateComEdicao) {
         await definirDiaDaInstituicao(
           Number(edicaoAtiva),
           salva.id,
           campos.dia_evento_id ? Number(campos.dia_evento_id) : null,
+          Number(campos.onibus) || 0,
         );
       }
 
@@ -319,6 +327,23 @@ export default function Instituicoes() {
               ))}
             </Selecao>
 
+            {/* Anda junto com o dia: onibus e o transporte PARA aquele dia, e
+                sem dia marcado nao ha o que combinar. */}
+            <Entrada
+              rotulo="Ônibus"
+              tipo="number"
+              min={0}
+              max={99}
+              value={campos.onibus}
+              onChange={(e) => mudar("onibus", e.target.value)}
+              disabled={!edicaoAtiva || !campos.dia_evento_id || !cidadeBateComEdicao}
+              dica={
+                campos.dia_evento_id
+                  ? "Quantos ônibus buscam esta instituição no dia dela."
+                  : "Marque o dia acima para combinar o transporte."
+              }
+            />
+
             <Entrada
               rotulo="Responsável"
               value={campos.responsavel}
@@ -367,6 +392,7 @@ export default function Instituicoes() {
                 <th>Nome</th>
                 <th>Sigla</th>
                 <th>Dia do evento</th>
+                <th>Ônibus</th>
                 <th>Crianças</th>
                 <th>Responsável</th>
                 <th>Telefone</th>
@@ -391,6 +417,9 @@ export default function Instituicoes() {
                       <span className="dia-vazio">sem dia</span>
                     )}
                   </td>
+                  {/* Zero aparece como travessao: o transporte ainda nao foi
+                      combinado, e um "0" se leria como "nao precisa". */}
+                  <td>{i.onibus || "—"}</td>
                   <td>{i.criancas}</td>
                   <td>{i.responsavel ?? "—"}</td>
                   <td>{i.telefone ?? "—"}</td>
