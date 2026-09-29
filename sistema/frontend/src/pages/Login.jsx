@@ -39,18 +39,12 @@ export default function Login() {
       <div className="acesso__cartao">
         <div className="acesso__marca">
           <img
-            src="/acesso/images/star-mascot-outline.svg"
+            src="/acesso/images/star-mascot-amarelo.svg"
             alt=""
             className="acesso__mascote"
           />
           <span className="acesso__nome">Natal Lumen</span>
         </div>
-
-        <h1 className="acesso__titulo">Entrar no sistema</h1>
-        <p className="acesso__lede">
-          Acesso restrito à equipe. Se ainda não tem conta, fale com a coordenação da
-          sua cidade.
-        </p>
 
         <Mensagem tipo="erro">{erro}</Mensagem>
 
