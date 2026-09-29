@@ -984,6 +984,28 @@ textarea.campo__controle {
   color: var(--text-on-light-secondary);
 }
 
+/* A coluna Situacao: a etiqueta em cima, o ultimo acesso embaixo. A etiqueta
+   responde "esta conta funciona?" e a linha de baixo "essa pessoa anda
+   entrando?" — perguntas vizinhas, entao ficam na mesma coluna, e nao numa
+   sexta coluna que apertaria as outras cinco. */
+.situacao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Mesmo degrau de apoio das instituicoes no vinculo: le-se depois da etiqueta,
+   nao no lugar dela. */
+.situacao__acesso {
+  font-size: var(--size-caption);
+  line-height: var(--lh-caption);
+  color: var(--text-on-light-secondary);
+  /* "Entrou ha 3 dias" nao ganha nada quebrando em duas linhas dentro da
+     celula. */
+  white-space: nowrap;
+}
+
 /* ---------- Numeros do painel ---------- */
 .numeros {
   display: grid;

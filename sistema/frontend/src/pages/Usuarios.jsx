@@ -25,6 +25,7 @@ import {
   gerarLinkDeAcesso,
   listarUsuarios,
 } from "../services/usuarios.js";
+import { formatarDataHora, tempoDesde } from "../utils/dinheiro.js";
 
 /* O que a janela de exclusao diz alem da conta. Desativar guarda o historico e
    e quase sempre o caminho certo; apagar existe para a conta que nunca deveria
@@ -313,6 +314,17 @@ export default function Usuarios() {
     return ["ok", "Ativo"];
   }
 
+  /* A linha de apoio da coluna Situacao. A etiqueta diz se a conta funciona;
+     esta linha diz se a pessoa anda entrando — sao duas perguntas diferentes
+     sobre a mesma conta, e a segunda e a que revela quem nunca comecou.
+
+     Volta nulo quando a etiqueta ja respondeu: "Aguardando 1º acesso" nao
+     precisa de um "Nunca acessou" logo embaixo dizendo o mesmo. */
+  function ultimoAcesso(u) {
+    if (u.ultimo_login) return `Entrou ${tempoDesde(u.ultimo_login)}`;
+    return u.tem_senha ? "Nunca acessou" : null;
+  }
+
   if (carregando) return <Carregando tela>Carregando usuários...</Carregando>;
 
   return (
@@ -475,6 +487,7 @@ export default function Usuarios() {
             <tbody>
               {daEdicao.map((u) => {
                 const [tom, rotulo] = situacao(u);
+                const acesso = ultimoAcesso(u);
                 return (
                   <tr key={u.id}>
                     <td>
@@ -546,7 +559,19 @@ export default function Usuarios() {
                     </td>
 
                     <td>
-                      <span className={`etiqueta etiqueta--${tom}`}>{rotulo}</span>
+                      <div className="situacao">
+                        <span className={`etiqueta etiqueta--${tom}`}>{rotulo}</span>
+                        {acesso && (
+                          <span
+                            className="situacao__acesso"
+                            title={
+                              u.ultimo_login ? formatarDataHora(u.ultimo_login) : undefined
+                            }
+                          >
+                            {acesso}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="tabela__acoes">
                       <MenuAcoes
