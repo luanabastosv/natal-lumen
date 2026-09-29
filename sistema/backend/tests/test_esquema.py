@@ -201,7 +201,16 @@ def main() -> None:
 
         print("\nAcesso")
         perfil_comissario = db.query(Perfil).filter_by(nome="Comissario").one()
-        verifica("seed criou o perfil Comissario com 4 permissoes", len(perfil_comissario.permissoes) == 4)
+        # Conferido contra o seed, e nao contra um numero: quando o perfil
+        # mudar — como mudou ao ganhar ver_painel — o teste acompanha sozinho,
+        # e ainda assim avisa se a base ficou para tras da migracao.
+        from app.seeds.perfis_permissoes import PERFIS
+
+        verifica(
+            "o perfil Comissario na base tem as permissoes do seed",
+            {perm.codigo for perm in perfil_comissario.permissoes}
+            == set(PERFIS["Comissario"][1]),
+        )
 
         user = Usuario(nome=f"{MARCA} Maria", email=f"{MARCA.lower()}@exemplo.org")
         db.add(user)

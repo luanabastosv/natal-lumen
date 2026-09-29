@@ -1,7 +1,10 @@
 """Painel da edicao: o apadrinhamento de cesta e de festa, e quem falta.
 
 Todos os numeros passam pelo mesmo filtro das telas: quem so alcanca algumas
-instituicoes ve os numeros dessas instituicoes, e nao da edicao inteira.
+instituicoes ve os numeros dessas instituicoes, e nao da edicao inteira. Com o
+comissario o filtro vai mais fundo — crianca a crianca — e o painel entao deixa
+de ser o da edicao para ser o dele: as criancas que estao na mao dele, e quanto
+ainda falta apadrinhar delas.
 """
 
 from typing import Annotated
@@ -69,6 +72,18 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         ).all()
     )
 
+    # Crianca completa: tem cesta E festa. Conta uma vez por crianca, entao sai
+    # de um agrupamento — somar os dois tipos contaria a completa duas vezes.
+    completas = db.scalar(
+        select(func.count()).select_from(
+            select(Apadrinhamento.crianca_id)
+            .where(Apadrinhamento.crianca_id.in_(criancas_visiveis))
+            .group_by(Apadrinhamento.crianca_id)
+            .having(func.count(func.distinct(Apadrinhamento.tipo)) == 2)
+            .subquery()
+        )
+    ) or 0
+
     resumo = ResumoEdicao(
         edicao_id=edicao.id,
         edicao=edicao.nome,
@@ -78,12 +93,23 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         instituicoes=instituicoes,
         cesta_feitos=por_tipo.get(CESTA, 0),
         festa_feitos=por_tipo.get(FESTA, 0),
+        completas=completas,
     )
+
+    # O comissario ja esta vendo so as criancas dele — a quebra por comissario
+    # nao tem o que quebrar, e traria os colegas todos zerados. Ela e da
+    # coordenacao, que e quem distribui a lista e cobra o time.
+    so_minhas_criancas = ctx.so_proprias_criancas(edicao_id)
 
     return Relatorio(
         resumo=resumo,
+        so_minhas_criancas=so_minhas_criancas,
         por_instituicao=_por_instituicao(db, alcance),
-        por_comissario=_por_comissario(db, alcance, criancas_visiveis, edicao_id),
+        por_comissario=(
+            []
+            if so_minhas_criancas
+            else _por_comissario(db, alcance, criancas_visiveis, edicao_id)
+        ),
     )
 
 

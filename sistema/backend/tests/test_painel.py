@@ -4,7 +4,9 @@ Dois pontos delicados. O primeiro: os numeros tem de respeitar o mesmo filtro
 das telas — quem so alcanca uma instituicao ve os numeros dela, nao os da
 edicao inteira. O segundo: a lista de comissarios comeca pelo TIME da edicao, e
 nao pelas criancas atribuidas, senao o comissario sem nenhuma crianca na mao —
-que e exatamente quem a coordenacao precisa achar — nao apareceria.
+que e exatamente quem a coordenacao precisa achar — nao apareceria. O terceiro:
+o comissario tambem abre o painel, e o que ele ve nao e a edicao, e o time
+dele — o mesmo filtro, so que crianca a crianca.
 
 Rodar com:  python -m tests.test_painel
 """
@@ -212,6 +214,10 @@ def main() -> None:
                  resumo.get("cesta_feitos") == 3, str(resumo.get("cesta_feitos")))
         verifica("conta 1 festa apadrinhada",
                  resumo.get("festa_feitos") == 1, str(resumo.get("festa_feitos")))
+        verifica("conta 1 crianca completa — so a A1 tem os dois",
+                 resumo.get("completas") == 1, str(resumo.get("completas")))
+        verifica("para a coordenacao o painel e o da edicao, nao o dela",
+                 rel.get("so_minhas_criancas") is False, str(rel.get("so_minhas_criancas")))
         verifica("o painel nao carrega mais numero que nao seja de apadrinhamento",
                  not (set(resumo) & {"cartoes_digitalizados", "kits_entregues", "valor_pago",
                                      "checkin_feitos", "compras_total"}),
@@ -307,6 +313,31 @@ def main() -> None:
 
         perfil_monitor.permissoes.remove(ver_painel)
         db.commit()
+
+        print("\nO painel do comissario e o das criancas dele")
+        cm = TestClient(app); entrar(cm, com_a.email)
+        r = cm.get(f"/painel/{edicao.id}")
+        verifica("o comissario ve o painel", r.status_code == 200, r.text[:140])
+        meu = r.json() if r.status_code == 200 else {}
+        meu_resumo = meu.get("resumo", {})
+
+        # Dele sao a A1 (cesta + festa) e a A3 (nenhum padrinho). As outras tres
+        # criancas da edicao nao entram em numero nenhum daqui.
+        verifica("conta so as 2 criancas atribuidas a ele",
+                 meu_resumo.get("criancas") == 2, str(meu_resumo.get("criancas")))
+        verifica("cesta e festa contam so o que e dele",
+                 (meu_resumo.get("cesta_feitos"), meu_resumo.get("festa_feitos")) == (1, 1),
+                 f"{meu_resumo.get('cesta_feitos')}/{meu_resumo.get('festa_feitos')}")
+        verifica("uma das duas esta completa — e a outra e o que falta a ele",
+                 meu_resumo.get("completas") == 1, str(meu_resumo.get("completas")))
+        verifica("a tela sabe que este painel e o dele",
+                 meu.get("so_minhas_criancas") is True, str(meu.get("so_minhas_criancas")))
+        verifica("a quebra por comissario nao vai para o comissario",
+                 meu.get("por_comissario") == [], str(meu.get("por_comissario")))
+        verifica("a quebra por instituicao traz so a dele, com as 2 criancas",
+                 [(l["instituicao"], l["criancas"]) for l in meu.get("por_instituicao", [])]
+                 == [(f"{MARCA} Escola A", 2)],
+                 str(meu.get("por_instituicao")))
 
         print("\nAlcance")
         outra = Edicao(cidade_id=cidade.id, ano=2027, nome=f"{MARCA} Outra",

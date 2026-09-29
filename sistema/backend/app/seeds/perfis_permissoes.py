@@ -45,8 +45,10 @@ PERMISSOES: dict[str, str] = {
 # ela tambem faz — limitadas a sua CIDADE: o unico alcance que ela nao tem e o
 # de cidades e edicoes, que fica so com a administracao geral, porque e de la
 # que a propria cidade dela nasce.
-# Nota: ver_painel so aparece na coordenacao — a especificacao nao a atribui
-# aos outros perfis. Se o painel tiver de abrir para todos, e acrescentar
+# Nota: ver_painel vale para a coordenacao e para o comissario, e os dois veem
+# coisas diferentes com ela — a coordenacao, a edicao inteira; o comissario, so
+# as criancas atribuidas a ele, porque o painel passa pelo mesmo filtro das
+# telas. Monitor e estrutura seguem sem. Para abrir para eles e acrescentar
 # "ver_painel" aqui (ou na base, sem mexer no codigo).
 PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
     "Coordenacao": (
@@ -56,6 +58,7 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
     "Comissario": (
         "Capta padrinhos e envia os cartoes",
         (
+            "ver_painel",
             "ver_criancas",
             "ver_padrinhos",
             "editar_padrinhos",

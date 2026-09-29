@@ -137,6 +137,18 @@ class ContextoAcesso:
             v.edicao_id == edicao_id and permissao in v.permissoes for v in self.vinculos
         )
 
+    def so_proprias_criancas(self, edicao_id: int) -> bool:
+        """Se, nesta edicao, o usuario so alcanca as criancas atribuidas a ele.
+
+        E o comissario. Quem pergunta e o painel, para falar dos numeros DELE
+        em vez dos da edicao — sem precisar saber qual perfil e filtrado assim.
+        """
+        if self.admin_geral:
+            return False
+        return any(
+            v.edicao_id == edicao_id and v.filtrado_por_crianca for v in self.vinculos
+        )
+
     def alcanca_instituicao(self, edicao_id: int, instituicao_id: int) -> bool:
         """Se a instituicao esta no alcance do usuario naquela edicao."""
         if self.admin_geral:

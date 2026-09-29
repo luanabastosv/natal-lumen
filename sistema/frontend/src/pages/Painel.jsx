@@ -15,6 +15,25 @@ function plural(n, um, muitos) {
   return `${n} ${n === 1 ? um : muitos}`;
 }
 
+/** A frase de abertura do comissario: o trabalho dele, em uma linha.
+ *
+ * A coordenacao abre com um panorama porque decide olhando o conjunto. O
+ * comissario nao: ele abre o sistema para saber quantas criancas ainda
+ * dependem dele hoje, e essa e a unica coisa que a frase precisa dizer.
+ */
+function ledeDoComissario(r) {
+  if (r.criancas === 0) {
+    return "Assim que a coordenação atribuir crianças a você, elas aparecem aqui.";
+  }
+
+  const faltam = r.criancas - r.completas;
+  if (faltam === 0) {
+    return `Suas ${r.criancas} crianças já têm padrinho de cesta e de festa. Obrigada!`;
+  }
+
+  return `Você ainda tem ${plural(faltam, "criança", "crianças")} para apadrinhar.`;
+}
+
 export default function Painel() {
   const { usuario, pode, vinculoAtivo, edicao, edicaoAtiva } = useSessao();
 
@@ -42,6 +61,14 @@ export default function Painel() {
   }, [podeVerNumeros, edicaoAtiva]);
 
   const r = relatorio?.resumo;
+  // Quem responde por criancas atribuidas a ele — o comissario — ve o painel
+  // DELE. Quem diz isso e o backend, junto com os numeros que ja vieram
+  // filtrados; a tela nao olha o nome do perfil.
+  const soMinhas = Boolean(relatorio?.so_minhas_criancas);
+  // Comissario sem nenhuma crianca atribuida: tres zeros nao explicam nada,
+  // uma frase sim. A edicao vazia da coordenacao continua mostrando os zeros —
+  // la eles sao a noticia.
+  const semCriancas = soMinhas && r?.criancas === 0;
 
   return (
     <div>
@@ -52,7 +79,9 @@ export default function Painel() {
           Olá, <span className="abertura__nome">{primeiroNome(usuario?.nome)}</span>!
         </h1>
         <p className="abertura__lede">
-          Acompanhe o panorama da edição e siga para o que precisa da sua mão.
+          {soMinhas && r
+            ? ledeDoComissario(r)
+            : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
         </p>
         <div className="abertura__contexto">
           {/* Qual edicao esta sendo vista. Trocar de edicao e na lateral: e
@@ -81,31 +110,48 @@ export default function Painel() {
 
           {podeVerNumeros && r && (
             <>
-              <h2 className="painel__titulo">{r.edicao}</h2>
+              <h2 className="painel__titulo">{soMinhas ? "Suas crianças" : r.edicao}</h2>
+
+              {semCriancas && (
+                <EmptyState
+                  titulo="Nenhuma criança na sua mão ainda"
+                  corpo="A coordenação é quem distribui as crianças entre os comissários. Assim que alguma for sua, ela aparece aqui e na tela de crianças."
+                />
+              )}
 
               {/* Cada crianca precisa de um padrinho de cesta e um de festa.
                   Os dois se comparam ao total de criancas, nunca entre si. */}
-              <div className="numeros">
-                <Numero
-                  rotulo="Crianças"
-                  valor={r.criancas}
-                  nota={plural(r.instituicoes, "instituição", "instituições")}
-                />
-                <Numero
-                  rotulo="Cesta apadrinhada"
-                  valor={r.cesta_feitos}
-                  de={r.criancas}
-                  tom="cesta"
-                  nota={`faltam ${r.criancas - r.cesta_feitos}`}
-                />
-                <Numero
-                  rotulo="Festa apadrinhada"
-                  valor={r.festa_feitos}
-                  de={r.criancas}
-                  tom="festa"
-                  nota={`faltam ${r.criancas - r.festa_feitos}`}
-                />
-              </div>
+              {!semCriancas && (
+                <div className="numeros">
+                  <Numero
+                    rotulo="Crianças"
+                    valor={r.criancas}
+                    nota={
+                      /* Para o comissario a instituicao nao e a informacao:
+                         ele quer saber quantas ja estao resolvidas. */
+                      soMinhas
+                        ? `${plural(r.completas, "completa", "completas")}, ${
+                            r.criancas - r.completas
+                          } a completar`
+                        : plural(r.instituicoes, "instituição", "instituições")
+                    }
+                  />
+                  <Numero
+                    rotulo="Cesta apadrinhada"
+                    valor={r.cesta_feitos}
+                    de={r.criancas}
+                    tom="cesta"
+                    nota={`faltam ${r.criancas - r.cesta_feitos}`}
+                  />
+                  <Numero
+                    rotulo="Festa apadrinhada"
+                    valor={r.festa_feitos}
+                    de={r.criancas}
+                    tom="festa"
+                    nota={`faltam ${r.criancas - r.festa_feitos}`}
+                  />
+                </div>
+              )}
 
               {relatorio.por_instituicao.length > 0 && (
                 <>
