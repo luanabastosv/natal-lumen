@@ -123,6 +123,13 @@ class Apadrinhamento(Base):
     pagamento_id: Mapped[int | None] = mapped_column(
         ForeignKey("pagamentos.id", ondelete="SET NULL"), index=True
     )
+    # Quem REGISTROU este apadrinhamento — na pratica o comissario que captou
+    # o padrinho. Nao e o mesmo que criancas.comissario_id (quem responde pela
+    # crianca), ainda que hoje os dois coincidam: um comissario so apadrinha as
+    # criancas da propria lista. Fica aqui porque um padrinho e captado por
+    # varios comissarios ao longo da campanha, e na ficha dele e preciso saber
+    # quem trouxe qual crianca — senao dois comissarios cobram o mesmo doador
+    # pela mesma cesta, ou nenhum cobra.
     comissario_id: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
@@ -130,6 +137,13 @@ class Apadrinhamento(Base):
     criado_em: Mapped[CriadoEm]
 
     crianca: Mapped["Crianca"] = relationship(back_populates="apadrinhamentos")  # noqa: F821
+    # Sem back_populates: ninguem pergunta a um usuario a lista de
+    # apadrinhamentos que ele registrou, e o caminho existe so para a ficha
+    # mostrar o nome. `foreign_keys` e obrigatorio porque a tabela tem outras
+    # chaves para usuarios.
+    comissario: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[comissario_id]
+    )
     padrinho: Mapped[Padrinho] = relationship(back_populates="apadrinhamentos")
     pagamento: Mapped[Pagamento | None] = relationship(back_populates="apadrinhamentos")
     envios: Mapped[list["EnvioCartao"]] = relationship(

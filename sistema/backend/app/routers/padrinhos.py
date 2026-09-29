@@ -4,6 +4,12 @@ Um padrinho pertence a uma edicao (cidade + ano) e nao persiste entre anos.
 Pode apadrinhar varias criancas, inclusive de outra cidade — e nesse caso o
 registro fica visivel pelos dois lados: pela edicao do padrinho e pela da
 crianca.
+
+Quem liga as duas pontas e o comissario, e cada apadrinhamento guarda qual foi
+(`apadrinhamentos.comissario_id`): o mesmo padrinho recebe criancas de
+comissarios diferentes, e sem isso ninguem sabe quem cobra o que. O outro lado
+da mesma moeda e a regra em `criar_apadrinhamento`: o comissario so apadrinha
+as criancas da propria lista.
 """
 
 from decimal import Decimal
@@ -101,6 +107,8 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
                 valor=a.valor,
                 pago=quitado,
                 vai_ao_evento=a.vai_ao_evento,
+                comissario_id=a.comissario_id,
+                comissario=a.comissario.nome if a.comissario else None,
                 cartao_status=ultimo.status if ultimo else None,
                 cartao_enviado_em=ultimo.criado_em if ultimo else None,
             )
@@ -132,6 +140,7 @@ def _carregar(db: Session, padrinho_id: int, ctx: ContextoAcesso, permissao: str
         .options(
             joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
         )
     )
@@ -171,6 +180,7 @@ def listar_padrinhos(
         .options(
             joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
         )
         .order_by(Padrinho.nome)
@@ -233,6 +243,26 @@ def editar_padrinho(padrinho_id: int, dados: PadrinhoEditar, db: BD, ctx: Editar
 
 # ---------------------------------------------------------- apadrinhamentos
 
+def _fora_do_alcance(crianca: Crianca) -> str:
+    """Por que esta crianca nao e desta pessoa, em portugues.
+
+    A decisao ja foi tomada pelo filtro do contexto; isto e so o recado. Os
+    casos estao separados porque cada um manda procurar outra pessoa: a
+    coordenacao, que distribui a lista, ou o colega que ja tem a crianca.
+    """
+    if crianca.comissario_id is None:
+        return (
+            "Esta crianca ainda nao tem comissario responsavel. Fale com a "
+            "coordenacao para recebe-la na sua lista."
+        )
+    if crianca.comissario is not None:
+        return (
+            f"Esta crianca esta na lista de {crianca.comissario.nome}. Cada "
+            "comissario so apadrinha as criancas atribuidas a ele."
+        )
+    return "Esta crianca nao esta na sua lista."
+
+
 @router.post("/apadrinhamentos", response_model=PadrinhoOut, status_code=status.HTTP_201_CREATED)
 def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
     """Liga uma crianca a um padrinho, num dos dois tipos."""
@@ -241,7 +271,7 @@ def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
     crianca = db.scalar(
         select(Crianca)
         .where(Crianca.id == dados.crianca_id)
-        .options(joinedload(Crianca.edicao))
+        .options(joinedload(Crianca.edicao), joinedload(Crianca.comissario))
     )
     if crianca is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
@@ -252,6 +282,23 @@ def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Voce nao registra apadrinhamento nesta edicao."
         )
+
+    # Alcancar a edicao nao basta: o comissario so apadrinha as criancas
+    # atribuidas a ele. Sem esta conferencia, a busca por codigo — que e um
+    # escape de proposito, para achar crianca de outra instituicao — virava um
+    # jeito de apadrinhar a crianca do colega, e o padrinho terminava com
+    # criancas que ninguem sabia de quem eram.
+    #
+    # A conferencia reusa a MESMA condicao SQL que filtra a lista de criancas,
+    # e nao uma copia da regra: assim os dois caminhos nao podem divergir. Para
+    # a coordenacao ela continua valendo a edicao inteira.
+    no_alcance = db.scalar(
+        select(Crianca.id).where(
+            Crianca.id == crianca.id, ctx.filtro_criancas("editar_padrinhos")
+        )
+    )
+    if no_alcance is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, _fora_do_alcance(crianca))
 
     valor = dados.valor
     if valor is None:

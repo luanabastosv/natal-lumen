@@ -2,8 +2,10 @@ import { useState } from "react";
 import Button from "../core/Button.jsx";
 import { Entrada, Selecao } from "../core/Campo.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
+import { useSessao } from "../../contexts/useSessao.js";
 import { listarCriancas } from "../../services/criancas.js";
 import { criarApadrinhamento } from "../../services/padrinhos.js";
+import { nomeCurto } from "../../utils/nomes.js";
 
 // Busca por codigo e o "escape" que alcanca qualquer instituicao das edicoes
 // do usuario, e cada uma fica registrada em log. Uma busca por codigo, uma
@@ -32,6 +34,7 @@ function separarCodigos(texto) {
  *    uma vez, e a lista chega colada de uma planilha.
  */
 export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
+  const { usuario } = useSessao();
   const [texto, definirTexto] = useState("");
   const [tipo, definirTipo] = useState("cesta");
   const [procurando, definirProcurando] = useState(false);
@@ -56,8 +59,34 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
     return tipo === "cesta" ? crianca.tem_padrinho_festa : crianca.tem_padrinho_cesta;
   }
 
+  /** Esta crianca nao e da lista de quem esta olhando?
+   *
+   *  A busca por codigo e um escape de proposito: ela ACHA crianca de qualquer
+   *  instituicao das suas edicoes. Mas achar nao e poder ligar — o comissario
+   *  so apadrinha as criancas atribuidas a ele, e o backend recusa as outras
+   *  com 403. Aqui a tela diz isso ANTES do clique, como ja faz com a crianca
+   *  que tem padrinho: quem confirma tem de saber o que vai acontecer.
+   *
+   *  Vale so para quem e filtrado crianca a crianca — `so_criancas_atribuidas`
+   *  no vinculo daquela edicao. Coordenacao e administracao geral alcancam a
+   *  edicao inteira e nao veem esta etiqueta nunca. */
+  function foraDaMinhaLista(crianca) {
+    if (!crianca || usuario.admin_geral) return false;
+    const vinculo = usuario.vinculos.find((v) => v.edicao_id === crianca.edicao_id);
+    if (!vinculo?.so_criancas_atribuidas) return false;
+    return crianca.comissario_id !== usuario.id;
+  }
+
+  // Vale a pena avisar antes de procurar? So para quem e filtrado por lista.
+  // Para a coordenacao a frase seria uma regra que nao se aplica a ela.
+  const soMinhaLista =
+    !usuario.admin_geral && usuario.vinculos.some((v) => v.so_criancas_atribuidas);
+
   const pendentes = resultados.filter(
-    (r) => r.estado === "pendente" && !jaApadrinhada(r.crianca),
+    (r) =>
+      r.estado === "pendente" &&
+      !jaApadrinhada(r.crianca) &&
+      !foraDaMinhaLista(r.crianca),
   );
 
   function mudarItem(codigo, mudanca) {
@@ -131,6 +160,7 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
       <p className="campo__dica" style={{ marginTop: 0 }}>
         Busque pelo código da criança — várias de uma vez, separadas por vírgula. A
         busca alcança qualquer instituição das suas edições e fica registrada.
+        {soMinhaLista && " Você liga só as crianças da sua lista."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -193,6 +223,7 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
 
           {resultados.map((r) => {
             const barrada = jaApadrinhada(r.crianca);
+            const fora = foraDaMinhaLista(r.crianca);
             return (
               <div key={r.codigo} className="ficha__linha">
                 <span
@@ -220,7 +251,25 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
                       já apadrinhada
                     </span>
                   )}
-                  {!barrada && jaTemOutro(r.crianca) && (
+                  {/* Antes das outras: nao e um aviso sobre o estado da
+                      crianca, e o motivo de nao haver botao nesta linha. */}
+                  {fora && (
+                    <span
+                      className="etiqueta etiqueta--parado"
+                      title={
+                        r.crianca.comissario
+                          ? `${r.crianca.nome} está na lista de ${r.crianca.comissario}. ` +
+                            "Cada comissário apadrinha as crianças atribuídas a ele."
+                          : `${r.crianca.nome} ainda não tem comissário responsável. ` +
+                            "Fale com a coordenação para recebê-la na sua lista."
+                      }
+                    >
+                      {r.crianca.comissario
+                        ? `é de ${nomeCurto(r.crianca.comissario)}`
+                        : "sem responsável"}
+                    </span>
+                  )}
+                  {!barrada && !fora && jaTemOutro(r.crianca) && (
                     <span
                       className="etiqueta etiqueta--neutra"
                       title="Já tem padrinho do outro tipo; este ainda está livre"
@@ -248,7 +297,7 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
 
                 {/* Contorno: o botao cheio da janela e o "Confirmar todas" la
                     em cima. Aqui e o atalho para ligar so esta. */}
-                {!barrada && (r.estado === "pendente" || r.estado === "salvando") && (
+                {!barrada && !fora && (r.estado === "pendente" || r.estado === "salvando") && (
                   <span className="ficha__linha-acoes">
                     <Button
                       variant="ghost"

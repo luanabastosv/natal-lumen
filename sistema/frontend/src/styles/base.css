@@ -2149,6 +2149,28 @@ textarea.campo__controle {
   flex: none;
 }
 
+/* Quem registrou o apadrinhamento, ao lado das etiquetas de estado sem ser
+   uma delas. A barra separa sem pesar: em pilula, "comissario: Maria" lia como
+   mais uma coisa a resolver, ao lado de "a pagar". Aqui e procedencia — quem
+   procura le, quem varre a lista passa por cima. */
+.ficha__linha-autor {
+  font-size: 11px;
+  /* 500, nao o 700/800 do resto da linha: e a unica coisa ali que nao pede
+     acao nenhuma. O peso e o que a faz recuar — quem varre a lista passa por
+     cima, quem procura de quem e a crianca ainda le sem esforco. */
+  font-weight: 500;
+  color: var(--text-on-light-muted);
+  white-space: nowrap;
+}
+
+.ficha__linha-autor::before {
+  content: "|";
+  /* Mais claro que o texto: o separador nao e informacao. */
+  color: var(--border-default);
+  font-weight: 400;
+  margin-right: 5px;
+}
+
 /* As acoes de cada vinculo moram aqui, e so aqui: na planilha elas se
    multiplicariam por crianca apadrinhada. */
 .ficha__linha-acoes {

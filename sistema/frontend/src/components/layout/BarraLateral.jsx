@@ -3,13 +3,7 @@ import { Configuracoes } from "../core/icones.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import MenuLateral from "./MenuLateral.jsx";
 import { ITEM_ADMIN } from "./menu.js";
-
-/** "Maria da Silva Souza" -> "Maria Souza": nome e sobrenome, sem os ligadores. */
-function nomeCurto(nome) {
-  const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
-  if (partes.length <= 1) return partes[0] ?? "";
-  return `${partes[0]} ${partes[partes.length - 1]}`;
-}
+import { nomeCurto } from "../../utils/nomes.js";
 
 function iniciais(nome) {
   return nomeCurto(nome)

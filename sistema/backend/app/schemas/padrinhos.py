@@ -39,6 +39,12 @@ class ApadrinhamentoResumo(BaseModel):
     valor: Decimal
     pago: bool
     vai_ao_evento: bool | None
+    # Quem registrou o apadrinhamento. Um padrinho recebe criancas de mais de
+    # um comissario, e na ficha dele a etiqueta e o unico jeito de saber quem
+    # trouxe qual — e, portanto, quem cobra qual. Vazio quando o comissario foi
+    # excluido do sistema depois (a FK e SET NULL).
+    comissario_id: int | None = None
+    comissario: str | None = None
     # Ultimo envio do cartao pelo WhatsApp: None = nunca tentou.
     cartao_status: str | None = None
     cartao_enviado_em: datetime | None = None

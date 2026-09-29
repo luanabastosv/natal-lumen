@@ -120,19 +120,38 @@ def main() -> None:
     ana = Crianca(edicao_id=e1.id, instituicao_id=i1.id, codigo="001", nome="Ana Clara Avila", idade=8, sexo="F")
     bruno = Crianca(edicao_id=e1.id, instituicao_id=i1.id, codigo="002", nome="Bruno Lima", idade=10, sexo="M")
     carla = Crianca(edicao_id=e2.id, instituicao_id=i2.id, codigo="001", nome="Carla Souza", idade=7, sexo="F")
-    db.add_all([ana, bruno, carla]); db.flush()
+    # As duas ultimas sao da MESMA escola do comissario, e existem para provar
+    # que a instituicao nao basta: uma e do colega, a outra nao tem responsavel.
+    duda = Crianca(edicao_id=e1.id, instituicao_id=i1.id, codigo="003", nome="Duda Rocha", idade=9, sexo="F")
+    elias = Crianca(edicao_id=e1.id, instituicao_id=i1.id, codigo="004", nome="Elias Pinto", idade=11, sexo="M")
+    db.add_all([ana, bruno, carla, duda, elias]); db.flush()
 
-    def usuario(sufixo, perfil, edicoes):
+    def usuario(sufixo, perfil, edicoes, instituicoes=()):
         u = Usuario(nome=f"{MARCA} {sufixo}", email=f"{MARCA.lower()}.{sufixo.lower()}@exemplo.org",
                     senha_hash=gerar_hash(SENHA))
         db.add(u); db.flush()
         for ed in edicoes:
-            db.add(UsuarioEdicao(usuario_id=u.id, edicao_id=ed, perfil_id=perfis[perfil].id))
+            vinculo = UsuarioEdicao(usuario_id=u.id, edicao_id=ed, perfil_id=perfis[perfil].id)
+            db.add(vinculo); db.flush()
+            for inst in instituicoes:
+                db.add(UsuarioInstituicao(usuario_edicao_id=vinculo.id, instituicao_id=inst))
         return u
 
     coord = usuario("Coord", "Coordenacao", [e1.id, e2.id])
-    comissario = usuario("Comissario", "Comissario", [e1.id])
+    comissario = usuario("Comissario", "Comissario", [e1.id], [i1.id])
+    # O colega do mesmo TIME da Escola A: alcanca a mesma instituicao, mas
+    # outras criancas.
+    colega = usuario("Colega", "Comissario", [e1.id], [i1.id])
     monitor = usuario("Monitor", "Monitor", [e1.id])
+    db.flush()
+
+    # Quem responde por quem. Sem isto o comissario nao alcanca crianca nenhuma:
+    # a instituicao e a cerca de fora, a atribuicao e a lista de dentro.
+    ana.comissario_id = comissario.id
+    bruno.comissario_id = comissario.id
+    carla.comissario_id = coord.id
+    duda.comissario_id = colega.id
+    # `elias` fica sem responsavel de proposito.
     db.commit()
 
     try:
@@ -174,6 +193,31 @@ def main() -> None:
         r = ck.post("/apadrinhamentos", json={"crianca_id": carla.id, "padrinho_id": jose["id"], "tipo": "cesta"})
         verifica("comissario de Fortaleza nao alcanca crianca de Caucaia", r.status_code == 403, str(r.status_code))
 
+        # A lista dele, e nao a escola dele: as duas abaixo sao da Escola A, que
+        # esta atribuida a ele, e as duas tem de ser recusadas.
+        r = ck.post("/apadrinhamentos", json={"crianca_id": duda.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        verifica("comissario nao apadrinha crianca da lista do colega",
+                 r.status_code == 403, str(r.status_code))
+        verifica("e o erro diz de quem ela e", "Colega" in r.text, r.text[:160])
+
+        r = ck.post("/apadrinhamentos", json={"crianca_id": elias.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        verifica("comissario nao apadrinha crianca sem responsavel",
+                 r.status_code == 403, str(r.status_code))
+        verifica("e o erro manda falar com a coordenacao",
+                 "coordenacao" in r.text.lower(), r.text[:160])
+
+        r = cc.post("/apadrinhamentos", json={"crianca_id": elias.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        verifica("a coordenacao apadrinha a crianca sem responsavel", r.status_code == 201, r.text[:140])
+        if r.status_code == 201:
+            de_elias = [a for a in r.json()["apadrinhamentos"] if a["crianca_id"] == elias.id][0]
+            verifica("a etiqueta do apadrinhamento nomeia quem o registrou",
+                     de_elias["comissario_id"] == coord.id and "Coord" in (de_elias["comissario"] or ""),
+                     str(de_elias.get("comissario")))
+            # Desfeito aqui para as contas abaixo continuarem sendo as de
+            # sempre: este apadrinhamento so existiu para provar a regra.
+            r = ck.delete(f"/apadrinhamentos/{de_elias['id']}")
+            verifica("e o apadrinhamento de prova sai da ficha", r.status_code == 204, str(r.status_code))
+
         r = cc.post("/apadrinhamentos", json={"crianca_id": carla.id, "padrinho_id": jose["id"], "tipo": "cesta"})
         verifica("coordenacao das duas cidades faz o apadrinhamento cruzado", r.status_code == 201, r.text[:130])
         cruzado = r.json() if r.status_code == 201 else {}
@@ -196,6 +240,16 @@ def main() -> None:
         verifica("o primeiro nome continua saindo, para o cartao",
                  de_ana_na_ficha.get("crianca_primeiro_nome", "").count(" ") == 0,
                  str(de_ana_na_ficha.get("crianca_primeiro_nome")))
+
+        # O padrinho tem criancas de duas maos: as do comissario e a que a
+        # coordenacao trouxe de Caucaia. Na ficha, cada linha diz de quem veio.
+        de_carla_na_ficha = [a for a in cruzado["apadrinhamentos"] if a["crianca_id"] == carla.id][0]
+        das_minhas = [a for a in cruzado["apadrinhamentos"] if a["crianca_id"] == ana.id][0]
+        verifica("a crianca trazida pelo comissario tem a etiqueta dele",
+                 das_minhas.get("comissario_id") == comissario.id, str(das_minhas.get("comissario")))
+        verifica("e a trazida pela coordenacao tem a etiqueta dela",
+                 de_carla_na_ficha.get("comissario_id") == coord.id,
+                 str(de_carla_na_ficha.get("comissario")))
 
         print("\nPagamentos")
         ids_cesta = [a["id"] for a in cruzado["apadrinhamentos"] if a["tipo"] == "cesta"][:2]

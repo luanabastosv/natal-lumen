@@ -15,6 +15,7 @@ import {
   obterAgradecimento,
 } from "../../services/padrinhos.js";
 import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
+import { primeiroNome } from "../../utils/nomes.js";
 import { linkWhatsapp, podeCompartilharArquivo } from "../../utils/whatsapp.js";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
@@ -270,6 +271,26 @@ export default function FichaPadrinho({
                       {a.cartao_status === "falhou" && (
                         <span className="etiqueta etiqueta--espera" title="O último envio falhou">
                           falhou
+                        </span>
+                      )}
+                      {/* Quem trouxe esta criança. Um padrinho é captado por
+                          mais de um comissário ao longo da campanha, e sem
+                          isto a lista fica um monte de nomes sem dono: dois
+                          comissários cobram o mesmo doador pela mesma cesta,
+                          ou nenhum dos dois cobra.
+
+                          Texto discreto, e não etiqueta: as etiquetas desta
+                          linha são o ESTADO daquela criança — o que falta
+                          fazer com ela. Quem registrou não é estado, é
+                          procedência, e em pílula competia com "a pagar" pela
+                          mesma atenção. O nome completo fica na dica do mouse,
+                          para dois comissários de mesmo primeiro nome. */}
+                      {a.comissario && (
+                        <span
+                          className="ficha__linha-autor"
+                          title={`Apadrinhamento registrado por ${a.comissario}`}
+                        >
+                          comissário: {primeiroNome(a.comissario)}
                         </span>
                       )}
                     </span>
