@@ -44,6 +44,7 @@ from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import agradecimento, comprovantes, whatsapp
 from app.servicos.log import registrar
+from app.servicos.nomes import nome_proprio
 
 router = APIRouter(tags=["padrinhos"])
 
@@ -201,7 +202,7 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
 
     padrinho = Padrinho(
         edicao_id=dados.edicao_id,
-        nome=" ".join(dados.nome.split()),
+        nome=nome_proprio(dados.nome),
         whatsapp=dados.whatsapp,
         email=dados.email,
         observacoes=dados.observacoes,
@@ -230,7 +231,7 @@ def editar_padrinho(padrinho_id: int, dados: PadrinhoEditar, db: BD, ctx: Editar
 
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():
-        setattr(padrinho, campo, " ".join(valor.split()) if campo == "nome" and valor else valor)
+        setattr(padrinho, campo, nome_proprio(valor) if campo == "nome" and valor else valor)
 
     registrar(
         db, "padrinho_editado", usuario_id=ctx.usuario.id,

@@ -17,6 +17,8 @@ from io import BytesIO, StringIO
 import pandas as pd
 from rapidfuzz import fuzz, process
 
+from app.servicos.nomes import nome_proprio
+
 # Quao parecidos dois nomes precisam ser para virar um aviso de possivel
 # duplicata. Abaixo de 88 aparecem muitos falsos positivos entre irmaos.
 SEMELHANCA_MINIMA = 88
@@ -402,7 +404,7 @@ def ler_planilha(conteudo: bytes, nome_arquivo: str) -> Leitura:
             coluna = encontradas.get(campo)
             return str(registro[coluna]).strip() if coluna else ""
 
-        nome = " ".join(pegar("nome").split())
+        nome = nome_proprio(pegar("nome"))
         codigo = pegar("codigo")
 
         # Linha totalmente vazia (comum no fim da planilha) e ignorada.

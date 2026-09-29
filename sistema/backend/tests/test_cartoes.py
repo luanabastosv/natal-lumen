@@ -63,13 +63,13 @@ def limpar(db, log_inicial: int = 0) -> None:
     db.rollback()
     db.execute(delete(LogAtividade).where(LogAtividade.id > log_inicial))
 
-    usuarios = db.scalars(select(Usuario).where(Usuario.nome.like(f"{MARCA}%"))).all()
+    usuarios = db.scalars(select(Usuario).where(Usuario.nome.ilike(f"{MARCA}%"))).all()
     ids = [u.id for u in usuarios]
     if ids:
         db.execute(delete(LogAtividade).where(LogAtividade.usuario_id.in_(ids)))
         db.execute(delete(TokenAcesso).where(TokenAcesso.usuario_id.in_(ids)))
 
-    cids = [c.id for c in db.scalars(select(Cidade).where(Cidade.nome.like(f"{MARCA}%"))).all()]
+    cids = [c.id for c in db.scalars(select(Cidade).where(Cidade.nome.ilike(f"{MARCA}%"))).all()]
     if cids:
         eds = list(db.scalars(select(Edicao.id).where(Edicao.cidade_id.in_(cids))).all())
         if eds:

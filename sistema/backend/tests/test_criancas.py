@@ -52,13 +52,13 @@ def limpar(db, log_inicial: int = 0) -> None:
     db.rollback()
     db.execute(delete(LogAtividade).where(LogAtividade.id > log_inicial))
 
-    usuarios = db.scalars(select(Usuario).where(Usuario.nome.like(f"{MARCA}%"))).all()
+    usuarios = db.scalars(select(Usuario).where(Usuario.nome.ilike(f"{MARCA}%"))).all()
     ids = [u.id for u in usuarios]
     if ids:
         db.execute(delete(LogAtividade).where(LogAtividade.usuario_id.in_(ids)))
         db.execute(delete(TokenAcesso).where(TokenAcesso.usuario_id.in_(ids)))
 
-    cidades = db.scalars(select(Cidade).where(Cidade.nome.like(f"{MARCA}%"))).all()
+    cidades = db.scalars(select(Cidade).where(Cidade.nome.ilike(f"{MARCA}%"))).all()
     cids = [c.id for c in cidades]
     if cids:
         eds = list(db.scalars(select(Edicao.id).where(Edicao.cidade_id.in_(cids))).all())
@@ -171,10 +171,12 @@ def main() -> None:
 
         r = cc.post("/criancas", json={
             "edicao_id": edicao.id, "instituicao_id": inst_b.id,
-            "codigo": "001", "nome": "Bruno Lima", "idade": 10, "sexo": "M",
+            "codigo": "001", "nome": "BRUNO LIMA", "idade": 10, "sexo": "M",
         })
         verifica("o mesmo codigo vale noutra instituicao", r.status_code == 201, r.text[:120])
         bruno = r.json() if r.status_code == 201 else {}
+        verifica("quem digita em caixa alta sai capitalizado",
+                 bruno.get("nome") == "Bruno Lima", str(bruno.get("nome")))
 
         r = cc.post("/criancas", json={
             "edicao_id": edicao.id, "instituicao_id": inst_a.id,
@@ -226,9 +228,13 @@ def main() -> None:
         r = cc.patch(f"/criancas/{ana['id']}", json={"idade": 9, "observacoes": "alergia a amendoim"})
         verifica("coordenacao edita crianca", r.status_code == 200 and r.json()["idade"] == 9, r.text[:110])
 
+        r = cc.patch(f"/criancas/{ana['id']}", json={"nome": "ANA CLARA AVILA"})
+        verifica("corrigir o nome passa pela mesma regra da grafia",
+                 r.json().get("nome") == "Ana Clara Avila", r.text[:110])
+
         print("\nImportacao de lista")
         arquivo = planilha([
-            {"Matrícula": "010", "Nome Completo": "Carla Souza", "Idade": "7", "Sexo": "Feminino", "Escola": f"{MARCA} Escola A"},
+            {"Matrícula": "010", "Nome Completo": "CARLA SOUZA DOS SANTOS", "Idade": "7", "Sexo": "Feminino", "Escola": f"{MARCA} Escola A"},
             {"Matrícula": "011", "Nome Completo": "Diego Alves", "Idade": "9", "Sexo": "M", "Escola": f"{MARCA} escola a"},
             {"Matrícula": "011", "Nome Completo": "Repetido", "Idade": "9", "Sexo": "M", "Escola": f"{MARCA} Escola A"},
             {"Matrícula": "001", "Nome Completo": "Ja Existe", "Idade": "8", "Sexo": "F", "Escola": f"{MARCA} Escola A"},
@@ -251,6 +257,9 @@ def main() -> None:
             verifica("aponta 2 com erro", previa["com_erro"] == 2, str(previa["com_erro"]))
 
             por_codigo = {l["codigo"]: l for l in previa["linhas"]}
+            verifica("o caps lock da planilha ja desce na conferencia",
+                     por_codigo["010"]["nome"] == "Carla Souza dos Santos",
+                     str(por_codigo["010"]["nome"]))
             verifica("aponta o codigo repetido no arquivo",
                      any("repetido" in e for e in por_codigo["011"]["erros"] if por_codigo["011"]["erros"]) or
                      any("repetido" in e for e in previa["linhas"][2]["erros"]))
@@ -269,6 +278,9 @@ def main() -> None:
 
             r = cc.get("/criancas")
             verifica("as criancas importadas aparecem na lista", r.json()["total"] == 5, str(r.json()["total"]))
+            importados = [c["nome"] for c in r.json()["itens"]]
+            verifica("e entram na lista com a grafia certa, nao gritando",
+                     "Carla Souza dos Santos" in importados, str(importados))
 
             r = cc.post(f"/criancas/importar/{previa['id']}/confirmar")
             verifica("a mesma previa nao pode ser confirmada duas vezes", r.status_code == 404)

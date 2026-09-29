@@ -47,6 +47,7 @@ from app.seeds.perfis_permissoes import (
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import coordenacao, exclusao, grupos, tokens_acesso
 from app.servicos.log import registrar
+from app.servicos.nomes import nome_proprio
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
@@ -361,7 +362,7 @@ def criar(dados: UsuarioIn, vinculo: VinculoIn, db: BD, ctx: Gestor):
             status.HTTP_409_CONFLICT, "Ja existe uma conta com este email."
         )
 
-    usuario = Usuario(nome=dados.nome.strip(), email=email, whatsapp=dados.whatsapp)
+    usuario = Usuario(nome=nome_proprio(dados.nome), email=email, whatsapp=dados.whatsapp)
     db.add(usuario)
     db.flush()
 
@@ -405,7 +406,7 @@ def editar(usuario_id: int, dados: UsuarioEditar, db: BD, ctx: Gestor):
 
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():
-        setattr(usuario, campo, valor.strip() if campo == "nome" and valor else valor)
+        setattr(usuario, campo, nome_proprio(valor) if campo == "nome" and valor else valor)
 
     registrar(
         db, "usuario_editado", usuario_id=ctx.usuario.id,

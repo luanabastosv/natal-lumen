@@ -63,12 +63,12 @@ def limpar(db, log_inicial: int = 0) -> None:
 
     # Sem "if log_inicial:" — com a tabela vazia ele vale 0, que e falso.
     db.execute(delete(LogAtividade).where(LogAtividade.id > log_inicial))
-    usuarios = db.scalars(select(Usuario).where(Usuario.nome.like(f"{MARCA}%"))).all()
+    usuarios = db.scalars(select(Usuario).where(Usuario.nome.ilike(f"{MARCA}%"))).all()
     ids = [u.id for u in usuarios]
     if ids:
         db.execute(delete(LogAtividade).where(LogAtividade.usuario_id.in_(ids)))
         db.execute(delete(TokenAcesso).where(TokenAcesso.usuario_id.in_(ids)))
-    cidades = db.scalars(select(Cidade).where(Cidade.nome.like(f"{MARCA}%"))).all()
+    cidades = db.scalars(select(Cidade).where(Cidade.nome.ilike(f"{MARCA}%"))).all()
     cidade_ids = [c.id for c in cidades]
     if cidade_ids:
         edicoes = db.scalars(

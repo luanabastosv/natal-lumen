@@ -39,7 +39,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         cidades = db.scalars(
-            select(Cidade).where(Cidade.nome.like(MARCA))
+            select(Cidade).where(Cidade.nome.ilike(MARCA))
         ).all()
         cidade_ids = [c.id for c in cidades]
         nomes_removidos = [c.nome for c in cidades]
@@ -72,7 +72,7 @@ def main() -> None:
         # Ja aconteceu: um teste de navegador deixou uma escola na cidade da
         # Luana. Por isso o segundo passe, pelo nome.
         instituicoes_soltas = db.scalars(
-            select(Instituicao).where(Instituicao.nome.like(MARCA))
+            select(Instituicao).where(Instituicao.nome.ilike(MARCA))
         ).all()
         soltas = [i.id for i in instituicoes_soltas]
         if soltas:
@@ -88,7 +88,7 @@ def main() -> None:
             nomes_removidos += [i.nome for i in instituicoes_soltas]
 
         criancas_de_teste = db.scalars(
-            select(Crianca).where(Crianca.nome.like(MARCA))
+            select(Crianca).where(Crianca.nome.ilike(MARCA))
         ).all()
         if criancas_de_teste:
             db.execute(
@@ -101,7 +101,7 @@ def main() -> None:
             db.execute(delete(Cidade).where(Cidade.id.in_(cidade_ids)))
 
         usuarios = db.scalars(
-            select(Usuario).where(Usuario.nome.like(MARCA))
+            select(Usuario).where(Usuario.nome.ilike(MARCA))
         ).all()
         ids = [u.id for u in usuarios]
         nomes_removidos += [u.nome for u in usuarios]

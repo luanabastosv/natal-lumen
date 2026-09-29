@@ -55,6 +55,7 @@ from app.seeds.perfis_permissoes import PERFIL_COMISSARIO, PERFIL_COORDENACAO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
 from app.servicos import codigos, dias, exclusao, importador
+from app.servicos.nomes import nome_proprio
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
@@ -724,7 +725,7 @@ def criar(dados: CriancaIn, db: BD, ctx: Editar):
         )
 
     crianca = Crianca(**dados.model_dump())
-    crianca.nome = " ".join(crianca.nome.split())
+    crianca.nome = nome_proprio(crianca.nome)
     # O dia vem da instituicao, nunca do formulario.
     crianca.dia_evento_id = dias.dia_da_instituicao(
         db, dados.edicao_id, dados.instituicao_id
@@ -760,7 +761,7 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: Editar):
         _conferir_comissario(db, mudancas["comissario_id"], [crianca])
 
     for campo, valor in mudancas.items():
-        setattr(crianca, campo, " ".join(valor.split()) if campo == "nome" and valor else valor)
+        setattr(crianca, campo, nome_proprio(valor) if campo == "nome" and valor else valor)
 
     try:
         db.flush()
