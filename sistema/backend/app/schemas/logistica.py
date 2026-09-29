@@ -14,6 +14,7 @@ class KitOut(BaseModel):
     crianca_nome: str
     instituicao: str
     dia_evento: date | None
+    dia_evento_descricao: str | None = None
     status: str
     entregue_em: datetime | None
     observacoes: str | None
@@ -46,6 +47,7 @@ class CheckinOut(BaseModel):
     idade: int
     instituicao: str
     dia_evento: date | None
+    dia_evento_descricao: str | None = None
     ja_tinha_checkin: bool
     checkin_em: datetime
     kit_status: str

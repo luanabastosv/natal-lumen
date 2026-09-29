@@ -94,6 +94,7 @@ def listar_kits(
                 crianca_nome=crianca.nome,
                 instituicao=crianca.instituicao.nome,
                 dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+                dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
                 status=kit.status if kit else StatusKit.PENDENTE.value,
                 entregue_em=kit.entregue_em if kit else None,
                 observacoes=kit.observacoes if kit else None,
@@ -148,6 +149,7 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
                 id=kit.id, crianca_id=crianca.id, crianca_nome=crianca.nome,
                 instituicao=crianca.instituicao.nome,
                 dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+                dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
                 status=kit.status, entregue_em=kit.entregue_em, observacoes=kit.observacoes,
             )
         )
@@ -193,9 +195,11 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
         avisos.append("Esta crianca ja tinha feito check-in.")
 
     if crianca.dia_evento and crianca.dia_evento.data != date.today():
-        avisos.append(
-            f"O dia dela e {crianca.dia_evento.data.strftime('%d/%m/%Y')}, nao hoje."
-        )
+        # Na porta o que ajuda e o nome do dia ("Sabado"); a data vai junto
+        # porque e ela que resolve a duvida de quem chegou no dia errado.
+        data = crianca.dia_evento.data.strftime("%d/%m/%Y")
+        dia = f"{crianca.dia_evento.descricao} ({data})" if crianca.dia_evento.descricao else data
+        avisos.append(f"O dia dela e {dia}, nao hoje.")
     elif crianca.dia_evento is None:
         avisos.append("Esta crianca nao esta marcada em nenhum dia.")
 
@@ -233,6 +237,7 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
         idade=crianca.idade,
         instituicao=crianca.instituicao.nome,
         dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+        dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
         ja_tinha_checkin=ja_tinha,
         checkin_em=crianca.checkin_em,
         kit_status=kit_status,

@@ -736,6 +736,71 @@ textarea.campo__controle {
   color: var(--text-on-light-muted);
 }
 
+/* ---------- O dia do evento ----------
+   Sabado e domingo, cada um do seu tom. Numa lista de vinte escolas a cor
+   separa os dois grupos antes de qualquer leitura — e e essa a pergunta que
+   se faz correndo, na vespera do evento.
+
+   Cada tom guarda DUAS cores, porque o dia aparece de duas formas e elas nao
+   pedem a mesma tinta: a etiqueta e uma area com tipo por cima, e precisa de
+   fundo claro (inclusive dentro da aba ativa, que e navy); o pontinho da aba
+   nao carrega tipo nenhum e pode ser saturado, que e o que o faz enxergar a
+   7px. Definir os dois juntos mantem o pontinho e a etiqueta lendo como a
+   mesma cor, que e a coisa toda. */
+.dia--1 {
+  --dia-fundo: var(--amarelo-200);
+  --dia-ponto: var(--amarelo-400);
+}
+
+.dia--2 {
+  --dia-fundo: var(--navy-100);
+  --dia-ponto: var(--navy-300);
+}
+
+.dia--3 {
+  --dia-fundo: var(--cream-300);
+  --dia-ponto: var(--cream-500);
+}
+
+.dia--4 {
+  --dia-fundo: var(--navy-200);
+  --dia-ponto: var(--navy-400);
+}
+
+/* Dia cadastrado sem descricao: cai na data, e a data nao merece cor. */
+.dia--0 {
+  --dia-fundo: var(--cream-100);
+  --dia-ponto: var(--cream-500);
+}
+
+/* Mais baixa que as outras etiquetas de proposito. As de estado gritam porque
+   aparecem uma de cada vez; o dia se repete em TODA linha da tabela e em toda
+   aba, e nessa quantidade caixa alta com peso 800 vira ruido. Aqui ele mantem
+   a caixa que foi digitada na edicao ("Sábado") e fica do tamanho do texto ao
+   lado — a cor ja faz o trabalho de separar os dois grupos. */
+.dia {
+  background: var(--dia-fundo);
+  color: var(--navy-900);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 1px 6px;
+}
+
+.dia.dia--0 {
+  color: var(--text-on-light-muted);
+}
+
+/* Sem dia marcado. Texto simples, nao etiqueta: uma pilula aqui competiria
+   com os dias de verdade, e o que FALTA nao deve pesar mais na pagina do que
+   o que existe. */
+.dia-vazio {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-on-light-muted);
+}
+
 /* ---------- Lista de instituicoes marcaveis ---------- */
 .marcaveis {
   display: flex;
@@ -1079,14 +1144,19 @@ textarea.campo__controle {
 }
 
 .aba__contagem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 450;
-  opacity: 0.75;
+  /* Era opacity 0.75. Opacidade no pai tampa o filho, e a etiqueta do dia
+     precisa chegar com a cor inteira — inclusive sobre a aba ativa, que e
+     navy. --text-on-light-muted e o cinza ja aprovado para este tamanho. */
+  color: var(--text-on-light-muted);
 }
 
 .aba--ativa .aba__contagem {
   color: var(--cream-500);
-  opacity: 1;
 }
 
 /* ---------- Abas dentro da janela da ficha ----------
@@ -1157,12 +1227,13 @@ textarea.campo__controle {
   text-overflow: ellipsis;
 }
 
-.aba__alerta {
+/* Nao e mais alerta: e o dia da instituicao, na cor da etiqueta da aba. */
+.aba__ponto {
   display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-destaque);
+  background: var(--dia-ponto, var(--color-destaque));
   margin-left: 6px;
   vertical-align: middle;
 }

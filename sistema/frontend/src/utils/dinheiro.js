@@ -13,6 +13,15 @@ export function formatarData(iso) {
   return `${dia}/${mes}/${ano}`;
 }
 
+/**
+ * O dia do evento como as pessoas o chamam. A edicao batiza cada dia
+ * ("Sabado", "Domingo") e e assim que a equipe se localiza; a data so aparece
+ * quando o dia ficou sem descricao.
+ */
+export function rotuloDia(data, descricao) {
+  return descricao?.trim() || formatarData(data);
+}
+
 export function formatarDataHora(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("pt-BR", {

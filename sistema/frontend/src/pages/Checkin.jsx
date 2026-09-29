@@ -4,7 +4,8 @@ import { Entrada } from "../components/core/Campo.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 import { fazerCheckin } from "../services/logistica.js";
-import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
+import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
+import { formatarDataHora } from "../utils/dinheiro.js";
 
 export default function Checkin() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
@@ -76,7 +77,15 @@ export default function Checkin() {
           </h2>
           <p style={{ margin: "0 0 var(--space-4)", fontSize: "var(--size-body-sm)" }}>
             {resultado.instituicao}
-            {resultado.dia_evento && <> · dia {formatarData(resultado.dia_evento)}</>}
+            {resultado.dia_evento && (
+              <>
+                {" · "}
+                <EtiquetaDia
+                  data={resultado.dia_evento}
+                  descricao={resultado.dia_evento_descricao}
+                />
+              </>
+            )}
             {" · "}
             <span className={`etiqueta etiqueta--${resultado.kit_status === "entregue" ? "ok" : "espera"}`}>
               kit {resultado.kit_status}

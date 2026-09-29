@@ -7,7 +7,8 @@ import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 import { listarKits, mudarKits } from "../services/logistica.js";
-import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
+import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
+import { formatarDataHora } from "../utils/dinheiro.js";
 
 const ESTADOS = {
   pendente: ["espera", "Pendente"],
@@ -150,7 +151,13 @@ export default function Kits() {
                     </td>
                     <td>{k.crianca_nome}</td>
                     <td>{k.instituicao}</td>
-                    <td>{k.dia_evento ? formatarData(k.dia_evento) : "—"}</td>
+                    <td>
+                      {k.dia_evento ? (
+                        <EtiquetaDia data={k.dia_evento} descricao={k.dia_evento_descricao} />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td><span className={`etiqueta etiqueta--${tom}`}>{rotulo}</span></td>
                     <td>{k.entregue_em ? formatarDataHora(k.entregue_em) : "—"}</td>
                   </tr>

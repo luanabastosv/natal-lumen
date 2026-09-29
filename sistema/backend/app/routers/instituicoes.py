@@ -40,6 +40,7 @@ def _saida(inst: Instituicao, extra: dict | None = None) -> InstituicaoOut:
         ativo=inst.ativo,
         dia_evento_id=extra.get("dia_evento_id"),
         dia_evento=extra.get("dia_evento"),
+        dia_evento_descricao=extra.get("dia_evento_descricao"),
         criancas=extra.get("criancas", 0),
         codigos_atualizados=extra.get("codigos_atualizados", 0),
     )
@@ -115,13 +116,19 @@ def listar(
     # criancas ha nela — e o que a tela de cadastro precisa mostrar.
     extras: dict[int, dict] = {}
     if edicao_id is not None:
-        for inst_id, dia_id, data in db.execute(
-            select(InstituicaoDia.instituicao_id, InstituicaoDia.dia_evento_id, DiaEvento.data)
+        for inst_id, dia_id, data, descricao in db.execute(
+            select(
+                InstituicaoDia.instituicao_id,
+                InstituicaoDia.dia_evento_id,
+                DiaEvento.data,
+                DiaEvento.descricao,
+            )
             .join(DiaEvento, DiaEvento.id == InstituicaoDia.dia_evento_id)
             .where(InstituicaoDia.edicao_id == edicao_id)
         ).all():
             extras.setdefault(inst_id, {})["dia_evento_id"] = dia_id
             extras[inst_id]["dia_evento"] = data
+            extras[inst_id]["dia_evento_descricao"] = descricao
 
         for inst_id, quantas in db.execute(
             select(Crianca.instituicao_id, func.count())

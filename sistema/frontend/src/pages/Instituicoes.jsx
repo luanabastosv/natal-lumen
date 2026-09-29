@@ -17,7 +17,8 @@ import {
   listarDias,
   listarInstituicoes,
 } from "../services/cadastros.js";
-import { formatarData } from "../utils/dinheiro.js";
+import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
+import { rotuloDia } from "../utils/dinheiro.js";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 
@@ -313,8 +314,7 @@ export default function Instituicoes() {
               <option value="">Sem dia definido</option>
               {dias.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {formatarData(d.data)}
-                  {d.descricao ? ` · ${d.descricao}` : ""}
+                  {rotuloDia(d.data, d.descricao)}
                 </option>
               ))}
             </Selecao>
@@ -383,9 +383,12 @@ export default function Instituicoes() {
                   </td>
                   <td>
                     {i.dia_evento ? (
-                      formatarData(i.dia_evento)
+                      <EtiquetaDia data={i.dia_evento} descricao={i.dia_evento_descricao} />
                     ) : (
-                      <span className="etiqueta etiqueta--espera">sem dia</span>
+                      // Sem etiqueta: nesta coluna a pilula e o dia, e uma
+                      // pilula para a ausencia dele pesaria mais que os dias
+                      // de verdade — que agora sao discretos de proposito.
+                      <span className="dia-vazio">sem dia</span>
                     )}
                   </td>
                   <td>{i.criancas}</td>

@@ -41,6 +41,9 @@ class CriancaOut(BaseModel):
     sexo: str
     dia_evento_id: int | None
     dia_evento: date | None
+    # Como o dia e chamado nesta edicao ("Sabado"); e o que as telas
+    # mostram no lugar da data, que so aparece quando nao ha descricao.
+    dia_evento_descricao: str | None = None
     observacoes: str | None
     checkin_em: datetime | None
     # Preenchido = desistiu de ir. Aparece riscada na planilha, mas continua nela.
@@ -129,6 +132,7 @@ class ResumoInstituicao(BaseModel):
     # O dia marcado para esta instituicao nesta edicao.
     dia_evento_id: int | None = None
     dia_evento: date | None = None
+    dia_evento_descricao: str | None = None
 
 
 class DesistenciaIn(BaseModel):
@@ -181,6 +185,7 @@ class CriancaDetalhe(BaseModel):
     idade: int
     sexo: str
     dia_evento: date | None
+    dia_evento_descricao: str | None = None
     observacoes: str | None
     checkin_em: datetime | None
     desistiu_em: datetime | None = None

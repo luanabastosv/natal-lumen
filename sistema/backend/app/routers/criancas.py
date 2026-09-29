@@ -114,6 +114,7 @@ def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
         sexo=crianca.sexo,
         dia_evento_id=crianca.dia_evento_id,
         dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+        dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
         desistiu_em=crianca.desistiu_em,
@@ -415,9 +416,14 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
 
     # O dia e da instituicao: uma consulta para todas, em vez de uma por aba.
     dias_marcados = {
-        instituicao_id: (dia_id, data)
-        for instituicao_id, dia_id, data in db.execute(
-            select(InstituicaoDia.instituicao_id, InstituicaoDia.dia_evento_id, DiaEvento.data)
+        instituicao_id: (dia_id, data, descricao)
+        for instituicao_id, dia_id, data, descricao in db.execute(
+            select(
+                InstituicaoDia.instituicao_id,
+                InstituicaoDia.dia_evento_id,
+                DiaEvento.data,
+                DiaEvento.descricao,
+            )
             .join(DiaEvento, DiaEvento.id == InstituicaoDia.dia_evento_id)
             .where(InstituicaoDia.edicao_id == edicao_id)
         ).all()
@@ -427,8 +433,9 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
         ResumoInstituicao(
             instituicao_id=i, instituicao=nome, criancas=total,
             sem_padrinho=sp, sem_cartao=sc, sem_comissario=scom,
-            dia_evento_id=dias_marcados.get(i, (None, None))[0],
-            dia_evento=dias_marcados.get(i, (None, None))[1],
+            dia_evento_id=dias_marcados.get(i, (None, None, None))[0],
+            dia_evento=dias_marcados.get(i, (None, None, None))[1],
+            dia_evento_descricao=dias_marcados.get(i, (None, None, None))[2],
         )
         for i, nome, total, sp, sc, scom in linhas
     ]
@@ -686,6 +693,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         idade=crianca.idade,
         sexo=crianca.sexo,
         dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
+        dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
         desistiu_em=crianca.desistiu_em,

@@ -4,7 +4,8 @@ import Carregando from "../feedback/Carregando.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
 import { detalharCrianca, marcarDesistencia } from "../../services/criancas.js";
-import { dinheiro, formatarData, formatarDataHora } from "../../utils/dinheiro.js";
+import EtiquetaDia from "../core/EtiquetaDia.jsx";
+import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { linkWhatsapp } from "../../utils/whatsapp.js";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
@@ -82,7 +83,13 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
             <dt>Instituição</dt>
             <dd>{ficha.instituicao}</dd>
             <dt>Dia</dt>
-            <dd>{ficha.dia_evento ? formatarData(ficha.dia_evento) : "sem dia marcado"}</dd>
+            <dd>
+              {ficha.dia_evento ? (
+                <EtiquetaDia data={ficha.dia_evento} descricao={ficha.dia_evento_descricao} />
+              ) : (
+                "sem dia marcado"
+              )}
+            </dd>
             <dt>Comissário</dt>
             <dd>
               {ficha.comissario ?? "sem responsável"}

@@ -112,6 +112,7 @@ class InstituicaoOut(BaseModel):
     # edicao, entao fora de uma edicao a pergunta nao tem resposta.
     dia_evento_id: int | None = None
     dia_evento: date | None = None
+    dia_evento_descricao: str | None = None
     criancas: int = 0
     # Quantos codigos de criancas mudaram de prefixo junto com a sigla. So a
     # edicao preenche; a tela usa para avisar que a planilha mudou.
