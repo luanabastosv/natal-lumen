@@ -1,3 +1,5 @@
+import Estrelinhas from "../feedback/Estrelinhas.jsx";
+
 /** Botao que e so um icone.
  *
  * Existe porque acao repetida por linha nao cabe escrita: um padrinho com
@@ -37,7 +39,7 @@ export default function BotaoIcone({
       disabled={inativo}
       onClick={inativo ? undefined : onClick}
     >
-      {carregando ? <span className="botao-icone__roda" /> : children}
+      {carregando ? <Estrelinhas tamanho={7} /> : children}
     </button>
   );
 }

@@ -379,25 +379,72 @@ textarea.campo__controle {
   color: var(--text-on-light-secondary);
 }
 
-.carregando__roda {
-  width: 18px;
-  height: 18px;
-  border: 3px solid var(--navy-200);
-  border-top-color: var(--color-destaque);
-  border-radius: 50%;
-  animation: roda-gira 0.7s linear infinite;
-  flex: none;
+/* Na tela vazia as estrelinhas sobem para cima da frase: no meio de uma area
+   grande, uma linha unica de 200px fica perdida no branco. */
+.carregando--tela {
+  flex-direction: column;
+  gap: var(--space-4);
+  text-align: center;
 }
 
-@keyframes roda-gira {
-  to {
-    transform: rotate(360deg);
+/* Tres estrelinhas piscando em fila, no lugar da roda girando. E a estrela
+   do mascote da logo, entao a espera passa a parecer do Natal Lumen.
+
+   A acesa fica amarela e cresce, as outras duas ficam em navy-200: amarelo
+   sobre branco tem contraste de 1,7:1 e sumiria sozinho, e o azul claro
+   garante que sempre haja alguma coisa visivel entre um pico e outro. */
+.estrelinhas {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  line-height: 0;
+}
+
+.estrelinhas__estrela {
+  fill: var(--navy-200);
+  animation: estrelinha-pisca 1.35s ease-in-out infinite;
+}
+
+/* O atraso e curto de proposito: mais do que isto e a fila deixa de ler como
+   uma onda e vira tres estrelas piscando cada uma por conta. */
+.estrelinhas__estrela:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.estrelinhas__estrela:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes estrelinha-pisca {
+  0%,
+  55%,
+  100% {
+    fill: var(--navy-200);
+    transform: scale(0.8);
+  }
+  22% {
+    fill: var(--color-destaque);
+    transform: scale(1.15);
   }
 }
 
+/* Quem pediu menos movimento continua vendo que a coisa esta viva — a cor
+   ainda percorre a fila, so que devagar e sem nada mudando de tamanho. */
 @media (prefers-reduced-motion: reduce) {
-  .carregando__roda {
-    animation-duration: 2.5s;
+  .estrelinhas__estrela {
+    animation-duration: 3s;
+  }
+
+  @keyframes estrelinha-pisca {
+    0%,
+    55%,
+    100% {
+      fill: var(--navy-200);
+    }
+    22% {
+      fill: var(--color-destaque);
+    }
   }
 }
 
@@ -2742,17 +2789,8 @@ textarea.campo__controle {
 
 /* Enquanto o servidor monta o PNG, o icone vira roda — no mesmo tamanho, para
    a linha de acoes nao mudar de largura no meio do clique. */
-.botao-icone__roda {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--navy-200);
-  border-top-color: var(--color-destaque);
-  border-radius: 50%;
-  animation: roda-gira 0.7s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .botao-icone__roda {
-    animation: none;
-  }
+/* Dentro do botao de icone a fila inteira precisa caber nos 24px do tamanho
+   --sm: com o vao de 1px ela fecha em 23px e ainda sobra borda. */
+.botao-icone .estrelinhas {
+  gap: 1px;
 }

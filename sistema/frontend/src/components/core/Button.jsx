@@ -5,6 +5,8 @@
 // inline nao existe :active nem :focus-visible, e o hover precisava de dois
 // handlers de JS que o teclado nunca disparava.
 
+import Estrelinhas from "../feedback/Estrelinhas.jsx";
+
 const TAMANHOS = { sm: "botao--sm", md: "", lg: "botao--lg" };
 
 export default function Button({
@@ -43,7 +45,10 @@ export default function Button({
       aria-busy={carregando || undefined}
       onClick={inativo ? undefined : onClick}
     >
-      {iconLeft}
+      {/* Enquanto salva, as estrelinhas ocupam o lugar do icone: o botao nao
+          muda de largura no meio do clique, e quem clicou ve que a coisa esta
+          andando sem precisar ler o texto de novo. */}
+      {carregando ? <Estrelinhas tamanho={13} /> : iconLeft}
       {children}
     </Tag>
   );
