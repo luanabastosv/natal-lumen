@@ -13,6 +13,7 @@ import qrcode
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -221,10 +222,23 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
     saida = []
 
     for crianca in criancas:
+        # "Procura, e se nao houver cria" e uma corrida quando duas pessoas
+        # marcam a MESMA crianca ao mesmo tempo: as duas veem que nao ha kit, as
+        # duas inserem, e a segunda esbarra na unicidade de crianca_id — erro
+        # 500 na cara de quem so clicou numa caixinha. Ninguem percebia com uma
+        # pessoa por vez; com a equipe de estrutura marcando em paralelo na
+        # semana do evento, percebe.
+        #
+        # O INSERT ... ON CONFLICT resolve no banco, que e o unico lugar que
+        # enxerga as duas transacoes: quem chega depois nao quebra, apenas nao
+        # insere. O status vai no proprio INSERT para a linha ja nascer certa se
+        # for esta a insercao que vencer.
+        db.execute(
+            pg_insert(Kit)
+            .values(crianca_id=crianca.id, status=dados.status)
+            .on_conflict_do_nothing(index_elements=["crianca_id"])
+        )
         kit = db.scalar(select(Kit).where(Kit.crianca_id == crianca.id))
-        if kit is None:
-            kit = Kit(crianca_id=crianca.id)
-            db.add(kit)
 
         kit.status = dados.status
         if dados.observacoes is not None:

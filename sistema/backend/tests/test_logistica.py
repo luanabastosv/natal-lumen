@@ -6,7 +6,7 @@ Rodar com:  python -m tests.test_logistica
 from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 
 from app.config import config
 from app.database import SessionLocal
@@ -204,6 +204,28 @@ def main() -> None:
                  str({k: item.get(k) for k in ("crianca_codigo", "idade", "sexo")}))
         verifica("e diz se a crianca desistiu",
                  "desistiu_em" in item, str(sorted(item)))
+
+        print("\nKits: duas pessoas marcando a mesma crianca")
+        # A equipe de estrutura marca em paralelo na semana do evento. Antes,
+        # "procura e se nao houver cria" deixava as duas inserirem, e a segunda
+        # levava 500 pela unicidade. Aqui a outra pessoa chega primeiro: o kit
+        # ja existe quando este pedido entra.
+        db.execute(text("DELETE FROM kits WHERE crianca_id = :c"), {"c": carla.id})
+        db.commit()
+        db.execute(
+            text("INSERT INTO kits (crianca_id, status) VALUES (:c, 'pendente')"),
+            {"c": carla.id},
+        )
+        db.commit()
+
+        r = ce.post("/kits", json={"criancas": [carla.id], "status": "montado"})
+        verifica("marcar kit que outra pessoa acabou de criar nao quebra",
+                 r.status_code == 200, r.text[:140])
+        verifica("e o estado vale", r.json()[0]["status"] == "montado", r.text[:120])
+
+        r = ce.post("/kits", json={"criancas": [carla.id], "status": "montado"})
+        verifica("marcar duas vezes seguidas tambem nao quebra",
+                 r.status_code == 200, r.text[:140])
 
         print("\nKits: a ordem e do servidor")
         r = ce.get("/kits")
