@@ -2010,6 +2010,24 @@ textarea.campo__controle {
   background: var(--amarelo-600);
 }
 
+/* O select das duas perguntas da captacao, dentro da ficha. O controle padrao
+   tem 48px de altura e largura cheia — numa lista de pares rotulo/valor isso
+   empurraria as outras linhas para longe. Aqui ele encolhe para o tamanho da
+   resposta, que e "Sim", "Nao" ou "nao perguntado". */
+.ficha__resposta {
+  width: auto;
+  /* Um <select> dimensiona pela opcao mais longa, e com `width: auto` isso
+     vira largura minima: a 320px ele sozinho empurrava a ficha para fora da
+     janela de novo. O teto deixa o texto cortar com reticencias em vez de
+     estourar. */
+  max-width: 100%;
+  min-height: 32px;
+  height: 32px;
+  font-size: 13px;
+  padding: 0 34px 0 var(--space-3);
+  background-position: calc(100% - 19px) 55%, calc(100% - 13px) 55%;
+}
+
 /* A nota dos apadrinhamentos prometidos, no painel.
  *
  * Era uma `Mensagem` de aviso — uma caixa amarela da largura da tela, com o

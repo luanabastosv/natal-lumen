@@ -11,6 +11,7 @@ import {
   apagarApadrinhamento,
   baixarAgradecimento,
   detalharPadrinho,
+  editarPadrinho,
   enviarAgradecimento,
   obterAgradecimento,
 } from "../../services/padrinhos.js";
@@ -45,6 +46,53 @@ export default function FichaPadrinho({
 }) {
   const [erro, definirErro] = useState("");
   const notificar = useNotificar();
+
+  // Qual das duas perguntas da captacao esta sendo salva. Elas sao respondidas
+  // numa conversa que quase nunca e a do cadastro — o doador diz "esse ano
+  // quero contribuir todo mes" semanas depois —, entao tem de dar para mudar
+  // aqui, e nao so no formulario de criar.
+  const [salvandoCampo, definirSalvandoCampo] = useState("");
+
+  async function responder(campo, valor) {
+    definirErro("");
+    definirSalvandoCampo(campo);
+    try {
+      aoMudar?.(await editarPadrinho(padrinho.id, { [campo]: valor }));
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirSalvandoCampo("");
+    }
+  }
+
+  /* Tres estados, e o vazio NAO e "nao": e "ninguem perguntou". Um select de
+     sim/nao obrigaria a responder por quem nunca foi perguntado — e e
+     justamente a lista dos que faltam perguntar que a captacao reaproveita no
+     ano seguinte. */
+  /* Funcao que devolve JSX, e nao componente: declarado aqui dentro, um
+     componente nasceria diferente a cada render e o <select> remontaria —
+     perdendo o foco de quem estava respondendo. */
+  function resposta(campo, valor) {
+    if (!podeEditar) {
+      return <dd>{valor === true ? "Sim" : valor === false ? "Não" : "a perguntar"}</dd>;
+    }
+    return (
+      <dd>
+        <select
+          className="campo__controle campo__controle--selecao ficha__resposta"
+          value={valor === true ? "sim" : valor === false ? "nao" : ""}
+          disabled={salvandoCampo === campo}
+          onChange={(e) =>
+            responder(campo, e.target.value === "" ? null : e.target.value === "sim")
+          }
+        >
+          <option value="">a perguntar</option>
+          <option value="sim">Sim</option>
+          <option value="nao">Não</option>
+        </select>
+      </dd>
+    );
+  }
 
   // Qual cartao esta sendo gerado ou enviado: o PNG e montado no servidor e
   // demora um instante, entao aquele bloco precisa dizer que esta ocupado.
@@ -206,6 +254,13 @@ export default function FichaPadrinho({
         <dd>
           {padrinho.email ? <a href={`mailto:${padrinho.email}`}>{padrinho.email}</a> : "—"}
         </dd>
+        {/* As duas perguntas da captacao. Ficam junto do contato, e nao no fim:
+            e o mesmo assunto — quem e esta pessoa para a campanha — e nao o
+            dinheiro que ela ja pos. */}
+        <dt>Membro Ser Feliz</dt>
+        {resposta("membro_ser_feliz", padrinho.membro_ser_feliz)}
+        <dt>Contribuição mensal</dt>
+        {resposta("interesse_mensal", padrinho.interesse_mensal)}
         <dt>Combinado</dt>
         <dd>{dinheiro(padrinho.total_combinado)}</dd>
         <dt>Pago</dt>

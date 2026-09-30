@@ -168,6 +168,42 @@ def main() -> None:
         r = cm.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Nao Deveria"})
         verifica("monitor NAO capta padrinho", r.status_code == 403, str(r.status_code))
 
+        print("\nAs duas perguntas da captacao")
+        # Nulo nao e "nao": e "ninguem perguntou". Quem cadastra as vezes so tem
+        # o nome e o zap na mao, e um `false` ali afirmaria que a pessoa NAO e
+        # membro e NAO quer contribuir — duas coisas que ninguem apurou.
+        verifica("quem nao foi perguntado fica nulo, e nao falso",
+                 jose.get("membro_ser_feliz") is None
+                 and jose.get("interesse_mensal") is None,
+                 f"{jose.get('membro_ser_feliz')} / {jose.get('interesse_mensal')}")
+
+        r = ck.post("/padrinhos", json={
+            "edicao_id": e1.id, "nome": "Clara Perguntada",
+            "membro_ser_feliz": True, "interesse_mensal": False,
+        })
+        clara = r.json() if r.status_code == 201 else {}
+        verifica("e as respostas dadas no cadastro sao guardadas",
+                 clara.get("membro_ser_feliz") is True
+                 and clara.get("interesse_mensal") is False,
+                 f"{clara.get('membro_ser_feliz')} / {clara.get('interesse_mensal')}")
+
+        # A resposta quase nunca vem no cadastro: o doador diz "esse ano quero
+        # contribuir todo mes" semanas depois, e a ficha tem de aceitar isso.
+        r = ck.patch(f"/padrinhos/{jose['id']}", json={"interesse_mensal": True})
+        verifica("responder depois, pela ficha, funciona",
+                 r.status_code == 200 and r.json().get("interesse_mensal") is True,
+                 r.text[:130])
+        verifica("e nao contamina a outra pergunta",
+                 r.json().get("membro_ser_feliz") is None,
+                 str(r.json().get("membro_ser_feliz")))
+
+        # Voltar para "nao perguntado" tem de ser possivel: quem marcou por
+        # engano precisa poder desfazer, e nao so trocar sim por nao.
+        r = ck.patch(f"/padrinhos/{jose['id']}", json={"interesse_mensal": None})
+        verifica("da para voltar a nao perguntado",
+                 r.status_code == 200 and r.json().get("interesse_mensal") is None,
+                 r.text[:130])
+
         r = ck.post("/padrinhos", json={"edicao_id": e2.id, "nome": "Fora do alcance"})
         verifica("comissario nao capta padrinho na edicao de outra cidade", r.status_code == 403)
 

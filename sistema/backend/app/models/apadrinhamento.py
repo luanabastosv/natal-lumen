@@ -36,6 +36,17 @@ class Padrinho(Base):
     email: Mapped[str | None] = mapped_column(String(180))
     observacoes: Mapped[str | None] = mapped_column(Text)
 
+    # Duas perguntas da captacao, respondidas na conversa com o doador.
+    #
+    # Aceitam NULO de proposito, e nulo nao e "nao": e "ninguem perguntou".
+    # Todo padrinho cadastrado antes destes campos existirem esta nesse caso, e
+    # grava-los como `false` afirmaria que eles nao sao membros e nao querem
+    # contribuir — duas coisas que ninguem apurou. A diferenca importa porque e
+    # justamente a lista dos "ainda nao perguntei" que a captacao precisa
+    # reaproveitar no ano seguinte.
+    membro_ser_feliz: Mapped[bool | None] = mapped_column(Boolean)
+    interesse_mensal: Mapped[bool | None] = mapped_column(Boolean)
+
     criado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )

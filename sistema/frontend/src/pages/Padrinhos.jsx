@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
-import { Entrada } from "../components/core/Campo.jsx";
+import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -16,7 +16,22 @@ import { criarPadrinho, editarPadrinho, listarPadrinhos } from "../services/padr
 import { dinheiro } from "../utils/dinheiro.js";
 
 const POR_PAGINA = 100;
-const NOVO = { nome: "", whatsapp: "", email: "", observacoes: "" };
+/* As duas perguntas da captacao nascem VAZIAS, e vazio nao e "nao": e "ainda
+   nao perguntei". Quem cadastra o padrinho as vezes so tem o nome e o zap na
+   mao, e forcar uma resposta ali inventaria dado. */
+const NOVO = {
+  nome: "",
+  whatsapp: "",
+  email: "",
+  observacoes: "",
+  membro_ser_feliz: "",
+  interesse_mensal: "",
+};
+
+/** "" -> null, "sim" -> true, "nao" -> false. */
+function resposta(valor) {
+  return valor === "" ? null : valor === "sim";
+}
 
 export default function Padrinhos() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
@@ -117,6 +132,8 @@ export default function Padrinhos() {
         whatsapp: campos.whatsapp.trim() || null,
         email: campos.email.trim() || null,
         observacoes: campos.observacoes.trim() || null,
+        membro_ser_feliz: resposta(campos.membro_ser_feliz),
+        interesse_mensal: resposta(campos.interesse_mensal),
       });
       notificar(`${campos.nome.trim()} cadastrado.`);
       definirCampos(NOVO);
@@ -195,6 +212,24 @@ export default function Padrinhos() {
                 onChange={(e) => definirCampos({ ...campos, email: e.target.value })} />
               <Entrada rotulo="Observações" value={campos.observacoes}
                 onChange={(e) => definirCampos({ ...campos, observacoes: e.target.value })} />
+              <Selecao
+                rotulo="Já é membro Ser Feliz?"
+                value={campos.membro_ser_feliz}
+                onChange={(e) => definirCampos({ ...campos, membro_ser_feliz: e.target.value })}
+              >
+                <option value="">A perguntar</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </Selecao>
+              <Selecao
+                rotulo="Tem interesse em contribuir mensalmente?"
+                value={campos.interesse_mensal}
+                onChange={(e) => definirCampos({ ...campos, interesse_mensal: e.target.value })}
+              >
+                <option value="">A perguntar</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </Selecao>
             </div>
             <div className="barra-acoes barra-acoes--fim">
               <Button variant="secondary" type="submit" carregando={salvando}

@@ -12,6 +12,9 @@ class PadrinhoIn(BaseModel):
     whatsapp: str | None = Field(default=None, max_length=30)
     email: EmailStr | None = None
     observacoes: str | None = None
+    # Nulo nao e "nao": e "ninguem perguntou". Ver o modelo.
+    membro_ser_feliz: bool | None = None
+    interesse_mensal: bool | None = None
 
 
 class PadrinhoEditar(BaseModel):
@@ -19,6 +22,8 @@ class PadrinhoEditar(BaseModel):
     whatsapp: str | None = Field(default=None, max_length=30)
     email: EmailStr | None = None
     observacoes: str | None = None
+    membro_ser_feliz: bool | None = None
+    interesse_mensal: bool | None = None
 
 
 class ApadrinhamentoResumo(BaseModel):
@@ -71,6 +76,8 @@ class PadrinhoOut(BaseModel):
     whatsapp: str | None
     email: str | None
     observacoes: str | None
+    membro_ser_feliz: bool | None
+    interesse_mensal: bool | None
     criado_em: datetime
     apadrinhamentos: list[ApadrinhamentoResumo]
     total_combinado: Decimal

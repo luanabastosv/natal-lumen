@@ -134,6 +134,8 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
         whatsapp=padrinho.whatsapp,
         email=padrinho.email,
         observacoes=padrinho.observacoes,
+        membro_ser_feliz=padrinho.membro_ser_feliz,
+        interesse_mensal=padrinho.interesse_mensal,
         criado_em=padrinho.criado_em,
         apadrinhamentos=resumos,
         # Quantizados para o total sair sempre com duas casas: sem isto um
@@ -215,6 +217,8 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
         whatsapp=dados.whatsapp,
         email=dados.email,
         observacoes=dados.observacoes,
+        membro_ser_feliz=dados.membro_ser_feliz,
+        interesse_mensal=dados.interesse_mensal,
         criado_por=ctx.usuario.id,
     )
     db.add(padrinho)
