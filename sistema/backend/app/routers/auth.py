@@ -126,6 +126,10 @@ def login(dados: LoginIn, resposta: Response, request: Request, db: BD):
     usuario.tentativas_falhas = 0
     usuario.bloqueado_ate = None
     usuario.ultimo_login = datetime.now(UTC)
+    # Entrou: o pedido de senha nova, se havia, deixou de fazer sentido — ela
+    # lembrou, ou ja usou o link. Sem isto o aviso ficaria pendurado na lista da
+    # coordenacao para sempre.
+    usuario.pediu_senha_em = None
 
     token, csrf = criar_token(usuario.id)
     gravar_cookies(resposta, token, csrf)
@@ -181,9 +185,11 @@ def definir_senha(dados: DefinirSenhaIn, db: BD):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Link invalido.")
 
     usuario.senha_hash = gerar_hash(dados.senha)
-    # Definir a senha tambem solta a conta de um bloqueio em curso.
+    # Definir a senha tambem solta a conta de um bloqueio em curso, e encerra o
+    # pedido: era exatamente isto que a pessoa estava esperando.
     usuario.tentativas_falhas = 0
     usuario.bloqueado_ate = None
+    usuario.pediu_senha_em = None
     tokens_acesso.consumir(registro)
 
     registrar(
@@ -209,8 +215,16 @@ def esqueci_senha(dados: EsqueciSenhaIn, db: BD):
     email = dados.email.lower().strip()
     usuario = db.scalar(select(Usuario).where(Usuario.email == email))
 
+    # A mensagem NAO promete email: o sistema nao envia nenhum. Ela diz o que de
+    # fato acontece — a coordenacao recebe o pedido e entrega o link. E continua
+    # igual para email que existe e para email que nao existe, senao a tela
+    # viraria um jeito de descobrir quem tem conta.
     resposta = MensagemOut(
-        mensagem="Se este email tiver conta, enviamos um link para redefinir a senha."
+        mensagem=(
+            "Se este email tiver conta, a coordenação foi avisada e vai te "
+            "passar um link para criar uma senha nova. Procure quem coordena a "
+            "sua cidade."
+        )
     )
 
     if usuario is None or not usuario.ativo:
@@ -219,6 +233,10 @@ def esqueci_senha(dados: EsqueciSenhaIn, db: BD):
         return resposta
 
     token = tokens_acesso.gerar(db, usuario, TipoToken.REDEFINIR_SENHA, horas=2)
+    # Marca o pedido no proprio usuario: e por aqui que ele chega a coordenacao.
+    # No log ele ja ficava, mas log ninguem le — e quem esqueceu a senha esta
+    # parado esperando.
+    usuario.pediu_senha_em = datetime.now(UTC)
     registrar(db, "esqueci_senha", usuario_id=usuario.id, detalhes={"encontrado": True})
     db.commit()
 

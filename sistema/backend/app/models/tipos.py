@@ -80,4 +80,14 @@ MomentoOpcional = Annotated[
     mapped_column(DateTime(timezone=True), nullable=True),
 ]
 
+# Instante obrigatorio, COM fuso. Existe para nenhum instante do sistema ficar
+# sem ele: um `datetime` sem fuso vai para o banco como a hora LOCAL do
+# servidor, e volta como se fosse UTC. Num servidor em UTC isso passa
+# despercebido; num servidor no fuso de Sao Paulo, um prazo de duas horas nasce
+# uma hora no passado.
+Momento = Annotated[
+    datetime,
+    mapped_column(DateTime(timezone=True), nullable=False),
+]
+
 Texto = Annotated[str, mapped_column(String(160))]

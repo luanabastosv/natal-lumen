@@ -363,6 +363,38 @@ def main() -> None:
             sem_conta["mensagem"] == com_conta["mensagem"],
         )
         verifica("em desenvolvimento devolve o link", com_conta.get("link") is not None)
+        verifica("e a mensagem nao promete um envio que o sistema nao faz",
+                 "enviamos" not in com_conta["mensagem"].lower()
+                 and "coordena" in com_conta["mensagem"].lower(),
+                 com_conta["mensagem"])
+
+        # O prazo do link tem de voltar do banco COM fuso. Sem isso ele era
+        # gravado na hora local do servidor e relido como UTC, e um link de 2
+        # horas nascia vencido em qualquer maquina fora de UTC — o que nao
+        # aparece num teste rodando em UTC, so no tipo da coluna.
+        db.expire_all()
+        guardado = db.scalar(
+            select(TokenAcesso)
+            .where(TokenAcesso.usuario_id == novato.id, TokenAcesso.usado_em.is_(None))
+        )
+        verifica("o prazo do link tem fuso",
+                 guardado is not None and guardado.expira_em.tzinfo is not None,
+                 str(getattr(guardado, "expira_em", None)))
+
+        # O pedido tem de CHEGAR a coordenacao: o sistema nao envia email, entao
+        # ele fica marcado no usuario e a lista de usuarios mostra quem espera.
+        db.expire_all()
+        verifica("o pedido fica marcado no usuario",
+                 db.get(Usuario, novato.id).pediu_senha_em is not None)
+
+        # Definir a senha encerra o pedido — era exatamente isto que a pessoa
+        # estava esperando.
+        novo_token = com_conta["link"].split("token=")[-1]
+        r = c3.post("/auth/definir-senha", json={"token": novo_token, "senha": SENHA})
+        verifica("o link do pedido funciona", r.status_code == 200, r.text[:120])
+        db.expire_all()
+        verifica("e o pedido para de aparecer para a coordenacao",
+                 db.get(Usuario, novato.id).pediu_senha_em is None)
 
         print("\nIsolamento de dados (o mais importante)")
         db.expire_all()

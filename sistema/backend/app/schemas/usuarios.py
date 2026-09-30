@@ -66,6 +66,8 @@ class UsuarioDetalhe(BaseModel):
     tem_senha: bool
     bloqueado: bool
     ultimo_login: datetime | None
+    # Quem pediu senha nova e esta esperando a coordenacao gerar o link.
+    pediu_senha_em: datetime | None = None
     criado_em: datetime
     vinculos: list[VinculoDetalhe]
 

@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.tipos import CriadoEm, MomentoOpcional, TipoToken, valores
+from app.models.tipos import CriadoEm, Momento, MomentoOpcional, TipoToken, valores
 
 
 class Usuario(Base):
@@ -41,6 +41,13 @@ class Usuario(Base):
         Integer, nullable=False, default=0, server_default=text("0")
     )
     bloqueado_ate: Mapped[MomentoOpcional]
+
+    # Quando esta pessoa pediu uma senha nova pela tela de "esqueci minha
+    # senha". O sistema NAO manda email — entao o pedido precisa chegar a
+    # coordenacao de algum jeito, e o jeito e este: a lista de usuarios mostra
+    # quem esta esperando, e o coordenador gera o link. Sem isto o pedido morria
+    # no log, que ninguem le.
+    pediu_senha_em: Mapped[MomentoOpcional]
     criado_em: Mapped[CriadoEm]
 
     # passive_deletes deixa o CASCADE do banco fazer o trabalho. Sem isso o
@@ -192,7 +199,10 @@ class TokenAcesso(Base):
     )
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     tipo: Mapped[str] = mapped_column(String(20), nullable=False)
-    expira_em: Mapped[datetime] = mapped_column(nullable=False)
+    # COM fuso, como todo instante do sistema. Sem isto o prazo era gravado na
+    # hora local do servidor e relido como UTC — e um link de 2 horas nascia
+    # vencido em qualquer servidor que nao estivesse em UTC.
+    expira_em: Mapped[Momento]
     usado_em: Mapped[MomentoOpcional]
 
     usuario: Mapped[Usuario] = relationship(back_populates="tokens")

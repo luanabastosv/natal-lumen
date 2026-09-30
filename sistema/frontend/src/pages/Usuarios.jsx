@@ -369,6 +369,10 @@ export default function Usuarios() {
     if (!u.ativo) return ["parado", "Desativado"];
     if (u.bloqueado) return ["parado", "Bloqueado"];
     if (!u.tem_senha) return ["espera", "Aguardando 1º acesso"];
+    // Antes de "Ativo": quem pediu senha nova esta PARADO, sem conseguir
+    // entrar, esperando alguem daqui gerar o link. O sistema nao manda email —
+    // esta etiqueta e o unico caminho do pedido ate quem pode resolver.
+    if (u.pediu_senha_em) return ["espera", "Pediu senha nova"];
     return ["ok", "Ativo"];
   }
 
@@ -607,7 +611,13 @@ export default function Usuarios() {
                             aoEscolher: () => definirDetalhe(u),
                           },
                           { rotulo: "Editar", aoEscolher: () => abrirEdicao(u) },
-                          { rotulo: "Gerar link", aoEscolher: () => novoLink(u) },
+                          {
+              // Renomeado quando ha pedido: e a mesma acao, mas dita pelo que
+              // ela resolve — quem esta na lista procurando como atender o
+              // pedido nao deveria ter de adivinhar que "Gerar link" e isso.
+              rotulo: u.pediu_senha_em ? "Gerar link de senha nova" : "Gerar link",
+              aoEscolher: () => novoLink(u),
+            },
                           // Ninguem se desativa nem se apaga: quem fizesse isso
                           // se trancaria para fora do sistema no clique seguinte.
                           u.id !== eu?.id && {

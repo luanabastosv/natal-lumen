@@ -57,9 +57,11 @@ export default function EsqueciSenha() {
           </>
         ) : (
           <>
+            {/* Nao promete email: o sistema nao envia nenhum. Quem entrega o
+                link e a coordenacao, que ve o pedido na lista de usuarios. */}
             <p className="acesso__lede">
-              Escreva o email da sua conta. Se ela existir, enviamos um link para
-              criar uma senha nova.
+              Escreva o email da sua conta. A coordenação da sua cidade recebe o
+              pedido e te passa um link para criar uma senha nova.
             </p>
 
             <Mensagem tipo="erro">{erro}</Mensagem>
@@ -80,7 +82,7 @@ export default function EsqueciSenha() {
                 carregando={enviando}
                 disabled={!email}
               >
-                {enviando ? "Enviando..." : "Enviar link"}
+                {enviando ? "Avisando..." : "Avisar a coordenação"}
               </Button>
             </form>
           </>

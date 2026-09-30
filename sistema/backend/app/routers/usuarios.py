@@ -96,6 +96,7 @@ def _saida(db: Session, usuario: Usuario) -> UsuarioDetalhe:
         tem_senha=usuario.tem_senha,
         bloqueado=bool(bloqueado_ate and bloqueado_ate > datetime.now(UTC)),
         ultimo_login=usuario.ultimo_login,
+        pediu_senha_em=usuario.pediu_senha_em,
         criado_em=usuario.criado_em,
         vinculos=sorted(vinculos, key=lambda v: (-v.ano, v.cidade)),
     )
