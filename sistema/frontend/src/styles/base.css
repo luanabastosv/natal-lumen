@@ -1646,6 +1646,27 @@ textarea.campo__controle {
   text-align: center;
 }
 
+/* A coluna de marcar nas tabelas simples. `width: 1%` e o jeito de dizer "o
+   minimo que couber" numa tabela de layout automatico — sem isso a coluna da
+   caixinha ficava com um vao enorme e o codigo da crianca boiava longe do nome. */
+.tabela__marcar {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Quem desistiu continua na lista, riscado. O kit dela NAO deve ser montado,
+   e some-la faria a conta da equipe nao bater com a lista impressa — ninguem
+   entenderia por que faltam tres caixas. A caixinha fica fora do risco: ela
+   ainda precisa ser clicavel, para o caso de a desistencia ser desfeita. */
+.tabela tr.tabela__linha--desistiu td:not(.tabela__marcar) {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: var(--text-on-light-muted);
+  color: var(--text-on-light-muted);
+  opacity: 0.7;
+}
+
 /* Colunas de texto nao quebram linha: uma linha por crianca mantem a densidade
    que uma planilha precisa ter. */
 .planilha td,
@@ -4012,3 +4033,4 @@ textarea.campo__controle {
   color: var(--text-on-light-muted);
   font-size: var(--size-caption);
 }
+

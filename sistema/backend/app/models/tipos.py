@@ -24,9 +24,16 @@ class StatusCartao(StrEnum):
 
 
 class StatusKit(StrEnum):
+    """Dois estados, e nao tres.
+
+    Havia um "entregue", marcado no dia do evento. Saiu em 30/09/2026 por
+    decisao da coordenacao: o kit e trabalho da equipe de estrutura na semana
+    anterior, e o que ela precisa registrar e se montou ou nao. A entrega no dia
+    quem acompanha e o check-in da crianca.
+    """
+
     PENDENTE = "pendente"
     MONTADO = "montado"
-    ENTREGUE = "entregue"
 
 
 class CategoriaRecebimento(StrEnum):

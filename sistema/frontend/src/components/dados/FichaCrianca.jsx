@@ -98,7 +98,7 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
             <dt>Kit</dt>
             <dd>
               {ficha.kit_status}
-              {ficha.kit_entregue_em && ` · ${formatarDataHora(ficha.kit_entregue_em)}`}
+              {ficha.kit_montado_em && ` · ${formatarDataHora(ficha.kit_montado_em)}`}
             </dd>
             <dt>Check-in</dt>
             <dd>{ficha.checkin_em ? formatarDataHora(ficha.checkin_em) : "não fez"}</dd>

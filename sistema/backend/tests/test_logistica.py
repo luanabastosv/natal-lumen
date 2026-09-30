@@ -177,13 +177,52 @@ def main() -> None:
                  r.json()["total"] == 1 and r.json()["itens"][0]["crianca_id"] == carla.id,
                  str(r.json()["total"]))
 
+        verifica("marcar montado grava a hora",
+                 r.json()["itens"][0]["montado_em"] is not None
+                 or any(i["montado_em"] for i in ce.get("/kits").json()["itens"]),
+                 "nenhum montado_em preenchido")
+
+        r = ce.post("/kits", json={"criancas": [ana.id], "status": "pendente"})
+        verifica("desmarcar limpa a hora da montagem",
+                 r.json()[0]["montado_em"] is None, str(r.json()[0]["montado_em"]))
+
+        # O estado "entregue" saiu do sistema em 30/09/2026: o kit e montado ou
+        # nao, e a entrega no dia quem acompanha e o check-in.
         r = ce.post("/kits", json={"criancas": [ana.id], "status": "entregue"})
-        verifica("marca como entregue e grava a hora", r.json()[0]["entregue_em"] is not None)
+        verifica("o estado entregue nao existe mais",
+                 r.status_code == 422, str(r.status_code))
+        r = ce.get("/kits", params={"situacao": "entregue"})
+        verifica("nem como filtro", r.status_code == 422, str(r.status_code))
 
         r = ce.post("/kits", json={"criancas": [ana.id], "status": "montado"})
-        verifica("voltar atras limpa a hora de entrega", r.json()[0]["entregue_em"] is None)
+        verifica("e montado volta a valer", r.status_code == 200, r.text[:120])
 
-        r = ck.post("/kits", json={"criancas": [ana.id], "status": "entregue"})
+        print("\nKits: o que a estrutura precisa para montar")
+        item = next(i for i in ce.get("/kits").json()["itens"] if i["crianca_id"] == ana.id)
+        verifica("a linha traz codigo, idade e sexo",
+                 item.get("crianca_codigo") and item.get("idade") and item.get("sexo"),
+                 str({k: item.get(k) for k in ("crianca_codigo", "idade", "sexo")}))
+        verifica("e diz se a crianca desistiu",
+                 "desistiu_em" in item, str(sorted(item)))
+
+        print("\nKits: abas por instituicao")
+        r = ce.get("/kits/instituicoes", params={"edicao_id": edicao.id})
+        verifica("as abas respondem", r.status_code == 200, r.text[:130])
+        abas = r.json() if r.status_code == 200 else []
+        verifica("uma aba por instituicao com crianca", len(abas) >= 1, str(len(abas)))
+        verifica("a aba conta total e montados",
+                 all("total" in a and "montados" in a and "desistentes" in a for a in abas),
+                 str(abas[:1]))
+        somados = sum(a["total"] for a in abas)
+        verifica("e os totais das abas somam a lista inteira",
+                 somados == ce.get("/kits").json()["total"], f"{somados}")
+
+        r = ce.get("/kits", params={"instituicao_id": abas[0]["instituicao_id"]})
+        verifica("a lista filtra por instituicao",
+                 all(i["instituicao_id"] == abas[0]["instituicao_id"] for i in r.json()["itens"]),
+                 str(r.json()["total"]))
+
+        r = ck.post("/kits", json={"criancas": [ana.id], "status": "montado"})
         verifica("comissario NAO mexe em kits", r.status_code == 403, str(r.status_code))
 
         print("\nFinanceiro — saidas")

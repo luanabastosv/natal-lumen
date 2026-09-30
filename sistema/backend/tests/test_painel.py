@@ -185,7 +185,7 @@ def main() -> None:
         Cartao(crianca_id=criancas_b[0].id, tipo="cesta", arquivo="z.jpg"),
     ])
     db.add_all([
-        Kit(crianca_id=criancas_a[0].id, status="entregue"),
+        Kit(crianca_id=criancas_a[0].id, status="montado"),
         Kit(crianca_id=criancas_a[1].id, status="montado"),
     ])
     db.add(Compra(edicao_id=edicao.id, descricao="Cestas", quantidade=5,

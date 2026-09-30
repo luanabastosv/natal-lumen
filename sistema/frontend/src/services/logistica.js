@@ -11,6 +11,10 @@ function comFiltros(caminho, filtros = {}) {
 }
 
 export const listarKits = (filtros) => comFiltros("/kits", filtros);
+
+/** As abas da tela de kits: uma por instituicao, com o que falta montar nela. */
+export const instituicoesDosKits = (edicaoId) =>
+  comFiltros("/kits/instituicoes", { edicao_id: edicaoId });
 export const mudarKits = (criancas, status, observacoes = null) =>
   api.post("/kits", { criancas, status, observacoes });
 

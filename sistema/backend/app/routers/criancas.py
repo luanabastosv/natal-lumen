@@ -724,7 +724,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
             for c in cartoes
         ],
         kit_status=kit.status if kit else "pendente",
-        kit_entregue_em=kit.entregue_em if kit else None,
+        kit_montado_em=kit.montado_em if kit else None,
         pode_ver_contato=pode_contato,
     )
 

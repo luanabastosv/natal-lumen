@@ -899,11 +899,7 @@ export default function Criancas() {
                         <span className="celula" style={{ cursor: "default" }}>
                           <span
                             className={`marcador ${
-                              c.kit_status === "entregue"
-                                ? "marcador--feito"
-                                : c.kit_status === "montado"
-                                  ? "marcador--parcial"
-                                  : ""
+                              c.kit_status === "montado" ? "marcador--feito" : ""
                             }`}
                           >
                             {c.kit_status.slice(0, 4)}

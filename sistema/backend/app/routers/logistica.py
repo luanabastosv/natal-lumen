@@ -12,15 +12,16 @@ from typing import Annotated
 import qrcode
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Kit
+from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Instituicao, Kit
 from app.models.tipos import StatusKit
 from app.schemas.logistica import (
     CheckinIn,
     CheckinOut,
+    InstituicaoKits,
     KitMudar,
     KitOut,
     PaginaKits,
@@ -38,13 +39,41 @@ Checkin = Annotated[ContextoAcesso, Depends(exige_permissao("fazer_checkin"))]
 
 # ---------------------------------------------------------------- kits
 
+def _saida_kit(crianca: Crianca, kit: Kit | None) -> dict:
+    """Uma linha de kit. Existe para a lista e o lote nunca divergirem.
+
+    Sem ela, a linha devolvida depois de marcar montado tinha menos campos que a
+    linha da lista, e a tela ficava com metade dos dados em branco ate a proxima
+    busca.
+    """
+    return {
+        "id": kit.id if kit else None,
+        "crianca_id": crianca.id,
+        "crianca_codigo": crianca.codigo,
+        "crianca_nome": crianca.nome,
+        "idade": crianca.idade,
+        "sexo": crianca.sexo,
+        "instituicao_id": crianca.instituicao_id,
+        "instituicao": crianca.instituicao.nome,
+        "dia_evento": crianca.dia_evento.data if crianca.dia_evento else None,
+        "dia_evento_descricao": crianca.dia_evento.descricao if crianca.dia_evento else None,
+        "status": kit.status if kit else StatusKit.PENDENTE.value,
+        "montado_em": kit.montado_em if kit else None,
+        "desistiu_em": crianca.desistiu_em,
+        "observacoes": kit.observacoes if kit else None,
+    }
+
+
 @router.get("/kits", response_model=PaginaKits)
 def listar_kits(
     db: BD,
     ctx: Kits,
     edicao_id: int | None = None,
     dia_evento_id: int | None = None,
-    situacao: str | None = Query(default=None, pattern="^(pendente|montado|entregue)$"),
+    # A tela e por abas de instituicao, como a de criancas: a equipe monta uma
+    # escola de cada vez, e a caixa de cada uma sai junta.
+    instituicao_id: int | None = None,
+    situacao: str | None = Query(default=None, pattern="^(pendente|montado)$"),
     pagina: int = Query(default=1, ge=1),
     por_pagina: int = Query(default=100, ge=1, le=500),
 ):
@@ -59,6 +88,8 @@ def listar_kits(
         condicao = condicao & (Crianca.edicao_id == edicao_id)
     if dia_evento_id is not None:
         condicao = condicao & (Crianca.dia_evento_id == dia_evento_id)
+    if instituicao_id is not None:
+        condicao = condicao & (Crianca.instituicao_id == instituicao_id)
 
     consulta = (
         select(Crianca, Kit)
@@ -89,19 +120,52 @@ def listar_kits(
         resumo=dict(resumo),
         itens=[
             KitOut(
-                id=kit.id if kit else None,
-                crianca_id=crianca.id,
-                crianca_nome=crianca.nome,
-                instituicao=crianca.instituicao.nome,
-                dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
-                dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
-                status=kit.status if kit else StatusKit.PENDENTE.value,
-                entregue_em=kit.entregue_em if kit else None,
-                observacoes=kit.observacoes if kit else None,
-            )
+                **_saida_kit(crianca, kit))
             for crianca, kit in pagina_atual
         ],
     )
+
+
+@router.get("/kits/instituicoes", response_model=list[InstituicaoKits])
+def instituicoes_dos_kits(db: BD, ctx: Kits, edicao_id: int):
+    """As abas da tela de kits: uma por instituicao, com o que falta montar.
+
+    Passa pelo mesmo filtro da lista, entao quem alcanca so algumas escolas ve
+    so as abas delas.
+
+    Conta a instituicao que tem crianca na edicao, mesmo com zero kits montados:
+    e justamente a escola em que nada comecou que a equipe precisa achar.
+    """
+    alcance = ctx.filtro_criancas("gerenciar_kits") & (Crianca.edicao_id == edicao_id)
+
+    linhas = db.execute(
+        select(
+            Instituicao.id,
+            Instituicao.nome,
+            Instituicao.sigla,
+            func.count(Crianca.id).label("total"),
+            func.count(case((Kit.status == StatusKit.MONTADO.value, 1))).label("montados"),
+            func.count(case((Crianca.desistiu_em.is_not(None), 1))).label("desistentes"),
+        )
+        .select_from(Crianca)
+        .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
+        .outerjoin(Kit, Kit.crianca_id == Crianca.id)
+        .where(alcance)
+        .group_by(Instituicao.id, Instituicao.nome, Instituicao.sigla)
+        .order_by(Instituicao.nome)
+    ).all()
+
+    return [
+        InstituicaoKits(
+            instituicao_id=l.id,
+            instituicao=l.nome,
+            sigla=l.sigla,
+            total=l.total,
+            montados=l.montados,
+            desistentes=l.desistentes,
+        )
+        for l in linhas
+    ]
 
 
 @router.post("/kits", response_model=list[KitOut])
@@ -134,25 +198,17 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
         if dados.observacoes is not None:
             kit.observacoes = dados.observacoes
 
-        if dados.status == StatusKit.ENTREGUE.value:
-            kit.entregue_em = agora
-            kit.entregue_por = ctx.usuario.id
+        if dados.status == StatusKit.MONTADO.value:
+            kit.montado_em = agora
+            kit.montado_por = ctx.usuario.id
         else:
-            # Voltar atras limpa a entrega, senao ficaria data de entrega num
-            # kit que voltou para montagem.
-            kit.entregue_em = None
-            kit.entregue_por = None
+            # Desmarcar limpa a data, senao ficaria hora de montagem num kit que
+            # voltou para a fila.
+            kit.montado_em = None
+            kit.montado_por = None
 
         db.flush()
-        saida.append(
-            KitOut(
-                id=kit.id, crianca_id=crianca.id, crianca_nome=crianca.nome,
-                instituicao=crianca.instituicao.nome,
-                dia_evento=crianca.dia_evento.data if crianca.dia_evento else None,
-                dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
-                status=kit.status, entregue_em=kit.entregue_em, observacoes=kit.observacoes,
-            )
-        )
+        saida.append(KitOut(**_saida_kit(crianca, kit)))
 
     registrar(
         db, "kits_atualizados", usuario_id=ctx.usuario.id,

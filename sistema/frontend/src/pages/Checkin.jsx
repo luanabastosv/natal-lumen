@@ -96,7 +96,9 @@ export default function Checkin() {
               </>
             )}
             {" · "}
-            <span className={`etiqueta etiqueta--${resultado.kit_status === "entregue" ? "ok" : "espera"}`}>
+            {/* O kit e montado ou nao: o estado "entregue" saiu do sistema, e
+                a entrega no dia e este proprio check-in. */}
+            <span className={`etiqueta etiqueta--${resultado.kit_status === "montado" ? "ok" : "espera"}`}>
               kit {resultado.kit_status}
             </span>
           </p>

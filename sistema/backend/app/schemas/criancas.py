@@ -202,7 +202,7 @@ class CriancaDetalhe(BaseModel):
     padrinhos: list[PadrinhoDaCrianca]
     cartoes: list[CartaoDaCrianca]
     kit_status: str
-    kit_entregue_em: datetime | None
+    kit_montado_em: datetime | None
 
     # O contato do padrinho so aparece para quem tem ver_padrinhos. Sem isto,
     # um monitor veria o telefone de todos os doadores.

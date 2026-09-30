@@ -91,8 +91,12 @@ class Kit(Base):
         default=StatusKit.PENDENTE.value,
         server_default=text(f"'{StatusKit.PENDENTE.value}'"),
     )
-    entregue_em: Mapped[MomentoOpcional]
-    entregue_por: Mapped[int | None] = mapped_column(
+    # Quando e por quem o kit foi MONTADO. Eram `entregue_em`/`entregue_por`,
+    # da epoca em que havia um estado de entrega; viraram isto no mesmo dia em
+    # que o estado saiu, em vez de serem apagadas — a data de quem ja tinha
+    # mexido no kit continua valendo.
+    montado_em: Mapped[MomentoOpcional]
+    montado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
     observacoes: Mapped[str | None] = mapped_column(Text)

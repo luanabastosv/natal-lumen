@@ -11,13 +11,37 @@ from pydantic import BaseModel, Field
 class KitOut(BaseModel):
     id: int | None
     crianca_id: int
+    # O que a equipe de estrutura precisa TER NA MAO para montar: o codigo e o
+    # nome para achar a crianca na pilha, a instituicao para separar as caixas,
+    # e idade e sexo porque e por eles que se escolhe o presente.
+    crianca_codigo: str
     crianca_nome: str
+    idade: int
+    sexo: str
+    instituicao_id: int
     instituicao: str
     dia_evento: date | None
     dia_evento_descricao: str | None = None
     status: str
-    entregue_em: datetime | None
+    montado_em: datetime | None
+    # Kit de quem desistiu nao deve ser montado. Vem para a lista em vez de ser
+    # filtrado fora: some-lo faria a conta da equipe nao bater com a lista
+    # impressa, e ninguem entenderia por que faltam tres caixas.
+    desistiu_em: datetime | None
     observacoes: str | None
+
+
+class InstituicaoKits(BaseModel):
+    """Uma aba da tela de kits: a instituicao e o que falta montar nela."""
+
+    instituicao_id: int
+    instituicao: str
+    sigla: str | None
+    total: int
+    montados: int
+    # Contadas a parte: elas entram no total (a lista as mostra), mas nao sao
+    # trabalho — a equipe precisa saber que aquelas nao viram caixa.
+    desistentes: int
 
 
 class PaginaKits(BaseModel):
@@ -31,7 +55,7 @@ class PaginaKits(BaseModel):
 
 class KitMudar(BaseModel):
     criancas: list[int] = Field(min_length=1)
-    status: str = Field(pattern="^(pendente|montado|entregue)$")
+    status: str = Field(pattern="^(pendente|montado)$")
     observacoes: str | None = None
 
 
