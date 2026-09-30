@@ -3,12 +3,15 @@ import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import ConferirCartoes from "../components/dados/ConferirCartoes.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
+import BotaoIcone from "../components/core/BotaoIcone.jsx";
+import { Olho } from "../components/core/icones.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import {
   confirmarLote,
   listarCartoes,
@@ -44,6 +47,11 @@ export default function Cartoes() {
 
   // Qual cartao esta aberto para olhar.
   const [vendo, definirVendo] = useState(null);
+
+  // No celular ficam de pe de quem e o cartao e se ele ja foi — o resto ja
+  // morava na janela do cartao aberto, que agora e tambem a janela dos
+  // detalhes da linha.
+  const estreita = useTelaEstreita();
 
   const buscar = useCallback(async () => {
     try {
@@ -306,16 +314,24 @@ export default function Cartoes() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela tabela--larga">
-            <caption className="tabela-dica">
-              Arraste a lista para o lado para ver todas as colunas.
-            </caption>
+          {/* Sem `tabela--larga` no celular: e a largura minima dela que fazia
+              a lista rolar de lado. */}
+          <table className={`tabela ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
+            {!estreita && (
+              <caption className="tabela-dica">
+                Arraste a lista para o lado para ver todas as colunas.
+              </caption>
+            )}
             <thead>
               <tr>
                 {podeMarcar && <th className="tabela__acoes" />}
                 <th>Criança</th>
-                <th>Tipo</th>
-                <th>Padrinho</th>
+                {!estreita && (
+                  <>
+                    <th>Tipo</th>
+                    <th>Padrinho</th>
+                  </>
+                )}
                 <th>Situação</th>
                 <th className="tabela__acoes" />
               </tr>
@@ -339,13 +355,17 @@ export default function Cartoes() {
                     <br />
                     <span className="campo__dica">{c.instituicao}</span>
                   </td>
-                  <td>{c.tipo}</td>
-                  <td>
-                    {c.padrinho_nome ?? (
-                      <span className="etiqueta etiqueta--espera">sem padrinho</span>
-                    )}
-                    {c.padrinho_whatsapp && <><br />{c.padrinho_whatsapp}</>}
-                  </td>
+                  {!estreita && (
+                    <>
+                      <td>{c.tipo}</td>
+                      <td>
+                        {c.padrinho_nome ?? (
+                          <span className="etiqueta etiqueta--espera">sem padrinho</span>
+                        )}
+                        {c.padrinho_whatsapp && <><br />{c.padrinho_whatsapp}</>}
+                      </td>
+                    </>
+                  )}
                   <td>
                     <span className={`etiqueta ${c.status === "enviado" ? "etiqueta--ok" : "etiqueta--espera"}`}>
                       {c.status === "enviado" ? "Enviado" : "A enviar"}
@@ -354,10 +374,24 @@ export default function Cartoes() {
                       <><br /><span className="campo__dica">{formatarDataHora(c.enviado_em)}</span></>
                     )}
                   </td>
+                  {/* A janela do cartao e tambem a janela dos detalhes: no
+                      celular ela e que devolve tipo, padrinho e a hora do
+                      envio. Vira icone ali para a coluna caber sem apertar o
+                      nome da crianca ao lado. */}
                   <td className="tabela__acoes">
-                    <Button size="sm" variant="ghost" onClick={() => definirVendo(c)}>
-                      Ver imagem
-                    </Button>
+                    {estreita ? (
+                      <BotaoIcone
+                        titulo={`Ver o cartão de ${c.crianca_nome}`}
+                        tamanho="sm"
+                        onClick={() => definirVendo(c)}
+                      >
+                        <Olho t={20} />
+                      </BotaoIcone>
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => definirVendo(c)}>
+                        Ver imagem
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -400,13 +434,24 @@ export default function Cartoes() {
             src={urlDaImagem(vendo.id)}
             alt={`Cartão de ${vendo.tipo} de ${vendo.crianca_nome}`}
           />
+          {/* Tipo e o WhatsApp do padrinho entraram aqui quando a lista
+              estreita deixou de mostra-los: a janela tem de responder tudo o
+              que a linha deixou de dizer. */}
           <dl className="ficha ficha--duas" style={{ marginTop: "var(--space-4)" }}>
             <dt>Instituição</dt>
             <dd>{vendo.instituicao}</dd>
+            <dt>Tipo</dt>
+            <dd>{vendo.tipo}</dd>
             <dt>Padrinho</dt>
-            <dd>{vendo.padrinho_nome ?? "sem padrinho ainda"}</dd>
+            <dd>
+              {vendo.padrinho_nome ?? "sem padrinho ainda"}
+              {vendo.padrinho_whatsapp && ` · ${vendo.padrinho_whatsapp}`}
+            </dd>
             <dt>Situação</dt>
-            <dd>{vendo.status === "enviado" ? "Enviado" : "A enviar"}</dd>
+            <dd>
+              {vendo.status === "enviado" ? "Enviado" : "A enviar"}
+              {vendo.enviado_em && ` · ${formatarDataHora(vendo.enviado_em)}`}
+            </dd>
             <dt>Digitalizado</dt>
             <dd>{formatarDataHora(vendo.criado_em)}</dd>
           </dl>

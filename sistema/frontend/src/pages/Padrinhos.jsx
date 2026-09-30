@@ -11,6 +11,7 @@ import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import { criarPadrinho, editarPadrinho, listarPadrinhos } from "../services/padrinhos.js";
 import { dinheiro } from "../utils/dinheiro.js";
 
@@ -49,6 +50,12 @@ export default function Padrinhos() {
 
   const podeEditar = pode("editar_padrinhos");
   const podePagar = pode("registrar_pagamentos");
+
+  // No celular a planilha inteira nao cabe: ficam de pe o nome e quantas
+  // criancas ele apadrinhou — o que identifica o padrinho e diz se ele ja
+  // cumpriu o combinado — e as outras cinco colunas vao para a ficha, que ja
+  // existia e ja traz tudo.
+  const estreita = useTelaEstreita();
 
   // Trocar de edicao na lateral recomeca a lista: a pagina 3 da edicao anterior
   // nao tem relacao com esta, e a ficha aberta era de outro padrinho. Ajustado
@@ -127,9 +134,9 @@ export default function Padrinhos() {
       <h1 className="pagina__titulo">Padrinhos</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
-        Cada padrinho pertence a uma edição e pode apadrinhar várias crianças, inclusive
-        de outra cidade. Clique em qualquer célula para editar; o olho abre a ficha com
-        todas as crianças e as ações de cada uma.
+        {estreita
+          ? "Cada padrinho pode apadrinhar várias crianças, inclusive de outra cidade. Toque na linha para a ficha com todos os dados e as ações de cada criança."
+          : "Cada padrinho pertence a uma edição e pode apadrinhar várias crianças, inclusive de outra cidade. Clique em qualquer célula para editar; o menu abre a ficha com todas as crianças e as ações de cada uma."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -224,10 +231,15 @@ export default function Padrinhos() {
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className="planilha">
-              <caption className="tabela-dica">
-                Arraste a lista para o lado para ver todas as colunas.
-              </caption>
+            <table className={`planilha ${estreita ? "planilha--compacta" : ""}`}>
+              {/* So faz sentido onde a lista de fato rola. Na versao estreita
+                  as tres colunas cabem na tela, e prometer arraste ali seria
+                  mandar a pessoa procurar o que nao existe. */}
+              {!estreita && (
+                <caption className="tabela-dica">
+                  Arraste a lista para o lado para ver todas as colunas.
+                </caption>
+              )}
               {/* As larguras ficam aqui, e nao no conteudo: trocar de edicao
                   nao move nenhuma coluna de lugar.
 
@@ -240,23 +252,41 @@ export default function Padrinhos() {
                   cortam com reticencias quando a janela aperta. */}
               <colgroup>
                 <col />
-                <col style={{ width: 120 }} />
-                <col />
+                {!estreita && (
+                  <>
+                    <col style={{ width: 120 }} />
+                    <col />
+                  </>
+                )}
                 <col style={{ width: 36 }} />
-                <col />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 40 }} />
+                {!estreita && (
+                  <>
+                    <col />
+                    <col style={{ width: 92 }} />
+                    <col style={{ width: 92 }} />
+                  </>
+                )}
+                {/* Os mesmos 40 do ponteiro viram 48 para o dedo — o botao
+                    passa a medir 40px e precisa de folga ate a borda. */}
+                <col style={{ width: estreita ? 48 : 40 }} />
               </colgroup>
               <thead>
                 <tr>
                   <th>Nome</th>
-                  <th>WhatsApp</th>
-                  <th>Email</th>
+                  {!estreita && (
+                    <>
+                      <th>WhatsApp</th>
+                      <th>Email</th>
+                    </>
+                  )}
                   <th title="Quantas crianças este padrinho apadrinhou">Nº</th>
-                  <th>Crianças</th>
-                  <th>Combinado</th>
-                  <th>Pago</th>
+                  {!estreita && (
+                    <>
+                      <th>Crianças</th>
+                      <th>Combinado</th>
+                      <th>Pago</th>
+                    </>
+                  )}
                   <th className="planilha__acoes" />
                 </tr>
               </thead>
@@ -265,9 +295,27 @@ export default function Padrinhos() {
                   const quitado =
                     p.apadrinhamentos.length > 0 && p.apadrinhamentos.every((a) => a.pago);
                   return (
-                    <tr key={p.id}>
+                    <tr
+                      key={p.id}
+                      /* No celular a linha inteira abre a ficha: o alvo vira a
+                         faixa por toda a largura da tela, e nao so os tres
+                         pontinhos do canto. So no celular — no desktop o clique
+                         na celula e o que abre a edicao dela, e os dois nao
+                         cabem no mesmo lugar.
+
+                         O menu fica: e ele quem anuncia as acoes para quem
+                         navega por teclado ou leitor de tela. A linha e atalho
+                         de dedo, e por isso nao ganha `role` nem foco proprio
+                         — seria um segundo caminho dizendo o mesmo na frente de
+                         quem usa Tab. */
+                      onClick={estreita ? () => abrirFicha(p.id) : undefined}
+                    >
+                      {/* No celular o nome vira texto, mesmo para quem pode
+                          editar: a celula que vira campo ao toque abriria o
+                          teclado em quem so queria rolar a lista. Edicao e no
+                          computador. */}
                       <td>
-                        {podeEditar ? (
+                        {podeEditar && !estreita ? (
                           <CelulaEditavel
                             valor={p.nome}
                             aoSalvar={(v) => salvarCampo(p, "nome", v)}
@@ -276,76 +324,84 @@ export default function Padrinhos() {
                           <span className="celula">{p.nome}</span>
                         )}
                       </td>
-                      <td>
-                        {podeEditar ? (
-                          <CelulaEditavel
-                            valor={p.whatsapp}
-                            aoSalvar={(v) => salvarCampo(p, "whatsapp", v)}
-                          />
-                        ) : (
-                          <span className="celula">{p.whatsapp ?? "—"}</span>
+                      {!estreita && (
+                        <>
+                            <td>
+                              {podeEditar ? (
+                                <CelulaEditavel
+                                  valor={p.whatsapp}
+                                  aoSalvar={(v) => salvarCampo(p, "whatsapp", v)}
+                                />
+                              ) : (
+                                <span className="celula">{p.whatsapp ?? "—"}</span>
+                              )}
+                            </td>
+                            <td>
+                              {podeEditar ? (
+                                <CelulaEditavel
+                                  valor={p.email}
+                                  aoSalvar={(v) => salvarCampo(p, "email", v)}
+                                />
+                              ) : (
+                                <span className="celula">{p.email ?? "—"}</span>
+                              )}
+                            </td>
+                          </>
                         )}
-                      </td>
-                      <td>
-                        {podeEditar ? (
-                          <CelulaEditavel
-                            valor={p.email}
-                            aoSalvar={(v) => salvarCampo(p, "email", v)}
-                          />
-                        ) : (
-                          <span className="celula">{p.email ?? "—"}</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className="celula" style={{ cursor: "default" }}>
-                          <span
-                            className={`marcador ${quitado ? "marcador--feito" : ""}`}
-                            title={
-                              quitado
-                                ? "Todos os apadrinhamentos estão pagos"
-                                : "Há apadrinhamento a pagar"
-                            }
-                          >
-                            {p.apadrinhamentos.length}
+                        <td>
+                          <span className="celula" style={{ cursor: "default" }}>
+                            <span
+                              className={`marcador ${quitado ? "marcador--feito" : ""}`}
+                              title={
+                                quitado
+                                  ? "Todos os apadrinhamentos estão pagos"
+                                  : "Há apadrinhamento a pagar"
+                              }
+                            >
+                              {p.apadrinhamentos.length}
+                            </span>
                           </span>
-                        </span>
-                      </td>
-                      <td>
-                        {/* Só os nomes, cortados em duas linhas. As ações de
-                            cada criança estão na ficha — ver .vinculos. */}
-                        {p.apadrinhamentos.length === 0 ? (
-                          <span className="vinculos--vazia">sem criança</span>
-                        ) : (
-                          <div
-                            className="vinculos"
-                            title={p.apadrinhamentos
-                              .map((a) => `${a.crianca_primeiro_nome}, ${a.crianca_idade}`)
-                              .join(" · ")}
-                          >
-                            {p.apadrinhamentos.map((a) => (
-                              <span key={a.id} className="vinculo">
-                                {a.crianca_primeiro_nome}
-                                <span
-                                  className={`marcador ${a.pago ? "marcador--feito" : ""}`}
-                                  title={`${a.tipo} · ${a.pago ? "pago" : "a pagar"}`}
-                                >
-                                  {a.tipo === "cesta" ? "C" : "F"}
+                        </td>
+                        {!estreita && (
+                          <>
+                        <td>
+                          {/* Só os nomes, cortados em duas linhas. As ações de
+                              cada criança estão na ficha — ver .vinculos. */}
+                          {p.apadrinhamentos.length === 0 ? (
+                            <span className="vinculos--vazia">sem criança</span>
+                          ) : (
+                            <div
+                              className="vinculos"
+                              title={p.apadrinhamentos
+                                .map((a) => `${a.crianca_primeiro_nome}, ${a.crianca_idade}`)
+                                .join(" · ")}
+                            >
+                              {p.apadrinhamentos.map((a) => (
+                                <span key={a.id} className="vinculo">
+                                  {a.crianca_primeiro_nome}
+                                  <span
+                                    className={`marcador ${a.pago ? "marcador--feito" : ""}`}
+                                    title={`${a.tipo} · ${a.pago ? "pago" : "a pagar"}`}
+                                  >
+                                    {a.tipo === "cesta" ? "C" : "F"}
+                                  </span>
                                 </span>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <span className="celula" style={{ cursor: "default" }}>
-                          {dinheiro(p.total_combinado)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="celula" style={{ cursor: "default" }}>
-                          {dinheiro(p.total_pago)}
-                        </span>
-                      </td>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <span className="celula" style={{ cursor: "default" }}>
+                            {dinheiro(p.total_combinado)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="celula" style={{ cursor: "default" }}>
+                            {dinheiro(p.total_pago)}
+                          </span>
+                        </td>
+                        </>
+                      )}
                       <td className="planilha__acoes">
                         <MenuAcoes
                           titulo={`Ações de ${p.nome}`}

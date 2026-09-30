@@ -4,6 +4,7 @@ import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import EditarUsuario from "../components/dados/EditarUsuario.jsx";
+import FichaSimples from "../components/dados/FichaSimples.jsx";
 import {
   pedeGrupo as perfilPedeGrupo,
   pedeInstituicoes as perfilPedeInstituicoes,
@@ -17,6 +18,7 @@ import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import { listarGrupos, listarInstituicoes, listarPerfis } from "../services/cadastros.js";
 import {
   apagarUsuario,
@@ -91,6 +93,12 @@ export default function Usuarios() {
   const [erro, definirErro] = useState("");
   const notificar = useNotificar();
   const [link, definirLink] = useState(null);
+
+  // No celular as seis colunas nao cabem — e as duas dos vinculos sao as mais
+  // altas da lista, com uma linha por perfil. Ficam de pe o nome e a situacao
+  // da conta, e o resto vai para uma janela, a um toque.
+  const estreita = useTelaEstreita();
+  const [detalhe, definirDetalhe] = useState(null);
 
   const [formAberto, definirFormAberto] = useState(false);
   const [campos, definirCampos] = useState(VAZIO);
@@ -308,6 +316,55 @@ export default function Usuarios() {
       .join(" · ");
   }
 
+  /* As duas colunas de vinculo, em funcao: a lista as mostra lado a lado, e a
+     janela do celular as mostra empilhadas. Uma marcacao so, nos dois lugares
+     — senao o que aparece ao toque diverge do que aparece no monitor. */
+  function equipeDe(u) {
+    if (u.admin_geral) {
+      return (
+        <div className="vinculo-linha">
+          <span className="vinculo-linha__titulo">Administração geral</span>
+          <span className="vinculo-linha__detalhe">Alcança todas as cidades</span>
+        </div>
+      );
+    }
+    if (u.vinculos.length === 0) return "—";
+    return u.vinculos.map((v) => (
+      <div key={v.id} className="vinculo-linha">
+        <span className="vinculo-linha__titulo">
+          {rotuloDoPerfil(v.perfil)}
+          {!v.ativo && <span className="etiqueta etiqueta--parado">Suspenso</span>}
+        </span>
+        {v.filtrado_por_instituicao && (
+          <span className="vinculo-linha__detalhe">{instituicoesDoVinculo(v)}</span>
+        )}
+        {v.usa_grupo && (
+          <span className="vinculo-linha__detalhe">
+            {v.grupo ? `Grupo ${v.grupo}` : "Sem grupo nomeado"}
+          </span>
+        )}
+      </div>
+    ));
+  }
+
+  function edicoesDe(u) {
+    if (u.admin_geral) {
+      return (
+        <div className="vinculo-linha">
+          <span className="vinculo-linha__titulo">Todas as edições</span>
+        </div>
+      );
+    }
+    if (u.vinculos.length === 0) return "—";
+    return u.vinculos.map((v) => (
+      <div key={v.id} className="vinculo-linha">
+        <span className="vinculo-linha__titulo">
+          {v.cidade} {v.ano}
+        </span>
+      </div>
+    ));
+  }
+
   function situacao(u) {
     if (!u.ativo) return ["parado", "Desativado"];
     if (u.bloqueado) return ["parado", "Bloqueado"];
@@ -475,13 +532,17 @@ export default function Usuarios() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela">
+          <table className={`tabela ${estreita ? "tabela--compacta" : ""}`}>
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Contato</th>
-                <th>Equipe</th>
-                <th>Edição vinculada</th>
+                {!estreita && (
+                  <>
+                    <th>Contato</th>
+                    <th>Equipe</th>
+                    <th>Edição vinculada</th>
+                  </>
+                )}
                 <th>Situação</th>
                 <th className="tabela__acoes" />
               </tr>
@@ -491,7 +552,13 @@ export default function Usuarios() {
                 const [tom, rotulo] = situacao(u);
                 const acesso = ultimoAcesso(u);
                 return (
-                  <tr key={u.id}>
+                  <tr
+                    key={u.id}
+                    /* No celular a linha inteira abre a janela dos detalhes.
+                       O menu continua ali, e e por ele que as acoes seguem
+                       alcancaveis por teclado e leitor de tela. */
+                    onClick={estreita ? () => definirDetalhe(u) : undefined}
+                  >
                     <td>
                       {u.nome}
                       {u.admin_geral && (
@@ -501,64 +568,20 @@ export default function Usuarios() {
                         </>
                       )}
                     </td>
-                    <td>
-                      {u.email}
-                      {u.whatsapp && <><br />{u.whatsapp}</>}
-                    </td>
-                    {/* Equipe e edicao sao duas colunas, e cada vinculo e uma
-                        linha dentro das duas — o que a pessoa faz de um lado,
-                        onde ela faz do outro. */}
-                    <td>
-                      {u.admin_geral ? (
-                        <div className="vinculo-linha">
-                          <span className="vinculo-linha__titulo">Administração geral</span>
-                          <span className="vinculo-linha__detalhe">
-                            Alcança todas as cidades
-                          </span>
-                        </div>
-                      ) : u.vinculos.length === 0 ? (
-                        "—"
-                      ) : (
-                        u.vinculos.map((v) => (
-                          <div key={v.id} className="vinculo-linha">
-                            <span className="vinculo-linha__titulo">
-                              {rotuloDoPerfil(v.perfil)}
-                              {!v.ativo && (
-                                <span className="etiqueta etiqueta--parado">Suspenso</span>
-                              )}
-                            </span>
-                            {v.filtrado_por_instituicao && (
-                              <span className="vinculo-linha__detalhe">
-                                {instituicoesDoVinculo(v)}
-                              </span>
-                            )}
-                            {v.usa_grupo && (
-                              <span className="vinculo-linha__detalhe">
-                                {v.grupo ? `Grupo ${v.grupo}` : "Sem grupo nomeado"}
-                              </span>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </td>
+                    {!estreita && (
+                      <>
+                      <td>
+                        {u.email}
+                        {u.whatsapp && <><br />{u.whatsapp}</>}
+                      </td>
+                      {/* Equipe e edicao sao duas colunas, e cada vinculo e uma
+                          linha dentro das duas — o que a pessoa faz de um lado,
+                          onde ela faz do outro. */}
+                      <td>{equipeDe(u)}</td>
 
-                    <td>
-                      {u.admin_geral ? (
-                        <div className="vinculo-linha">
-                          <span className="vinculo-linha__titulo">Todas as edições</span>
-                        </div>
-                      ) : u.vinculos.length === 0 ? (
-                        "—"
-                      ) : (
-                        u.vinculos.map((v) => (
-                          <div key={v.id} className="vinculo-linha">
-                            <span className="vinculo-linha__titulo">
-                              {v.cidade} {v.ano}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </td>
+                      <td>{edicoesDe(u)}</td>
+                      </>
+                    )}
 
                     <td>
                       <div className="situacao">
@@ -575,10 +598,14 @@ export default function Usuarios() {
                         )}
                       </div>
                     </td>
-                    <td className="tabela__acoes">
+                    <td className="tabela__acoes" onClick={(e) => e.stopPropagation()}>
                       <MenuAcoes
                         titulo={`Ações de ${u.nome}`}
                         itens={[
+                          estreita && {
+                            rotulo: "Ver detalhes",
+                            aoEscolher: () => definirDetalhe(u),
+                          },
                           { rotulo: "Editar", aoEscolher: () => abrirEdicao(u) },
                           { rotulo: "Gerar link", aoEscolher: () => novoLink(u) },
                           // Ninguem se desativa nem se apaga: quem fizesse isso
@@ -601,6 +628,34 @@ export default function Usuarios() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {detalhe && (
+        <FichaSimples
+          rotulo="Nome:"
+          titulo={detalhe.nome}
+          aoFechar={() => definirDetalhe(null)}
+          campos={[
+            { rotulo: "Email", valor: detalhe.email },
+            { rotulo: "WhatsApp", valor: detalhe.whatsapp },
+            { rotulo: "Equipe", valor: equipeDe(detalhe), largo: true },
+            { rotulo: "Edição vinculada", valor: edicoesDe(detalhe), largo: true },
+            {
+              rotulo: "Situação",
+              valor: (
+                <span className={`etiqueta etiqueta--${situacao(detalhe)[0]}`}>
+                  {situacao(detalhe)[1]}
+                </span>
+              ),
+            },
+            {
+              rotulo: "Último acesso",
+              valor: detalhe.ultimo_login
+                ? formatarDataHora(detalhe.ultimo_login)
+                : ultimoAcesso(detalhe),
+            },
+          ]}
+        />
       )}
 
       {editando && (

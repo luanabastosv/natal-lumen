@@ -8,6 +8,7 @@ import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
+import FichaSimples from "../components/dados/FichaSimples.jsx";
 import {
   apagarInstituicao,
   criarInstituicao,
@@ -22,6 +23,7 @@ import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { rotuloDia } from "../utils/dinheiro.js";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 
 /* O que a janela de exclusao diz alem da conta. Desativar e quase sempre o
    caminho certo: guarda o historico e tira a instituicao do ano corrente. */
@@ -57,6 +59,12 @@ export default function Instituicoes() {
   // objeto so para a conta que chega do servidor nunca aparecer em cima do
   // nome de outra instituicao, se o alvo trocar com a resposta no ar.
   const [exclusao, definirExclusao] = useState(null);
+
+  // No celular as nove colunas nao cabem: ficam de pe o nome e quantas
+  // criancas a instituicao mandou — o que identifica a linha e o numero que se
+  // procura nela — e o resto vai para uma janela, a um toque.
+  const estreita = useTelaEstreita();
+  const [detalhe, definirDetalhe] = useState(null);
 
   const [formularioAberto, definirFormularioAberto] = useState(false);
   const [emEdicao, definirEmEdicao] = useState(null);
@@ -385,55 +393,90 @@ export default function Instituicoes() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela tabela--larga">
-            <caption className="tabela-dica">
-              Arraste a lista para o lado para ver todas as colunas.
-            </caption>
+          {/* Sem `tabela--larga` no celular: e a largura minima de 680px dela
+              que fazia a lista rolar de lado. Sem colunas demais, a tabela de
+              layout automatico cabe na tela e nao rola mais. */}
+          <table className={`tabela ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
+            {!estreita && (
+              <caption className="tabela-dica">
+                Arraste a lista para o lado para ver todas as colunas.
+              </caption>
+            )}
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Sigla</th>
-                <th>Dia do evento</th>
-                <th>Ônibus</th>
+                {!estreita && (
+                  <>
+                    <th>Sigla</th>
+                    <th>Dia do evento</th>
+                    <th>Ônibus</th>
+                  </>
+                )}
                 <th>Crianças</th>
-                <th>Responsável</th>
-                <th>Telefone</th>
-                <th>Situação</th>
+                {!estreita && (
+                  <>
+                    <th>Responsável</th>
+                    <th>Telefone</th>
+                    <th>Situação</th>
+                  </>
+                )}
                 <th className="tabela__acoes" />
               </tr>
             </thead>
             <tbody>
               {instituicoes.map((i) => (
-                <tr key={i.id}>
+                <tr
+                  key={i.id}
+                  /* No celular a linha inteira abre a janela dos detalhes: o
+                     alvo passa a ser a faixa por toda a largura da tela, e nao
+                     so os tres pontinhos do canto. O menu continua ali para
+                     quem navega por teclado ou leitor de tela — e e por ele
+                     que as acoes continuam acessiveis. */
+                  onClick={estreita ? () => definirDetalhe(i) : undefined}
+                >
                   <td>{i.nome}</td>
-                  <td>
-                    <span className="etiqueta etiqueta--neutra">{i.sigla ?? "—"}</span>
-                  </td>
-                  <td>
-                    {i.dia_evento ? (
-                      <EtiquetaDia data={i.dia_evento} descricao={i.dia_evento_descricao} />
-                    ) : (
-                      // Sem etiqueta: nesta coluna a pilula e o dia, e uma
-                      // pilula para a ausencia dele pesaria mais que os dias
-                      // de verdade — que agora sao discretos de proposito.
-                      <span className="dia-vazio">sem dia</span>
-                    )}
-                  </td>
-                  {/* Zero aparece como travessao: o transporte ainda nao foi
-                      combinado, e um "0" se leria como "nao precisa". */}
-                  <td>{i.onibus || "—"}</td>
+                  {!estreita && (
+                    <>
+                      <td>
+                        <span className="etiqueta etiqueta--neutra">{i.sigla ?? "—"}</span>
+                      </td>
+                      <td>
+                        {i.dia_evento ? (
+                          <EtiquetaDia data={i.dia_evento} descricao={i.dia_evento_descricao} />
+                        ) : (
+                          // Sem etiqueta: nesta coluna a pilula e o dia, e uma
+                          // pilula para a ausencia dele pesaria mais que os dias
+                          // de verdade — que agora sao discretos de proposito.
+                          <span className="dia-vazio">sem dia</span>
+                        )}
+                      </td>
+                      {/* Zero aparece como travessao: o transporte ainda nao foi
+                          combinado, e um "0" se leria como "nao precisa". */}
+                      <td>{i.onibus || "—"}</td>
+                    </>
+                  )}
                   <td>{i.criancas}</td>
-                  <td>{i.responsavel ?? "—"}</td>
-                  <td>{i.telefone ?? "—"}</td>
-                  <td>
-                    <span className={`etiqueta ${i.ativo ? "etiqueta--ok" : "etiqueta--neutra"}`}>
-                      {i.ativo ? "Ativa" : "Inativa"}
-                    </span>
-                  </td>
-                  <td className="tabela__acoes">
+                  {!estreita && (
+                    <>
+                      <td>{i.responsavel ?? "—"}</td>
+                      <td>{i.telefone ?? "—"}</td>
+                      <td>
+                        <span className={`etiqueta ${i.ativo ? "etiqueta--ok" : "etiqueta--neutra"}`}>
+                          {i.ativo ? "Ativa" : "Inativa"}
+                        </span>
+                      </td>
+                    </>
+                  )}
+                  <td className="tabela__acoes" onClick={(e) => e.stopPropagation()}>
                     <MenuAcoes
                       titulo={`Ações de ${i.nome}`}
                       itens={[
+                        // So no celular: no monitor a linha ja mostra tudo o
+                        // que a janela mostraria.
+                        estreita && {
+                          rotulo: "Ver detalhes",
+                          aoEscolher: () => definirDetalhe(i),
+                        },
                         { rotulo: "Editar", aoEscolher: () => abrirEdicao(i) },
                         {
                           rotulo: i.ativo ? "Desativar" : "Ativar",
@@ -452,6 +495,40 @@ export default function Instituicoes() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {detalhe && (
+        <FichaSimples
+          rotulo="Instituição:"
+          titulo={detalhe.nome}
+          aoFechar={() => definirDetalhe(null)}
+          campos={[
+            { rotulo: "Sigla", valor: detalhe.sigla },
+            {
+              rotulo: "Dia do evento",
+              valor: detalhe.dia_evento ? (
+                <EtiquetaDia
+                  data={detalhe.dia_evento}
+                  descricao={detalhe.dia_evento_descricao}
+                />
+              ) : (
+                <span className="dia-vazio">sem dia</span>
+              ),
+            },
+            { rotulo: "Ônibus", valor: detalhe.onibus || null },
+            { rotulo: "Crianças", valor: detalhe.criancas },
+            { rotulo: "Responsável", valor: detalhe.responsavel },
+            { rotulo: "Telefone", valor: detalhe.telefone },
+            {
+              rotulo: "Situação",
+              valor: (
+                <span className={`etiqueta ${detalhe.ativo ? "etiqueta--ok" : "etiqueta--neutra"}`}>
+                  {detalhe.ativo ? "Ativa" : "Inativa"}
+                </span>
+              ),
+            },
+          ]}
+        />
       )}
 
       {exclusao && (

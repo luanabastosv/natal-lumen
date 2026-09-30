@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
+import BotaoIcone from "../components/core/BotaoIcone.jsx";
+import { Olho } from "../components/core/icones.jsx";
+import FichaSimples from "../components/dados/FichaSimples.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import { listarKits, mudarKits } from "../services/logistica.js";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { formatarDataHora } from "../utils/dinheiro.js";
@@ -28,6 +32,12 @@ export default function Kits() {
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
   const notificar = useNotificar();
+
+  // No celular ficam de pe o que se marca (a caixinha), de quem e o kit e em
+  // que pe ele esta — que e a tarefa desta tela. Instituicao, dia e a hora da
+  // entrega vao para uma janela, a um toque.
+  const estreita = useTelaEstreita();
+  const [detalhe, definirDetalhe] = useState(null);
 
   const buscar = useCallback(async () => {
     try {
@@ -117,10 +127,14 @@ export default function Kits() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela tabela--larga">
-            <caption className="tabela-dica">
-              Arraste a lista para o lado para ver todas as colunas.
-            </caption>
+          {/* Sem `tabela--larga` no celular: e a largura minima dela que fazia
+              a lista rolar de lado. */}
+          <table className={`tabela ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
+            {!estreita && (
+              <caption className="tabela-dica">
+                Arraste a lista para o lado para ver todas as colunas.
+              </caption>
+            )}
             <thead>
               <tr>
                 <th>
@@ -132,10 +146,14 @@ export default function Kits() {
                   />
                 </th>
                 <th>Criança</th>
-                <th>Instituição</th>
-                <th>Dia</th>
+                {!estreita && (
+                  <>
+                    <th>Instituição</th>
+                    <th>Dia</th>
+                  </>
+                )}
                 <th>Kit</th>
-                <th>Entregue em</th>
+                {!estreita ? <th>Entregue em</th> : <th className="tabela__acoes" />}
               </tr>
             </thead>
             <tbody>
@@ -152,22 +170,74 @@ export default function Kits() {
                       />
                     </td>
                     <td>{k.crianca_nome}</td>
-                    <td>{k.instituicao}</td>
-                    <td>
-                      {k.dia_evento ? (
-                        <EtiquetaDia data={k.dia_evento} descricao={k.dia_evento_descricao} />
-                      ) : (
-                        "—"
-                      )}
-                    </td>
+                    {!estreita && (
+                      <>
+                        <td>{k.instituicao}</td>
+                        <td>
+                          {k.dia_evento ? (
+                            <EtiquetaDia data={k.dia_evento} descricao={k.dia_evento_descricao} />
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td><span className={`etiqueta etiqueta--${tom}`}>{rotulo}</span></td>
-                    <td>{k.entregue_em ? formatarDataHora(k.entregue_em) : "—"}</td>
+                    {/* Aqui a linha NAO abre a janela, ao contrario das outras
+                        listas: a linha desta tela ja tem um alvo proprio, a
+                        caixinha de marcar, e o dedo que erra a caixinha nao
+                        pode acabar abrindo uma janela por cima do trabalho. */}
+                    {!estreita ? (
+                      <td>{k.entregue_em ? formatarDataHora(k.entregue_em) : "—"}</td>
+                    ) : (
+                      <td className="tabela__acoes">
+                        <BotaoIcone
+                          titulo={`Ver o kit de ${k.crianca_nome}`}
+                          tamanho="sm"
+                          onClick={() => definirDetalhe(k)}
+                        >
+                          <Olho t={20} />
+                        </BotaoIcone>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {detalhe && (
+        <FichaSimples
+          rotulo="Kit de:"
+          titulo={detalhe.crianca_nome}
+          aoFechar={() => definirDetalhe(null)}
+          campos={[
+            { rotulo: "Instituição", valor: detalhe.instituicao },
+            {
+              rotulo: "Dia",
+              valor: detalhe.dia_evento ? (
+                <EtiquetaDia
+                  data={detalhe.dia_evento}
+                  descricao={detalhe.dia_evento_descricao}
+                />
+              ) : null,
+            },
+            {
+              rotulo: "Kit",
+              valor: (
+                <span className={`etiqueta etiqueta--${(ESTADOS[detalhe.status] ?? ["neutra"])[0]}`}>
+                  {(ESTADOS[detalhe.status] ?? [null, detalhe.status])[1]}
+                </span>
+              ),
+            },
+            {
+              rotulo: "Entregue em",
+              valor: detalhe.entregue_em ? formatarDataHora(detalhe.entregue_em) : null,
+            },
+          ]}
+        />
       )}
     </div>
   );

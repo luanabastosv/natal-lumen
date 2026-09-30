@@ -8,8 +8,10 @@ import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
+import FichaSimples from "../components/dados/FichaSimples.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import { dinheiro, formatarData } from "../utils/dinheiro.js";
 import {
   apagarCidade,
@@ -65,6 +67,12 @@ export default function CidadesEdicoes() {
   //
   // `registro` em null quer dizer "e um cadastro novo"; preenchido, e edicao
   // daquele registro.
+  // A lista de cidades e a dos dias tem quatro colunas curtas e cabem em
+  // qualquer tela; a de edicoes tem sete e nao cabe. So ela encolhe no celular,
+  // e o que sai dela vai para uma janela, a um toque.
+  const estreita = useTelaEstreita();
+  const [detalheEdicao, definirDetalheEdicao] = useState(null);
+
   const [formCidade, definirFormCidade] = useState(null);
   const [formEdicao, definirFormEdicao] = useState(null);
 
@@ -417,30 +425,57 @@ export default function CidadesEdicoes() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className="tabela tabela--larga">
-            <caption className="tabela-dica">
-              Arraste a lista para o lado para ver todas as colunas.
-            </caption>
+          {/* Sem `tabela--larga` no celular: e a largura minima dela que fazia
+              a lista rolar de lado. */}
+          <table className={`tabela ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
+            {!estreita && (
+              <caption className="tabela-dica">
+                Arraste a lista para o lado para ver todas as colunas.
+              </caption>
+            )}
             <thead>
-              <tr><th>Edição</th><th>Cidade</th><th>Ano</th><th>Cesta</th><th>Festa</th><th>Situação</th><th className="tabela__acoes" /></tr>
+              <tr>
+                <th>Edição</th>
+                {!estreita && (
+                  <>
+                    <th>Cidade</th>
+                    <th>Ano</th>
+                    <th>Cesta</th>
+                    <th>Festa</th>
+                  </>
+                )}
+                <th>Situação</th>
+                <th className="tabela__acoes" />
+              </tr>
             </thead>
             <tbody>
               {edicoes.map((e) => (
-                <tr key={e.id}>
+                <tr
+                  key={e.id}
+                  onClick={estreita ? () => definirDetalheEdicao(e) : undefined}
+                >
                   <td>{e.nome}</td>
-                  <td>{e.cidade} · {e.uf}</td>
-                  <td>{e.ano}</td>
-                  <td>{dinheiro(e.valor_cesta)}</td>
-                  <td>{dinheiro(e.valor_festa)}</td>
+                  {!estreita && (
+                    <>
+                      <td>{e.cidade} · {e.uf}</td>
+                      <td>{e.ano}</td>
+                      <td>{dinheiro(e.valor_cesta)}</td>
+                      <td>{dinheiro(e.valor_festa)}</td>
+                    </>
+                  )}
                   <td>
                     <span className={`etiqueta ${e.ativa ? "etiqueta--ok" : "etiqueta--neutra"}`}>
                       {e.ativa ? "Ativa" : "Encerrada"}
                     </span>
                   </td>
-                  <td className="tabela__acoes">
+                  <td className="tabela__acoes" onClick={(ev) => ev.stopPropagation()}>
                     <MenuAcoes
                       titulo={`Ações de ${e.nome}`}
                       itens={[
+                        estreita && {
+                          rotulo: "Ver detalhes",
+                          aoEscolher: () => definirDetalheEdicao(e),
+                        },
                         { rotulo: "Editar", aoEscolher: () => abrirFormEdicao(e) },
                         { rotulo: "Dias do evento", aoEscolher: () => abrirDias(e) },
                         {
@@ -653,6 +688,28 @@ export default function CidadesEdicoes() {
             </Button>
           </form>
         </Modal>
+      )}
+
+      {detalheEdicao && (
+        <FichaSimples
+          rotulo="Edição:"
+          titulo={detalheEdicao.nome}
+          aoFechar={() => definirDetalheEdicao(null)}
+          campos={[
+            { rotulo: "Cidade", valor: `${detalheEdicao.cidade} · ${detalheEdicao.uf}` },
+            { rotulo: "Ano", valor: detalheEdicao.ano },
+            { rotulo: "Cesta", valor: dinheiro(detalheEdicao.valor_cesta) },
+            { rotulo: "Festa", valor: dinheiro(detalheEdicao.valor_festa) },
+            {
+              rotulo: "Situação",
+              valor: (
+                <span className={`etiqueta ${detalheEdicao.ativa ? "etiqueta--ok" : "etiqueta--neutra"}`}>
+                  {detalheEdicao.ativa ? "Ativa" : "Encerrada"}
+                </span>
+              ),
+            },
+          ]}
+        />
       )}
 
       {exclusao && (

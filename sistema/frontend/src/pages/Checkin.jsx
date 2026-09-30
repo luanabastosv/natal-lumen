@@ -122,13 +122,29 @@ export default function Checkin() {
           <div className="tabela-rolagem">
             <table className="tabela">
               <thead>
-                <tr><th>Criança</th><th>Instituição</th><th>Hora</th><th>Avisos</th></tr>
+                <tr>
+                  <th>Criança</th>
+                  {/* No celular a instituicao desce para debaixo do nome em vez
+                      de virar coluna: sao quatro colunas e a tela do check-in e
+                      quase sempre um celular na porta do onibus. Uma janela
+                      para esconder um dado so custaria um toque por linha numa
+                      lista que se le de relance. */}
+                  <th className="so-no-monitor">Instituição</th>
+                  <th>Hora</th>
+                  <th>Avisos</th>
+                </tr>
               </thead>
               <tbody>
                 {historico.map((h, i) => (
                   <tr key={`${h.crianca_id}-${i}`}>
-                    <td>{h.nome}</td>
-                    <td>{h.instituicao}</td>
+                    <td>
+                      {h.nome}
+                      <span className="so-no-celular">
+                        <br />
+                        <span className="campo__dica">{h.instituicao}</span>
+                      </span>
+                    </td>
+                    <td className="so-no-monitor">{h.instituicao}</td>
                     <td>{formatarDataHora(h.checkin_em)}</td>
                     <td>
                       {h.avisos.length === 0 ? (

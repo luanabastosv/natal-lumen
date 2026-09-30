@@ -11,8 +11,10 @@ import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import Numero from "../components/feedback/Numero.jsx";
 import NovoRecebimento from "../components/dados/NovoRecebimento.jsx";
+import FichaSimples from "../components/dados/FichaSimples.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import {
   ROTULO_CATEGORIA,
   apagarRecebimento,
@@ -79,6 +81,12 @@ export default function Financeiro() {
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
   const notificar = useNotificar();
+
+  // As duas listas desta tela sao as mais largas do sistema — a de
+  // recebimentos tem dez colunas. No celular fica de pe o que a linha e e
+  // quanto ela vale, e o resto vai para uma janela, a um toque.
+  const estreita = useTelaEstreita();
+  const [detalhe, definirDetalhe] = useState(null);
 
   const [modal, definirModal] = useState(null);
   const [saida, definirSaida] = useState(NOVA_SAIDA);
@@ -233,6 +241,73 @@ export default function Financeiro() {
       definirSubindo("");
       definirAlvo(null);
     }
+  }
+
+  /* As duas listas viram a mesma janela: um titulo e os pares que a linha
+     estreita deixou de mostrar. Montadas aqui, e nao dentro do `map`, para o
+     que a janela diz nunca sair do lugar em que a lista foi lida. */
+  function detalheDaSaida(c) {
+    return {
+      rotulo: "Saída:",
+      titulo: c.descricao,
+      campos: [
+        { rotulo: "Categoria", valor: c.categoria },
+        { rotulo: "Quantidade", valor: c.quantidade },
+        { rotulo: "Valor", valor: dinheiro(c.valor_total) },
+        { rotulo: "Fornecedor", valor: c.fornecedor },
+        { rotulo: "Data", valor: formatarData(c.data) },
+        { rotulo: "Por", valor: c.responsavel },
+      ],
+    };
+  }
+
+  function detalheDoRecebimento(l) {
+    return {
+      rotulo: "Entrada:",
+      titulo: l.descricao,
+      campos: [
+        { rotulo: "De quem", valor: l.quem },
+        { rotulo: "Categoria", valor: ROTULO_CATEGORIA[l.categoria] ?? l.categoria },
+        { rotulo: "Valor", valor: dinheiro(l.valor) },
+        { rotulo: "Forma", valor: l.forma },
+        { rotulo: "Data", valor: formatarData(l.data) },
+        {
+          // O comprovante vem inteiro para a janela, com o botao de baixar: no
+          // celular e aqui que ele existe, e conferir um comprovante e
+          // justamente o que se faz longe da mesa.
+          rotulo: "Comprovante",
+          valor: l.tem_comprovante ? (
+            <span className="acoes-icone">
+              <BotaoIcone
+                tamanho="sm"
+                titulo={`Baixar o comprovante de ${l.quem ?? l.descricao}`}
+                onClick={() => baixarArquivo(l)}
+                carregando={subindo === chave(l)}
+              >
+                <Baixar />
+              </BotaoIcone>
+              {l.comprovante_drive_link && (
+                <a href={l.comprovante_drive_link} target="_blank" rel="noreferrer">
+                  Drive
+                </a>
+              )}
+            </span>
+          ) : (
+            <span className="etiqueta etiqueta--espera">Falta</span>
+          ),
+        },
+        {
+          rotulo: "Situação",
+          valor: (
+            <span className={`etiqueta ${l.conferido ? "etiqueta--ok" : "etiqueta--espera"}`}>
+              {l.conferido ? "Conferido" : "A conferir"}
+            </span>
+          ),
+        },
+        { rotulo: "Por", valor: l.responsavel },
+        { rotulo: "Observações", valor: l.observacoes, largo: true },
+      ],
+    };
   }
 
   return (
@@ -398,28 +473,53 @@ export default function Financeiro() {
                   />
                 ) : (
                   <div className="tabela-rolagem">
-                    <table className="tabela">
+                    <table className={`tabela ${estreita ? "tabela--compacta" : ""}`}>
                       <thead>
                         <tr>
-                          <th>Descrição</th><th>Categoria</th><th>Qtd</th>
-                          <th>Valor</th><th>Fornecedor</th><th>Data</th><th>Por</th>
+                          <th>Descrição</th>
+                          {!estreita && (
+                            <>
+                              <th>Categoria</th><th>Qtd</th>
+                            </>
+                          )}
+                          <th>Valor</th>
+                          {!estreita && (
+                            <>
+                              <th>Fornecedor</th><th>Data</th><th>Por</th>
+                            </>
+                          )}
                           <th className="tabela__acoes" />
                         </tr>
                       </thead>
                       <tbody>
                         {saidas.itens.map((c) => (
-                          <tr key={c.id}>
+                          <tr
+                            key={c.id}
+                            onClick={estreita ? () => definirDetalhe(detalheDaSaida(c)) : undefined}
+                          >
                             <td>{c.descricao}</td>
-                            <td>{c.categoria ?? "—"}</td>
-                            <td>{c.quantidade}</td>
-                            <td>{dinheiro(c.valor_total)}</td>
-                            <td>{c.fornecedor ?? "—"}</td>
-                            <td>{formatarData(c.data)}</td>
-                            <td>{c.responsavel ?? "—"}</td>
-                            <td className="tabela__acoes">
+                            {!estreita && (
+                              <>
+                                <td>{c.categoria ?? "—"}</td>
+                                <td>{c.quantidade}</td>
+                              </>
+                            )}
+                            <td><span className="dinheiro">{dinheiro(c.valor_total)}</span></td>
+                            {!estreita && (
+                              <>
+                                <td>{c.fornecedor ?? "—"}</td>
+                                <td>{formatarData(c.data)}</td>
+                                <td>{c.responsavel ?? "—"}</td>
+                              </>
+                            )}
+                            <td className="tabela__acoes" onClick={(e) => e.stopPropagation()}>
                               <MenuAcoes
                                 titulo={`Ações de ${c.descricao}`}
                                 itens={[
+                                  estreita && {
+                                    rotulo: "Ver detalhes",
+                                    aoEscolher: () => definirDetalhe(detalheDaSaida(c)),
+                                  },
                                   { rotulo: "Remover", perigo: true, aoEscolher: () => removerSaida(c) },
                                 ]}
                               />
@@ -514,77 +614,111 @@ export default function Financeiro() {
                   />
                 ) : (
                   <div className="tabela-rolagem">
-                    <table className="tabela tabela--larga">
-                      <caption className="tabela-dica">
-                        Arraste a lista para o lado para ver todas as colunas.
-                      </caption>
+                    {/* Sem `tabela--larga` no celular: e a largura minima dela
+                        que fazia a lista rolar de lado. */}
+                    <table className={`tabela ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
+                      {!estreita && (
+                        <caption className="tabela-dica">
+                          Arraste a lista para o lado para ver todas as colunas.
+                        </caption>
+                      )}
                       <thead>
                         <tr>
                           <th>O que entrou</th>
-                          <th>De quem</th>
-                          <th>Categoria</th>
+                          {!estreita && (
+                            <>
+                              <th>De quem</th>
+                              <th>Categoria</th>
+                            </>
+                          )}
                           <th>Valor</th>
-                          <th>Forma</th>
-                          <th>Data</th>
-                          <th>Comprovante</th>
-                          <th>Situação</th>
-                          <th>Por</th>
+                          {!estreita && (
+                            <>
+                              <th>Forma</th>
+                              <th>Data</th>
+                              <th>Comprovante</th>
+                              {/* Fora da linha estreita: com ela, a coluna do
+                                  valor ficava tao apertada que "R$ 1.500,00"
+                                  quebrava em tres linhas — e a 320px a lista
+                                  ainda voltava a rolar de lado. O conferido
+                                  continua na janela da linha. */}
+                              <th>Situação</th>
+                              <th>Por</th>
+                            </>
+                          )}
                           <th className="tabela__acoes" />
                         </tr>
                       </thead>
                       <tbody>
                         {recebimentos.itens.map((l) => (
-                          <tr key={chave(l)}>
+                          <tr
+                            key={chave(l)}
+                            onClick={
+                              estreita ? () => definirDetalhe(detalheDoRecebimento(l)) : undefined
+                            }
+                          >
                             <td title={l.observacoes ?? undefined}>{l.descricao}</td>
-                            <td>{l.quem ?? "—"}</td>
-                            <td>{ROTULO_CATEGORIA[l.categoria] ?? l.categoria}</td>
-                            <td>{dinheiro(l.valor)}</td>
-                            <td>{l.forma ?? "—"}</td>
-                            <td>{formatarData(l.data)}</td>
-                            <td>
-                              {l.tem_comprovante ? (
-                                <span className="acoes-icone">
-                                  <BotaoIcone
-                                    tamanho="sm"
-                                    titulo={`Baixar o comprovante de ${l.quem ?? l.descricao}`}
-                                    onClick={() => baixarArquivo(l)}
-                                    carregando={subindo === chave(l)}
-                                  >
-                                    <Baixar />
-                                  </BotaoIcone>
-                                  {/* O Drive e copia, nao substituto: aparece
-                                      so quando existe. */}
-                                  {l.comprovante_drive_link && (
-                                    <a
-                                      href={l.comprovante_drive_link}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      Drive
-                                    </a>
+                            {!estreita && (
+                              <>
+                                <td>{l.quem ?? "—"}</td>
+                                <td>{ROTULO_CATEGORIA[l.categoria] ?? l.categoria}</td>
+                              </>
+                            )}
+                            <td><span className="dinheiro">{dinheiro(l.valor)}</span></td>
+                            {!estreita && (
+                              <>
+                                <td>{l.forma ?? "—"}</td>
+                                <td>{formatarData(l.data)}</td>
+                                <td>
+                                  {l.tem_comprovante ? (
+                                    <span className="acoes-icone">
+                                      <BotaoIcone
+                                        tamanho="sm"
+                                        titulo={`Baixar o comprovante de ${l.quem ?? l.descricao}`}
+                                        onClick={() => baixarArquivo(l)}
+                                        carregando={subindo === chave(l)}
+                                      >
+                                        <Baixar />
+                                      </BotaoIcone>
+                                      {/* O Drive e copia, nao substituto: aparece
+                                          so quando existe. */}
+                                      {l.comprovante_drive_link && (
+                                        <a
+                                          href={l.comprovante_drive_link}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          Drive
+                                        </a>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="etiqueta etiqueta--espera">
+                                      {subindo === chave(l) ? "Subindo..." : "Falta"}
+                                    </span>
                                   )}
-                                </span>
-                              ) : (
-                                <span className="etiqueta etiqueta--espera">
-                                  {subindo === chave(l) ? "Subindo..." : "Falta"}
-                                </span>
-                              )}
-                            </td>
-                            <td>
-                              <span
-                                className={`etiqueta ${l.conferido ? "etiqueta--ok" : "etiqueta--espera"}`}
-                              >
-                                {l.conferido ? "Conferido" : "A conferir"}
-                              </span>
-                            </td>
-                            {/* Quem lancou. A linha de apadrinhamento traz quem
-                                registrou o pagamento — pode ter sido pela ficha
-                                do padrinho, e nao por esta tela. */}
-                            <td>{l.responsavel ?? "—"}</td>
-                            <td className="tabela__acoes">
+                                </td>
+                                <td>
+                                  <span
+                                    className={`etiqueta ${l.conferido ? "etiqueta--ok" : "etiqueta--espera"}`}
+                                  >
+                                    {l.conferido ? "Conferido" : "A conferir"}
+                                  </span>
+                                </td>
+                                {/* Quem lancou. A linha de apadrinhamento traz
+                                    quem registrou o pagamento — pode ter sido
+                                    pela ficha do padrinho, e nao por esta tela. */}
+                                <td>{l.responsavel ?? "—"}</td>
+                              </>
+                            )}
+                            <td className="tabela__acoes" onClick={(e) => e.stopPropagation()}>
                               <MenuAcoes
                                 titulo={`Ações de ${l.descricao}`}
                                 itens={[
+                                  estreita && {
+                                    rotulo: "Ver detalhes",
+                                    aoEscolher: () => definirDetalhe(detalheDoRecebimento(l)),
+                                  },
                                   {
                                     rotulo: l.tem_comprovante
                                       ? "Trocar comprovante"
@@ -614,6 +748,15 @@ export default function Financeiro() {
             )}
           </div>
         </>
+      )}
+
+      {detalhe && (
+        <FichaSimples
+          rotulo={detalhe.rotulo}
+          titulo={detalhe.titulo}
+          campos={detalhe.campos}
+          aoFechar={() => definirDetalhe(null)}
+        />
       )}
     </div>
   );

@@ -1525,11 +1525,6 @@ textarea.campo__controle {
   padding: 10px 0;
 }
 
-.planilha--compacta .botao-icone--sm {
-  width: 40px;
-  height: 40px;
-}
-
 /* A linha toda abre a ficha, entao ela toda se comporta como alvo: sem cursor
    de texto herdado da celula, e com o realce no :active — em tela de toque nao
    existe hover, e sem esse piscar nada confirma que o dedo pegou a linha certa
@@ -1856,6 +1851,85 @@ textarea.campo__controle {
   .tabela--larga > .tabela-dica {
     display: table-caption;
   }
+}
+
+/* Um valor em dinheiro nunca quebra. `.tabela td` deixa quebrar em QUALQUER
+   ponto — precisa disso para um email longo nao empurrar a tabela para fora da
+   tela —, mas numa coluna estreita de celular isso partia "R$ 1.500,00" em
+   tres linhas, com o ultimo zero sozinho na terceira. Meio preco nao e numero
+   nenhum.
+
+   So travar a quebra nao bastava: com a coluna de Situacao ao lado, o valor
+   inteiro estourava a tela a 320px. Quem abriu espaco para ele foi a Situacao
+   sair da linha estreita (ver Financeiro.jsx); isto aqui garante que o numero
+   use esse espaco de uma vez so. */
+.dinheiro {
+  white-space: nowrap;
+}
+
+/* Esconder por CSS so vale em tabela de layout AUTOMATICO, como a `.tabela`:
+   ali a coluna sem celulas deixa de existir e devolve a largura as outras. Na
+   `.planilha`, que e `fixed`, o <col> continuaria reservando o espaco — por
+   isso la quem tira coluna e o JSX. Serve ao caso em que o dado escondido so
+   muda de lugar (desce para debaixo do nome), e nao vai para uma janela.
+
+   Os 720px sao os mesmos do `useTelaEstreita`: as duas formas de encolher uma
+   lista tem de virar na mesma largura. */
+@media (max-width: 720px) {
+  .so-no-monitor {
+    display: none;
+  }
+}
+
+@media (min-width: 721px) {
+  .so-no-celular {
+    display: none;
+  }
+}
+
+/* ---------- A mesma tabela no celular ----------
+ *
+ * O mesmo acordo da `.planilha--compacta`, para as tabelas simples: ate 720px
+ * a lista fica com as colunas que fazem alguem reconhecer a linha, e o resto
+ * vai para uma janela (`FichaSimples`) aberta pela propria linha.
+ *
+ * Quem tira as colunas e o JSX (`useTelaEstreita`), nao este arquivo — e e o
+ * JSX tambem quem deixa de escrever `tabela--larga` nessa largura, que e o que
+ * de fato apaga a rolagem lateral: sem a largura minima de 680px, uma tabela
+ * de layout automatico cabe em qualquer tela.
+ */
+.tabela--compacta td {
+  /* As colunas que sobraram sao poucas e curtas; sem a folga da direita elas
+     se espalhavam pela tela toda e o nome ficava longe do seu proprio dado. */
+  padding-right: var(--space-3);
+}
+
+/* A linha inteira abre a janela, entao ela inteira se comporta como alvo: em
+   tela de toque nao existe hover, e sem esse piscar no :active nada confirma
+   que o dedo pegou a linha certa antes de a janela abrir. */
+.tabela--compacta tbody tr {
+  cursor: pointer;
+}
+
+.tabela--compacta tbody tr:active td {
+  background: var(--cream-100);
+}
+
+/* A etiqueta nasce `nowrap` porque no monitor ela e sempre curta e uma pilula
+   partida ao meio fica feia. Na lista estreita a conta muda: "Aguardando 1o
+   acesso" inteira numa coluna de celular de 320px empurrava a lista de usuarios
+   para fora da tela. Entre uma pilula de duas linhas e uma lista que rola de
+   lado, a pilula de duas linhas. */
+.tabela--compacta .etiqueta {
+  white-space: normal;
+}
+
+/* Alvo de dedo, e nao de ponteiro — os mesmos 40px da planilha de criancas.
+   Vale para o olho que abre a janela e para os tres pontinhos do menu. */
+.planilha--compacta .botao-icone--sm,
+.tabela--compacta .botao-icone--sm {
+  width: 40px;
+  height: 40px;
 }
 
 /* ---------- Janela pequena sobre a tela ---------- */

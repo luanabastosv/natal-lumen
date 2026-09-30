@@ -660,3 +660,98 @@ cabeçalho** no topo da página.
 80px só com ícones entre 960 e 1279px. Aqui ela segue inteira até 960px — os
 11 destinos são só texto, e o trilho exigiria um jogo de ícones que este
 sistema ainda não tem. Quando existirem os ícones, o trilho entra.
+
+---
+
+## 12. No celular a lista encolhe; ela nunca rola de lado
+
+**Nenhuma lista do sistema rola para o lado.** A saída antiga — dar largura
+mínima à tabela e um `<caption>` avisando "arraste a lista para o lado" — foi
+desfeita: o aviso admite o problema em vez de resolvê-lo, e o dado que só
+aparece depois de um gesto é, para quem está com o celular na mão, um dado que
+não existe.
+
+A regra é a que a lista de crianças estreou: **até 720px a linha fica com as
+colunas que fazem alguém RECONHECER o registro, e todo o resto vai para uma
+janela, a um toque.**
+
+| | Linha no monitor | Linha no celular | Janela |
+| --- | --- | --- | --- |
+| Colunas | todas | 2 a 4 | as que saíram |
+| Quem decide | — | `useTelaEstreita()` | — |
+| Como se abre | — | a linha inteira, ou o olho | `FichaSimples` ou a ficha da tela |
+
+O que cada lista mantém de pé:
+
+| Tela | No celular |
+| --- | --- |
+| Crianças | código · nome · padrinhos · olho |
+| Padrinhos | nome · nº de crianças · menu |
+| Instituições | nome · crianças · menu |
+| Usuários | nome · situação · menu |
+| Cidades e edições | edição · situação · menu |
+| Financeiro (saídas) | descrição · valor · menu |
+| Financeiro (recebimentos) | o que entrou · valor · menu |
+| Kits | marcar · criança · kit · olho |
+| Cartões | marcar · criança · situação · olho |
+| Painel (por comissário) | comissário · crianças · % feito |
+
+### As três regras que isso impõe
+
+1. **Quem tira a coluna é o JSX, não o CSS** — em tabela `fixed` (`.planilha`)
+   o `<col>` continua reservando a largura de uma célula com `display: none`, e
+   a coluna some da vista sem devolver o espaço. `useTelaEstreita()` decide o
+   que existe no HTML. A exceção é o dado que só **muda de lugar** e não vai
+   para janela nenhuma (a instituição descendo para debaixo do nome, no
+   check-in): aí `.so-no-monitor` / `.so-no-celular` resolvem, e só porque
+   `.tabela` é de layout automático.
+
+2. **`tabela--larga` não é escrita no celular.** É a largura mínima de 680px
+   dela que fazia a lista rolar; sem ela, e com poucas colunas, a tabela cabe
+   em qualquer tela. Mesma coisa para o `<caption>` de "arraste": ele só
+   aparece na largura em que a lista de fato rola — prometer arraste numa
+   tabela que cabe é pior que não avisar nada.
+
+3. **A linha inteira é o alvo, e o menu continua existindo.** O dedo acerta
+   uma faixa de toda a largura da tela; o menu (ou o olho) é quem anuncia a
+   ação para teclado e leitor de tela, e ganha "Ver detalhes" como primeiro
+   item no celular. A `<td>` do menu leva `stopPropagation`, senão tocar nos
+   três pontinhos abriria a janela por baixo do menu.
+
+   **Onde a linha já tem alvo próprio, ela não vira botão:** em Kits e Cartões
+   a linha tem uma caixinha de marcar, e o dedo que erra a caixinha não pode
+   acabar abrindo uma janela por cima do trabalho. Nessas duas a porta é só o
+   olho.
+
+### `FichaSimples`
+
+`components/dados/FichaSimples.jsx` é a janela padrão para isso: um título e os
+pares que a linha deixou de mostrar, em `<dl className="ficha ficha--duas">`.
+
+```jsx
+{detalhe && (
+  <FichaSimples
+    rotulo="Instituição:"
+    titulo={detalhe.nome}
+    aoFechar={() => definirDetalhe(null)}
+    campos={[
+      { rotulo: "Sigla", valor: detalhe.sigla },
+      { rotulo: "Crianças", valor: detalhe.criancas },
+      { rotulo: "Observações", valor: detalhe.observacoes, largo: true },
+    ]}
+  />
+)}
+```
+
+Valor nulo vira `—` sozinho, entrada falsa é descartada (`podeVer && {...}`), e
+`largo` dá a faixa inteira ao texto corrido. Ela **não** substitui as fichas de
+verdade: `FichaCrianca` e `FichaPadrinho` buscam detalhe no servidor e têm
+ações próprias — nas telas delas, a janela do celular continua sendo a ficha.
+Onde a tela já tem uma janela que serve (o cartão aberto, em Cartões), é essa
+que recebe os campos que sumiram da linha, em vez de nascer uma segunda.
+
+### O que continua rolando de lado
+
+A conferência da importação (`ImportarLista`) — e de propósito: as sete colunas
+são o trabalho daquela tela, e o botão que a abre não existe no celular. Não há
+lista rolando onde alguém possa chegar com o telefone.

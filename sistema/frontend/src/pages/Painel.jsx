@@ -10,6 +10,8 @@ import Anel from "../components/feedback/Anel.jsx";
 import BarraDupla from "../components/feedback/BarraDupla.jsx";
 import Progresso from "../components/feedback/Progresso.jsx";
 import { useSessao } from "../contexts/useSessao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
+import FichaSimples from "../components/dados/FichaSimples.jsx";
 import { buscarRelatorio } from "../services/painel.js";
 
 function primeiroNome(nome) {
@@ -83,6 +85,12 @@ function ledeDoComissario(r) {
 
 export default function Painel() {
   const { usuario, pode, vinculoAtivo, edicao, edicaoAtiva } = useSessao();
+
+  // A unica lista do painel tem sete colunas de numero. No celular ficam de pe
+  // o nome, quantas criancas e quanto ja esta feito — a pergunta que a secao
+  // responde — e a quebra inteira vai para uma janela, a um toque.
+  const estreita = useTelaEstreita();
+  const [detalhe, definirDetalhe] = useState(null);
 
   const [relatorio, definirRelatorio] = useState(null);
   const [carregando, definirCarregando] = useState(false);
@@ -448,24 +456,42 @@ export default function Painel() {
                     festa. São muitos nomes: aqui a tabela lê melhor que um gráfico.
                   </p>
                   <div className="tabela-rolagem">
-                    <table className="tabela tabela--larga tabela--densa">
-                      <caption className="tabela-dica">
-                        Arraste a lista para o lado para ver todas as colunas.
-                      </caption>
+                    {/* Sem `tabela--larga` no celular: e a largura minima dela
+                        que fazia a lista rolar de lado. */}
+                    <table
+                      className={`tabela tabela--densa ${
+                        estreita ? "tabela--compacta" : "tabela--larga"
+                      }`}
+                    >
+                      {!estreita && (
+                        <caption className="tabela-dica">
+                          Arraste a lista para o lado para ver todas as colunas.
+                        </caption>
+                      )}
                       <thead>
                         <tr>
                           <th>Comissário</th>
                           <th>Crianças</th>
-                          <th>Cesta</th>
-                          <th>Festa</th>
-                          <th>Completas</th>
-                          <th>Faltam</th>
+                          {!estreita && (
+                            <>
+                              <th>Cesta</th>
+                              <th>Festa</th>
+                              <th>Completas</th>
+                              <th>Faltam</th>
+                            </>
+                          )}
                           <th>% feito</th>
                         </tr>
                       </thead>
                       <tbody>
                         {relatorio.por_comissario.map((l) => (
-                          <tr key={l.comissario_id ?? "sem-comissario"}>
+                          <tr
+                            key={l.comissario_id ?? "sem-comissario"}
+                            /* Sem menu de acoes nesta lista: a linha inteira e
+                               o unico caminho para a quebra completa, entao ela
+                               e tambem o que o dedo procura. */
+                            onClick={estreita ? () => definirDetalhe(l) : undefined}
+                          >
                             <td>
                               <span className="comissario__nome">{l.comissario}</span>
                               {/* O grupo e dado de apoio do nome, e fica na MESMA
@@ -477,12 +503,16 @@ export default function Painel() {
                               )}
                             </td>
                             <td>{l.criancas}</td>
-                            <td>{l.cesta}</td>
-                            <td>{l.festa}</td>
-                            <td>{l.completas}</td>
-                            <td className={l.faltam > 0 ? "tabela__pendente" : undefined}>
-                              {l.faltam}
-                            </td>
+                            {!estreita && (
+                              <>
+                                <td>{l.cesta}</td>
+                                <td>{l.festa}</td>
+                                <td>{l.completas}</td>
+                                <td className={l.faltam > 0 ? "tabela__pendente" : undefined}>
+                                  {l.faltam}
+                                </td>
+                              </>
+                            )}
                             {/* A planilha antiga media o que FALTAVA. Aqui a
                                 coluna mede o que esta feito: e o mesmo dado,
                                 e ler "80%" como boa noticia cansa menos o
@@ -493,6 +523,33 @@ export default function Painel() {
                       </tbody>
                     </table>
                   </div>
+
+                  {detalhe && (
+                    <FichaSimples
+                      rotulo="Comissário:"
+                      titulo={detalhe.comissario}
+                      aoFechar={() => definirDetalhe(null)}
+                      campos={[
+                        { rotulo: "Grupo", valor: detalhe.grupo },
+                        { rotulo: "Crianças", valor: detalhe.criancas },
+                        { rotulo: "Cesta", valor: detalhe.cesta },
+                        { rotulo: "Festa", valor: detalhe.festa },
+                        { rotulo: "Completas", valor: detalhe.completas },
+                        {
+                          rotulo: "Faltam",
+                          valor: (
+                            <span className={detalhe.faltam > 0 ? "tabela__pendente" : undefined}>
+                              {detalhe.faltam}
+                            </span>
+                          ),
+                        },
+                        {
+                          rotulo: "% feito",
+                          valor: percentual(detalhe.completas, detalhe.criancas),
+                        },
+                      ]}
+                    />
+                  )}
                 </section>
               )}
             </>
