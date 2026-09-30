@@ -205,6 +205,24 @@ def main() -> None:
         verifica("e diz se a crianca desistiu",
                  "desistiu_em" in item, str(sorted(item)))
 
+        print("\nKits: a ordem e do servidor")
+        r = ce.get("/kits")
+        codigos = [i["crianca_codigo"] for i in r.json()["itens"]]
+        verifica("a lista vem por codigo, sem ninguem pedir",
+                 codigos == sorted(codigos), str(codigos))
+
+        r = ce.get("/kits", params={"ordenar_por": "idade", "ordem": "desc"})
+        idades = [i["idade"] for i in r.json()["itens"]]
+        verifica("ordena por idade, da maior para a menor",
+                 idades == sorted(idades, reverse=True), str(idades))
+
+        r = ce.get("/kits", params={"ordenar_por": "nome"})
+        nomes = [i["crianca_nome"] for i in r.json()["itens"]]
+        verifica("e por nome", nomes == sorted(nomes), str(nomes))
+
+        r = ce.get("/kits", params={"ordenar_por": "inventado"})
+        verifica("coluna que nao existe e recusada", r.status_code == 422, str(r.status_code))
+
         print("\nKits: abas por instituicao")
         r = ce.get("/kits/instituicoes", params={"edicao_id": edicao.id})
         verifica("as abas respondem", r.status_code == 200, r.text[:130])

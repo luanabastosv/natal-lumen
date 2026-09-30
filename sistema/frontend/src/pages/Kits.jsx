@@ -26,6 +26,11 @@ export default function Kits() {
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
   const [marcando, definirMarcando] = useState([]);
   const [imprimindo, definirImprimindo] = useState(false);
+  /* A ordem e do servidor, e nao do navegador: ordenar so o que ja veio
+     ordenaria a PAGINA, e nao a lista. Comeca por codigo porque e assim que a
+     lista de papel da instituicao chega, e conferir uma contra a outra e o que
+     a equipe faz o dia todo. */
+  const [ordem, definirOrdem] = useState({ por: "codigo", sentido: "asc" });
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
@@ -39,6 +44,12 @@ export default function Kits() {
           edicao_id: edicaoAtiva,
           situacao,
           instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
+          ordenar_por: ordem.por,
+          ordem: ordem.sentido,
+          // As abas ja recortam por escola, entao a lista de uma aba cabe
+          // inteira. Sem isto, a tela mostrava as 100 primeiras e calava sobre
+          // o resto — e a equipe montaria a escola pela metade.
+          por_pagina: 500,
         }),
       );
     } catch (e) {
@@ -46,7 +57,7 @@ export default function Kits() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoAtiva, situacao, abaAtiva]);
+  }, [edicaoAtiva, situacao, abaAtiva, ordem]);
 
   const recarregarAbas = useCallback(async () => {
     if (!edicaoAtiva) return;
@@ -61,7 +72,7 @@ export default function Kits() {
     // Buscar no servidor e justamente o que este efeito existe para fazer.
     // eslint-disable-next-line react/set-state-in-effect
     if (edicaoAtiva) buscar();
-  }, [edicaoAtiva, situacao, abaAtiva, buscar]);
+  }, [edicaoAtiva, situacao, abaAtiva, ordem, buscar]);
 
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect
@@ -115,9 +126,48 @@ export default function Kits() {
       edicao_id: edicaoAtiva,
       situacao,
       instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
+      ordenar_por: ordem.por,
+      ordem: ordem.sentido,
       por_pagina: 2000,
     });
     return tudo.itens;
+  }
+
+  /* Clicar no titulo da coluna ordena por ela; clicar de novo inverte. E o
+     gesto que qualquer planilha tem, e aqui ele importa: a equipe precisa da
+     lista por idade para separar presente, por sexo para separar brinquedo, e
+     por codigo para conferir contra o papel. */
+  function ordenarPor(coluna) {
+    definirOrdem((atual) =>
+      atual.por === coluna
+        ? { por: coluna, sentido: atual.sentido === "asc" ? "desc" : "asc" }
+        : { por: coluna, sentido: "asc" },
+    );
+  }
+
+  /** O <th> clicavel. Funcao que devolve JSX, e nao componente declarado aqui
+   *  dentro: um componente nasceria diferente a cada render e o botao
+   *  remontaria, tirando o foco de quem ordena pelo teclado.
+   *
+   *  O botao vai POR DENTRO do <th>, e nao o <th> inteiro clicavel: e o botao
+   *  que entra na ordem do Tab e se anuncia como acionavel. */
+  function coluna(id, rotulo) {
+    const ativa = ordem.por === id;
+    return (
+      <th aria-sort={ativa ? (ordem.sentido === "asc" ? "ascending" : "descending") : "none"}>
+        <button
+          type="button"
+          className={`coluna-ordem ${ativa ? "coluna-ordem--ativa" : ""}`}
+          onClick={() => ordenarPor(id)}
+          title={`Ordenar por ${rotulo.toLowerCase()}`}
+        >
+          {rotulo}
+          <span className="coluna-ordem__seta">
+            {ativa ? (ordem.sentido === "desc" ? "▾" : "▴") : "⇅"}
+          </span>
+        </button>
+      </th>
+    );
   }
 
   const montados = dados.resumo.montado ?? 0;
@@ -240,17 +290,39 @@ export default function Kits() {
         />
       ) : (
         <div className="tabela-rolagem">
-          <table className={`tabela ${estreita ? "tabela--compacta" : ""}`}>
+          {/* `ancorada` = `table-layout: fixed`. Com as larguras no <colgroup>,
+              trocar de aba nao move nenhuma coluna de lugar — o olho de quem
+              confere fica no mesmo ponto da tela ao passar de escola em escola,
+              como ja acontece na planilha de criancas. */}
+          <table
+            className={`tabela tabela--densa tabela--ancorada ${
+              estreita ? "tabela--compacta" : ""
+            }`}
+          >
+            <colgroup>
+              <col style={{ width: estreita ? 56 : 88 }} />
+              <col style={{ width: estreita ? 74 : 92 }} />
+              <col />
+              {!estreita && (
+                <>
+                  <col style={{ width: 64 }} />
+                  <col style={{ width: 58 }} />
+                </>
+              )}
+              {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
+            </colgroup>
             <thead>
               <tr>
-                <th className="tabela__marcar">Montado</th>
-                <th>Código</th>
-                <th>Criança</th>
-                {!estreita && <th>Idade</th>}
-                {!estreita && <th>Sexo</th>}
+                {/* No celular a coluna tem 56px e "Montado" nao cabe: o
+                    cabecalho nao quebra linha, e a palavra sairia cortada. */}
+                {coluna("montado", estreita ? "Kit" : "Montado")}
+                {coluna("codigo", "Código")}
+                {coluna("nome", "Criança")}
+                {!estreita && coluna("idade", "Idade")}
+                {!estreita && coluna("sexo", "Sexo")}
                 {/* Dentro de uma aba de instituicao a coluna seria a mesma
                     palavra em todas as linhas — a aba ja diz qual escola e. */}
-                {!estreita && abaAtiva === TODAS && <th>Instituição</th>}
+                {!estreita && abaAtiva === TODAS && coluna("instituicao", "Instituição")}
               </tr>
             </thead>
             <tbody>

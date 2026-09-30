@@ -1655,6 +1655,61 @@ textarea.campo__controle {
   text-align: center;
 }
 
+/* Larguras ancoradas: com `fixed` quem manda sao os <col>, e nao o conteudo.
+   Trocar de instituicao deixa de mover as colunas de lugar — o olho de quem
+   confere a lista de papel contra a tela fica no mesmo ponto ao passar de
+   escola em escola. E o mesmo acordo da planilha de criancas, sem a largura
+   minima de 1200px dela: esta tabela tem seis colunas, nao treze. */
+.tabela--ancorada {
+  table-layout: fixed;
+}
+
+/* O texto que nao couber na largura fixa corta com reticencias, em vez de
+   quebrar a linha e mudar a altura — numa lista de cinquenta nomes, altura
+   variavel tira a regua do olho. */
+.tabela--ancorada td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* O titulo da coluna que ordena. E um <button> de verdade: entra na ordem do
+   Tab e se anuncia como acionavel, coisa que um <th> com onClick nao faz. */
+.coluna-ordem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.coluna-ordem:hover {
+  color: var(--color-primary);
+}
+
+.coluna-ordem--ativa {
+  color: var(--color-primary);
+}
+
+/* A seta de quem NAO esta ordenando fica fraca, e nao invisivel: e ela que
+   conta que a coluna pode ser clicada. Sem nada ali, ninguem descobre. */
+.coluna-ordem__seta {
+  opacity: 0.35;
+  font-size: 9px;
+}
+
+.coluna-ordem--ativa .coluna-ordem__seta {
+  opacity: 1;
+}
+
 /* Quem desistiu continua na lista, riscado. O kit dela NAO deve ser montado,
    e some-la faria a conta da equipe nao bater com a lista impressa — ninguem
    entenderia por que faltam tres caixas. A caixinha fica fora do risco: ela
@@ -4049,14 +4104,6 @@ textarea.campo__controle {
 }
 
 @media print {
-  /* Some tudo menos o papel — e some por `visibility`, nao por `display`.
-     A area de impressao vive DENTRO do #root, junto com a tela: esconder os
-     filhos do body levaria o #root e a area junto com ele. Com `visibility`,
-     os ancestrais continuam existindo e so o que esta dentro de `.impressao`
-     volta a aparecer.
-
-     E ela sai do fluxo e vai para o canto: senao imprimiria depois do espaco
-     em branco que a tela escondida ainda ocupa. */
   body * {
     visibility: hidden;
   }

@@ -74,6 +74,12 @@ def listar_kits(
     # escola de cada vez, e a caixa de cada uma sai junta.
     instituicao_id: int | None = None,
     situacao: str | None = Query(default=None, pattern="^(pendente|montado)$"),
+    # A ordem e do SERVIDOR, e nao do navegador: ordenar so o que ja veio
+    # ordenaria a pagina, e nao a lista — numa edicao de mil criancas, clicar em
+    # "idade" mostraria as mais novas das cem primeiras, que nao e o que a
+    # pergunta quer dizer.
+    ordenar_por: str = Query(default="codigo", pattern="^(codigo|nome|idade|sexo|instituicao|montado)$"),
+    ordem: str = Query(default="asc", pattern="^(asc|desc)$"),
     pagina: int = Query(default=1, ge=1),
     # O teto alto existe para a IMPRESSAO: o papel sai com a lista inteira do
     # filtro, e uma edicao grande passa de mil criancas. Na tela a pagina
@@ -99,6 +105,29 @@ def listar_kits(
         .outerjoin(Kit, Kit.crianca_id == Crianca.id)
         .where(condicao)
         .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+    )
+
+    # Kit sem registro conta como pendente, entao a ordem por "montado" tem de
+    # tratar o nulo como pendente — senao as criancas que ninguem tocou cairiam
+    # todas no fim, longe das outras pendentes, que e justamente o grupo que a
+    # equipe quer junto.
+    chaves = {
+        "codigo": Crianca.codigo,
+        "nome": Crianca.nome,
+        "idade": Crianca.idade,
+        "sexo": Crianca.sexo,
+        "instituicao": Instituicao.nome,
+        "montado": func.coalesce(Kit.status, StatusKit.PENDENTE.value),
+    }
+    chave = chaves[ordenar_por]
+    if ordenar_por == "instituicao":
+        consulta = consulta.join(Instituicao, Instituicao.id == Crianca.instituicao_id)
+
+    # O codigo e o desempate de todas as ordens: sem ele, duas criancas de mesma
+    # idade trocam de lugar entre uma busca e outra, e quem esta conferindo a
+    # lista de papel contra a tela perde a linha.
+    consulta = consulta.order_by(
+        chave.desc() if ordem == "desc" else chave.asc(), Crianca.codigo.asc()
     )
 
     if situacao == StatusKit.PENDENTE.value:
