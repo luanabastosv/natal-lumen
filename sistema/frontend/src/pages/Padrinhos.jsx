@@ -49,7 +49,10 @@ export default function Padrinhos() {
   }
 
   const podeEditar = pode("editar_padrinhos");
-  const podePagar = pode("registrar_pagamentos");
+  // A permissao ESTREITA: registrar o pagamento dos padrinhos que alcanca.
+  // Nao e a do financeiro da edicao — o comissario tem esta e nao aquela, e e
+  // por ela que o apadrinhamento dele se confirma.
+  const podePagar = pode("registrar_pagamentos_padrinho");
 
   // No celular a planilha inteira nao cabe: ficam de pe o nome e quantas
   // criancas ele apadrinhou — o que identifica o padrinho e diz se ele ja
@@ -355,7 +358,7 @@ export default function Padrinhos() {
                               title={
                                 quitado
                                   ? "Todos os apadrinhamentos estão pagos"
-                                  : "Há apadrinhamento a pagar"
+                                  : "Há promessa sem pagamento — ainda não conta como apadrinhamento"
                               }
                             >
                               {p.apadrinhamentos.length}
@@ -380,8 +383,8 @@ export default function Padrinhos() {
                                 <span key={a.id} className="vinculo">
                                   {a.crianca_primeiro_nome}
                                   <span
-                                    className={`marcador ${a.pago ? "marcador--feito" : ""}`}
-                                    title={`${a.tipo} · ${a.pago ? "pago" : "a pagar"}`}
+                                    className={`marcador ${a.pago ? "marcador--feito" : "marcador--parcial"}`}
+                                    title={`${a.tipo} · ${a.pago ? "confirmado" : "promessa, falta pagar"}`}
                                   >
                                     {a.tipo === "cesta" ? "C" : "F"}
                                   </span>

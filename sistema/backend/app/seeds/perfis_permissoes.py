@@ -24,10 +24,24 @@ PERMISSOES: dict[str, str] = {
     "importar_listas": "Importar listas de criancas enviadas pelas instituicoes",
     "ver_padrinhos": "Ver a lista e os dados dos padrinhos",
     "editar_padrinhos": "Criar e editar padrinhos e apadrinhamentos",
-    # Cobre as duas metades do dinheiro que ENTRA: o pagamento do padrinho,
-    # conferido contra o comprovante, e o recebimento esporadico (doacao,
-    # patrocinio, rifa) lancado na aba Recebimentos do financeiro.
-    "registrar_pagamentos": "Registrar pagamentos dos padrinhos e os recebimentos da edicao",
+    # O dinheiro que ENTRA se separa em duas permissoes desde 30/09/2026,
+    # quando o comissario passou a poder registrar o pagamento dos padrinhos
+    # dele. As duas existem porque sao dois alcances muito diferentes:
+    #
+    #   registrar_pagamentos_padrinho  o pagamento de um padrinho que ele
+    #       alcanca. E o que CONFIRMA o apadrinhamento (promessa nao conta),
+    #       entao sem isto o comissario dependeria da coordenacao para que o
+    #       trabalho dele aparecesse em qualquer numero.
+    #   registrar_pagamentos  a aba Recebimentos do financeiro: TODO o dinheiro
+    #       que entra na edicao, doacao e patrocinio inclusive, com o poder de
+    #       lancar, remover e CONFERIR. Continua so com a coordenacao — abrir
+    #       isto a cada comissario mostraria o caixa inteiro da edicao a quem
+    #       so precisa registrar o proprio padrinho.
+    #
+    # Conferir e apagar pagamento ficam com a coordenacao de proposito: quem
+    # registra o dinheiro nao e quem audita o registro.
+    "registrar_pagamentos_padrinho": "Registrar o pagamento dos padrinhos que alcanca",
+    "registrar_pagamentos": "Registrar os recebimentos da edicao e conferir pagamentos",
     "subir_cartoes": "Digitalizar e subir os cartoes das criancas",
     "enviar_cartoes": "Marcar cartoes como enviados aos padrinhos",
     "gerenciar_kits": "Montar e registrar a entrega dos kits",
@@ -38,9 +52,13 @@ PERMISSOES: dict[str, str] = {
 }
 
 # nome do perfil -> (descricao, permissoes)
-# Vem da especificacao, com uma mudanca pedida depois: o comissario perdeu
-# registrar_pagamentos e fazer_checkin — pagamento e conferencia de dinheiro
-# ficam com a coordenacao, e o check-in do dia e do monitor e da estrutura.
+# Vem da especificacao, com duas mudancas pedidas depois. A primeira: o
+# comissario perdeu registrar_pagamentos e fazer_checkin — o caixa da edicao e a
+# conferencia do dinheiro ficam com a coordenacao, e o check-in do dia e do
+# monitor e da estrutura. A segunda, de 30/09/2026: ele reganhou o registro do
+# pagamento DO PADRINHO DELE (registrar_pagamentos_padrinho), porque agora e o
+# pagamento que confirma o apadrinhamento — sem isso nada do que ele capta
+# apareceria nos numeros ate a coordenacao passar por ali.
 # A coordenacao recebe todas as permissoes — tudo o que qualquer equipe faz,
 # ela tambem faz — limitadas a sua CIDADE: o unico alcance que ela nao tem e o
 # de cidades e edicoes, que fica so com a administracao geral, porque e de la
@@ -62,6 +80,10 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
             "ver_criancas",
             "ver_padrinhos",
             "editar_padrinhos",
+            # Sem isto o apadrinhamento que ele capta nunca se confirma sozinho:
+            # promessa nao conta em numero nenhum, e o pagamento e o que a
+            # transforma em apadrinhamento.
+            "registrar_pagamentos_padrinho",
             "enviar_cartoes",
         ),
     ),

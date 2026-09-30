@@ -40,6 +40,7 @@ from app.schemas.padrinhos import (
     PagamentoIn,
     PagamentoOut,
 )
+from app.servicos.apadrinhamento import confirmado
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import agradecimento, comprovantes, whatsapp
@@ -51,7 +52,15 @@ router = APIRouter(tags=["padrinhos"])
 BD = Annotated[Session, Depends(get_db)]
 Ver = Annotated[ContextoAcesso, Depends(exige_permissao("ver_padrinhos"))]
 Editar = Annotated[ContextoAcesso, Depends(exige_permissao("editar_padrinhos"))]
-Pagar = Annotated[ContextoAcesso, Depends(exige_permissao("registrar_pagamentos"))]
+# Registrar o pagamento do proprio padrinho — o comissario tem. E o que
+# CONFIRMA o apadrinhamento dele: sem isto, o que ele capta nao aparece em
+# numero nenhum ate a coordenacao passar por ali.
+Pagar = Annotated[
+    ContextoAcesso, Depends(exige_permissao("registrar_pagamentos_padrinho"))
+]
+# Mexer no dinheiro ja registrado: conferir e apagar. So a coordenacao — quem
+# registra o dinheiro nao e quem audita o registro.
+Auditar = Annotated[ContextoAcesso, Depends(exige_permissao("registrar_pagamentos"))]
 
 
 # ---------------------------------------------------------------- alcance
@@ -371,6 +380,18 @@ def _apadrinhamento_do_cartao(db: Session, apadrinhamento_id: int, ctx: Contexto
             status.HTTP_403_FORBIDDEN,
             "Voce precisa alcancar as criancas desta edicao para gerar o cartao.",
         )
+
+    # O cartao agradece quem doou. Enquanto o apadrinhamento e so promessa nao
+    # ha doacao para agradecer, e mandar o agradecimento antes do dinheiro e
+    # cobrar ao contrario. Barra aqui — no lugar por onde passam tanto o baixar
+    # quanto o enviar — e nao em cada rota.
+    if not confirmado(apadrinhamento):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Este apadrinhamento ainda e uma promessa: nao ha pagamento "
+            "registrado. O cartao de agradecimento so sai depois que a "
+            "coordenacao registrar o pagamento.",
+        )
     return apadrinhamento
 
 
@@ -590,7 +611,7 @@ def listar_pagamentos(
     por_pagina: int = Query(default=50, ge=1, le=200),
 ):
     condicao = Pagamento.padrinho_id.in_(
-        select(Padrinho.id).where(_filtro_padrinhos(ctx, "registrar_pagamentos"))
+        select(Padrinho.id).where(_filtro_padrinhos(ctx, "registrar_pagamentos_padrinho"))
     )
     if padrinho_id is not None:
         condicao = condicao & (Pagamento.padrinho_id == padrinho_id)
@@ -625,7 +646,7 @@ def listar_pagamentos(
 
 @router.post("/pagamentos", response_model=PagamentoOut, status_code=status.HTTP_201_CREATED)
 def criar_pagamento(dados: PagamentoIn, db: BD, ctx: Pagar):
-    padrinho = _carregar(db, dados.padrinho_id, ctx, "registrar_pagamentos")
+    padrinho = _carregar(db, dados.padrinho_id, ctx, "registrar_pagamentos_padrinho")
 
     pagamento = Pagamento(
         padrinho_id=padrinho.id,
@@ -659,10 +680,21 @@ def editar_pagamento(pagamento_id: int, dados: PagamentoEditar, db: BD, ctx: Pag
     if pagamento is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pagamento nao encontrado.")
 
-    padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
+    padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
 
     mudancas = dados.model_dump(exclude_unset=True)
     apadrinhamentos = mudancas.pop("apadrinhamentos", None)
+
+    # Conferir e o ato de auditoria: diz que alguem olhou o comprovante e bateu
+    # com o dinheiro. Quem registrou o pagamento nao pode se auto-conferir, ou a
+    # conferencia nao verifica nada.
+    if "conferido" in mudancas and not ctx.pode("registrar_pagamentos"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Conferir um pagamento e da coordenacao. Voce pode registrar o "
+            "pagamento e subir o comprovante; a conferencia e feita por quem "
+            "cuida do financeiro da edicao.",
+        )
 
     for campo, valor in mudancas.items():
         setattr(pagamento, campo, valor)
@@ -681,7 +713,7 @@ def editar_pagamento(pagamento_id: int, dados: PagamentoEditar, db: BD, ctx: Pag
 
 
 @router.delete("/pagamentos/{pagamento_id}", status_code=status.HTTP_204_NO_CONTENT)
-def apagar_pagamento(pagamento_id: int, db: BD, ctx: Pagar):
+def apagar_pagamento(pagamento_id: int, db: BD, ctx: Auditar):
     pagamento = db.get(Pagamento, pagamento_id)
     if pagamento is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pagamento nao encontrado.")
@@ -733,7 +765,7 @@ async def subir_comprovante(
     if pagamento is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pagamento nao encontrado.")
 
-    padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
+    padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
 
     await comprovantes.guardar(
         db, pagamento, arquivo,
@@ -757,5 +789,5 @@ def baixar_comprovante(pagamento_id: int, db: BD, ctx: Pagar):
     if pagamento is None:
         raise comprovantes.NAO_ENCONTRADO
 
-    _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
+    _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
     return comprovantes.entregar(pagamento)

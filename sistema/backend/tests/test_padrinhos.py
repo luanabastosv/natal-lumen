@@ -253,8 +253,37 @@ def main() -> None:
 
         print("\nPagamentos")
         ids_cesta = [a["id"] for a in cruzado["apadrinhamentos"] if a["tipo"] == "cesta"][:2]
+        # O comissario registra o pagamento dos padrinhos dele — e o pagamento
+        # que confirma o apadrinhamento, entao sem isto o trabalho dele so
+        # entraria nos numeros quando a coordenacao passasse por ali.
         r = ck.get("/pagamentos")
-        verifica("comissario NAO ve pagamentos", r.status_code == 403, str(r.status_code))
+        verifica("comissario VE os pagamentos dos padrinhos que alcanca",
+                 r.status_code == 200, str(r.status_code))
+
+        r = ck.post("/pagamentos", json={
+            "padrinho_id": jose["id"], "valor": "120.00", "data": str(date(2026, 11, 9)),
+            "forma": "pix", "apadrinhamentos": [],
+        })
+        verifica("e registra um pagamento", r.status_code == 201, r.text[:140])
+        do_comissario = r.json() if r.status_code == 201 else {}
+
+        # Mas a fronteira do caixa continua de pe: conferir e auditoria, apagar
+        # desfaz dinheiro, e a aba Recebimentos e a edicao inteira.
+        r = ck.patch(f"/pagamentos/{do_comissario.get('id')}", json={"conferido": True})
+        verifica("comissario NAO confere o proprio pagamento",
+                 r.status_code == 403, str(r.status_code))
+        r = ck.patch(f"/pagamentos/{do_comissario.get('id')}", json={"forma": "dinheiro"})
+        verifica("mas corrige os dados do que registrou",
+                 r.status_code == 200, r.text[:140])
+        r = ck.delete(f"/pagamentos/{do_comissario.get('id')}")
+        verifica("comissario NAO apaga pagamento", r.status_code == 403, str(r.status_code))
+        r = ck.get("/recebimentos", params={"edicao_id": e1.id})
+        verifica("comissario NAO alcanca o financeiro da edicao",
+                 r.status_code == 403, str(r.status_code))
+
+        r = cc.delete(f"/pagamentos/{do_comissario.get('id')}")
+        verifica("a coordenacao apaga o pagamento de teste",
+                 r.status_code == 204, str(r.status_code))
 
         r = cc.post("/pagamentos", json={
             "padrinho_id": jose["id"], "valor": "240.00", "data": str(date(2026, 11, 10)),
@@ -476,6 +505,24 @@ def main() -> None:
         # Relido agora: o bloco de remocao acima ja apagou o de cesta da Ana.
         vivos = ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]
         de_ana = [a for a in vivos if a["crianca_id"] == ana.id][0]
+
+        # Promessa nao e apadrinhamento: o cartao AGRADECE, e nao ha o que
+        # agradecer antes do dinheiro. Neste ponto o de_ana esta sem pagamento
+        # (o bloco acima apagou o pagamento que o quitava).
+        r = ck.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
+        verifica("promessa sem pagamento nao gera cartao", r.status_code == 409, str(r.status_code))
+        verifica("e a recusa explica o que falta",
+                 "pagamento" in r.text.lower(), r.text[:140])
+        r = ck.post(f"/apadrinhamentos/{de_ana['id']}/agradecimento/enviar")
+        verifica("nem envia pelo WhatsApp", r.status_code == 409, str(r.status_code))
+
+        # Registrado o pagamento, o mesmo apadrinhamento passa a valer.
+        r = cc.post("/pagamentos", json={
+            "padrinho_id": jose["id"], "valor": "60.00", "data": str(date(2026, 11, 20)),
+            "apadrinhamentos": [de_ana["id"]],
+        })
+        verifica("a coordenacao registra o pagamento da promessa",
+                 r.status_code == 201, r.text[:140])
 
         r = ck.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
         verifica("gera o cartao", r.status_code == 200, r.text[:110])

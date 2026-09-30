@@ -75,7 +75,7 @@ export default function FichaPadrinho({
       padrinho.apadrinhamentos.length > 0 && {
         id: "pagamento",
         rotulo: "Pagamento",
-        contagem: aPagar === 0 ? "tudo quitado" : `${aPagar} a pagar`,
+        contagem: aPagar === 0 ? "tudo confirmado" : `${aPagar} só prometida(s)`,
       },
   ].filter(Boolean);
 
@@ -254,7 +254,7 @@ export default function FichaPadrinho({
                     <span className="ficha__linha-etiquetas">
                       <span className="etiqueta etiqueta--neutra">{TIPOS[a.tipo] ?? a.tipo}</span>
                       <span className={`etiqueta ${a.pago ? "etiqueta--ok" : "etiqueta--espera"}`}>
-                        {a.pago ? "pago" : "a pagar"}
+                        {a.pago ? "confirmado" : "promessa · falta pagar"}
                       </span>
                       {a.cartao_status === "enviado" && (
                         <span

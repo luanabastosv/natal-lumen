@@ -411,6 +411,19 @@ def main() -> None:
         r = c.post("/cidades", json={"nome": f"{MARCA} Invadida", "uf": "RJ"})
         bloqueado("comissario nao cria cidade", r.status_code == 403, str(r.status_code))
 
+        # Desde 30/09/2026 o comissario registra o pagamento DO PADRINHO dele —
+        # e so isso. A aba Recebimentos e o caixa da edicao inteira (doacao,
+        # patrocinio, o que os outros captaram), e a permissao estreita nao pode
+        # virar porta para ela.
+        r = c.get("/recebimentos", params={"edicao_id": ea.id})
+        bloqueado("comissario nao ve o caixa da edicao", r.status_code == 403, str(r.status_code))
+        r = c.post("/recebimentos", json={
+            "edicao_id": ea.id, "descricao": f"{MARCA} Doacao", "categoria": "doacao",
+            "valor": "50.00", "data": "2026-11-10",
+        })
+        bloqueado("comissario nao lanca recebimento da edicao",
+                  r.status_code == 403, str(r.status_code))
+
         print("\n12. Conta desativada continua entrando?")
         atacante_db = db.get(Usuario, atacante.id)
         atacante_db.ativo = False
