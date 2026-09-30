@@ -2010,6 +2010,41 @@ textarea.campo__controle {
   background: var(--amarelo-600);
 }
 
+/* A nota dos apadrinhamentos prometidos, no painel.
+ *
+ * Era uma `Mensagem` de aviso — uma caixa amarela da largura da tela, com o
+ * peso de quem interrompe. Nao e disso que se trata: o numero nao pede acao
+ * imediata de quem esta olhando o painel, so explica por que as contas acima
+ * sao menores do que o time lembra de ter captado. Virou uma linha.
+ *
+ * O ponto ambar amarra a nota a cor que a lista de criancas ja usa para o
+ * marcador de promessa.
+ */
+.nota-prometidos {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  /* O respiro que faltava: encostada no card de cima, ela parecia rodape dele
+     — no celular, onde a grade vira uma coluna so, colava de vez. */
+  margin: var(--space-5) 0 0;
+  font-size: var(--size-body-sm);
+  color: var(--text-on-light-muted);
+}
+
+.nota-prometidos strong {
+  color: var(--text-on-light-secondary);
+}
+
+.nota-prometidos__ponto {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amarelo-600);
+  /* Alinha com a primeira linha do texto, e nao com a base da caixa. */
+  transform: translateY(-1px);
+}
+
 /* ---------- Pastas por instituicao ----------
  *
  * A tela de cartoes e de pastas, e nao de lista: o trabalho com cartao e por

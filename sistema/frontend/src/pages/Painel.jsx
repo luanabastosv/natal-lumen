@@ -274,12 +274,15 @@ export default function Painel() {
                   Ele esta aqui, e o que falta dele e o pagamento ser
                   registrado. So aparece quando ha o que cobrar. */}
               {podeVerNumeros && r.prometidos > 0 && (
-                <Mensagem tipo="aviso">
-                  {plural(r.prometidos, "apadrinhamento prometido", "apadrinhamentos prometidos")}{" "}
-                  <strong>sem pagamento registrado</strong>. Promessa não conta nos
-                  números acima: o lugar da criança fica preso, mas ela segue como sem
-                  padrinho até a coordenação registrar o pagamento.
-                </Mensagem>
+                <p className="nota-prometidos">
+                  <span className="nota-prometidos__ponto" aria-hidden="true" />
+                  <span>
+                    <strong>
+                      {plural(r.prometidos, "prometido", "prometidos")}
+                    </strong>{" "}
+                    sem pagamento — não entram nos números acima.
+                  </span>
+                </p>
               )}
 
               {/* Linha larga: o dia do evento em barras, e o anel da edicao
