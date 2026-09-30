@@ -13,6 +13,9 @@ export const detalharPadrinho = (id) => api.get(`/padrinhos/${id}`);
 export const criarPadrinho = (dados) => api.post("/padrinhos", dados);
 export const editarPadrinho = (id, dados) => api.patch(`/padrinhos/${id}`, dados);
 
+export const apagarPadrinho = (id) => api.delete(`/padrinhos/${id}`);
+export const dependenciasDoPadrinho = (id) => api.get(`/padrinhos/${id}/dependencias`);
+
 export const criarApadrinhamento = (dados) => api.post("/apadrinhamentos", dados);
 export const editarApadrinhamento = (id, dados) => api.patch(`/apadrinhamentos/${id}`, dados);
 export const apagarApadrinhamento = (id) => api.delete(`/apadrinhamentos/${id}`);

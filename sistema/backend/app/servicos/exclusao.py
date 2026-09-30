@@ -148,6 +148,38 @@ def alcance_da_crianca(crianca_id: int) -> Alcance:
     )
 
 
+def alcance_do_padrinho(padrinho_id: int) -> Alcance:
+    """O padrinho leva o que e so dele: os apadrinhamentos e os pagamentos.
+
+    Nada sobe e nada desce do lado da crianca: ela continua cadastrada, e o que
+    cai e a ligacao com este padrinho — ela volta a poder ser apadrinhada. E
+    esse o ponto de apagar um padrinho cadastrado por engano.
+    """
+    return Alcance(
+        edicoes=_nenhum(Edicao.id),
+        instituicoes=_nenhum(Instituicao.id),
+        criancas=_nenhum(Crianca.id),
+        padrinhos=select(Padrinho.id).where(Padrinho.id == padrinho_id),
+        grupos=_nenhum(Grupo.id),
+    )
+
+
+def apagar_padrinho(db: Session, padrinho_id: int) -> list[str]:
+    """Apaga o padrinho e devolve os comprovantes que ficaram sem dono.
+
+    Os apadrinhamentos e os pagamentos saem no cascade da FK. Os comprovantes
+    em disco NAO — nenhum ON DELETE alcanca o disco, e sem isto o recibo de um
+    padrinho apagado ficaria no servidor sem uma linha sequer apontando para
+    ele.
+    """
+    orfaos = _arquivos_do_alcance(db, alcance_do_padrinho(padrinho_id))
+    db.execute(
+        delete(Padrinho).where(Padrinho.id == padrinho_id),
+        execution_options=SEM_SINCRONIZAR,
+    )
+    return orfaos
+
+
 def _quantos(db: Session, modelo, condicao) -> int:
     return db.scalar(select(func.count()).select_from(modelo).where(condicao)) or 0
 

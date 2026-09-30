@@ -42,6 +42,12 @@ PERMISSOES: dict[str, str] = {
     # registra o dinheiro nao e quem audita o registro.
     "registrar_pagamentos_padrinho": "Registrar o pagamento dos padrinhos que alcanca",
     "registrar_pagamentos": "Registrar os recebimentos da edicao e conferir pagamentos",
+    # Desfazer engano de captacao: apagar o cadastro de um padrinho, e desfazer
+    # um apadrinhamento MESMO ja pago. Separada de `editar_padrinhos` porque nao
+    # e a mesma coisa: quem capta corrige o que acabou de digitar; isto aqui
+    # desfaz o que ja virou numero no painel e, no caso do pagamento, mexe onde
+    # ha dinheiro. Fica so com a coordenacao.
+    "excluir_padrinhos": "Apagar padrinhos e desfazer apadrinhamentos ja pagos",
     "subir_cartoes": "Digitalizar e subir os cartoes das criancas",
     "enviar_cartoes": "Marcar cartoes como enviados aos padrinhos",
     "gerenciar_kits": "Montar e registrar a entrega dos kits",

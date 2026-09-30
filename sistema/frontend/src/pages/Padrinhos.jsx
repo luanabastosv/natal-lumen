@@ -6,13 +6,20 @@ import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
+import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
-import { criarPadrinho, editarPadrinho, listarPadrinhos } from "../services/padrinhos.js";
+import {
+  apagarPadrinho,
+  criarPadrinho,
+  dependenciasDoPadrinho,
+  editarPadrinho,
+  listarPadrinhos,
+} from "../services/padrinhos.js";
 import { dinheiro } from "../utils/dinheiro.js";
 
 const POR_PAGINA = 100;
@@ -27,6 +34,16 @@ const NOVO = {
   membro_ser_feliz: "",
   interesse_mensal: "",
 };
+
+// Duas coisas que a conta de dependencias nao diz sozinha, e que mudam a
+// decisao de quem clica: a crianca NAO cai (e ela volta a ficar disponivel,
+// que e justamente o motivo de apagar um padrinho criado por engano), e o
+// pagamento CAI (sai do caixa da edicao, ao contrario do que acontece quando
+// se desfaz um apadrinhamento sozinho, onde ele fica sem destino).
+const NOTA_PADRINHO =
+  "As crianças não são apagadas: elas voltam a ficar disponíveis para " +
+  "apadrinhar. Já o pagamento sai do caixa junto com o padrinho — se o " +
+  "dinheiro entrou de verdade, desfaça só o apadrinhamento, na ficha.";
 
 /** "" -> null, "sim" -> true, "nao" -> false. */
 function resposta(valor) {
@@ -68,6 +85,14 @@ export default function Padrinhos() {
   // Nao e a do financeiro da edicao — o comissario tem esta e nao aquela, e e
   // por ela que o apadrinhamento dele se confirma.
   const podePagar = pode("registrar_pagamentos_padrinho");
+  // Desfazer engano de captacao: apagar o cadastro, e desfazer apadrinhamento
+  // JA PAGO. Coordenacao e administracao geral — quem capta corrige o que
+  // acabou de digitar, mas nao desfaz o que ja virou numero e dinheiro.
+  const podeExcluir = pode("excluir_padrinhos");
+
+  // A exclusao em curso: { registro, dependencias, erro, apagando }. Fora dela,
+  // null. Igual ao das outras telas que apagam cadastro — ver Instituicoes.
+  const [exclusao, definirExclusao] = useState(null);
 
   // No celular a planilha inteira nao cabe: ficam de pe o nome e quantas
   // criancas ele apadrinhou — o que identifica o padrinho e diz se ele ja
@@ -146,6 +171,39 @@ export default function Padrinhos() {
     }
   }
 
+  /** Abre a janela e ja pergunta ao servidor o que vai junto. */
+  async function pedirExclusao(padrinho) {
+    definirErro("");
+    definirFichaAbertaId(null);
+    definirExclusao({ registro: padrinho, dependencias: null, erro: "", apagando: false });
+    try {
+      const conta = await dependenciasDoPadrinho(padrinho.id);
+      definirExclusao((atual) =>
+        atual && atual.registro.id === padrinho.id ? { ...atual, dependencias: conta } : atual,
+      );
+    } catch (e) {
+      definirExclusao((atual) => (atual ? { ...atual, erro: e.message } : atual));
+    }
+  }
+
+  async function confirmarExclusao() {
+    const padrinho = exclusao.registro;
+    definirExclusao((atual) => ({ ...atual, apagando: true, erro: "" }));
+    try {
+      await apagarPadrinho(padrinho.id);
+      // Tira da lista e desconta do total, em vez de recarregar: quem estava no
+      // meio da planilha continua onde estava.
+      definirPadrinhos((atual) => ({
+        itens: atual.itens.filter((p) => p.id !== padrinho.id),
+        total: Math.max(0, atual.total - 1),
+      }));
+      notificar(`${padrinho.nome} apagado.`);
+      definirExclusao(null);
+    } catch (e) {
+      definirExclusao((atual) => (atual ? { ...atual, apagando: false, erro: e.message } : atual));
+    }
+  }
+
   const totalPaginas = Math.max(1, Math.ceil(padrinhos.total / POR_PAGINA));
 
   return (
@@ -155,8 +213,8 @@ export default function Padrinhos() {
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         {estreita
-          ? "Cada padrinho pode apadrinhar várias crianças, inclusive de outra cidade. Toque na linha para a ficha com todos os dados e as ações de cada criança."
-          : "Cada padrinho pertence a uma edição e pode apadrinhar várias crianças, inclusive de outra cidade. Clique em qualquer célula para editar; o menu abre a ficha com todas as crianças e as ações de cada uma."}
+          ? "Toque na linha para a ficha com todos os dados e as ações de cada criança."
+          : " Clique em qualquer célula para editar; o menu abre a ficha com todas as crianças e as ações de cada uma."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -244,12 +302,26 @@ export default function Padrinhos() {
         </Modal>
       )}
 
+      {exclusao && (
+        <ConfirmarExclusao
+          rotulo="Padrinho"
+          nome={exclusao.registro.nome}
+          dependencias={exclusao.dependencias}
+          nota={NOTA_PADRINHO}
+          erro={exclusao.erro}
+          apagando={exclusao.apagando}
+          aoConfirmar={confirmarExclusao}
+          aoFechar={() => definirExclusao(null)}
+        />
+      )}
+
       {fichaAberta && (
         <FichaPadrinho
           padrinho={fichaAberta}
           aoFechar={() => definirFichaAbertaId(null)}
           podeEditar={podeEditar}
           podePagar={podePagar}
+          podeExcluir={podeExcluir}
           iniciarLigando={abrirLigando}
           aoMudar={trocarLinha}
         />
@@ -448,6 +520,11 @@ export default function Padrinhos() {
                             podeEditar && {
                               rotulo: "Apadrinhar uma criança",
                               aoEscolher: () => abrirFicha(p.id, true),
+                            },
+                            podeExcluir && {
+                              rotulo: "Apagar padrinho",
+                              perigo: true,
+                              aoEscolher: () => pedirExclusao(p),
                             },
                           ]}
                         />

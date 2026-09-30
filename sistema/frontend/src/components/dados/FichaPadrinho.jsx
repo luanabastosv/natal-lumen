@@ -1,5 +1,6 @@
 import { useState } from "react";
 import BotaoIcone from "../core/BotaoIcone.jsx";
+import Button from "../core/Button.jsx";
 import { Baixar, Desfazer, Enviar } from "../core/icones.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
@@ -36,6 +37,10 @@ export default function FichaPadrinho({
   padrinho,
   aoFechar,
   podeEditar = false,
+  // Desfazer engano de captacao. Quem capta corrige o que acabou de digitar;
+  // desfazer um apadrinhamento JA PAGO mexe onde ha dinheiro, e e da
+  // coordenacao.
+  podeExcluir = false,
   aoMudar,
   // Quem registra pagamento nao e quem edita padrinho: sao duas permissoes
   // diferentes, e ha comissario que so faz uma das duas.
@@ -99,6 +104,11 @@ export default function FichaPadrinho({
   const [baixandoCartao, definirBaixandoCartao] = useState(null);
   const [enviando, definirEnviando] = useState(null);
   const [desfazendo, definirDesfazendo] = useState(null);
+  // Qual apadrinhamento PAGO esta esperando confirmacao. Promessa se desfaz num
+  // clique — nada se perde, e quem capta erra e corrige na mesma conversa. Com
+  // pagamento e outra coisa: o dinheiro fica no caixa sem destino, e isso tem
+  // de estar escrito na frente de quem clica, nao na dica do mouse.
+  const [aDesfazer, definirADesfazer] = useState(null);
 
   // Uma aba, nao paineis que abrem e fecham. Paineis inseridos no meio da
   // janela empurravam a lista para baixo a cada clique: a pessoa apertava um
@@ -143,6 +153,7 @@ export default function FichaPadrinho({
     definirDesfazendo(apadrinhamento.id);
     try {
       await apagarApadrinhamento(apadrinhamento.id);
+      definirADesfazer(null);
       await recarregar();
     } catch (e) {
       definirErro(e.message);
@@ -387,11 +398,19 @@ export default function FichaPadrinho({
                     >
                       <Enviar t={16} />
                     </BotaoIcone>
-                    {podeEditar && !a.pago && (
+                    {/* Sem pagamento, quem capta desfaz. Com pagamento, so a
+                        coordenacao — e a dica diz o que vai acontecer com o
+                        dinheiro, porque ele NAO some junto. */}
+                    {((podeEditar && !a.pago) || podeExcluir) && (
                       <BotaoIcone
                         perigo
-                        titulo={`Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}`}
-                        onClick={() => desligar(a)}
+                        titulo={
+                          a.pago
+                            ? `Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}. ` +
+                              "O pagamento continua no caixa, sem destino."
+                            : `Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}`
+                        }
+                        onClick={() => (a.pago ? definirADesfazer(a) : desligar(a))}
                         carregando={desfazendo === a.id}
                       >
                         <Desfazer t={16} />
@@ -419,6 +438,46 @@ export default function FichaPadrinho({
           />
         )}
       </div>
+
+      {/* Por cima da ficha, e nao no lugar dela: a pessoa decide sem perder de
+          vista de qual padrinho e a lista. */}
+      {aDesfazer && (
+        <Modal
+          rotulo="Apadrinhamento pago"
+          titulo={`Desfazer o apadrinhamento de ${aDesfazer.crianca_primeiro_nome}?`}
+          aoFechar={() => desfazendo === null && definirADesfazer(null)}
+          rodape={
+            <div className="barra-acoes barra-acoes--fim" style={{ marginTop: 0 }}>
+              <Button
+                variant="perigo"
+                onClick={() => desligar(aDesfazer)}
+                carregando={desfazendo === aDesfazer.id}
+              >
+                {desfazendo === aDesfazer.id ? "Desfazendo..." : "Desfazer mesmo assim"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => definirADesfazer(null)}
+                disabled={desfazendo === aDesfazer.id}
+              >
+                Cancelar
+              </Button>
+            </div>
+          }
+        >
+          <p className="exclusao__texto">
+            <strong>{aDesfazer.crianca_nome}</strong> volta a ficar disponível para
+            apadrinhar, e este apadrinhamento sai das contas do painel.
+          </p>
+          {/* Sem valor escrito: um mesmo pagamento pode quitar varias criancas
+              deste padrinho, e o valor do apadrinhamento nao e o do pagamento. */}
+          <Mensagem tipo="aviso">
+            O pagamento <strong>continua no caixa</strong>, agora sem este destino — o
+            dinheiro entrou de verdade e não desaparece por causa de um engano de cadastro.
+            A diferença passa a aparecer na ficha, entre o combinado e o pago.
+          </Mensagem>
+        </Modal>
+      )}
     </Modal>
   );
 }

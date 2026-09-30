@@ -670,6 +670,64 @@ def main() -> None:
         r = cm.get("/pagamentos")
         verifica("monitor NAO ve pagamentos", r.status_code == 403, str(r.status_code))
 
+        print("\nDesfazer engano de captacao (so a coordenacao)")
+        # Um apadrinhamento pago, ligado por engano. Quem capta nao desfaz: o
+        # dinheiro ja entrou, e isso deixou de ser correcao de digitacao.
+        ids_agora = [a["id"] for a in ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]]
+        alvo = ids_agora[0]
+        r = cc.post("/pagamentos", json={
+            "padrinho_id": jose["id"], "valor": "120.00", "data": str(date(2026, 11, 25)),
+            "apadrinhamentos": [alvo],
+        })
+        verifica("pagamento registrado no apadrinhamento errado",
+                 r.status_code == 201, r.text[:140])
+
+        r = ck.delete(f"/apadrinhamentos/{alvo}")
+        verifica("comissario NAO desfaz apadrinhamento pago",
+                 r.status_code == 409, str(r.status_code))
+        verifica("e a recusa manda procurar a coordenacao",
+                 "coordenacao" in r.text.lower(), r.text[:140])
+
+        antes = len(cc.get("/pagamentos", params={"padrinho_id": jose["id"]}).json()["itens"])
+        r = cc.delete(f"/apadrinhamentos/{alvo}")
+        verifica("a coordenacao desfaz", r.status_code == 204, str(r.status_code))
+
+        # O PAGAMENTO fica: o dinheiro entrou de verdade, o que foi engano e a
+        # crianca a que ele foi ligado. Apagar junto sumiria com uma entrada
+        # real do caixa.
+        depois = cc.get("/pagamentos", params={"padrinho_id": jose["id"]}).json()["itens"]
+        verifica("e o pagamento continua no caixa", len(depois) == antes, f"{antes} -> {len(depois)}")
+        verifica("so que sem destino", all(alvo not in p["apadrinhamentos"] for p in depois),
+                 str([p["apadrinhamentos"] for p in depois]))
+
+        print("\nApagar o cadastro do padrinho")
+        r = ck.get(f"/padrinhos/{jose['id']}/dependencias")
+        verifica("comissario NAO ve o que cai junto", r.status_code == 403, str(r.status_code))
+
+        r = cc.get(f"/padrinhos/{jose['id']}/dependencias")
+        verifica("a coordenacao ve a conta antes", r.status_code == 200, r.text[:140])
+        conta = {i["chave"]: i["quantidade"] for i in r.json()["itens"]}
+        verifica("e a conta inclui apadrinhamentos e pagamentos",
+                 conta.get("apadrinhamentos", 0) > 0 and conta.get("pagamentos", 0) > 0,
+                 str(conta))
+        # A crianca NAO cai: ela volta a poder ser apadrinhada, que e o ponto.
+        verifica("e NAO leva crianca nenhuma", conta.get("criancas", 0) == 0, str(conta))
+
+        r = ck.delete(f"/padrinhos/{jose['id']}")
+        verifica("comissario NAO apaga padrinho", r.status_code == 403, str(r.status_code))
+
+        r = cc.delete(f"/padrinhos/{jose['id']}")
+        verifica("a coordenacao apaga", r.status_code == 204, str(r.status_code))
+        r = ck.get(f"/padrinhos/{jose['id']}")
+        verifica("e o padrinho some", r.status_code == 404, str(r.status_code))
+
+        # A crianca continua de pe e livre para ser apadrinhada de novo.
+        db.expire_all()
+        verifica("a crianca continua cadastrada", db.get(Crianca, ana.id) is not None)
+        verifica("e sem apadrinhamento nenhum preso a ela",
+                 db.scalar(select(func.count()).select_from(Apadrinhamento)
+                           .where(Apadrinhamento.crianca_id == ana.id)) == 0)
+
     finally:
         limpar(db, log_inicial)
         db.close()

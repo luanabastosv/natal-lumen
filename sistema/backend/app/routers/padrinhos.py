@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.database import get_db
 from app.models import Apadrinhamento, Crianca, Edicao, EnvioCartao, Padrinho, Pagamento
 from app.models.tipos import TipoApadrinhamento
+from app.schemas.cadastros import DependenciasOut
 from app.schemas.padrinhos import (
     ApadrinhamentoEditar,
     ApadrinhamentoIn,
@@ -43,7 +44,7 @@ from app.schemas.padrinhos import (
 from app.servicos.apadrinhamento import confirmado
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import agradecimento, comprovantes, whatsapp
+from app.servicos import agradecimento, comprovantes, exclusao, whatsapp
 from app.servicos.log import registrar
 from app.servicos.nomes import nome_proprio
 
@@ -61,6 +62,9 @@ Pagar = Annotated[
 # Mexer no dinheiro ja registrado: conferir e apagar. So a coordenacao — quem
 # registra o dinheiro nao e quem audita o registro.
 Auditar = Annotated[ContextoAcesso, Depends(exige_permissao("registrar_pagamentos"))]
+# Desfazer engano de captacao: apagar padrinho, e desfazer apadrinhamento MESMO
+# ja pago. So a coordenacao.
+Excluir = Annotated[ContextoAcesso, Depends(exige_permissao("excluir_padrinhos"))]
 
 
 # ---------------------------------------------------------------- alcance
@@ -536,20 +540,68 @@ def apagar_apadrinhamento(apadrinhamento_id: int, db: BD, ctx: Editar):
 
     _carregar(db, apadrinhamento.padrinho_id, ctx, "editar_padrinhos")
 
-    if apadrinhamento.pagamento_id is not None:
+    # Apadrinhamento pago so a coordenacao desfaz. Quem capta corrige o que
+    # acabou de digitar; desfazer o que ja virou dinheiro e outra coisa.
+    if apadrinhamento.pagamento_id is not None and not ctx.pode("excluir_padrinhos"):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Este apadrinhamento ja esta ligado a um pagamento. "
-            "Desfaca o pagamento antes.",
+            "Este apadrinhamento ja tem pagamento registrado. Peca a coordenacao "
+            "para desfazer.",
         )
+
+    # O PAGAMENTO fica. O dinheiro entrou de verdade — o que foi engano e a
+    # crianca a que ele foi ligado. Apagar o pagamento junto sumiria com uma
+    # entrada real do caixa; aqui ele so deixa de quitar este apadrinhamento, e
+    # a diferenca aparece sozinha na ficha, entre o combinado e o pago.
+    pagamento_solto = apadrinhamento.pagamento_id
 
     registrar(
         db, "apadrinhamento_apagado", usuario_id=ctx.usuario.id,
         tabela="apadrinhamentos", registro_id=apadrinhamento.id,
-        detalhes={"crianca_id": apadrinhamento.crianca_id, "tipo": apadrinhamento.tipo},
+        detalhes={
+            "crianca_id": apadrinhamento.crianca_id,
+            "tipo": apadrinhamento.tipo,
+            # Fica no log porque e o rastro de que sobrou dinheiro sem destino:
+            # quem for conferir o caixa depois precisa achar este momento.
+            "pagamento_que_ficou_sem_destino": pagamento_solto,
+        },
     )
     db.delete(apadrinhamento)
     db.commit()
+
+
+@router.get("/padrinhos/{padrinho_id}/dependencias", response_model=DependenciasOut)
+def dependencias_do_padrinho(padrinho_id: int, db: BD, ctx: Excluir):
+    """O que cai junto com este padrinho. E a conta que a janela mostra antes."""
+    padrinho = _carregar(db, padrinho_id, ctx, "excluir_padrinhos")
+    itens = exclusao.contar(db, exclusao.alcance_do_padrinho(padrinho_id))
+    return DependenciasOut(
+        id=padrinho.id,
+        nome=padrinho.nome,
+        total=sum(i.quantidade for i in itens),
+        itens=itens,
+    )
+
+
+@router.delete("/padrinhos/{padrinho_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar_padrinho(padrinho_id: int, db: BD, ctx: Excluir):
+    """Apaga o cadastro do padrinho, com os apadrinhamentos e os pagamentos dele.
+
+    As criancas NAO caem: elas continuam cadastradas e voltam a poder ser
+    apadrinhadas — e esse o ponto de apagar um padrinho criado por engano.
+    """
+    padrinho = _carregar(db, padrinho_id, ctx, "excluir_padrinhos")
+
+    registrar(
+        db, "padrinho_apagado", usuario_id=ctx.usuario.id,
+        tabela="padrinhos", registro_id=padrinho.id,
+        detalhes={"nome": padrinho.nome, "edicao_id": padrinho.edicao_id},
+    )
+    orfaos = exclusao.apagar_padrinho(db, padrinho_id)
+    db.commit()
+    # Depois do commit: arquivo apagado nao volta, entao so sai do disco o que
+    # ja saiu da base de verdade.
+    exclusao.remover_arquivos(orfaos)
 
 
 # ---------------------------------------------------------------- pagamentos
