@@ -32,6 +32,7 @@ from app.schemas.cartoes import (
     CartaoOut,
     MarcarEnviados,
     PaginaCartoes,
+    ContagemTipo,
     PastaInstituicao,
     PreviaLote,
     ResultadoLote,
@@ -215,25 +216,16 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
     acesso nenhuma — quem alcanca o que ja e decidido em `filtro_criancas`, e
     aqui isso so vira navegacao.
 
+    Esta tela e controle de CARTAO: quantos ha, de que tipo, quantos ja sairam.
+    Quem e o padrinho de cada crianca e assunto da tela de padrinhos — aqui a
+    pergunta e sobre a pilha de papel.
+
     Lista a instituicao que tem CRIANCA na edicao, mesmo sem nenhum cartao
     ainda: a pasta vazia e justamente onde o trabalho comeca, e e por ela que
     se sobe a primeira pilha. Uma pasta que so aparecesse depois do primeiro
     cartao nao teria como receber o primeiro cartao.
     """
     alcance = ctx.filtro_criancas("ver_criancas") & (Crianca.edicao_id == edicao_id)
-
-    # Um cartao esta sem destinatario quando a crianca nao tem padrinho daquele
-    # tipo, ou quando o apadrinhamento dela e so promessa — a mesma regra do
-    # filtro `sem_padrinho` da lista.
-    tem_padrinho = (
-        select(Apadrinhamento.id)
-        .where(
-            Apadrinhamento.crianca_id == Cartao.crianca_id,
-            Apadrinhamento.tipo == Cartao.tipo,
-            CONFIRMADO,
-        )
-        .exists()
-    )
 
     linhas = db.execute(
         select(
@@ -242,9 +234,14 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
             Instituicao.sigla,
             func.count(Cartao.id).label("total"),
             func.count(case((Cartao.status == "enviado", 1))).label("enviados"),
-            func.count(case((~tem_padrinho & (Cartao.id.is_not(None)), 1))).label(
-                "sem_padrinho"
-            ),
+            func.count(case((Cartao.tipo == "cesta", 1))).label("cesta"),
+            func.count(
+                case(((Cartao.tipo == "cesta") & (Cartao.status == "enviado"), 1))
+            ).label("cesta_enviados"),
+            func.count(case((Cartao.tipo == "festa", 1))).label("festa"),
+            func.count(
+                case(((Cartao.tipo == "festa") & (Cartao.status == "enviado"), 1))
+            ).label("festa_enviados"),
         )
         .select_from(Crianca)
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
@@ -262,7 +259,16 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
             total=l.total,
             a_enviar=l.total - l.enviados,
             enviados=l.enviados,
-            sem_padrinho=l.sem_padrinho,
+            cesta=ContagemTipo(
+                total=l.cesta,
+                a_enviar=l.cesta - l.cesta_enviados,
+                enviados=l.cesta_enviados,
+            ),
+            festa=ContagemTipo(
+                total=l.festa,
+                a_enviar=l.festa - l.festa_enviados,
+                enviados=l.festa_enviados,
+            ),
         )
         for l in linhas
     ]

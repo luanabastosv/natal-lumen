@@ -3,6 +3,7 @@ import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import ConferirCartoes from "../components/dados/ConferirCartoes.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
+import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import { Olho } from "../components/core/icones.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -62,6 +63,10 @@ export default function Cartoes() {
   // entre 900 era trabalho de filtro, e o filtro sumia a cada recarga.
   const [pastas, definirPastas] = useState([]);
   const [pasta, definirPasta] = useState(null);
+  // Dentro da pasta, qual pilha esta na mao: "" e a escola inteira. Cesta e
+  // festa sao duas pilhas separadas no mundo real — recolhidas e conferidas uma
+  // de cada vez —, e a aba deixa trabalhar numa sem perder de vista a outra.
+  const [abaTipo, definirAbaTipo] = useState("");
 
   const buscar = useCallback(async () => {
     if (!edicaoAtiva) return;
@@ -72,6 +77,7 @@ export default function Cartoes() {
         definirCartoes(
           await listarCartoes({
             situacao,
+            tipo: abaTipo,
             edicao_id: edicaoAtiva,
             instituicao_id: pasta.instituicao_id,
           }),
@@ -82,7 +88,7 @@ export default function Cartoes() {
     } finally {
       definirCarregando(false);
     }
-  }, [situacao, edicaoAtiva, pasta]);
+  }, [situacao, abaTipo, edicaoAtiva, pasta]);
 
   useEffect(() => {
     // Buscar no servidor e justamente o que este efeito existe para fazer: a
@@ -114,8 +120,20 @@ export default function Cartoes() {
   function abrirPasta(p) {
     definirMarcados([]);
     limparEnvio();
+    definirAbaTipo("");
     definirCarregando(true);
     definirPasta(p);
+  }
+
+  /* Trocar de aba leva o tipo do envio junto: quem esta com a pilha de festa
+     aberta vai subir festa, e ter de dizer isso num select ao lado seria
+     repetir o que a aba ja diz — e o lugar exato onde se erra. Na aba "Todos"
+     o select continua mandando, porque ali nao ha tipo escolhido. */
+  function trocarAba(tipoDaAba) {
+    definirMarcados([]);
+    definirCarregando(true);
+    definirAbaTipo(tipoDaAba);
+    if (tipoDaAba) definirTipo(tipoDaAba);
   }
 
   function voltarAsPastas() {
@@ -229,6 +247,49 @@ export default function Cartoes() {
         </div>
       )}
 
+      {/* As duas pilhas da escola. A contagem em cada aba e o total dela — e o
+          numero que diz de que tamanho e o trabalho antes de abrir. */}
+      {pasta && (
+        <FaixaDeAbas reiniciarEm={pasta.instituicao_id}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={abaTipo === ""}
+            className={`aba ${abaTipo === "" ? "aba--ativa" : ""}`}
+            onClick={() => trocarAba("")}
+          >
+            <span>Todos</span>
+            <span className="aba__contagem">{pasta.total} cartões</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={abaTipo === "cesta"}
+            className={`aba ${abaTipo === "cesta" ? "aba--ativa" : ""}`}
+            onClick={() => trocarAba("cesta")}
+          >
+            <span>
+              <span className="aba__ponto tipo--cesta" />
+              Cesta
+            </span>
+            <span className="aba__contagem">{pasta.cesta.a_enviar} a enviar</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={abaTipo === "festa"}
+            className={`aba ${abaTipo === "festa" ? "aba--ativa" : ""}`}
+            onClick={() => trocarAba("festa")}
+          >
+            <span>
+              <span className="aba__ponto tipo--festa" />
+              Festa
+            </span>
+            <span className="aba__contagem">{pasta.festa.a_enviar} a enviar</span>
+          </button>
+        </FaixaDeAbas>
+      )}
+
       {/* O envio mora DENTRO da pasta: sobe-se a pilha de uma escola, e o
           servidor recusa na previa o arquivo cujo codigo for de outra. No andar
           das pastas nao ha o que subir — nao se sabe de quem seria. */}
@@ -237,16 +298,29 @@ export default function Cartoes() {
           {!previa ? (
             <form className="painel" onSubmit={enviarLote}>
               <h2 className="painel__titulo">Subir cartões digitalizados</h2>
-              <div className="linha-campos">
-                <Selecao
-                  rotulo="Estes cartões são de"
-                  value={tipo}
-                  onChange={(e) => definirTipo(e.target.value)}
-                >
-                  <option value="cesta">Cesta</option>
-                  <option value="festa">Festa</option>
-                </Selecao>
-              </div>
+              {/* Com uma pilha aberta, perguntar de que tipo ela e seria
+                  repetir o que a aba ja diz — e seria o lugar exato de errar:
+                  escolher "festa" com a aba Cesta na frente subiria a pilha
+                  inteira no tipo trocado. Na aba "Todos" nao ha tipo escolhido,
+                  e o campo volta. */}
+              {abaTipo ? (
+                <p className="campo__dica" style={{ marginTop: 0 }}>
+                  Vai para a pilha de{" "}
+                  <span className={`etiqueta etiqueta--${abaTipo}`}>{abaTipo}</span> desta
+                  instituição. Para subir a outra, troque de aba.
+                </p>
+              ) : (
+                <div className="linha-campos">
+                  <Selecao
+                    rotulo="Estes cartões são de"
+                    value={tipo}
+                    onChange={(e) => definirTipo(e.target.value)}
+                  >
+                    <option value="cesta">Cesta</option>
+                    <option value="festa">Festa</option>
+                  </Selecao>
+                </div>
+              )}
 
               <label className="campo">
                 <span className="campo__rotulo">Arquivos</span>
@@ -419,22 +493,23 @@ export default function Cartoes() {
                     <span className="pasta__de"> de {p.total}</span>
                   </span>
 
-                  <span className="pasta__etiquetas">
-                    {p.total === 0 && (
+                  {/* As duas pilhas, na mesma cor que o painel ja usa para
+                      cesta e festa. E o que a pessoa procura antes de abrir:
+                      de que tamanho e cada trabalho. */}
+                  <span className="pasta__pilhas">
+                    {p.total === 0 ? (
                       <span className="etiqueta etiqueta--espera">nenhum cartão ainda</span>
-                    )}
-                    {p.enviados > 0 && (
-                      <span className="etiqueta etiqueta--ok">{p.enviados} enviado(s)</span>
-                    )}
-                    {/* Cartao sem destinatario: a crianca nao tem padrinho
-                        daquele tipo, ou o apadrinhamento dela e so promessa. */}
-                    {p.sem_padrinho > 0 && (
-                      <span
-                        className="etiqueta etiqueta--espera"
-                        title="Cartões sem padrinho confirmado: ou a criança não tem padrinho daquele tipo, ou o apadrinhamento ainda é promessa sem pagamento."
-                      >
-                        {p.sem_padrinho} sem padrinho
-                      </span>
+                    ) : (
+                      <>
+                        <span className="pasta__pilha">
+                          <span className="aba__ponto tipo--cesta" />
+                          {p.cesta.total} cesta
+                        </span>
+                        <span className="pasta__pilha">
+                          <span className="aba__ponto tipo--festa" />
+                          {p.festa.total} festa
+                        </span>
+                      </>
                     )}
                   </span>
                 </span>
@@ -465,13 +540,11 @@ export default function Cartoes() {
               <tr>
                 {podeMarcar && <th className="tabela__acoes" />}
                 <th>Criança</th>
-                {!estreita && (
-                  <>
-                    <th>Tipo</th>
-                    <th>Padrinho</th>
-                  </>
-                )}
-                <th>Situação</th>
+                {/* No celular o tipo desce para debaixo do nome: a pilula
+                    inteira numa coluna propria nao cabia em cinco colunas a
+                    320px, e abrevia-la apagaria justamente a distincao que ela
+                    existe para fazer. A cor e a palavra continuam ali. */}
+                {!estreita && <th>Tipo</th>}
                 <th className="tabela__acoes" />
               </tr>
             </thead>
@@ -489,30 +562,24 @@ export default function Cartoes() {
                       />
                     </td>
                   )}
+                  {/* A instituicao nao se repete na linha: ela e a PASTA em que
+                      a pessoa esta, e dize-la cinquenta vezes era dizer o mesmo
+                      cinquenta vezes. */}
                   <td>
                     {c.crianca_nome}
-                    <br />
-                    <span className="campo__dica">{c.instituicao}</span>
-                  </td>
-                  {!estreita && (
-                    <>
-                      <td>{c.tipo}</td>
-                      <td>
-                        {c.padrinho_nome ?? (
-                          <span className="etiqueta etiqueta--espera">sem padrinho</span>
-                        )}
-                        {c.padrinho_whatsapp && <><br />{c.padrinho_whatsapp}</>}
-                      </td>
-                    </>
-                  )}
-                  <td>
-                    <span className={`etiqueta ${c.status === "enviado" ? "etiqueta--ok" : "etiqueta--espera"}`}>
-                      {c.status === "enviado" ? "Enviado" : "A enviar"}
-                    </span>
-                    {c.enviado_em && (
-                      <><br /><span className="campo__dica">{formatarDataHora(c.enviado_em)}</span></>
+                    {estreita && (
+                      <>
+                        <br />
+                        <span className={`etiqueta etiqueta--${c.tipo}`}>{c.tipo}</span>
+                      </>
                     )}
                   </td>
+                  {!estreita && (
+                    <td>
+                      <span className={`etiqueta etiqueta--${c.tipo}`}>{c.tipo}</span>
+                    </td>
+                  )}
+
                   {/* A janela do cartao e tambem a janela dos detalhes: no
                       celular ela e que devolve tipo, padrinho e a hora do
                       envio. Vira icone ali para a coluna caber sem apertar o
@@ -573,18 +640,15 @@ export default function Cartoes() {
             src={urlDaImagem(vendo.id)}
             alt={`Cartão de ${vendo.tipo} de ${vendo.crianca_nome}`}
           />
-          {/* Tipo e o WhatsApp do padrinho entraram aqui quando a lista
-              estreita deixou de mostra-los: a janela tem de responder tudo o
-              que a linha deixou de dizer. */}
+          {/* Esta tela e controle de CARTAO: quantos ha, de que tipo, quais ja
+              sairam. Quem e o padrinho de cada crianca e assunto da tela de
+              padrinhos — aqui a pergunta e sobre a pilha de papel. */}
           <dl className="ficha ficha--duas" style={{ marginTop: "var(--space-4)" }}>
             <dt>Instituição</dt>
             <dd>{vendo.instituicao}</dd>
             <dt>Tipo</dt>
-            <dd>{vendo.tipo}</dd>
-            <dt>Padrinho</dt>
             <dd>
-              {vendo.padrinho_nome ?? "sem padrinho ainda"}
-              {vendo.padrinho_whatsapp && ` · ${vendo.padrinho_whatsapp}`}
+              <span className={`etiqueta etiqueta--${vendo.tipo}`}>{vendo.tipo}</span>
             </dd>
             <dt>Situação</dt>
             <dd>

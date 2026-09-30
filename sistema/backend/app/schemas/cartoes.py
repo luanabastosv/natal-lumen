@@ -61,6 +61,14 @@ class PaginaCartoes(BaseModel):
     itens: list[CartaoOut]
 
 
+class ContagemTipo(BaseModel):
+    """O que ha numa subpasta de tipo (cesta ou festa) de uma instituicao."""
+
+    total: int
+    a_enviar: int
+    enviados: int
+
+
 class PastaInstituicao(BaseModel):
     """Uma pasta da tela de cartoes: a instituicao e o que ha dentro dela.
 
@@ -80,9 +88,12 @@ class PastaInstituicao(BaseModel):
     total: int
     a_enviar: int
     enviados: int
-    # Cartao que nao tem para quem ir: a crianca nao tem padrinho daquele tipo,
-    # ou o apadrinhamento dela e so promessa, sem pagamento registrado.
-    sem_padrinho: int
+    # Cesta e festa sao duas SUBPASTAS, e nao duas etiquetas na mesma lista: no
+    # mundo real sao duas pilhas separadas, recolhidas, conferidas e subidas uma
+    # de cada vez. Cada uma traz a propria conta para a tela nao precisar de um
+    # segundo pedido ao abrir a escola.
+    cesta: ContagemTipo
+    festa: ContagemTipo
 
 
 class MarcarEnviados(BaseModel):

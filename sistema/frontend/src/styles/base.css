@@ -1934,9 +1934,14 @@ textarea.campo__controle {
  * de fato apaga a rolagem lateral: sem a largura minima de 680px, uma tabela
  * de layout automatico cabe em qualquer tela.
  */
-.tabela--compacta td {
+.tabela--compacta td,
+.tabela--compacta th {
   /* As colunas que sobraram sao poucas e curtas; sem a folga da direita elas
-     se espalhavam pela tela toda e o nome ficava longe do seu proprio dado. */
+     se espalhavam pela tela toda e o nome ficava longe do seu proprio dado.
+
+     O cabecalho entra junto: o `th` nao quebra linha (`nowrap`), entao a folga
+     dele e largura minima de verdade — com os 16px do monitor, cinco colunas
+     de rotulo em maiuscula ja nao cabiam numa tela de 320px. */
   padding-right: var(--space-3);
 }
 
@@ -1958,6 +1963,12 @@ textarea.campo__controle {
    lado, a pilula de duas linhas. */
 .tabela--compacta .etiqueta {
   white-space: normal;
+  /* Quebra ENTRE palavras, nunca dentro de uma. A celula usa
+     `overflow-wrap: anywhere` por causa de email e nome de arquivo longos, que
+     nao tem onde quebrar; herdado aqui, ele partia "cesta" em "cest/a". Uma
+     etiqueta nunca tem palavra impronunciavel — "Aguardando 1o acesso" quebra
+     no espaco e continua cabendo. */
+  overflow-wrap: normal;
 }
 
 /* Alvo de dedo, e nao de ponteiro — os mesmos 40px da planilha de criancas.
@@ -1966,6 +1977,37 @@ textarea.campo__controle {
 .tabela--compacta .botao-icone--sm {
   width: 40px;
   height: 40px;
+}
+
+/* Cesta e festa nas MESMAS cores que o painel ja usa para elas (legenda,
+   metricas, barras): navy para cesta, amarelo para festa. Reaproveitar e o
+   ponto — duas telas falando da mesma coisa em cores diferentes obrigariam a
+   reaprender o codigo a cada tela. */
+.etiqueta--cesta {
+  background: var(--navy-100);
+  color: var(--navy-700);
+}
+
+.etiqueta--festa {
+  background: var(--amarelo-200);
+  color: var(--navy-900);
+}
+
+/* Em Criancas o pontinho vem DEPOIS do nome, e por isso o base tem
+   margin-left. Aqui ele vem antes da palavra: a margem troca de lado, senao
+   ele encosta no texto e descola da borda. */
+.aba__ponto.tipo--cesta,
+.aba__ponto.tipo--festa {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+.aba__ponto.tipo--cesta {
+  background: var(--navy-500);
+}
+
+.aba__ponto.tipo--festa {
+  background: var(--amarelo-600);
 }
 
 /* ---------- Pastas por instituicao ----------
@@ -2055,10 +2097,23 @@ textarea.campo__controle {
   color: var(--text-on-light-muted);
 }
 
-.pasta__etiquetas {
+.pasta__pilhas {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-3);
+  font-size: var(--size-body-sm);
+  color: var(--text-on-light-secondary);
+}
+
+.pasta__pilha {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Aqui quem separa e o `gap`: a margem do pontinho somaria por cima dele. */
+.pasta__pilha .aba__ponto {
+  margin: 0;
 }
 
 /* A volta para as pastas, com o nome de onde se esta. */

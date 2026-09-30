@@ -379,10 +379,18 @@ def main() -> None:
         verifica("e separa enviados de a enviar",
                  pa.get("enviados") == 1 and pa.get("a_enviar") == 2,
                  f"{pa.get('enviados')}/{pa.get('a_enviar')}")
-        # So a cesta da Ana tem padrinho confirmado; os outros dois nao tem para
-        # quem ir.
-        verifica("conta os que ainda nao tem para quem ir",
-                 pa.get("sem_padrinho") == 2, str(pa.get("sem_padrinho")))
+        # Duas cestas (Ana e Joao) e uma festa (Ana): a pasta diz de quanto e
+        # cada pilha antes de alguem abrir.
+        verifica("a pasta separa a pilha de cesta da de festa",
+                 pa.get("cesta", {}).get("total") == 2
+                 and pa.get("festa", {}).get("total") == 1,
+                 f"cesta {pa.get('cesta')} / festa {pa.get('festa')}")
+        # O numero que cada aba mostra e o "a enviar" da sua pilha: das duas
+        # cestas, a da Ana ja saiu.
+        verifica("e cada pilha traz o proprio a enviar",
+                 pa.get("cesta", {}).get("a_enviar") == 1
+                 and pa.get("festa", {}).get("a_enviar") == 1,
+                 f"cesta {pa.get('cesta')} / festa {pa.get('festa')}")
         verifica("a escola sem nenhum cartao ainda aparece como pasta vazia",
                  pastas.get(inst_b.nome, {}).get("total") == 0,
                  str(pastas.get(inst_b.nome)))
