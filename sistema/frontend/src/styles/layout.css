@@ -233,9 +233,17 @@
   flex: 1;
   min-width: 0;
   width: 100%;
-  /* Coluna larga: o DS a reserva para dashboards e tabelas densas, que e
-     exatamente o que este sistema tem. */
-  max-width: var(--layout-content-wide);
+  /* Sem teto: o conteudo acompanha a tela. O DS reserva a coluna larga
+     (1440px) para dashboards e tabelas densas, e este sistema e as duas coisas
+     — mas num monitor de 1920 aquele teto deixava 220px mortos a direita
+     enquanto a planilha de criancas, que pede perto de 1200, era quem passava
+     aperto.
+
+     Soltar so e seguro porque o texto corrido ja tem limite proprio: o lede
+     para em 68ch e a saudacao em 62ch (ver base.css). Quem cresce e a tabela,
+     que e justamente quem tem o que fazer com o espaco — a sobra vai para as
+     colunas de nome e instituicao, que sao as que cortavam com reticencias. */
+  max-width: none;
   padding: var(--space-8) var(--layout-gutter) var(--space-10);
 }
 
