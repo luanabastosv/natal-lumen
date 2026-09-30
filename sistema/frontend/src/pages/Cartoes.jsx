@@ -67,6 +67,10 @@ export default function Cartoes() {
   // festa sao duas pilhas separadas no mundo real — recolhidas e conferidas uma
   // de cada vez —, e a aba deixa trabalhar numa sem perder de vista a outra.
   const [abaTipo, definirAbaTipo] = useState("");
+  // O envio virou janela. Antes era um painel plantado no topo da pasta: ele
+  // ocupava meia tela o tempo todo para uma acao que se faz de vez em quando, e
+  // empurrava para baixo a lista, que e o que se vem ver aqui.
+  const [subindoAberto, definirSubindoAberto] = useState(false);
 
   const buscar = useCallback(async () => {
     if (!edicaoAtiva) return;
@@ -115,6 +119,15 @@ export default function Cartoes() {
     definirArquivos([]);
     definirConferidos([]);
     definirConferindo(false);
+    definirSubindoAberto(false);
+  }
+
+  /* Fechar a janela no meio da conferencia descarta a previa. Nada se perde de
+     verdade: nada foi gravado, e os arquivos continuam no computador de quem
+     subiu. Enquanto grava, nao fecha — um Esc sem querer nao pode interromper
+     o que ja esta indo para a base. */
+  function fecharEnvio() {
+    if (!salvando && !subindo) limparEnvio();
   }
 
   function abrirPasta(p) {
@@ -176,20 +189,13 @@ export default function Cartoes() {
         `${r.gravados} cartão(ões) de ${previa.tipo} guardado(s).` +
           (r.ignorados ? ` ${r.ignorados} ignorado(s).` : ""),
       );
-      limpar();
+      limparEnvio();
       buscar();
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirSalvando(false);
     }
-  }
-
-  function limpar() {
-    definirPrevia(null);
-    definirArquivos([]);
-    definirConferidos([]);
-    definirConferindo(false);
   }
 
 
@@ -247,8 +253,9 @@ export default function Cartoes() {
         </div>
       )}
 
-      {/* As duas pilhas da escola. A contagem em cada aba e o total dela — e o
-          numero que diz de que tamanho e o trabalho antes de abrir. */}
+      {/* As duas pilhas da escola. A contagem e o TAMANHO de cada pilha, e nao
+          quanto falta enviar dela: acompanhar envio e assunto de outra hora, e
+          aqui a pergunta e quantos cartoes ha de cada tipo. */}
       {pasta && (
         <FaixaDeAbas reiniciarEm={pasta.instituicao_id}>
           <button
@@ -272,7 +279,7 @@ export default function Cartoes() {
               <span className="aba__ponto tipo--cesta" />
               Cesta
             </span>
-            <span className="aba__contagem">{pasta.cesta.a_enviar} a enviar</span>
+            <span className="aba__contagem">{pasta.cesta.total} cartões</span>
           </button>
           <button
             type="button"
@@ -285,7 +292,7 @@ export default function Cartoes() {
               <span className="aba__ponto tipo--festa" />
               Festa
             </span>
-            <span className="aba__contagem">{pasta.festa.a_enviar} a enviar</span>
+            <span className="aba__contagem">{pasta.festa.total} cartões</span>
           </button>
         </FaixaDeAbas>
       )}
@@ -293,11 +300,25 @@ export default function Cartoes() {
       {/* O envio mora DENTRO da pasta: sobe-se a pilha de uma escola, e o
           servidor recusa na previa o arquivo cujo codigo for de outra. No andar
           das pastas nao ha o que subir — nao se sabe de quem seria. */}
-      {pasta && pode("subir_cartoes") && (
-        <>
+      {pasta && pode("subir_cartoes") && subindoAberto && (
+        <Modal
+          rotulo={`${pasta.instituicao}${abaTipo ? ` · ${abaTipo}` : ""}`}
+          titulo={previa ? "Conferência" : "Subir cartões digitalizados"}
+          /* Os dois passos pedem molduras diferentes. O formulario tem tres
+             campos fixos e cabe no tamanho padrao — em `grande` ele ficaria com
+             meia janela vazia embaixo. A conferencia pode ter cinquenta
+             arquivos, e ai vale o `grande`: moldura fixa, corpo rolando, sem a
+             janela crescer enquanto a pessoa marca um a um.
+
+             Isto nao e a janela mudando de tamanho com o conteudo, que o
+             PADROES_UI proibe: sao dois PASSOS da tarefa, e a troca acontece no
+             clique que leva de um para o outro — nao embaixo do ponteiro de
+             quem esta agindo dentro de um deles. */
+          tamanho={previa ? "grande" : "padrao"}
+          aoFechar={fecharEnvio}
+        >
           {!previa ? (
-            <form className="painel" onSubmit={enviarLote}>
-              <h2 className="painel__titulo">Subir cartões digitalizados</h2>
+            <form onSubmit={enviarLote}>
               {/* Com uma pilha aberta, perguntar de que tipo ela e seria
                   repetir o que a aba ja diz — e seria o lugar exato de errar:
                   escolher "festa" com a aba Cesta na frente subiria a pilha
@@ -349,11 +370,11 @@ export default function Cartoes() {
               </div>
             </form>
           ) : (
-            <div className="painel">
-              <h2 className="painel__titulo">
-                Conferência · {previa.validas} de {previa.total} prontos
-              </h2>
+            <div>
               <p className="campo__dica" style={{ marginTop: 0 }}>
+                <strong>
+                  {previa.validas} de {previa.total} prontos.
+                </strong>{" "}
                 Nada foi gravado ainda. Quem estiver com erro é ignorado — corrija o
                 nome do arquivo e suba de novo.
                 {faltamConferir > 0
@@ -433,13 +454,13 @@ export default function Cartoes() {
                 >
                   {faltamConferir > 0 ? "Conferir um a um" : "Rever um a um"}
                 </Button>
-                <Button variant="ghost" onClick={limpar} disabled={salvando}>
+                <Button variant="ghost" onClick={limparEnvio} disabled={salvando}>
                   Descartar
                 </Button>
               </div>
             </div>
           )}
-        </>
+        </Modal>
       )}
 
       {pasta && (
@@ -457,6 +478,16 @@ export default function Cartoes() {
           <span className="campo__dica" style={{ marginTop: 0 }}>
             {cartoes.total} cartão(ões)
           </span>
+
+          {/* Na ponta oposta da linha, como o CTA das outras telas: a acao da
+              pasta fica longe do filtro, sem custar uma linha de altura. */}
+          {pode("subir_cartoes") && (
+            <div className="barra-acoes__ponta">
+              <Button size="sm" onClick={() => definirSubindoAberto(true)}>
+                Subir cartões
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

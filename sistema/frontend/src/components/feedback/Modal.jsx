@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
 
+/* Quem esta por cima. Uma janela pode abrir outra — a conferencia dos cartoes
+   abre por cima do envio —, e o Esc tem de fechar SO a de cima. Com um ouvinte
+   global por janela, sem esta pilha, um Esc fechava as duas de uma vez e a
+   pessoa perdia o trabalho de tras junto com o da frente. */
+const abertas = [];
+
 /** Janela sobre a tela. Esc e o fundo fecham.
  *
  * Nao e um modal de pagina inteira: serve para olhar um detalhe sem perder o
@@ -35,6 +41,10 @@ export default function Modal({
 }) {
   const botaoFechar = useRef(null);
   const caixa = useRef(null);
+  // A identidade desta janela na pilha. Um ref, e nao um valor de render: e a
+  // MESMA janela do inicio ao fim, e e por ela que o Esc sabe quem esta na
+  // frente.
+  const eu = useRef({});
 
   // O foco vai UMA vez, ao abrir. Sem esta separacao o efeito dependia de
   // aoFechar — que chega como funcao nova a cada render — e roubava o foco a
@@ -59,11 +69,26 @@ export default function Modal({
     };
   }, []);
 
+  // Entra na pilha ao abrir e sai ao fechar. Efeito proprio, sem dependencia:
+  // tem de acontecer UMA vez, na ordem em que as janelas nasceram.
+  useEffect(() => {
+    const marca = eu.current;
+    abertas.push(marca);
+    return () => {
+      const onde = abertas.indexOf(marca);
+      if (onde !== -1) abertas.splice(onde, 1);
+    };
+  }, []);
+
   // Este pode reassinar a cada render sem incomodar ninguem: so troca o
   // ouvinte de tecla.
   useEffect(() => {
     const aoTeclar = (e) => {
-      if (e.key === "Escape") aoFechar();
+      // So a janela de cima responde: as de baixo estao cobertas, e fechar o
+      // que esta atras do que se esta olhando e perder trabalho sem aviso.
+      if (e.key === "Escape" && abertas[abertas.length - 1] === eu.current) {
+        aoFechar();
+      }
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
