@@ -1,0 +1,31 @@
+# Backup diario, rodando como natal-lumen.
+#
+# Por que NAO como `lumen`, que e quem entra por ssh: a chave da conta de
+# servico do Drive e `root:natal-lumen` modo 640, e o `lumen` nao a alcanca —
+# de proposito. Rodando como natal-lumen, o backup faz a copia E consegue
+# manda-la para o Drive, sem que a chave precise ficar legivel para mais
+# ninguem.
+#
+# Instalar:  ver instalar-backup.sh nesta mesma pasta.
+
+[Unit]
+Description=Backup do Natal Lumen (base + arquivos) com envio ao Drive
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=natal-lumen
+Group=natal-lumen
+WorkingDirectory=/var/www/natal-lumen/sistema/backend
+# Pasta propria: a de `sistema/backups` e do usuario lumen, e este servico nao
+# escreve la.
+Environment=DESTINO=/var/lib/natal-lumen/backups
+ExecStart=/var/www/natal-lumen/sistema/backend/backup.sh /var/lib/natal-lumen/backups
+
+# O backup nao precisa de mais nada do sistema do que ler a base e escrever na
+# propria pasta.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/natal-lumen/backups

@@ -1,0 +1,13 @@
+[Unit]
+Description=Backup diario do Natal Lumen
+
+[Timer]
+# 03:10, com folga de ate 20 min para nao cair sempre no mesmo segundo.
+OnCalendar=*-*-* 03:10:00
+RandomizedDelaySec=20m
+# Se a maquina estava desligada na hora, roda assim que voltar. Sem isto um
+# reboot na madrugada custaria o backup do dia.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
