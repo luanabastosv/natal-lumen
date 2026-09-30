@@ -5,6 +5,22 @@
    A anatomia segue o DS do Exitus (pilula, peso 800, :active que afunda, anel
    de foco), com as cores do Natal Lumen. */
 
+/* ---------- Zoom que ninguem pediu ----------
+ *
+ * `manipulation` desliga o zoom de DUPLO TOQUE, e so ele: rolar continua igual
+ * e o pinch continua inteiro. Sem isto, cada toque duplo sem querer — e num
+ * sistema que se usa com o polegar, andando, isso e o tempo todo — deixava a
+ * tela ampliada e cortada, e tirar dali exigia um pinch de volta.
+ *
+ * NAO se usa `user-scalable=no` no viewport para isso: o iOS Safari ignora
+ * essa diretiva desde o iOS 10, de proposito, entao ela nao resolveria no
+ * iPhone — e onde e obedecida (Android) ela tira o zoom de quem PRECISA
+ * ampliar para ler, que e falha de acessibilidade (WCAG 1.4.4).
+ */
+body {
+  touch-action: manipulation;
+}
+
 /* ---------- Botoes ---------- */
 .botao {
   display: inline-flex;
@@ -184,6 +200,26 @@ textarea.campo__controle {
 
 .campo__controle--erro {
   border-color: #c0392b;
+}
+
+/* A OUTRA causa de zoom sem querer, e a mais irritante: no iOS, tocar num
+   campo com letra MENOR que 16px faz o Safari aproximar a pagina sozinho para
+   "ajudar a ler" — e depois deixa a tela ampliada. Os campos daqui sao de
+   14px, entao isso acontecia em toda busca e em todo select.
+
+   `pointer: coarse` e a condicao certa, e nao a largura: quem dispara o zoom e
+   a tela de toque, e um iPad deitado tem largura de monitor. No mouse os 14px
+   ficam como estavam — 16px em toda a barra de filtros engordaria a linha sem
+   motivo nenhum.
+
+   Os controles tem altura fixa (40 e 48px), entao a letra maior nao muda o
+   tamanho de nada: so o texto dentro deles cresce. */
+@media (pointer: coarse) {
+  .campo__controle,
+  .barra-acoes .campo__controle,
+  .ficha__acao .campo__controle {
+    font-size: 16px;
+  }
 }
 
 .campo__controle--selecao {
