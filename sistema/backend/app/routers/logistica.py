@@ -75,7 +75,10 @@ def listar_kits(
     instituicao_id: int | None = None,
     situacao: str | None = Query(default=None, pattern="^(pendente|montado)$"),
     pagina: int = Query(default=1, ge=1),
-    por_pagina: int = Query(default=100, ge=1, le=500),
+    # O teto alto existe para a IMPRESSAO: o papel sai com a lista inteira do
+    # filtro, e uma edicao grande passa de mil criancas. Na tela a pagina
+    # continua sendo de 100.
+    por_pagina: int = Query(default=100, ge=1, le=2000),
 ):
     """Lista as criancas com o estado do kit de cada uma.
 

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import Rabisco from "../components/core/Rabisco.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
+import Button from "../components/core/Button.jsx";
+import ImprimirLista from "../components/dados/ImprimirLista.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
@@ -23,6 +25,7 @@ export default function Kits() {
   const [abas, definirAbas] = useState([]);
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
   const [marcando, definirMarcando] = useState([]);
+  const [imprimindo, definirImprimindo] = useState(false);
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
@@ -104,6 +107,19 @@ export default function Kits() {
     }
   }
 
+  /* O papel sai com a lista INTEIRA do filtro, e nao com a pagina que esta na
+     tela: a equipe leva a folha para a mesa de montagem, e uma lista cortada na
+     centesima crianca faria faltar caixa sem ninguem entender por que. */
+  async function todosOsItens() {
+    const tudo = await listarKits({
+      edicao_id: edicaoAtiva,
+      situacao,
+      instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
+      por_pagina: 2000,
+    });
+    return tudo.itens;
+  }
+
   const montados = dados.resumo.montado ?? 0;
   const pendentes = dados.resumo.pendente ?? 0;
 
@@ -163,7 +179,53 @@ export default function Kits() {
         <span className="etiqueta etiqueta--ok">{montados} montados</span>
         <span className="etiqueta etiqueta--espera">{pendentes} a montar</span>
 
+        <div className="barra-acoes__ponta">
+          <Button size="sm" variant="secondary" onClick={() => definirImprimindo(true)}>
+            Imprimir lista
+          </Button>
+        </div>
       </div>
+
+      {imprimindo && (
+        <ImprimirLista
+          titulo="Kits"
+          subtitulo="Montagem"
+          aoFechar={() => definirImprimindo(false)}
+          buscarTudo={todosOsItens}
+          colunas={[
+            { id: "codigo", rotulo: "Código", valor: (k) => k.crianca_codigo },
+            { id: "nome", rotulo: "Criança", valor: (k) => k.crianca_nome },
+            { id: "idade", rotulo: "Idade", valor: (k) => k.idade },
+            { id: "sexo", rotulo: "Sexo", valor: (k) => k.sexo },
+            { id: "instituicao", rotulo: "Instituição", valor: (k) => k.instituicao },
+            {
+              id: "situacao",
+              rotulo: "No sistema",
+              valor: (k) =>
+                k.desistiu_em ? "DESISTIU" : k.status === "montado" ? "montado" : "a montar",
+            },
+          ]}
+          /* A sugestao e o formato que a equipe de estrutura usa toda semana:
+             uma folha por instituicao, deitado (cabem mais linhas por folha e
+             sobra largura para o nome inteiro), com o quadradinho para marcar a
+             lapis enquanto monta. A coluna de instituicao fica de fora porque
+             ela ja e o titulo da folha. */
+          sugestao={{
+            colunas: ["codigo", "nome", "idade", "sexo", "situacao"],
+            orientacao: "paisagem",
+            agruparPor: "instituicao",
+            ordenarPor: "codigo",
+            caixinha: true,
+          }}
+          agrupamentos={[{ id: "instituicao", rotulo: "Instituição", de: (k) => k.instituicao }]}
+          ordenacoes={[
+            { id: "codigo", rotulo: "Código", de: (k) => k.crianca_codigo },
+            { id: "nome", rotulo: "Nome", de: (k) => k.crianca_nome },
+            { id: "idade", rotulo: "Idade", de: (k) => String(k.idade).padStart(3, "0") },
+            { id: "sexo", rotulo: "Sexo", de: (k) => `${k.sexo} ${k.crianca_nome}` },
+          ]}
+        />
+      )}
 
       {carregando ? (
         <Carregando tela>Carregando kits...</Carregando>

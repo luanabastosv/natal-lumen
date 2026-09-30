@@ -4034,3 +4034,145 @@ textarea.campo__controle {
   font-size: var(--size-caption);
 }
 
+/* ---------- Impressao ----------
+ *
+ * A lista no papel e um artefato de trabalho, nao uma copia da tela: a equipe
+ * de estrutura anda com ela na mao entre as caixas, marca a lapis e so depois
+ * passa para o sistema. Por isso o papel perde cor, sombra e borda arredondada
+ * — tudo o que gasta tinta sem ajudar quem esta com a folha — e ganha o que a
+ * tela nao precisa: cabecalho repetido a cada pagina e quadradinho para marcar.
+ *
+ * Fora da impressao a area nao existe na tela.
+ */
+.impressao {
+  display: none;
+}
+
+@media print {
+  /* Some tudo menos o papel — e some por `visibility`, nao por `display`.
+     A area de impressao vive DENTRO do #root, junto com a tela: esconder os
+     filhos do body levaria o #root e a area junto com ele. Com `visibility`,
+     os ancestrais continuam existindo e so o que esta dentro de `.impressao`
+     volta a aparecer.
+
+     E ela sai do fluxo e vai para o canto: senao imprimiria depois do espaco
+     em branco que a tela escondida ainda ocupa. */
+  body * {
+    visibility: hidden;
+  }
+
+  .impressao,
+  .impressao * {
+    visibility: visible;
+  }
+
+  .impressao {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    color: #000;
+    font-family: var(--font-body);
+  }
+
+  /* Cada grupo comeca numa folha nova — e o "uma lista por instituicao": a
+     equipe destaca a folha da escola e leva so ela para a mesa de montagem. */
+  .impressao__folha {
+    break-after: page;
+  }
+
+  .impressao__folha:last-child {
+    break-after: auto;
+  }
+
+  .impressao__topo h1 {
+    font-size: 16pt;
+    margin: 0 0 2pt;
+  }
+
+  .impressao__topo p {
+    font-size: 10pt;
+    margin: 0 0 8pt;
+  }
+
+  .impressao__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    /* A entrelinha da interface e 1.6 — boa para ler texto na tela, cara demais
+       numa folha de conferencia: cada linha custava 23,7px e cabiam 26 por
+       folha. Em 1.2 cabem cerca de 31, e a linha continua separada o bastante
+       para o dedo nao perder o lugar enquanto se anda pela lista. */
+    line-height: 1.2;
+  }
+
+  .impressao__tabela th,
+  .impressao__tabela td {
+    border: 0.4pt solid #000;
+    padding: 2.5pt 5pt;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  /* Peso normal no papel. A interface e quase toda 700/800 — o que da firmeza
+     na tela vira uma mancha de tinta na folha, e cansa quem le cinquenta linhas
+     seguidas procurando um codigo. So o cabecalho e a primeira coluna, que e
+     por onde o olho entra na linha, ficam em negrito.
+
+     A densidade importa: com o espacamento da tela cabiam 21 linhas por folha
+     A4 deitada, e uma escola de sessenta criancas virava tres folhas soltas na
+     mesa de montagem. */
+  .impressao__tabela td {
+    font-weight: 400;
+  }
+
+  .impressao__tabela td:first-of-type {
+    font-weight: 700;
+  }
+
+  .impressao__tabela th {
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* O cabecalho se repete em toda folha: numa lista de tres paginas, a terceira
+     sem cabecalho vira uma coluna de numeros sem nome. */
+  .impressao__tabela thead {
+    display: table-header-group;
+  }
+
+  /* Linha nunca parte no meio entre duas folhas. */
+  .impressao__tabela tr {
+    break-inside: avoid;
+  }
+
+  .impressao__caixa {
+    width: 22pt;
+    text-align: center;
+  }
+
+  /* O quadradinho de marcar a lapis. Vazio de proposito — quem preenche e a
+     pessoa, com a caixa na mao, e depois passa para o sistema. */
+  .impressao__quadro {
+    display: inline-block;
+    width: 9pt;
+    height: 9pt;
+    border: 0.6pt solid #000;
+  }
+
+  .impressao__rodape {
+    margin-top: 8pt;
+    font-size: 7.5pt;
+    color: #444;
+  }
+
+}
+
+/* O tamanho da folha NAO mora aqui. `@page` nomeada com a propriedade `page`
+   nao e respeitada de forma confiavel pelos navegadores — testado: a folha
+   saia Letter retrato mesmo com a regra escrita. Quem escreve a regra e o
+   proprio componente de impressao, num <style> montado na hora com a
+   orientacao escolhida. Uma `@page` sem nome funciona em todo lugar. */
