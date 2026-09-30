@@ -26,6 +26,44 @@ function Svg({ t = 15, children }) {
   );
 }
 
+/** Ver como lista: linhas empilhadas. */
+export function ListaIcone({ t }) {
+  return (
+    <Svg t={t}>
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </Svg>
+  );
+}
+
+/** Ver como arquivo: quadradinhos lado a lado, como uma gaveta de fotos. */
+export function ArquivoIcone({ t }) {
+  return (
+    <Svg t={t}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </Svg>
+  );
+}
+
+/** Trocar o arquivo por outro: duas setas em ciclo. */
+export function Trocar({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M21 8V3h-5" />
+      <path d="M21 3l-6.5 6.5A7 7 0 0 0 5 12" />
+      <path d="M3 16v5h5" />
+      <path d="M3 21l6.5-6.5A7 7 0 0 0 19 12" />
+    </Svg>
+  );
+}
+
 /** Passar para o cartao seguinte na conferencia. */
 export function ChevronDireita({ t }) {
   return (

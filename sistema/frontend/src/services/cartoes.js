@@ -18,6 +18,38 @@ export function listarCartoes(filtros = {}) {
   return api.get(`/cartoes?${p}`);
 }
 
+/** A mesma imagem, pequena. A visao de arquivo mostra dezenas de uma vez, e o
+ *  original tem ~290 KB cada. Vai por <img src>, e nao por fetch: o cookie da
+ *  sessao viaja junto por ser mesma origem, e o navegador cuida do cache.
+ */
+export const urlDaMiniatura = (id) => `${API_URL}/cartoes/${id}/miniatura`;
+
+export const apagarCartao = (id) => api.delete(`/cartoes/${id}`);
+
+/** Troca a imagem de um cartao que ja existe, sem criar outro registro.
+ *
+ *  Nao passa pelo api.js porque ele so manda JSON — num FormData quem escreve o
+ *  Content-Type e o navegador, o unico que sabe a fronteira entre as partes.
+ */
+export async function trocarImagemDoCartao(id, arquivo) {
+  const dados = new FormData();
+  dados.append("arquivo", arquivo);
+
+  const token = csrf();
+  const resposta = await fetch(`${API_URL}/cartoes/${id}/trocar`, {
+    method: "POST",
+    credentials: "include",
+    headers: token ? { "X-CSRF-Token": token } : {},
+    body: dados,
+  });
+
+  if (!resposta.ok) {
+    const corpo = await resposta.json().catch(() => ({}));
+    throw new Error(corpo.detail || "Não foi possível trocar a imagem.");
+  }
+  return resposta.json();
+}
+
 /** As pastas da tela: uma por instituicao, com as contagens de dentro.
  *
  *  Passa pelo mesmo filtro de alcance da lista, entao um monitor recebe so as

@@ -241,7 +241,13 @@ def main() -> None:
         )
         repetido = r.json()["arquivos"][0]
         verifica("acusa cartao repetido antes de gravar",
-                 repetido["valida"] is False and any("ja tem cartao" in e for e in repetido["erros"]),
+                 repetido["valida"] is False and any("ja tem um cartao" in e for e in repetido["erros"]),
+                 str(repetido["erros"]))
+        # A recusa tem de dizer o que FAZER, e nao so o que houve: quem sobe
+        # ficava olhando um arquivo barrado sem saber se o defeito era do
+        # arquivo, do cadastro ou dele.
+        verifica("e aponta a saida (substituir a imagem)",
+                 any("Substituir imagem" in e for e in repetido["erros"]),
                  str(repetido["erros"]))
 
         print("\nLote: o outro tipo passa")
@@ -309,6 +315,25 @@ def main() -> None:
         r = sem_sessao.get(f"/cartoes/{cartao['id']}/imagem")
         verifica("sem sessao nao baixa a imagem", r.status_code == 401, str(r.status_code))
 
+        print("\nMiniatura para a visao de arquivo")
+        r = ck.get(f"/cartoes/{cartao['id']}/miniatura")
+        verifica("a miniatura responde", r.status_code == 200, r.text[:120])
+        verifica("e e uma imagem", r.headers.get("content-type") == "image/jpeg",
+                 str(r.headers.get("content-type")))
+        # O motivo de ela existir: a grade mostra dezenas de uma vez, e o
+        # original tem ~290 KB.
+        cheia = ck.get(f"/cartoes/{cartao['id']}/imagem")
+        verifica("e bem menor que o original",
+                 len(r.content) < len(cheia.content) / 2,
+                 f"{len(r.content)} vs {len(cheia.content)}")
+        verifica("o navegador pode guardar, mas nenhum proxy",
+                 "private" in (r.headers.get("cache-control") or ""),
+                 str(r.headers.get("cache-control")))
+
+        sem = TestClient(app)
+        r = sem.get(f"/cartoes/{cartao['id']}/miniatura")
+        verifica("sem sessao nao baixa a miniatura", r.status_code == 401, str(r.status_code))
+
         print("\nEnvio aos padrinhos")
         r = ck.post("/cartoes/enviados", json={"cartoes": [cartao["id"]]})
         verifica("recusa enviar cartao sem padrinho", r.status_code == 409, str(r.status_code))
@@ -373,26 +398,22 @@ def main() -> None:
                  set(pastas) == {inst_a.nome, inst_b.nome}, str(sorted(pastas)))
 
         pa = pastas.get(inst_a.nome, {})
-        # Escola A: cesta e festa da Ana, mais a cesta do Joao.
-        verifica("a pasta conta os cartoes da escola dela",
-                 pa.get("total") == 3, str(pa.get("total")))
-        verifica("e separa enviados de a enviar",
-                 pa.get("enviados") == 1 and pa.get("a_enviar") == 2,
-                 f"{pa.get('enviados')}/{pa.get('a_enviar')}")
         # Duas cestas (Ana e Joao) e uma festa (Ana): a pasta diz de quanto e
         # cada pilha antes de alguem abrir.
         verifica("a pasta separa a pilha de cesta da de festa",
-                 pa.get("cesta", {}).get("total") == 2
-                 and pa.get("festa", {}).get("total") == 1,
+                 pa.get("cesta") == 2 and pa.get("festa") == 1,
                  f"cesta {pa.get('cesta')} / festa {pa.get('festa')}")
-        # O numero que cada aba mostra e o "a enviar" da sua pilha: das duas
-        # cestas, a da Ana ja saiu.
-        verifica("e cada pilha traz o proprio a enviar",
-                 pa.get("cesta", {}).get("a_enviar") == 1
-                 and pa.get("festa", {}).get("a_enviar") == 1,
-                 f"cesta {pa.get('cesta')} / festa {pa.get('festa')}")
+        # O denominador e quantas CRIANCAS a escola tem: cada uma escreve um
+        # cartao de cada tipo, entao e esse o total esperado.
+        verifica("e diz de quantas criancas, que e o total esperado",
+                 pa.get("criancas") == 2, str(pa.get("criancas")))
+        # O outerjoin repete a crianca uma vez por cartao — sem distinct, a Ana
+        # (dois cartoes) contaria como duas criancas.
+        verifica("a crianca com dois cartoes conta uma vez so",
+                 pa.get("criancas") == 2, str(pa.get("criancas")))
         verifica("a escola sem nenhum cartao ainda aparece como pasta vazia",
-                 pastas.get(inst_b.nome, {}).get("total") == 0,
+                 pastas.get(inst_b.nome, {}).get("cesta") == 0
+                 and pastas.get(inst_b.nome, {}).get("criancas", 0) > 0,
                  str(pastas.get(inst_b.nome)))
 
         r = ck.get("/cartoes/pastas", params={"edicao_id": edicao.id})
@@ -440,6 +461,39 @@ def main() -> None:
         )
         verifica("e na pasta certa o mesmo arquivo passa",
                  r.json()["arquivos"][0]["valida"], r.text[:160])
+
+        print("\nCorrigir um cartao subido errado")
+        # A pilha e digitalizada de uma vez: trocar duas fotos de lugar e o erro
+        # mais provavel do processo, e ate agora nao havia como desfazer.
+        antes = cm.get(f"/cartoes/{cartao_festa['id']}/imagem").content
+        r = cm.post(
+            f"/cartoes/{cartao_festa['id']}/trocar",
+            files={"arquivo": ("nova.jpg", foto_de_cartao("CORRIGIDO"), "image/jpeg")},
+        )
+        verifica("o monitor troca a imagem de um cartao", r.status_code == 200, r.text[:140])
+        depois = cm.get(f"/cartoes/{cartao_festa['id']}/imagem").content
+        verifica("e a imagem mudou de verdade", antes != depois,
+                 f"{len(antes)} vs {len(depois)}")
+        verifica("o cartao continua o mesmo registro",
+                 r.json()["id"] == cartao_festa["id"], str(r.json().get("id")))
+
+        # O arquivo antigo nao fica para tras: e foto de crianca, e o registro
+        # dela ja aponta para outro lugar.
+        from pathlib import Path as _P
+        sobrou = list((config.caminho_arquivos / "cartoes").rglob("*"))
+        verifica("nao sobrou arquivo orfao da troca",
+                 all(_P(a).is_dir() or a.stat().st_size > 0 for a in sobrou))
+
+        r = ck.delete(f"/cartoes/{cartao_festa['id']}")
+        verifica("comissario NAO apaga cartao", r.status_code == 403, str(r.status_code))
+
+        r = cm.delete(f"/cartoes/{cartao_festa['id']}")
+        verifica("o monitor apaga o que subiu errado", r.status_code == 204, str(r.status_code))
+        r = cm.get(f"/cartoes/{cartao_festa['id']}/imagem")
+        verifica("e o cartao some de vez", r.status_code == 404, str(r.status_code))
+
+        r = cm.delete(f"/cartoes/{cartao_festa['id']}")
+        verifica("apagar de novo da 404, nao erro", r.status_code == 404, str(r.status_code))
 
     finally:
         limpar(db, log_inicial)

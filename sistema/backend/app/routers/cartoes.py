@@ -17,7 +17,17 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import cv2
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
@@ -32,7 +42,6 @@ from app.schemas.cartoes import (
     CartaoOut,
     MarcarEnviados,
     PaginaCartoes,
-    ContagemTipo,
     PastaInstituicao,
     PreviaLote,
     ResultadoLote,
@@ -90,6 +99,20 @@ def _miniatura(imagem, largura: int = 220) -> str:
     return base64.b64encode(buffer.tobytes()).decode() if ok else ""
 
 
+def _apagar_do_disco(caminho_relativo: str) -> None:
+    """Tira o arquivo do disco, sem reclamar se ele ja nao estiver la.
+
+    Falta de arquivo nao pode impedir o registro de sair: um cartao apontando
+    para um arquivo que sumiu e exatamente o caso que a pessoa esta tentando
+    limpar.
+    """
+    try:
+        caminho = arquivos.dentro_da_pasta(caminho_relativo)
+    except ValueError:
+        return
+    caminho.unlink(missing_ok=True)
+
+
 def _padrinho_do_cartao(db: Session, cartao: Cartao) -> Padrinho | None:
     """Quem recebe este cartao: crianca + tipo -> apadrinhamento -> padrinho.
 
@@ -113,6 +136,7 @@ def _saida(db: Session, cartao: Cartao) -> CartaoOut:
     return CartaoOut(
         id=cartao.id,
         crianca_id=cartao.crianca_id,
+        crianca_codigo=cartao.crianca.codigo,
         crianca_nome=cartao.crianca.nome,
         instituicao=cartao.crianca.instituicao.nome,
         tipo=cartao.tipo,
@@ -232,16 +256,11 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
             Instituicao.id,
             Instituicao.nome,
             Instituicao.sigla,
-            func.count(Cartao.id).label("total"),
-            func.count(case((Cartao.status == "enviado", 1))).label("enviados"),
+            # Distinct porque o outerjoin repete a crianca uma vez por cartao:
+            # sem isso, quem ja tem os dois cartoes contaria como duas criancas.
+            func.count(func.distinct(Crianca.id)).label("criancas"),
             func.count(case((Cartao.tipo == "cesta", 1))).label("cesta"),
-            func.count(
-                case(((Cartao.tipo == "cesta") & (Cartao.status == "enviado"), 1))
-            ).label("cesta_enviados"),
             func.count(case((Cartao.tipo == "festa", 1))).label("festa"),
-            func.count(
-                case(((Cartao.tipo == "festa") & (Cartao.status == "enviado"), 1))
-            ).label("festa_enviados"),
         )
         .select_from(Crianca)
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
@@ -256,19 +275,9 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
             instituicao_id=l.id,
             instituicao=l.nome,
             sigla=l.sigla,
-            total=l.total,
-            a_enviar=l.total - l.enviados,
-            enviados=l.enviados,
-            cesta=ContagemTipo(
-                total=l.cesta,
-                a_enviar=l.cesta - l.cesta_enviados,
-                enviados=l.cesta_enviados,
-            ),
-            festa=ContagemTipo(
-                total=l.festa,
-                a_enviar=l.festa - l.festa_enviados,
-                enviados=l.festa_enviados,
-            ),
+            criancas=l.criancas,
+            cesta=l.cesta,
+            festa=l.festa,
         )
         for l in linhas
     ]
@@ -348,16 +357,22 @@ async def lote_previa(
             item.crianca_id = crianca.id
             item.crianca_nome = crianca.nome
             item.instituicao = crianca.instituicao.nome
+            # As duas recusas dizem o QUE houve e o QUE FAZER. Antes diziam so
+            # o que houve, e quem subia ficava olhando um arquivo barrado sem
+            # saber se o defeito era do arquivo, do cadastro ou dele.
             if crianca.id in ja_tem:
-                item.erros.append(f"Esta crianca ja tem cartao de {tipo}.")
+                item.erros.append(
+                    f"{crianca.primeiro_nome} ja tem um cartao de {tipo} aqui. "
+                    "Para trocar a foto, use Substituir imagem na propria lista."
+                )
             # O casamento do codigo continua olhando a edicao inteira, e nao so
             # a pasta: assim o erro sabe DIZER de quem e o cartao. Barrar depois
             # de reconhecer e melhor que nao reconhecer — "codigo nao
             # encontrado" mandaria procurar defeito no cadastro da crianca.
             elif instituicao_id is not None and crianca.instituicao_id != instituicao_id:
                 item.erros.append(
-                    f"Este cartao e de {crianca.instituicao.nome}, nao desta pasta. "
-                    "Suba os cartoes de cada instituicao na pasta dela."
+                    f"Esta imagem nao e desta instituicao: o codigo {crianca.codigo} "
+                    f"e de {crianca.instituicao.nome}. Abra a pasta dela para subir."
                 )
 
         try:
@@ -517,6 +532,144 @@ def imagem_do_cartao(cartao_id: int, db: BD, ctx: Ver):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
 
     return FileResponse(caminho, media_type="image/jpeg")
+
+
+@router.get("/{cartao_id}/miniatura")
+def miniatura_do_cartao(cartao_id: int, db: BD, ctx: Ver):
+    """A mesma imagem, pequena. Para a visao de arquivo, que mostra muitas.
+
+    Existe porque o original tem ~290 KB: uma escola com sessenta cartoes
+    baixaria 17 MB so para desenhar a grade, e boa parte disso num celular no
+    meio do recolhimento. A miniatura fica em ~15 KB.
+
+    Gerada na hora, sem guardar em disco: redimensionar um JPEG desse tamanho
+    custa poucos milissegundos, e um cache em disco seria mais um lugar para
+    ficar desatualizado. Quem evita o trabalho repetido e o `Cache-Control`: o
+    navegador guarda por uma hora, e a imagem de um cartao nao muda.
+    """
+    cartao = db.scalar(
+        select(Cartao).where(Cartao.id == cartao_id, _filtro(ctx, "ver_criancas"))
+    )
+    if cartao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
+
+    try:
+        caminho = arquivos.dentro_da_pasta(cartao.arquivo)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
+
+    if not caminho.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
+
+    imagem = cv2.imread(str(caminho))
+    if imagem is None:
+        # Arquivo ilegivel: melhor 404 do que 500. A grade mostra o buraco e a
+        # pessoa abre o original para ver o que houve.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Imagem ilegivel.")
+
+    altura = max(1, int(imagem.shape[0] * 320 / imagem.shape[1]))
+    pequena = cv2.resize(imagem, (320, altura), interpolation=cv2.INTER_AREA)
+    ok, buffer = cv2.imencode(".jpg", pequena, [cv2.IMWRITE_JPEG_QUALITY, 70])
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Imagem ilegivel.")
+
+    return Response(
+        content=buffer.tobytes(),
+        media_type="image/jpeg",
+        # `private`: e imagem de crianca, nao pode ficar em cache compartilhado
+        # de proxy nenhum no caminho.
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@router.delete("/{cartao_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar_cartao(cartao_id: int, db: BD, ctx: Subir):
+    """Apaga um cartao subido por engano.
+
+    Exige `subir_cartoes`, a mesma permissao de quem sobe: quem pode pôr pode
+    tirar o que pôs errado. O monitor digitaliza uma pilha inteira de uma vez —
+    trocar duas fotos de lugar e o erro mais provavel do processo, e ate agora
+    nao havia como desfazer sem mexer no banco.
+
+    O arquivo sai do disco junto. Guardar a imagem de um cartao que nao deveria
+    existir e guardar o erro: ela e foto de crianca, e o registro dela ja se
+    foi.
+    """
+    cartao = db.scalar(
+        select(Cartao).where(Cartao.id == cartao_id, _filtro(ctx, "subir_cartoes"))
+    )
+    if cartao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
+
+    _apagar_do_disco(cartao.arquivo)
+
+    registrar(
+        db, "cartao_apagado", usuario_id=ctx.usuario.id,
+        tabela="cartoes", registro_id=cartao.id,
+        detalhes={"crianca_id": cartao.crianca_id, "tipo": cartao.tipo},
+    )
+    db.delete(cartao)
+    db.commit()
+
+
+@router.post("/{cartao_id}/trocar", response_model=CartaoOut)
+async def trocar_imagem(
+    cartao_id: int,
+    db: BD,
+    ctx: Subir,
+    arquivo: UploadFile = File(...),
+):
+    """Troca a imagem de um cartao que ja existe, sem mexer no resto.
+
+    Serve ao caso mais comum do erro: a foto saiu tremida, ou foi a do cartao
+    errado. Apagar e subir de novo faria a mesma coisa em dois passos — e
+    perderia o registro de quando aquele cartao entrou.
+
+    A imagem nova passa pelo mesmo endireitamento da pilha: sem isso, a
+    corrigida sairia torta enquanto as outras sairam retas.
+    """
+    cartao = db.scalar(
+        select(Cartao)
+        .where(Cartao.id == cartao_id, _filtro(ctx, "subir_cartoes"))
+        .options(
+            joinedload(Cartao.crianca).joinedload(Crianca.instituicao),
+            joinedload(Cartao.crianca).joinedload(Crianca.edicao).joinedload(Edicao.cidade),
+        )
+    )
+    if cartao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
+
+    conteudo = await ler_limitado(arquivo)
+    imagem = scanner.carregar_imagem(conteudo)
+    endireitada, _aviso = scanner.digitalizar(imagem)
+
+    crianca = cartao.crianca
+    pasta = arquivos.pasta_dos_cartoes(crianca.edicao.cidade.nome, crianca.edicao.ano)
+    pasta.mkdir(parents=True, exist_ok=True)
+    destino = arquivos.caminho_disponivel(
+        pasta, arquivos.nome_do_cartao(crianca.instituicao.nome, crianca.nome, cartao.tipo)
+    )
+
+    if not cv2.imwrite(str(destino), endireitada):
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, "Nao foi possivel guardar a imagem."
+        )
+
+    # A antiga so sai DEPOIS de a nova estar no disco: se a gravacao falhar, o
+    # cartao continua com a imagem que tinha, em vez de ficar sem nenhuma.
+    antiga = cartao.arquivo
+    cartao.arquivo = str(destino.relative_to(config.caminho_arquivos))
+    cartao.monitor_id = ctx.usuario.id
+    _apagar_do_disco(antiga)
+
+    registrar(
+        db, "cartao_trocado", usuario_id=ctx.usuario.id,
+        tabela="cartoes", registro_id=cartao.id,
+        detalhes={"crianca_id": cartao.crianca_id, "tipo": cartao.tipo},
+    )
+    db.commit()
+    db.refresh(cartao)
+    return _saida(db, cartao)
 
 
 @router.post("/enviados", response_model=list[CartaoOut])

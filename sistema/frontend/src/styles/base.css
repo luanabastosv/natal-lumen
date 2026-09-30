@@ -2212,18 +2212,13 @@ textarea.campo__controle {
   line-height: 1.3;
 }
 
-.pasta__conta {
-  font-size: var(--size-body-sm);
-  color: var(--text-on-light-secondary);
-}
-
-.pasta__conta strong {
-  font-size: 20px;
-  color: var(--text-on-light-primary);
-}
-
-.pasta__de {
-  color: var(--text-on-light-muted);
+/* As duas barras dentro da pasta. Empilhadas e coladas: sao a mesma pergunta
+   em dois tipos, e separadas pareceriam dois assuntos. */
+.pasta__barras {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
 }
 
 .pasta__pilhas {
@@ -2245,21 +2240,366 @@ textarea.campo__controle {
   margin: 0;
 }
 
-/* A volta para as pastas, com o nome de onde se esta. */
-.migalha {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+/* Dentro de uma pasta: de onde vim, em cima; onde estou, embaixo.
+ *
+ * Os dois ja moraram na mesma linha, e o nome da escola ficava empurrado para a
+ * direita pelo botao de voltar — deixava de comecar onde comeca todo titulo da
+ * pagina, e parecia deslocado porque estava. Sao coisas diferentes: uma e
+ * caminho, a outra e titulo. */
+.pasta-aberta {
   margin-bottom: var(--space-4);
 }
 
-.migalha__atual {
+/* Link, e nao botao com moldura: voltar e navegacao, nao acao. Com a cara de
+   botao ele competia com "Subir cartoes", que e a acao de verdade da tela. */
+.pasta-aberta__voltar {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}
+
+.pasta-aberta__voltar:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.pasta-aberta__nome {
+  display: flex;
+  /* Pela primeira linha, e nao pelo meio: com o nome quebrando em duas linhas
+     no celular, a sigla centralizada boiava entre elas. */
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 2px 0 0;
+  font-size: var(--size-h3);
+  line-height: var(--lh-h3);
+  font-weight: var(--weight-h3);
+  color: var(--text-on-light-primary);
+}
+
+/* Abas a esquerda, acoes na ponta direita, na MESMA faixa. Empilhadas, as duas
+   custavam duas linhas de altura antes de a lista comecar — e a lista e o que
+   se vem ver aqui.
+ *
+ * `min-width: 0` na faixa de abas: sem isso ela nao encolhe abaixo do conteudo
+ * e empurra as acoes para fora da tela em vez de rolar por dentro de si. */
+.linha-abas {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.linha-abas > .faixa-abas {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Sem traco nenhum nesta linha. Sao DOIS elementos que desenham um por conta
+   propria — `.abas` e a `.faixa-abas` que a envolve —, e cada um ia so ate onde
+   as abas iam: um risco que parava no meio da tela. A separacao aqui quem faz e
+   o espaco, nao a linha. */
+.linha-abas .abas,
+.linha-abas > .faixa-abas {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.linha-abas__acoes {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+}
+
+/* Todo controle desta barra com a MESMA altura. O select nasce com 48px e o
+   botao `sm` com 40: lado a lado, um ficava mais alto que o outro e a linha
+   parecia torta. */
+.linha-abas__acoes .campo,
+.linha-abas__acoes .campo__controle,
+.linha-abas__acoes .botao {
+  height: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+  margin-bottom: 0;
+}
+
+/* No celular nao cabem lado a lado: as acoes descem, e a faixa de abas fica com
+   a largura inteira para o dedo arrastar. */
+@media (max-width: 720px) {
+  .linha-abas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .linha-abas__acoes {
+    padding-bottom: 0;
+  }
+}
+
+/* Os dois jeitos de ver, encostados num alvo so: e uma escolha entre duas
+   formas da mesma coisa, nao duas acoes soltas. */
+.troca-visao {
+  display: inline-flex;
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  height: var(--control-h-sm);
+}
+
+.troca-visao__opcao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Quadrado, do tamanho do alvo de dedo: so ha um icone dentro, e um padding
+     de texto deixaria o botao comprido sem nada para preencher. */
+  width: var(--control-h-sm);
+  padding: 0;
+  border: none;
+  background: var(--white);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-secondary);
+}
+
+.troca-visao__opcao:hover {
+  color: var(--color-primary);
+}
+
+.troca-visao__opcao--ativa {
+  background: var(--color-primary);
+  color: var(--white);
+}
+
+/* Os motivos da recusa, agrupados no topo da conferencia. Lista sem marcador
+   porque cada item ja comeca com a contagem — um bolinha antes do "3×" seria
+   ruido. */
+.recusa {
+  margin: var(--space-2) 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* O motivo na linha do arquivo. Nao e dica: e a unica coisa que importa ali,
+   e em cinza tinha o mesmo peso do nome do arquivo ao lado. */
+.linha-recusa {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--size-caption);
+  font-weight: 700;
+  line-height: 1.4;
+  color: #c0392b;
+}
+
+/* ---------- Visao de lista: cartoes deitados ----------
+ *
+ * Tambem sao cartoes, so que deitados. Era uma tabela, e linha de tabela nao
+ * parece clicavel: a pessoa procurava o botao "Ver imagem" em vez de clicar no
+ * que estava vendo. Com a miniatura na frente e a moldura em volta, o alvo e a
+ * peca inteira — e o botao deixou de precisar existir.
+ */
+.cartoes-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* A caixa. Os pontinhos moram nela, FORA do botao que abre: botao dentro de
+   botao e HTML invalido, e um clique viraria o outro. */
+.cartoes-lista__item {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  padding-right: var(--space-2);
+  background: var(--white);
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out);
+}
+
+.cartoes-lista__item:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.cartoes-lista__abrir {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+/* Quadrada e pequena: aqui ela nao e para ver o cartao, e para dizer que ha um
+   cartao ali e que a peca se abre. */
+.cartoes-lista__mini {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--cream-100);
+}
+
+.cartoes-lista__mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cartoes-lista__texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cartoes-lista__codigo {
+  font-size: var(--size-caption);
   font-weight: 800;
+  color: var(--text-on-light-muted);
+}
+
+.cartoes-lista__nome {
+  font-size: var(--size-body-sm);
+  font-weight: 700;
   color: var(--text-on-light-primary);
+  /* Nome comprido corta em vez de quebrar: a altura da peca tem de ser a mesma
+     em todas, senao a coluna vira um serrote. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cartoes-lista__acoes {
+  flex: none;
+}
+
+/* ---------- Visao de arquivo: o mural de cartoes ----------
+ *
+ * Chama-se `mural`, e nao `arquivo`: `.arquivo` ja e o campo de anexar arquivo
+ * do financeiro. CSS nao tem namespace — o nome generico colidiu, a regra
+ * antiga venceu a nova por vir depois, e a grade nunca virou grade.
+ *
+ *
+ * A lista responde "quem ja entregou"; o arquivo responde "e este cartao aqui,
+ * de quem e" — que e o que se faz com a pilha de papel na mao, achando pelo
+ * desenho antes do nome.
+ */
+.mural {
+  display: grid;
+  /* Menores que antes: numa escola de sessenta cartoes, o que se quer e ver
+     MUITOS de uma vez para achar aquele — nao admirar cada um. */
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* A caixa. Os pontinhos moram nela, fora do botao que abre — botao dentro de
+   botao e HTML invalido, e um clique viraria o outro. */
+.mural__item {
+  position: relative;
+}
+
+.mural__abrir {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+/* No canto de cima da miniatura, sobre a imagem. Fundo proprio porque a foto
+   atras pode ser clara ou escura, e os tres pontinhos somem em uma das duas. */
+.mural__acoes {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.mural__imagem {
+  position: relative;
+  display: block;
+  /* Quadrado, e o `cover` corta o que sobra. Perde-se pedaco do desenho, e
+     tudo bem: aqui a miniatura serve para RECONHECER o cartao na pilha, e quem
+     precisa ver inteiro abre. Em troca, a grade fica alinhada — com a
+     proporcao real, que varia de foto para foto, ela virava um serrote. */
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--cream-100);
+  transition: border-color var(--dur) var(--ease-out);
+}
+
+.mural__item:hover .mural__imagem {
+  border-color: var(--color-primary);
+}
+
+.mural__imagem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* A etiqueta encolhe junto: no quadrado menor, a pilula de tamanho normal
+   cobria um terco do cartao. */
+.mural__tipo {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 9px;
+  padding: 1px 5px;
+}
+
+.mural__codigo {
+  margin-top: 6px;
+  font-size: var(--size-caption);
+  font-weight: 800;
+  color: var(--text-on-light-muted);
+}
+
+.mural__nome {
+  font-size: var(--size-caption);
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+  /* Duas linhas no maximo: um nome comprido nao pode empurrar a proxima fileira
+     para baixo e desalinhar a grade inteira. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ---------- Janela pequena sobre a tela ---------- */

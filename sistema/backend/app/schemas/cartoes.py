@@ -40,6 +40,9 @@ class ResultadoLote(BaseModel):
 class CartaoOut(BaseModel):
     id: int
     crianca_id: int
+    # O codigo e como a equipe casa o cartao de papel com a linha da planilha —
+    # o nome escrito a mao por uma crianca de oito anos nem sempre se le.
+    crianca_codigo: str
     crianca_nome: str
     instituicao: str
     tipo: str
@@ -61,16 +64,8 @@ class PaginaCartoes(BaseModel):
     itens: list[CartaoOut]
 
 
-class ContagemTipo(BaseModel):
-    """O que ha numa subpasta de tipo (cesta ou festa) de uma instituicao."""
-
-    total: int
-    a_enviar: int
-    enviados: int
-
-
 class PastaInstituicao(BaseModel):
-    """Uma pasta da tela de cartoes: a instituicao e o que ha dentro dela.
+    """Uma pasta da tela de cartoes: a instituicao e o que ha de cartao nela.
 
     A tela e de pastas, e nao de lista unica, porque o trabalho com cartao e
     por instituicao: o monitor recolhe os cartoes de uma escola e confere
@@ -85,15 +80,13 @@ class PastaInstituicao(BaseModel):
     instituicao_id: int
     instituicao: str
     sigla: str | None
-    total: int
-    a_enviar: int
-    enviados: int
-    # Cesta e festa sao duas SUBPASTAS, e nao duas etiquetas na mesma lista: no
-    # mundo real sao duas pilhas separadas, recolhidas, conferidas e subidas uma
-    # de cada vez. Cada uma traz a propria conta para a tela nao precisar de um
-    # segundo pedido ao abrir a escola.
-    cesta: ContagemTipo
-    festa: ContagemTipo
+
+    # Quantas criancas a escola tem nesta edicao. E o TOTAL esperado de cada
+    # tipo: cada crianca escreve um cartao de cesta e um de festa, entao a
+    # pergunta da pasta e "34 de 58", e nao "34".
+    criancas: int
+    cesta: int
+    festa: int
 
 
 class MarcarEnviados(BaseModel):
