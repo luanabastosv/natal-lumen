@@ -37,6 +37,8 @@ from app.config import config
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
+# A mesma colecao, sem o prefixo de upload: serve para procurar e criar pasta.
+ARQUIVOS_URL = "https://www.googleapis.com/drive/v3/files"
 ESCOPO = "https://www.googleapis.com/auth/drive.file"
 
 # Um access_token vale 1h. Renova com folga, para nao correr o risco de usar um
@@ -153,14 +155,66 @@ def _access_token() -> str:
     return _token
 
 
-def enviar(conteudo: bytes, nome_arquivo: str, tipo_mime: str) -> Enviado:
-    """Cria o arquivo na pasta configurada e devolve o id e o link."""
+def garantir_subpasta(nome: str) -> str:
+    """Devolve o id de uma subpasta da pasta configurada, criando-a se preciso.
+
+    Serve ao backup, que NAO deve cair no mesmo lugar dos comprovantes: um
+    comprovante e um recibo de uma pessoa; o dump do banco tem o nome e a idade
+    de todas as criancas, o contato dos padrinhos e os hashes de senha. Em
+    pasta separada da para restringir quem ve uma coisa sem restringir a outra.
+
+    O escopo `drive.file` so enxerga o que a propria conta de servico criou —
+    o que basta aqui: ou ela achou a pasta que ela mesma criou, ou cria agora.
+    """
+    if not configurado():
+        raise ErroDrive("O envio para o Drive nao esta configurado neste servidor.")
+
+    token = _access_token()
+    consulta = (
+        f"name = '{nome}' and mimeType = 'application/vnd.google-apps.folder' "
+        f"and '{config.drive_pasta_id}' in parents and trashed = false"
+    )
+
+    with _cliente() as cliente:
+        achou = cliente.get(
+            ARQUIVOS_URL,
+            params={
+                "q": consulta,
+                "fields": "files(id)",
+                "supportsAllDrives": "true",
+                "includeItemsFromAllDrives": "true",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if achou.status_code == 200 and achou.json().get("files"):
+            return achou.json()["files"][0]["id"]
+
+        criada = cliente.post(
+            ARQUIVOS_URL,
+            params={"supportsAllDrives": "true", "fields": "id"},
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "name": nome,
+                "mimeType": "application/vnd.google-apps.folder",
+                "parents": [config.drive_pasta_id],
+            },
+        )
+
+    if criada.status_code not in (200, 201):
+        raise ErroDrive(_traduzir(criada), detalhe=criada.text[:300])
+    return criada.json()["id"]
+
+
+def enviar(
+    conteudo: bytes, nome_arquivo: str, tipo_mime: str, pasta_id: str | None = None
+) -> Enviado:
+    """Cria o arquivo na pasta indicada (ou na configurada) e devolve id e link."""
     if not configurado():
         raise ErroDrive("O envio para o Drive nao esta configurado neste servidor.")
 
     token = _access_token()
 
-    metadados = {"name": nome_arquivo, "parents": [config.drive_pasta_id]}
+    metadados = {"name": nome_arquivo, "parents": [pasta_id or config.drive_pasta_id]}
 
     try:
         with _cliente() as cliente:

@@ -63,5 +63,34 @@ echo
 echo "Para restaurar a base:"
 echo "   PGPASSWORD=... pg_restore -h $HOSPEDEIRO -p $PORTA -U $USUARIO -d $BASE \\"
 echo "       --clean --if-exists $DESTINO/natal-lumen_$QUANDO.dump"
+
+# ---------------------------------------------------------------- fora daqui
+# Backup que mora no mesmo disco do banco nao e backup: o disco que morre leva
+# os dois. Por isso o envio ao Drive faz parte do script, e nao e um passo
+# opcional que alguem lembra de fazer.
+#
+# Falha aqui NAO derruba o backup: o arquivo local ja existe, e perder o envio e
+# muito melhor que perder a copia. Por isso o `|| true` — com `set -e` ligado, um
+# erro do Google abortaria o script antes das instrucoes de restauracao.
+if [ -x "$AQUI/.venv/bin/python" ] && [ -f "$AQUI/guardar_backup.py" ]; then
+  echo
+  echo "==> Enviando para o Drive"
+  (cd "$AQUI" && ./.venv/bin/python guardar_backup.py \
+      "$DESTINO/natal-lumen_$QUANDO.dump" \
+      "$DESTINO/arquivos_$QUANDO.tar.gz") || echo "    (o envio falhou; a copia local esta feita)"
+fi
+
+# ------------------------------------------------------------------- limpeza
+# Sem isto o disco enche sozinho: sao ~4 MB por dia, e ninguem visita essa
+# pasta ate o dia em que precisa dela. Guarda os 14 ultimos de cada tipo — o
+# suficiente para perceber um estrago que passou despercebido por uma semana.
+GUARDAR="${GUARDAR:-14}"
+for TIPO in "natal-lumen_*.dump" "arquivos_*.tar.gz"; do
+  # shellcheck disable=SC2086
+  ls -1t $DESTINO/$TIPO 2>/dev/null | tail -n +$((GUARDAR + 1)) | while read -r VELHO; do
+    rm -f "$VELHO" && echo "    removido antigo: $(basename "$VELHO")"
+  done
+done
+
 echo
 echo "Guarde uma copia FORA deste computador — nuvem, pen drive, outro disco."
