@@ -2371,6 +2371,58 @@ textarea.campo__controle {
   background: var(--cream-100);
 }
 
+/* A barra de acoes que mora DENTRO do corpo gruda no fim da janela.
+ *
+ * O `rodape` do Modal ja ficava parado — mas quase nenhuma tela usa ele: treze
+ * delas escrevem a propria `.barra-acoes--fim` dentro do conteudo, junto do
+ * formulario a que ela pertence. Ali a barra rolava com o resto, e num
+ * formulario alto (ou numa tela de celular) "Salvar" so aparecia depois de
+ * rolar ate o fim — quem abria a janela nao via o que ela fazia.
+ *
+ * `sticky` resolve nas treze de uma vez, sem mexer em nenhuma: enquanto ha o
+ * que rolar ela fica colada embaixo, e quando o conteudo acaba ela volta a ser
+ * o fim da pagina, no lugar de sempre.
+ *
+ * As margens negativas existem para ela ocupar a largura inteira do corpo: sem
+ * isso o conteudo passaria por baixo aparecendo nas beiradas, ao lado da barra.
+ */
+.modal__corpo .barra-acoes--fim {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  /* So na horizontal. Na vertical NAO: o `sticky` alinha a caixa de margem com
+     a borda do corpo, entao uma margem negativa embaixo empurra a barra para
+     FORA da area visivel — ela era cortada e sobrava uma fresta por onde o
+     conteudo aparecia por baixo dos botoes. */
+  margin-inline: calc(var(--space-6) * -1);
+  padding: var(--space-4) var(--space-6);
+  background: var(--white);
+  border-top: var(--stroke-hairline) solid var(--border-light);
+}
+
+/* Formulario dentro do corpo nao pode cortar o `sticky`: um ancestral com
+   overflow diferente de `visible` vira o container de rolagem da barra, e ela
+   deixaria de grudar no corpo da janela. */
+.modal__corpo form {
+  overflow: visible;
+}
+
+/* O corpo perde a folga de baixo QUANDO tem barra grudada — e so entao.
+ *
+ * Um elemento `sticky` nao passa da caixa do pai dele, e o pai aqui e o
+ * formulario, que termina onde comeca o `padding-bottom` do corpo. A barra
+ * parava 24px acima da borda da janela, e por essa fresta o conteudo aparecia
+ * rolando por baixo dos botoes. Sem a folga, a barra encosta de verdade — e o
+ * respiro de baixo passa a ser o padding dela propria.
+ *
+ * `:has()` porque isso vale so para as janelas que tem barra no corpo: as que
+ * usam o `rodape` do Modal, ou que nao tem acao nenhuma, continuam com a folga.
+ * Em navegador sem `:has()` nada quebra — volta a fresta de 24px, que e o que
+ * havia antes. */
+.modal__corpo:has(.barra-acoes--fim) {
+  padding-bottom: 0;
+}
+
 /* ---------- Convite de oracao do dia ----------
    Abre no primeiro acesso do dia, sobre a tela que a pessoa pediu. E a unica
    janela do sistema sem faixa de topo: nao ha tarefa para cancelar, e um X no
