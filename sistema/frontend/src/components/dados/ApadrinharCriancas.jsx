@@ -46,17 +46,34 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
   /** Ja tem padrinho do tipo escolhido? O banco recusa o segundo com 409, e
    *  a tela tem de dizer isso ANTES do clique, nao depois do erro.
    *
+   *  A PROMESSA conta aqui, mesmo nao contando como apadrinhamento em lugar
+   *  nenhum: ela segura o lugar da crianca naquele tipo, e a unicidade no banco
+   *  e sobre (crianca, tipo) — nao sobre pagamento. Se a tela nao a considerasse
+   *  ocupada, ela ofereceria uma crianca que o banco vai recusar.
+   *
    *  Depende do `tipo` selecionado, entao e calculado no render: trocar de
    *  cesta para festa pode liberar uma crianca que estava barrada. */
   function jaApadrinhada(crianca) {
     if (!crianca) return false;
-    return tipo === "cesta" ? crianca.tem_padrinho_cesta : crianca.tem_padrinho_festa;
+    return tipo === "cesta"
+      ? crianca.tem_padrinho_cesta || crianca.promessa_cesta
+      : crianca.tem_padrinho_festa || crianca.promessa_festa;
+  }
+
+  /** So prometida, sem pagamento: o lugar esta preso mas ainda nao houve
+   *  apadrinhamento. A tela diz isso com outras palavras — "reservada" nao e
+   *  "ja apadrinhada", e quem le precisa saber que ha uma cobranca no meio. */
+  function soPrometida(crianca) {
+    if (!crianca) return false;
+    return tipo === "cesta" ? crianca.promessa_cesta : crianca.promessa_festa;
   }
 
   /** O outro tipo ja estar tomado nao impede nada — mas e bom saber. */
   function jaTemOutro(crianca) {
     if (!crianca) return false;
-    return tipo === "cesta" ? crianca.tem_padrinho_festa : crianca.tem_padrinho_cesta;
+    return tipo === "cesta"
+      ? crianca.tem_padrinho_festa || crianca.promessa_festa
+      : crianca.tem_padrinho_cesta || crianca.promessa_cesta;
   }
 
   /** Esta crianca nao e da lista de quem esta olhando?
@@ -243,12 +260,21 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
                 </span>
 
                 <span className="ficha__linha-etiquetas">
+                  {/* Dois motivos diferentes para a mesma linha estar barrada,
+                      e a pessoa precisa distinguir: "já apadrinhada" acabou, e
+                      "reservada" e uma promessa de outro padrinho que ainda
+                      pode cair — quem coordena pode soltar o lugar apagando o
+                      apadrinhamento na ficha daquele padrinho. */}
                   {barrada && (
                     <span
-                      className="etiqueta etiqueta--parado"
-                      title={`Esta criança já tem padrinho de ${tipo}`}
+                      className={`etiqueta ${soPrometida(r.crianca) ? "etiqueta--espera" : "etiqueta--parado"}`}
+                      title={
+                        soPrometida(r.crianca)
+                          ? `Outro padrinho prometeu a ${tipo} desta criança e o pagamento ainda não foi registrado. O lugar fica preso até o pagamento entrar ou a promessa ser desfeita.`
+                          : `Esta criança já tem padrinho de ${tipo}`
+                      }
                     >
-                      já apadrinhada
+                      {soPrometida(r.crianca) ? "reservada, a pagar" : "já apadrinhada"}
                     </span>
                   )}
                   {/* Antes das outras: nao e um aviso sobre o estado da

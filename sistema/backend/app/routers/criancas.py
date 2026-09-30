@@ -54,6 +54,7 @@ from app.schemas.criancas import (
 from app.seeds.perfis_permissoes import PERFIL_COMISSARIO, PERFIL_COORDENACAO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
+from app.servicos.apadrinhamento import CONFIRMADO, confirmado
 from app.servicos import codigos, dias, exclusao, importador
 from app.servicos.nomes import nome_proprio
 from app.servicos.upload import ler_limitado
@@ -124,6 +125,8 @@ def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
         comissario_grupo=_grupo_do_comissario(crianca),
         tem_padrinho_cesta=extra.get("cesta", False),
         tem_padrinho_festa=extra.get("festa", False),
+        promessa_cesta=extra.get("promessa_cesta", False),
+        promessa_festa=extra.get("promessa_festa", False),
         cartoes=extra.get("cartoes", 0),
         kit_status=extra.get("kit", "pendente"),
     )
@@ -140,11 +143,19 @@ def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
 
     dados: dict[int, dict] = {i: {} for i in ids}
 
-    for crianca_id, tipo in db.execute(
-        select(Apadrinhamento.crianca_id, Apadrinhamento.tipo)
-        .where(Apadrinhamento.crianca_id.in_(ids))
+    # Dois estados por tipo, e nao um: a crianca prometida NAO esta apadrinhada
+    # (promessa nao e apadrinhamento), mas tambem nao esta livre — o lugar dela
+    # naquele tipo esta segurado. Sem distinguir, a lista mostraria a prometida
+    # igual a que nao tem ninguem, e alguem tentaria apadrinha-la de novo so
+    # para levar um 409 na cara.
+    for crianca_id, tipo, pago in db.execute(
+        select(
+            Apadrinhamento.crianca_id,
+            Apadrinhamento.tipo,
+            CONFIRMADO.label("pago"),
+        ).where(Apadrinhamento.crianca_id.in_(ids))
     ).all():
-        dados[crianca_id][tipo] = True
+        dados[crianca_id][tipo if pago else f"promessa_{tipo}"] = True
 
     for crianca_id, quantos in db.execute(
         select(Cartao.crianca_id, func.count())
@@ -391,9 +402,12 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
     """
     alcance = ctx.filtro_criancas("ver_criancas") & (Crianca.edicao_id == edicao_id)
 
+    # "Com padrinho" quer dizer apadrinhamento que vale: o que so foi prometido
+    # e trabalho que ainda falta, e e justamente o atraso que estas abas existem
+    # para mostrar.
     com_padrinho = (
         select(Apadrinhamento.crianca_id)
-        .where(Apadrinhamento.crianca_id == Crianca.id)
+        .where(Apadrinhamento.crianca_id == Crianca.id, CONFIRMADO)
         .exists()
     )
     com_cartao = (
@@ -668,7 +682,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
             apadrinhamento_id=a.id,
             tipo=a.tipo,
             valor=a.valor,
-            pago=a.pagamento_id is not None,
+            pago=confirmado(a),
             padrinho_id=p.id,
             nome=p.nome if pode_contato else "(sem permissao para ver)",
             whatsapp=p.whatsapp if pode_contato else None,

@@ -58,8 +58,13 @@ class CriancaOut(BaseModel):
 
     # O panorama da crianca, para a tela ser um painel de controle e nao so
     # uma lista de nomes.
+    # Apadrinhamento que VALE: tem pagamento registrado.
     tem_padrinho_cesta: bool = False
     tem_padrinho_festa: bool = False
+    # Prometido e ainda nao pago. Segura o lugar da crianca naquele tipo, mas
+    # nao conta como apadrinhamento — ver servicos/apadrinhamento.py.
+    promessa_cesta: bool = False
+    promessa_festa: bool = False
     cartoes: int = 0
     kit_status: str = "pendente"
 

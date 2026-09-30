@@ -44,6 +44,31 @@ function comoAparece(membro) {
     : `${membro.nome} · ${rotuloDoPerfil(membro.papel)}`;
 }
 
+/** O marcador de cesta ou de festa na linha da crianca.
+ *
+ *  Tres estados, e nao dois, desde que promessa deixou de ser apadrinhamento:
+ *
+ *  - cheio  — tem padrinho e o pagamento esta registrado;
+ *  - ambar  — alguem prometeu e o dinheiro ainda nao entrou. NAO conta como
+ *             apadrinhada em conta nenhuma, mas o lugar dela esta preso: e por
+ *             isso que precisa de um estado proprio, e nao pode se parecer com
+ *             a crianca que nao tem ninguem;
+ *  - apagado — nao tem ninguem.
+ */
+function Marcador({ letra, tipo, feito, prometido }) {
+  const estado = feito ? "marcador--feito" : prometido ? "marcador--parcial" : "";
+  const titulo = feito
+    ? `Tem padrinho de ${tipo}`
+    : prometido
+      ? `Padrinho de ${tipo} prometido, esperando o pagamento — ainda não conta como apadrinhada`
+      : `Sem padrinho de ${tipo}`;
+  return (
+    <span className={`marcador ${estado}`} title={titulo}>
+      {letra}
+    </span>
+  );
+}
+
 const POR_PAGINA = 100;
 const TODAS = "todas";
 const SEM_RESPONSAVEL = "sem";
@@ -843,18 +868,18 @@ export default function Criancas() {
                         className="celula"
                         style={estreita ? undefined : { cursor: "default" }}
                       >
-                        <span
-                          className={`marcador ${c.tem_padrinho_cesta ? "marcador--feito" : ""}`}
-                          title={c.tem_padrinho_cesta ? "Tem padrinho de cesta" : "Sem padrinho de cesta"}
-                        >
-                          C
-                        </span>
-                        <span
-                          className={`marcador ${c.tem_padrinho_festa ? "marcador--feito" : ""}`}
-                          title={c.tem_padrinho_festa ? "Tem padrinho de festa" : "Sem padrinho de festa"}
-                        >
-                          F
-                        </span>
+                        <Marcador
+                          letra="C"
+                          tipo="cesta"
+                          feito={c.tem_padrinho_cesta}
+                          prometido={c.promessa_cesta}
+                        />
+                        <Marcador
+                          letra="F"
+                          tipo="festa"
+                          feito={c.tem_padrinho_festa}
+                          prometido={c.promessa_festa}
+                        />
                       </span>
                     </td>
                     {!estreita && (

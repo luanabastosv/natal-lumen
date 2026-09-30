@@ -110,8 +110,12 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
             )}
           </dl>
 
+          {/* A conta e dos CONFIRMADOS: promessa nao e apadrinhamento, e um
+              "2 de 2" contando promessa diria que esta crianca esta pronta
+              quando ainda ha dinheiro a entrar. As promessas aparecem logo
+              abaixo, uma a uma, com a etiqueta delas. */}
           <div className="ficha__secao">
-            Padrinhos ({ficha.padrinhos.length} de 2)
+            Padrinhos ({ficha.padrinhos.filter((p) => p.pago).length} de 2)
           </div>
 
           {ficha.padrinhos.length === 0 ? (
@@ -126,8 +130,12 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                   <div key={p.apadrinhamento_id} className="ficha__vinculo">
                     <strong>{p.nome}</strong>
                     <span className="etiqueta etiqueta--neutra">{TIPOS[p.tipo] ?? p.tipo}</span>{" "}
+                    {/* "a pagar" dizia pouco: parecia detalhe administrativo de
+                        um apadrinhamento que ja valia. Nao vale — enquanto o
+                        pagamento nao entra, isto e uma promessa, e a crianca
+                        conta como sem padrinho no painel e na lista. */}
                     <span className={`etiqueta ${p.pago ? "etiqueta--ok" : "etiqueta--espera"}`}>
-                      {p.pago ? "pago" : "a pagar"}
+                      {p.pago ? "confirmado" : "promessa · falta pagar"}
                     </span>{" "}
                     <span className="etiqueta etiqueta--neutra">{dinheiro(p.valor)}</span>
                     {ficha.pode_ver_contato && (p.whatsapp || p.email) && (
@@ -147,6 +155,15 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                   </div>
                 );
               })}
+
+              {ficha.padrinhos.every((p) => !p.pago) && (
+                <Mensagem tipo="aviso">
+                  Só há <strong>promessa</strong> aqui: enquanto o pagamento não for
+                  registrado, esta criança continua contando como{" "}
+                  <strong>sem padrinho</strong> no painel e nas listas, e o cartão de
+                  agradecimento não sai.
+                </Mensagem>
+              )}
 
               {!ficha.pode_ver_contato && (
                 <p className="campo__dica" style={{ marginTop: 0 }}>

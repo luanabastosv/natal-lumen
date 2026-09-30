@@ -268,6 +268,20 @@ export default function Painel() {
                 </div>
               )}
 
+              {/* Sem isto os numeros acima ficariam sem explicacao: uma criança
+                  prometida some de "Cesta" e de "Completas" e nao reaparece em
+                  lugar nenhum, e quem olha conclui que o padrinho se perdeu.
+                  Ele esta aqui, e o que falta dele e o pagamento ser
+                  registrado. So aparece quando ha o que cobrar. */}
+              {podeVerNumeros && r.prometidos > 0 && (
+                <Mensagem tipo="aviso">
+                  {plural(r.prometidos, "apadrinhamento prometido", "apadrinhamentos prometidos")}{" "}
+                  <strong>sem pagamento registrado</strong>. Promessa não conta nos
+                  números acima: o lugar da criança fica preso, mas ela segue como sem
+                  padrinho até a coordenação registrar o pagamento.
+                </Mensagem>
+              )}
+
               {/* Linha larga: o dia do evento em barras, e o anel da edicao
                   ao lado. O anel repete o numero de "Completas" de proposito —
                   la ele e contagem, aqui e proporcao, e a coordenacao decide

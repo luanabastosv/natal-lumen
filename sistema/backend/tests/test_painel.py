@@ -163,12 +163,21 @@ def main() -> None:
     ])
     db.flush()
 
-    # Um pagamento quita a cesta da A1.
-    pagamento = Pagamento(padrinho_id=padrinho.id, valor=120, data=date(2026, 11, 1))
+    # Promessa nao e apadrinhamento: para o painel contar, os quatro precisam
+    # de dinheiro registrado. Um pagamento so quita varios.
+    pagamento = Pagamento(padrinho_id=padrinho.id, valor=420, data=date(2026, 11, 1))
     db.add(pagamento); db.flush()
-    a1_cesta = db.scalar(select(Apadrinhamento).where(
-        Apadrinhamento.crianca_id == criancas_a[0].id, Apadrinhamento.tipo == "cesta"))
-    a1_cesta.pagamento_id = pagamento.id
+    for a in db.scalars(select(Apadrinhamento).where(
+            Apadrinhamento.padrinho_id == padrinho.id)).all():
+        a.pagamento_id = pagamento.id
+    db.flush()
+
+    # E uma promessa que NAO conta em lugar nenhum: a A3 fica com a cesta
+    # reservada, sem pagamento. Ela nao pode aparecer em cesta_feitos, nem tirar
+    # a A3 do que falta — so no numero de prometidos.
+    db.add(Apadrinhamento(crianca_id=criancas_a[2].id, padrinho_id=padrinho.id,
+                          tipo="cesta", valor=120))
+    db.flush()
 
     db.add_all([
         Cartao(crianca_id=criancas_a[0].id, tipo="cesta", arquivo="x.jpg", status="enviado"),
@@ -227,6 +236,14 @@ def main() -> None:
         verifica("conta 1 festa apadrinhada",
                  resumo.get("festa_feitos") == 1, str(resumo.get("festa_feitos")))
         verifica("conta 1 crianca completa — so a A1 tem os dois",
+                 resumo.get("completas") == 1, str(resumo.get("completas")))
+
+        print("\nPromessa nao e apadrinhamento")
+        verifica("a cesta so prometida da A3 nao entra em cesta_feitos",
+                 resumo.get("cesta_feitos") == 3, str(resumo.get("cesta_feitos")))
+        verifica("mas aparece como prometida, a cobrar",
+                 resumo.get("prometidos") == 1, str(resumo.get("prometidos")))
+        verifica("a A3 continua sem estar completa",
                  resumo.get("completas") == 1, str(resumo.get("completas")))
         verifica("para a coordenacao o painel e o da edicao, nao o dela",
                  rel.get("so_minhas_criancas") is False, str(rel.get("so_minhas_criancas")))

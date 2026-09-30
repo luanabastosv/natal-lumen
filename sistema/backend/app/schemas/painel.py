@@ -36,6 +36,12 @@ class ResumoEdicao(BaseModel):
     # e o tanto de trabalho que ainda sobra de quem esta olhando.
     completas: int
 
+    # Apadrinhamentos registrados que ainda esperam o pagamento. Nao entram em
+    # NENHUMA conta acima — promessa nao e apadrinhamento — e existem aqui para
+    # a tela poder explicar por que os numeros sao menores do que o time lembra
+    # de ter captado, e para a coordenacao saber quanto ha a cobrar.
+    prometidos: int = 0
+
 
 class LinhaInstituicao(BaseModel):
     instituicao_id: int

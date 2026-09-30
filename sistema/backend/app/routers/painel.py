@@ -38,6 +38,7 @@ from app.schemas.painel import (
 )
 from app.seeds.perfis_permissoes import PERFIL_COMISSARIO
 from app.seguranca.contexto import ContextoAcesso
+from app.servicos.apadrinhamento import CONFIRMADO, PROMETIDO
 from app.seguranca.dependencias import exige_permissao
 
 router = APIRouter(prefix="/painel", tags=["painel"])
@@ -68,7 +69,10 @@ def _tipos_por_crianca(criancas_visiveis):
             func.count(case((Apadrinhamento.tipo == CESTA, 1))).label("cesta"),
             func.count(case((Apadrinhamento.tipo == FESTA, 1))).label("festa"),
         )
-        .where(Apadrinhamento.crianca_id.in_(criancas_visiveis))
+        # So o que foi pago conta: promessa nao e apadrinhamento (ver
+        # servicos/apadrinhamento.py). A promessa continua na base, segurando a
+        # crianca, mas fora de toda conta desta tela.
+        .where(Apadrinhamento.crianca_id.in_(criancas_visiveis), CONFIRMADO)
         .group_by(Apadrinhamento.crianca_id)
         .subquery()
     )
@@ -95,17 +99,27 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     por_tipo = dict(
         db.execute(
             select(Apadrinhamento.tipo, func.count())
-            .where(Apadrinhamento.crianca_id.in_(criancas_visiveis))
+            .where(Apadrinhamento.crianca_id.in_(criancas_visiveis), CONFIRMADO)
             .group_by(Apadrinhamento.tipo)
         ).all()
     )
+
+    # As promessas a cobrar. Sem este numero a queda nas contas acima nao teria
+    # explicacao na tela: a crianca sai de "apadrinhada" e nao aparece em lugar
+    # nenhum, e quem olha o painel conclui que o padrinho sumiu. Aqui ele esta,
+    # esperando o pagamento ser registrado.
+    prometidos = db.scalar(
+        select(func.count())
+        .select_from(Apadrinhamento)
+        .where(Apadrinhamento.crianca_id.in_(criancas_visiveis), PROMETIDO)
+    ) or 0
 
     # Crianca completa: tem cesta E festa. Conta uma vez por crianca, entao sai
     # de um agrupamento — somar os dois tipos contaria a completa duas vezes.
     completas = db.scalar(
         select(func.count()).select_from(
             select(Apadrinhamento.crianca_id)
-            .where(Apadrinhamento.crianca_id.in_(criancas_visiveis))
+            .where(Apadrinhamento.crianca_id.in_(criancas_visiveis), CONFIRMADO)
             .group_by(Apadrinhamento.crianca_id)
             .having(func.count(func.distinct(Apadrinhamento.tipo)) == 2)
             .subquery()
@@ -122,6 +136,7 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         cesta_feitos=por_tipo.get(CESTA, 0),
         festa_feitos=por_tipo.get(FESTA, 0),
         completas=completas,
+        prometidos=prometidos,
     )
 
     # O comissario ja esta vendo so as criancas dele — a quebra por comissario
