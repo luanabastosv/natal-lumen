@@ -15,6 +15,7 @@ import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import {
   confirmarLote,
   listarCartoes,
+  listarPastas,
   marcarEnviados,
   subirLoteDeCartoes,
   urlDaImagem,
@@ -53,15 +54,35 @@ export default function Cartoes() {
   // detalhes da linha.
   const estreita = useTelaEstreita();
 
+  // A tela tem dois andares: as pastas (uma por instituicao) e o de dentro de
+  // uma delas. `pasta` nulo e o andar de cima.
+  //
+  // O trabalho com cartao e por instituicao — o monitor recolhe os cartoes de
+  // uma escola e confere aquela escola. Numa lista unica, achar os 60 de uma
+  // entre 900 era trabalho de filtro, e o filtro sumia a cada recarga.
+  const [pastas, definirPastas] = useState([]);
+  const [pasta, definirPasta] = useState(null);
+
   const buscar = useCallback(async () => {
+    if (!edicaoAtiva) return;
     try {
-      definirCartoes(await listarCartoes({ situacao }));
+      if (!pasta) {
+        definirPastas(await listarPastas(edicaoAtiva));
+      } else {
+        definirCartoes(
+          await listarCartoes({
+            situacao,
+            edicao_id: edicaoAtiva,
+            instituicao_id: pasta.instituicao_id,
+          }),
+        );
+      }
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirCarregando(false);
     }
-  }, [situacao]);
+  }, [situacao, edicaoAtiva, pasta]);
 
   useEffect(() => {
     // Buscar no servidor e justamente o que este efeito existe para fazer: a
@@ -70,12 +91,53 @@ export default function Cartoes() {
     if (edicaoAtiva) buscar();
   }, [edicaoAtiva, buscar]);
 
+  // Trocar de edicao na lateral devolve a tela para as pastas: a instituicao
+  // aberta era da edicao anterior. Ajustado no render, e nao por efeito, para
+  // nao gastar uma busca que ja nasce errada.
+  const [ultimaEdicao, definirUltimaEdicao] = useState(edicaoAtiva);
+  if (edicaoAtiva !== ultimaEdicao) {
+    definirUltimaEdicao(edicaoAtiva);
+    definirPasta(null);
+    definirMarcados([]);
+  }
+
+  /* Trocar de pasta joga fora a conferencia em curso. A previa e de uma pilha
+     de UMA escola — levada para outra pasta, ela ofereceria gravar cartoes que
+     nao sao de la, e o rotulo da tela diria a escola errada. */
+  function limparEnvio() {
+    definirPrevia(null);
+    definirArquivos([]);
+    definirConferidos([]);
+    definirConferindo(false);
+  }
+
+  function abrirPasta(p) {
+    definirMarcados([]);
+    limparEnvio();
+    definirCarregando(true);
+    definirPasta(p);
+  }
+
+  function voltarAsPastas() {
+    definirMarcados([]);
+    limparEnvio();
+    definirCarregando(true);
+    definirPasta(null);
+  }
+
   async function enviarLote(evento) {
     evento.preventDefault();
     definirErro("");
     definirSubindo(true);
     try {
-      definirPrevia(await subirLoteDeCartoes({ arquivos, tipo, edicaoId: edicaoAtiva }));
+      definirPrevia(
+        await subirLoteDeCartoes({
+          arquivos,
+          tipo,
+          edicaoId: edicaoAtiva,
+          instituicaoId: pasta?.instituicao_id,
+        }),
+      );
       definirConferidos([]);
       // A conferencia e o passo seguinte do fluxo, nao um extra: quem subiu a
       // pilha subiu para olhar cartao por cartao.
@@ -145,15 +207,32 @@ export default function Cartoes() {
       <h1 className="pagina__titulo">Cartões</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
-        Cada criança escreve dois cartões, um para cada padrinho. Suba a pilha
-        digitalizada de uma vez: <strong>o nome de cada arquivo tem de ser o código
-        da criança</strong> (por exemplo <code>SL12.jpg</code>). O sistema confere
-        antes de gravar e endireita as fotos tortas.
+        {pasta
+          ? "Os cartões desta instituição. Suba aqui a pilha digitalizada dela — o nome de cada arquivo tem de ser o código da criança."
+          : "Uma pasta por instituição. Abra a da escola em que você está trabalhando para ver os cartões dela e subir a pilha digitalizada."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
 
-      {pode("subir_cartoes") && (
+      {/* A volta fica no topo do conteudo, e nao ao lado do titulo: o titulo da
+          pagina continua sendo "Cartões", e o nome da escola e onde a pessoa
+          esta DENTRO dela. */}
+      {pasta && (
+        <div className="migalha">
+          <Button size="sm" variant="ghost" onClick={voltarAsPastas}>
+            ← Todas as instituições
+          </Button>
+          <span className="migalha__atual">
+            {pasta.sigla && <span className="etiqueta etiqueta--neutra">{pasta.sigla}</span>}
+            {pasta.instituicao}
+          </span>
+        </div>
+      )}
+
+      {/* O envio mora DENTRO da pasta: sobe-se a pilha de uma escola, e o
+          servidor recusa na previa o arquivo cujo codigo for de outra. No andar
+          das pastas nao ha o que subir — nao se sabe de quem seria. */}
+      {pasta && pode("subir_cartoes") && (
         <>
           {!previa ? (
             <form className="painel" onSubmit={enviarLote}>
@@ -289,28 +368,88 @@ export default function Cartoes() {
         </>
       )}
 
-      <div className="barra-acoes">
-        <Selecao value={situacao} onChange={(e) => definirSituacao(e.target.value)}>
-          <option value="">Todos</option>
-          <option value="digitalizado">A enviar</option>
-          <option value="enviado">Enviados</option>
-        </Selecao>
-        {podeMarcar && marcados.length > 0 && (
-          <Button variant="secondary" size="sm" onClick={enviar}>
-            Marcar {marcados.length} como enviado(s)
-          </Button>
-        )}
-        <span className="campo__dica" style={{ marginTop: 0 }}>
-          {cartoes.total} cartão(ões)
-        </span>
-      </div>
+      {pasta && (
+        <div className="barra-acoes">
+          <Selecao value={situacao} onChange={(e) => definirSituacao(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="digitalizado">A enviar</option>
+            <option value="enviado">Enviados</option>
+          </Selecao>
+          {podeMarcar && marcados.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={enviar}>
+              Marcar {marcados.length} como enviado(s)
+            </Button>
+          )}
+          <span className="campo__dica" style={{ marginTop: 0 }}>
+            {cartoes.total} cartão(ões)
+          </span>
+        </div>
+      )}
 
       {carregando ? (
-        <Carregando tela>Carregando cartões...</Carregando>
+        <Carregando tela>
+          {pasta ? "Carregando cartões..." : "Carregando as instituições..."}
+        </Carregando>
+      ) : !pasta ? (
+        pastas.length === 0 ? (
+          <EmptyState
+            titulo="Nenhuma instituição nesta edição"
+            corpo="As pastas aparecem quando houver instituição com crianças cadastradas."
+          />
+        ) : (
+          <div className="pastas">
+            {pastas.map((p) => (
+              <button
+                key={p.instituicao_id}
+                type="button"
+                className="pasta"
+                onClick={() => abrirPasta(p)}
+              >
+                <span className="pasta__aba" aria-hidden="true" />
+                <span className="pasta__corpo">
+                  <span className="pasta__nome">
+                    {p.sigla && <span className="etiqueta etiqueta--neutra">{p.sigla}</span>}
+                    {p.instituicao}
+                  </span>
+
+                  {/* O numero que se procura primeiro e quanto FALTA sair
+                      daqui: a pasta existe para ser esvaziada. */}
+                  <span className="pasta__conta">
+                    <strong>{p.a_enviar}</strong> a enviar
+                    <span className="pasta__de"> de {p.total}</span>
+                  </span>
+
+                  <span className="pasta__etiquetas">
+                    {p.total === 0 && (
+                      <span className="etiqueta etiqueta--espera">nenhum cartão ainda</span>
+                    )}
+                    {p.enviados > 0 && (
+                      <span className="etiqueta etiqueta--ok">{p.enviados} enviado(s)</span>
+                    )}
+                    {/* Cartao sem destinatario: a crianca nao tem padrinho
+                        daquele tipo, ou o apadrinhamento dela e so promessa. */}
+                    {p.sem_padrinho > 0 && (
+                      <span
+                        className="etiqueta etiqueta--espera"
+                        title="Cartões sem padrinho confirmado: ou a criança não tem padrinho daquele tipo, ou o apadrinhamento ainda é promessa sem pagamento."
+                      >
+                        {p.sem_padrinho} sem padrinho
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )
       ) : cartoes.itens.length === 0 ? (
         <EmptyState
-          titulo="Nenhum cartão ainda"
-          corpo="Os cartões aparecem aqui conforme os monitores os digitalizam."
+          titulo="Nenhum cartão nesta instituição"
+          corpo={
+            situacao
+              ? "Nenhum cartão com esse filtro. Limpe o filtro para ver a pasta inteira."
+              : "Suba aqui a pilha digitalizada desta escola — o nome de cada arquivo tem de ser o código da criança."
+          }
         />
       ) : (
         <div className="tabela-rolagem">

@@ -61,5 +61,29 @@ class PaginaCartoes(BaseModel):
     itens: list[CartaoOut]
 
 
+class PastaInstituicao(BaseModel):
+    """Uma pasta da tela de cartoes: a instituicao e o que ha dentro dela.
+
+    A tela e de pastas, e nao de lista unica, porque o trabalho com cartao e
+    por instituicao: o monitor recolhe os cartoes de uma escola e confere
+    aquela escola. Numa lista so, achar os 60 de uma entre 900 e trabalho de
+    filtro — e o filtro some quando a pagina recarrega.
+
+    Nao e uma fronteira de acesso: quem alcanca o que ja e decidido em
+    `filtro_criancas`, e um monitor so recebe as pastas das instituicoes
+    atribuidas a ele. A pasta so organiza o que ele ja podia ver.
+    """
+
+    instituicao_id: int
+    instituicao: str
+    sigla: str | None
+    total: int
+    a_enviar: int
+    enviados: int
+    # Cartao que nao tem para quem ir: a crianca nao tem padrinho daquele tipo,
+    # ou o apadrinhamento dela e so promessa, sem pagamento registrado.
+    sem_padrinho: int
+
+
 class MarcarEnviados(BaseModel):
     cartoes: list[int] = Field(min_length=1)

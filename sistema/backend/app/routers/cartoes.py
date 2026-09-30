@@ -19,22 +19,24 @@ from typing import Annotated
 import cv2
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import config
 from app.database import get_db
-from app.models import Apadrinhamento, Cartao, Crianca, Edicao, Padrinho
+from app.models import Apadrinhamento, Cartao, Crianca, Edicao, Instituicao, Padrinho
 from app.models.tipos import StatusCartao
 from app.schemas.cartoes import (
     ArquivoDoLote,
     CartaoOut,
     MarcarEnviados,
     PaginaCartoes,
+    PastaInstituicao,
     PreviaLote,
     ResultadoLote,
 )
+from app.servicos.apadrinhamento import CONFIRMADO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import arquivos, nomes_de_arquivo, scanner
@@ -88,13 +90,19 @@ def _miniatura(imagem, largura: int = 220) -> str:
 
 
 def _padrinho_do_cartao(db: Session, cartao: Cartao) -> Padrinho | None:
-    """Quem recebe este cartao: crianca + tipo -> apadrinhamento -> padrinho."""
+    """Quem recebe este cartao: crianca + tipo -> apadrinhamento -> padrinho.
+
+    So apadrinhamento confirmado: o cartao agradece quem DOOU, e mandar
+    agradecimento a quem ainda nao pagou e cobrar ao contrario. Enquanto a
+    promessa nao vira pagamento, este cartao nao tem para quem ir.
+    """
     return db.scalar(
         select(Padrinho)
         .join(Apadrinhamento, Apadrinhamento.padrinho_id == Padrinho.id)
         .where(
             Apadrinhamento.crianca_id == cartao.crianca_id,
             Apadrinhamento.tipo == cartao.tipo,
+            CONFIRMADO,
         )
     )
 
@@ -142,6 +150,12 @@ def listar(
     db: BD,
     ctx: Ver,
     crianca_id: int | None = None,
+    # A tela e de pastas: quase toda chamada vem com uma instituicao. A edicao
+    # entra junto porque sem ela quem trabalha em duas veria as duas
+    # misturadas na mesma pasta — o cartao e da crianca, e a crianca e de um
+    # ano so.
+    instituicao_id: int | None = None,
+    edicao_id: int | None = None,
     tipo: str | None = None,
     situacao: str | None = Query(default=None, pattern="^(digitalizado|enviado)$"),
     sem_padrinho: bool = False,
@@ -152,16 +166,26 @@ def listar(
 
     if crianca_id is not None:
         condicao = condicao & (Cartao.crianca_id == crianca_id)
+    if instituicao_id is not None or edicao_id is not None:
+        de_criancas = select(Crianca.id)
+        if instituicao_id is not None:
+            de_criancas = de_criancas.where(Crianca.instituicao_id == instituicao_id)
+        if edicao_id is not None:
+            de_criancas = de_criancas.where(Crianca.edicao_id == edicao_id)
+        condicao = condicao & Cartao.crianca_id.in_(de_criancas)
     if tipo is not None:
         condicao = condicao & (Cartao.tipo == tipo)
     if situacao is not None:
         condicao = condicao & (Cartao.status == situacao)
 
     if sem_padrinho:
-        # Cartao ja digitalizado que ainda nao tem para quem ir.
+        # Cartao ja digitalizado que ainda nao tem para quem ir — e o so
+        # prometido entra aqui: ate o pagamento ser registrado, o cartao dele
+        # tambem esta parado.
         tem_padrinho = select(Apadrinhamento.id).where(
             Apadrinhamento.crianca_id == Cartao.crianca_id,
             Apadrinhamento.tipo == Cartao.tipo,
+            CONFIRMADO,
         )
         condicao = condicao & ~tem_padrinho.exists()
 
@@ -182,6 +206,68 @@ def listar(
     )
 
 
+@router.get("/pastas", response_model=list[PastaInstituicao])
+def pastas(db: BD, ctx: Ver, edicao_id: int):
+    """As pastas da tela de cartoes: uma por instituicao, com o que ha dentro.
+
+    Passa pelo MESMO filtro da lista (`_filtro`), entao um monitor recebe so as
+    pastas das instituicoes atribuidas a ele. A pasta nao cria fronteira de
+    acesso nenhuma — quem alcanca o que ja e decidido em `filtro_criancas`, e
+    aqui isso so vira navegacao.
+
+    Lista a instituicao que tem CRIANCA na edicao, mesmo sem nenhum cartao
+    ainda: a pasta vazia e justamente onde o trabalho comeca, e e por ela que
+    se sobe a primeira pilha. Uma pasta que so aparecesse depois do primeiro
+    cartao nao teria como receber o primeiro cartao.
+    """
+    alcance = ctx.filtro_criancas("ver_criancas") & (Crianca.edicao_id == edicao_id)
+
+    # Um cartao esta sem destinatario quando a crianca nao tem padrinho daquele
+    # tipo, ou quando o apadrinhamento dela e so promessa — a mesma regra do
+    # filtro `sem_padrinho` da lista.
+    tem_padrinho = (
+        select(Apadrinhamento.id)
+        .where(
+            Apadrinhamento.crianca_id == Cartao.crianca_id,
+            Apadrinhamento.tipo == Cartao.tipo,
+            CONFIRMADO,
+        )
+        .exists()
+    )
+
+    linhas = db.execute(
+        select(
+            Instituicao.id,
+            Instituicao.nome,
+            Instituicao.sigla,
+            func.count(Cartao.id).label("total"),
+            func.count(case((Cartao.status == "enviado", 1))).label("enviados"),
+            func.count(case((~tem_padrinho & (Cartao.id.is_not(None)), 1))).label(
+                "sem_padrinho"
+            ),
+        )
+        .select_from(Crianca)
+        .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
+        .outerjoin(Cartao, Cartao.crianca_id == Crianca.id)
+        .where(alcance)
+        .group_by(Instituicao.id, Instituicao.nome, Instituicao.sigla)
+        .order_by(Instituicao.nome)
+    ).all()
+
+    return [
+        PastaInstituicao(
+            instituicao_id=l.id,
+            instituicao=l.nome,
+            sigla=l.sigla,
+            total=l.total,
+            a_enviar=l.total - l.enviados,
+            enviados=l.enviados,
+            sem_padrinho=l.sem_padrinho,
+        )
+        for l in linhas
+    ]
+
+
 @router.post("/lote", response_model=PreviaLote)
 async def lote_previa(
     db: BD,
@@ -189,6 +275,11 @@ async def lote_previa(
     arquivos_enviados: list[UploadFile] = File(..., alias="arquivos"),
     tipo: str = Form(..., pattern="^(cesta|festa)$"),
     edicao_id: int = Form(...),
+    # A pasta de onde o envio partiu. O envio acontece DENTRO de uma
+    # instituicao, entao um cartao de outra escola na pilha e engano — e o
+    # engano tem de aparecer na previa, nao virar cartao gravado no lugar
+    # errado. Opcional para nao quebrar quem chama sem pasta.
+    instituicao_id: int | None = Form(default=None),
 ):
     """Le a pilha de cartoes ja digitalizados e devolve a previa.
 
@@ -253,6 +344,15 @@ async def lote_previa(
             item.instituicao = crianca.instituicao.nome
             if crianca.id in ja_tem:
                 item.erros.append(f"Esta crianca ja tem cartao de {tipo}.")
+            # O casamento do codigo continua olhando a edicao inteira, e nao so
+            # a pasta: assim o erro sabe DIZER de quem e o cartao. Barrar depois
+            # de reconhecer e melhor que nao reconhecer — "codigo nao
+            # encontrado" mandaria procurar defeito no cadastro da crianca.
+            elif instituicao_id is not None and crianca.instituicao_id != instituicao_id:
+                item.erros.append(
+                    f"Este cartao e de {crianca.instituicao.nome}, nao desta pasta. "
+                    "Suba os cartoes de cada instituicao na pasta dela."
+                )
 
         try:
             conteudo = await ler_limitado(enviado)

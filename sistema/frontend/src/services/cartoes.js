@@ -18,17 +18,29 @@ export function listarCartoes(filtros = {}) {
   return api.get(`/cartoes?${p}`);
 }
 
+/** As pastas da tela: uma por instituicao, com as contagens de dentro.
+ *
+ *  Passa pelo mesmo filtro de alcance da lista, entao um monitor recebe so as
+ *  pastas das instituicoes dele. A pasta organiza; ela nao decide acesso.
+ */
+export function listarPastas(edicaoId) {
+  return api.get(`/cartoes/pastas?edicao_id=${edicaoId}`);
+}
+
 /** Sobe a pilha de cartoes e recebe a previa. Nao grava nada ainda.
  *
  * Nao passa pelo api.js porque ele so manda JSON — e num FormData quem tem de
  * escrever o Content-Type e o navegador, que e o unico que sabe a fronteira
  * entre as partes.
  */
-export async function subirLoteDeCartoes({ arquivos, tipo, edicaoId }) {
+export async function subirLoteDeCartoes({ arquivos, tipo, edicaoId, instituicaoId }) {
   const dados = new FormData();
   for (const arquivo of arquivos) dados.append("arquivos", arquivo);
   dados.append("tipo", tipo);
   dados.append("edicao_id", edicaoId);
+  // A pilha sobe DENTRO de uma pasta: o servidor recusa, na previa, o arquivo
+  // cujo codigo for de outra instituicao — e diz de qual.
+  if (instituicaoId) dados.append("instituicao_id", instituicaoId);
 
   const token = csrf();
   const resposta = await fetch(`${API_URL}/cartoes/lote`, {

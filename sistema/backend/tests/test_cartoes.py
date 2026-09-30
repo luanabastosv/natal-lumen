@@ -5,6 +5,7 @@ A primeira execucao carrega o EasyOCR e demora bem mais.
 """
 
 import io
+from datetime import date
 
 import cv2
 import numpy as np
@@ -23,6 +24,7 @@ from app.models import (
     Instituicao,
     LogAtividade,
     Padrinho,
+    Pagamento,
     Perfil,
     TokenAcesso,
     Usuario,
@@ -313,7 +315,27 @@ def main() -> None:
 
         padrinho = Padrinho(edicao_id=edicao.id, nome=f"{MARCA} Doador")
         db.add(padrinho); db.flush()
-        db.add(Apadrinhamento(crianca_id=ana.id, padrinho_id=padrinho.id, tipo="cesta", valor=120))
+        apadrinhamento = Apadrinhamento(
+            crianca_id=ana.id, padrinho_id=padrinho.id, tipo="cesta", valor=120
+        )
+        db.add(apadrinhamento); db.commit()
+
+        # Promessa nao e apadrinhamento: enquanto nao ha pagamento, o cartao
+        # continua sem destinatario e nao pode ser marcado como enviado.
+        r = ck.get("/cartoes", params={"crianca_id": ana.id})
+        de_cesta = [c for c in r.json()["itens"] if c["tipo"] == "cesta"][0]
+        verifica("promessa nao vira destinatario do cartao",
+                 de_cesta["padrinho_nome"] is None, str(de_cesta["padrinho_nome"]))
+        r = ck.post("/cartoes/enviados", json={"cartoes": [cartao["id"]]})
+        verifica("e nao deixa marcar como enviado", r.status_code == 409, str(r.status_code))
+        r = ck.get("/cartoes", params={"sem_padrinho": "true"})
+        verifica("o cartao so prometido entra no filtro de sem padrinho",
+                 any(c["id"] == cartao["id"] for c in r.json()["itens"]),
+                 str([c["id"] for c in r.json()["itens"]]))
+
+        pagamento = Pagamento(padrinho_id=padrinho.id, valor=120, data=date(2026, 11, 5))
+        db.add(pagamento); db.flush()
+        apadrinhamento.pagamento_id = pagamento.id
         db.commit()
 
         r = ck.get("/cartoes", params={"crianca_id": ana.id})
@@ -337,6 +359,79 @@ def main() -> None:
         ids = [c["id"] for c in r.json()["itens"]]
         verifica("filtra os que ainda nao tem padrinho",
                  cartao_festa["id"] in ids and cartao["id"] not in ids, str(ids))
+
+        r = ck.get("/cartoes", params={"instituicao_id": inst_a.id})
+        instituicoes = {c["instituicao"] for c in r.json()["itens"]}
+        verifica("a lista filtra por instituicao",
+                 instituicoes == {inst_a.nome}, str(instituicoes))
+
+        print("\nPastas: uma por instituicao")
+        r = cc.get("/cartoes/pastas", params={"edicao_id": edicao.id})
+        verifica("as pastas respondem", r.status_code == 200, r.text[:140])
+        pastas = {p["instituicao"]: p for p in r.json()} if r.status_code == 200 else {}
+        verifica("a coordenacao ve as duas escolas",
+                 set(pastas) == {inst_a.nome, inst_b.nome}, str(sorted(pastas)))
+
+        pa = pastas.get(inst_a.nome, {})
+        # Escola A: cesta e festa da Ana, mais a cesta do Joao.
+        verifica("a pasta conta os cartoes da escola dela",
+                 pa.get("total") == 3, str(pa.get("total")))
+        verifica("e separa enviados de a enviar",
+                 pa.get("enviados") == 1 and pa.get("a_enviar") == 2,
+                 f"{pa.get('enviados')}/{pa.get('a_enviar')}")
+        # So a cesta da Ana tem padrinho confirmado; os outros dois nao tem para
+        # quem ir.
+        verifica("conta os que ainda nao tem para quem ir",
+                 pa.get("sem_padrinho") == 2, str(pa.get("sem_padrinho")))
+        verifica("a escola sem nenhum cartao ainda aparece como pasta vazia",
+                 pastas.get(inst_b.nome, {}).get("total") == 0,
+                 str(pastas.get(inst_b.nome)))
+
+        r = ck.get("/cartoes/pastas", params={"edicao_id": edicao.id})
+        do_comissario = [p["instituicao"] for p in r.json()]
+        verifica("o comissario tambem so recebe a pasta do alcance dele",
+                 do_comissario == [inst_a.nome], str(do_comissario))
+
+        # O ponto do pedido: a pasta nao cria a fronteira, ela SEGUE a que ja
+        # existia. O monitor da Escola A nao recebe a pasta da B.
+        r = cm.get("/cartoes/pastas", params={"edicao_id": edicao.id})
+        do_monitor = [p["instituicao"] for p in r.json()]
+        verifica("o monitor so recebe a pasta da instituicao dele",
+                 do_monitor == [inst_a.nome], str(do_monitor))
+
+        print("\nSubir dentro da pasta: cartao de outra escola e recusado")
+        r = cm.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{fora.codigo}.jpg", foto_de_cartao("FORA"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id, "instituicao_id": inst_a.id},
+        )
+        # O monitor nem alcanca a crianca da Escola B, entao para ele o codigo
+        # nem casa — o que ja barra. A checagem da pasta vale para quem alcanca
+        # as duas: a coordenacao.
+        itens = r.json().get("arquivos") if r.status_code == 200 else None
+        verifica("monitor nao sobe cartao de escola que nao alcanca",
+                 r.status_code != 200 or not itens or not itens[0]["valida"],
+                 f"{r.status_code} {r.text[:130]}")
+
+        r = cc.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{fora.codigo}.jpg", foto_de_cartao("FORA"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id, "instituicao_id": inst_a.id},
+        )
+        item = r.json()["arquivos"][0] if r.status_code == 200 else {}
+        verifica("na pasta errada, a coordenacao tambem e barrada",
+                 not item.get("valida"), str(item))
+        verifica("e o erro diz de que escola o cartao e",
+                 any(inst_b.nome in e for e in item.get("erros", [])),
+                 str(item.get("erros")))
+
+        r = cc.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{fora.codigo}.jpg", foto_de_cartao("FORA"), "image/jpeg"))],
+            data={"tipo": "cesta", "edicao_id": edicao.id, "instituicao_id": inst_b.id},
+        )
+        verifica("e na pasta certa o mesmo arquivo passa",
+                 r.json()["arquivos"][0]["valida"], r.text[:160])
 
     finally:
         limpar(db, log_inicial)
