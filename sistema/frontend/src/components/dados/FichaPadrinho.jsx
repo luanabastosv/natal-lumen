@@ -75,7 +75,9 @@ export default function FichaPadrinho({
       padrinho.apadrinhamentos.length > 0 && {
         id: "pagamento",
         rotulo: "Pagamento",
-        contagem: aPagar === 0 ? "tudo confirmado" : `${aPagar} só prometida(s)`,
+        // Curto de proposito: a aba divide a largura com as outras duas, e
+        // no celular um rotulo longo era cortado no meio da palavra.
+        contagem: aPagar === 0 ? "tudo confirmado" : `${aPagar} a confirmar`,
       },
   ].filter(Boolean);
 
