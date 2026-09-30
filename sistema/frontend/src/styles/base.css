@@ -4104,21 +4104,21 @@ textarea.campo__controle {
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
+  /* Some tudo menos o papel, e some por `display: none` — que tira do FLUXO.
+     A tentativa anterior escondia com `visibility: hidden`, porque a area de
+     impressao morava dentro do #root e nao dava para esconder os filhos do
+     body sem levar ela junto. So que `visibility` esconde e mantem o espaco: a
+     tela inteira continuava ocupando altura, e saiam duas folhas em branco no
+     fim de toda impressao — medido, 5 paginas onde deviam sair 3.
 
-  .impressao,
-  .impressao * {
-    visibility: visible;
+     Agora a area sai por portal e e filha direta do <body>, entao da para
+     apagar o resto de verdade. */
+  body > *:not(.impressao) {
+    display: none !important;
   }
 
   .impressao {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
     color: #000;
     font-family: var(--font-body);
   }

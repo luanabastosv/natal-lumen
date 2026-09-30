@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import Button from "../core/Button.jsx";
 import { Selecao } from "../core/Campo.jsx";
 import Modal from "../feedback/Modal.jsx";
@@ -194,12 +195,22 @@ export default function ImprimirLista({
         </div>
       </Modal>
 
-      {/* A area que vai para o papel. Fica fora do Modal de proposito: o modal
-          e `position: fixed` e o navegador imprime so o primeiro pedaco de um
-          elemento fixo. Aqui ela e conteudo normal, escondida na tela e
-          revelada so na impressao (ver `@media print` no base.css). */}
-      {paraImprimir && (
-        <div className="impressao">
+      {/* A area que vai para o papel sai do #root por PORTAL, e vira filha
+          direta do <body>.
+
+          Nao e capricho: ela morava dentro da arvore da aplicacao, e a tela era
+          escondida com `visibility: hidden` — que esconde mas NAO tira do
+          fluxo. A pagina inteira continuava ocupando altura, e saiam duas
+          folhas em branco no fim de toda impressao. Fora do #root, o CSS pode
+          simplesmente `display: none` em tudo o que nao e o papel, e o que nao
+          imprime deixa de ocupar folha.
+
+          Fica fora do Modal pelo mesmo motivo de sempre: o modal e
+          `position: fixed`, e o navegador imprime so o primeiro pedaco de um
+          elemento fixo. */}
+      {paraImprimir &&
+        createPortal(
+          <div className="impressao">
           {/* A regra da folha vai aqui, montada com a orientacao escolhida:
               `@page` nomeada nao e respeitada de forma confiavel, e sem isto o
               papel saia Letter retrato por mais que o CSS dissesse paisagem. */}
@@ -254,8 +265,9 @@ export default function ImprimirLista({
               </footer>
             </section>
           ))}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
