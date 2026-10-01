@@ -158,7 +158,7 @@ def montar_cenario(db) -> dict:
     ))
     # Comissario so responde pela Escola A.
     v_com = UsuarioEdicao(
-        usuario_id=comissario.id, edicao_id=ed_for.id, perfil_id=perfis["Comissario"].id
+        usuario_id=comissario.id, edicao_id=ed_for.id, perfil_id=perfis["Comissarios - comissario"].id
     )
     db.add(v_com)
     # Monitor com vinculo, mas SEM instituicao atribuida ainda.

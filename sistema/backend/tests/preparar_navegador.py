@@ -100,7 +100,7 @@ def main() -> None:
                 )
                 db.add(com); db.flush()
             vinculo = UsuarioEdicao(usuario_id=com.id, edicao_id=edicao.id,
-                                    perfil_id=perfis["Comissario"].id)
+                                    perfil_id=perfis["Comissarios - comissario"].id)
             db.add(vinculo); db.flush()
             for instituicao_id in instituicoes:
                 db.add(UsuarioInstituicao(

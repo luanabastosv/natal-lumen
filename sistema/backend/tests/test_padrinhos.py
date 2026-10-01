@@ -138,10 +138,12 @@ def main() -> None:
         return u
 
     coord = usuario("Coord", "Coordenacao", [e1.id, e2.id])
-    comissario = usuario("Comissario", "Comissario", [e1.id], [i1.id])
+    comissario = usuario("Comissario", "Comissarios - comissario", [e1.id], [i1.id])
     # O colega do mesmo TIME da Escola A: alcanca a mesma instituicao, mas
     # outras criancas.
-    colega = usuario("Colega", "Comissario", [e1.id], [i1.id])
+    colega = usuario("Colega", "Comissarios - comissario", [e1.id], [i1.id])
+    # Quem coordena a captacao: a edicao inteira, sem instituicao atribuida.
+    capcoord = usuario("CapCoord", "Comissarios - coordenacao", [e1.id])
     monitor = usuario("Monitor", "Monitoria - monitores", [e1.id])
     db.flush()
 
@@ -252,6 +254,11 @@ def main() -> None:
             # Desfeito aqui para as contas abaixo continuarem sendo as de
             # sempre: este apadrinhamento so existiu para provar a regra.
             r = ck.delete(f"/apadrinhamentos/{de_elias['id']}")
+            verifica("o comissario NAO desfaz o que a coordenacao registrou",
+                     r.status_code == 403, str(r.status_code))
+            verifica("e a recusa diz que o apadrinhamento e de outra pessoa",
+                     "outra pessoa" in r.text, r.text[:160])
+            r = cc.delete(f"/apadrinhamentos/{de_elias['id']}")
             verifica("e o apadrinhamento de prova sai da ficha", r.status_code == 204, str(r.status_code))
 
         r = cc.post("/apadrinhamentos", json={"crianca_id": carla.id, "padrinho_id": jose["id"], "tipo": "cesta"})
@@ -526,7 +533,7 @@ def main() -> None:
         print("\nVisibilidade do caso entre cidades")
         # Um comissario so de Caucaia deve enxergar o padrinho de Fortaleza que
         # apadrinhou uma crianca de Caucaia.
-        so_caucaia = usuario("SoCaucaia", "Comissario", [e2.id])
+        so_caucaia = usuario("SoCaucaia", "Comissarios - comissario", [e2.id])
         db.commit()
         cs = TestClient(app); entrar(cs, so_caucaia.email)
 
@@ -673,8 +680,14 @@ def main() -> None:
         print("\nDesfazer engano de captacao (so a coordenacao)")
         # Um apadrinhamento pago, ligado por engano. Quem capta nao desfaz: o
         # dinheiro ja entrou, e isso deixou de ser correcao de digitacao.
-        ids_agora = [a["id"] for a in ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]]
-        alvo = ids_agora[0]
+        # Tem de ser um apadrinhamento DELE: num do colega quem barraria seria
+        # a regra de dono, e o que esta sob prova aqui e a do pagamento.
+        dele = [
+            a for a in ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]
+            if a["comissario_id"] == comissario.id
+        ]
+        verifica("ha apadrinhamento do proprio comissario para a prova", bool(dele), "nenhum")
+        alvo = dele[0]["id"]
         r = cc.post("/pagamentos", json={
             "padrinho_id": jose["id"], "valor": "120.00", "data": str(date(2026, 11, 25)),
             "apadrinhamentos": [alvo],
@@ -727,6 +740,65 @@ def main() -> None:
         verifica("e sem apadrinhamento nenhum preso a ela",
                  db.scalar(select(func.count()).select_from(Apadrinhamento)
                            .where(Apadrinhamento.crianca_id == ana.id)) == 0)
+
+        print("\nCada comissario mexe no que e dele")
+        ccol = TestClient(app); entrar(ccol, colega.email)
+        ccap = TestClient(app); entrar(ccap, capcoord.email)
+
+        # Duda e do colega: o apadrinhamento nasce no nome dele.
+        r = ccol.post("/padrinhos", json={"edicao_id": e1.id, "nome": f"{MARCA} Doador do Colega"})
+        do_colega = r.json()
+        r = ccol.post("/apadrinhamentos", json={
+            "crianca_id": duda.id, "padrinho_id": do_colega["id"], "tipo": "cesta",
+        })
+        verifica("o colega apadrinha a crianca dele", r.status_code == 201, r.text[:140])
+        alheio = [a for a in r.json()["apadrinhamentos"] if a["crianca_id"] == duda.id][0]["id"]
+
+        r = ck.patch(f"/apadrinhamentos/{alheio}", json={"valor": "999.00"})
+        verifica("o outro comissario NAO edita o apadrinhamento do colega",
+                 r.status_code == 403, str(r.status_code))
+        r = ck.delete(f"/apadrinhamentos/{alheio}")
+        verifica("nem desfaz", r.status_code == 403, str(r.status_code))
+        r = ck.post("/pagamentos", json={
+            "padrinho_id": do_colega["id"], "valor": "120.00", "data": str(date(2026, 11, 26)),
+            "apadrinhamentos": [alheio],
+        })
+        verifica("nem quita com um pagamento", r.status_code == 403, str(r.status_code))
+
+        # O cadastro do padrinho, sim: e compartilhado da edicao.
+        r = ck.patch(f"/padrinhos/{do_colega['id']}", json={"whatsapp": "85988887777"})
+        verifica("mas corrige o CADASTRO do padrinho, que e de todos",
+                 r.status_code == 200, r.text[:140])
+
+        # Quem coordena a captacao passa por cima dos dois.
+        r = ccap.patch(f"/apadrinhamentos/{alheio}", json={"valor": "130.00"})
+        verifica("a coordenacao da captacao edita o apadrinhamento de qualquer um",
+                 r.status_code == 200, r.text[:140])
+        r = ccap.post("/pagamentos", json={
+            "padrinho_id": do_colega["id"], "valor": "130.00", "data": str(date(2026, 11, 26)),
+            "apadrinhamentos": [alheio],
+        })
+        verifica("e quita o apadrinhamento de qualquer um", r.status_code == 201, r.text[:140])
+
+        print("\nA coordenacao da captacao alcanca a edicao inteira")
+        r = ccap.get("/criancas", params={"edicao_id": e1.id})
+        nomes = {i["id"] for i in r.json()["itens"]} if r.status_code == 200 else set()
+        verifica("ve crianca de comissario nenhum e de todos",
+                 {ana.id, duda.id, elias.id} <= nomes, str(len(nomes)))
+
+        r = ccap.patch(f"/criancas/{elias.id}", json={"comissario_id": comissario.id})
+        verifica("atribui responsavel a uma crianca sem dono",
+                 r.status_code == 200, r.text[:140])
+        if r.status_code == 200:
+            verifica("e o nome entra na linha", r.json()["comissario_id"] == comissario.id)
+
+        r = ccap.patch(f"/criancas/{elias.id}", json={"nome": "Nome Trocado"})
+        verifica("mas NAO renomeia a crianca (nao tem editar_criancas)",
+                 r.status_code == 404, str(r.status_code))
+
+        r = ck.patch(f"/criancas/{ana.id}", json={"comissario_id": colega.id})
+        verifica("o comissario de base nao redistribui a lista",
+                 r.status_code == 403, str(r.status_code))
 
     finally:
         limpar(db, log_inicial)

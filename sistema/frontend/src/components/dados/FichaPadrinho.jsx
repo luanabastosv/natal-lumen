@@ -7,6 +7,7 @@ import Modal from "../feedback/Modal.jsx";
 import ApadrinharCriancas from "./ApadrinharCriancas.jsx";
 import RegistrarPagamento from "./RegistrarPagamento.jsx";
 import { useNotificar } from "../../contexts/useNotificar.js";
+import { useSessao } from "../../contexts/useSessao.js";
 import { salvarBlob } from "../../services/api.js";
 import {
   apagarApadrinhamento,
@@ -51,6 +52,13 @@ export default function FichaPadrinho({
 }) {
   const [erro, definirErro] = useState("");
   const notificar = useNotificar();
+  const { usuario, vinculoAtivo } = useSessao();
+
+  // O comissario de base so mexe no apadrinhamento que ele mesmo registrou —
+  // um padrinho recebe criancas de varios, e desfazer o do colega mudaria o
+  // trabalho de outra pessoa sem ela saber. Quem coordena passa por cima.
+  const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
+  const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
 
   // Qual das duas perguntas da captacao esta sendo salva. Elas sao respondidas
   // numa conversa que quase nunca e a do cadastro — o doador diz "esse ano
@@ -401,7 +409,7 @@ export default function FichaPadrinho({
                     {/* Sem pagamento, quem capta desfaz. Com pagamento, so a
                         coordenacao — e a dica diz o que vai acontecer com o
                         dinheiro, porque ele NAO some junto. */}
-                    {((podeEditar && !a.pago) || podeExcluir) && (
+                    {((podeEditar && !a.pago && meu(a)) || podeExcluir) && (
                       <BotaoIcone
                         perigo
                         titulo={

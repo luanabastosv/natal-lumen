@@ -96,6 +96,31 @@ def _filtro_padrinhos(ctx: ContextoAcesso, permissao: str):
     )
 
 
+def _e_meu(ctx: ContextoAcesso, db: Session, apadrinhamento: Apadrinhamento) -> bool:
+    """Se este apadrinhamento pode ser MEXIDO por quem esta pedindo.
+
+    Um padrinho recebe criancas de varios comissarios, e cada apadrinhamento
+    guarda quem o registrou. O comissario de base so mexe nos proprios: editar
+    ou desfazer o do colega mudaria o trabalho — e o numero — de outra pessoa,
+    sem ela saber.
+
+    Quem NAO e filtrado crianca a crianca (a coordenacao da captacao, a
+    coordenacao da cidade, a administracao geral) passa sempre: e justamente
+    para isso que existe quem coordena. Ver `so_proprias_criancas` em
+    seguranca/contexto.py, que e o mesmo teste que o painel usa.
+    """
+    crianca = db.get(Crianca, apadrinhamento.crianca_id)
+    if crianca is None or not ctx.so_proprias_criancas(crianca.edicao_id):
+        return True
+    return apadrinhamento.comissario_id == ctx.usuario.id
+
+
+DO_COLEGA = (
+    "Este apadrinhamento foi registrado por outra pessoa do time. "
+    "Peca a quem coordena a captacao."
+)
+
+
 def _saida(padrinho: Padrinho) -> PadrinhoOut:
     resumos = []
     combinado = Decimal("0")
@@ -519,6 +544,9 @@ def editar_apadrinhamento(
 
     padrinho = _carregar(db, apadrinhamento.padrinho_id, ctx, "editar_padrinhos")
 
+    if not _e_meu(ctx, db, apadrinhamento):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, DO_COLEGA)
+
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():
         setattr(apadrinhamento, campo, valor)
@@ -539,6 +567,9 @@ def apagar_apadrinhamento(apadrinhamento_id: int, db: BD, ctx: Editar):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Apadrinhamento nao encontrado.")
 
     _carregar(db, apadrinhamento.padrinho_id, ctx, "editar_padrinhos")
+
+    if not _e_meu(ctx, db, apadrinhamento):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, DO_COLEGA)
 
     # Apadrinhamento pago so a coordenacao desfaz. Quem capta corrige o que
     # acabou de digitar; desfazer o que ja virou dinheiro e outra coisa.
@@ -623,7 +654,8 @@ def _saida_pagamento(pagamento: Pagamento) -> PagamentoOut:
 
 
 def _ligar_apadrinhamentos(
-    db: Session, pagamento: Pagamento, ids: list[int], padrinho: Padrinho
+    db: Session, pagamento: Pagamento, ids: list[int], padrinho: Padrinho,
+    ctx: ContextoAcesso,
 ) -> None:
     """Deixa o pagamento quitando exatamente os apadrinhamentos pedidos."""
     desejados = set(ids)
@@ -635,6 +667,17 @@ def _ligar_apadrinhamentos(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Ha apadrinhamentos que nao sao deste padrinho.",
         )
+
+    # Quitar o apadrinhamento do colega E mexer nele: era promessa e vira
+    # apadrinhamento confirmado, e o numero muda no nome de quem registrou.
+    # O comissario de base so quita os proprios. Quando o padrinho paga tudo
+    # de uma vez, quem fecha a conta e quem coordena a captacao.
+    do_colega = [
+        a for a in padrinho.apadrinhamentos
+        if a.id in desejados and not _e_meu(ctx, db, a)
+    ]
+    if do_colega:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, DO_COLEGA)
 
     ja_quitados = db.scalars(
         select(Apadrinhamento).where(
@@ -715,7 +758,7 @@ def criar_pagamento(dados: PagamentoIn, db: BD, ctx: Pagar):
     db.add(pagamento)
     db.flush()
 
-    _ligar_apadrinhamentos(db, pagamento, dados.apadrinhamentos, padrinho)
+    _ligar_apadrinhamentos(db, pagamento, dados.apadrinhamentos, padrinho, ctx)
 
     registrar(
         db, "pagamento_registrado", usuario_id=ctx.usuario.id,
@@ -756,7 +799,7 @@ def editar_pagamento(pagamento_id: int, dados: PagamentoEditar, db: BD, ctx: Pag
         setattr(pagamento, campo, valor)
 
     if apadrinhamentos is not None:
-        _ligar_apadrinhamentos(db, pagamento, apadrinhamentos, padrinho)
+        _ligar_apadrinhamentos(db, pagamento, apadrinhamentos, padrinho, ctx)
 
     registrar(
         db, "pagamento_editado", usuario_id=ctx.usuario.id,

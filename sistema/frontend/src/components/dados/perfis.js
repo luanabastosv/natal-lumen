@@ -8,7 +8,7 @@
  *  Em arquivo proprio: um modulo que exporta componente e constante quebra o
  *  fast refresh do Vite.
  */
-export const PERFIS_POR_INSTITUICAO = ["Comissario", "Monitoria - monitores"];
+export const PERFIS_POR_INSTITUICAO = ["Comissarios - comissario", "Monitoria - monitores"];
 
 export function pedeInstituicoes(perfil) {
   return PERFIS_POR_INSTITUICAO.includes(perfil?.nome);
@@ -22,7 +22,7 @@ export function pedeInstituicoes(perfil) {
  *  `so_criancas_atribuidas` no vinculo ja gravado, e esta lista vale enquanto
  *  a escolha ainda esta na tela.
  */
-export const PERFIS_POR_CRIANCA = ["Comissario"];
+export const PERFIS_POR_CRIANCA = ["Comissarios - comissario"];
 
 export function veSoCriancasAtribuidas(perfil) {
   return PERFIS_POR_CRIANCA.includes(perfil?.nome);
@@ -35,7 +35,7 @@ export function veSoCriancasAtribuidas(perfil) {
  *  `usa_grupo` para o perfil ja gravado, e esta lista vale enquanto a escolha
  *  ainda esta na tela.
  */
-export const PERFIS_COM_GRUPO = ["Comissario"];
+export const PERFIS_COM_GRUPO = ["Comissarios - comissario"];
 
 export function pedeGrupo(perfil) {
   return PERFIS_COM_GRUPO.includes(perfil?.nome);
@@ -63,7 +63,11 @@ export function valeCidadeInteira(perfil) {
  */
 const ROTULOS = {
   Coordenacao: "Coordenação",
-  Comissario: "Comissário",
+  // O comissariado tambem e um par, como a monitoria: quem coordena a captacao
+  // alcanca a edicao inteira e distribui a lista; o comissario responde pelas
+  // criancas no nome dele.
+  "Comissarios - coordenacao": "Comissários - coordenação",
+  "Comissarios - comissario": "Comissários - comissário",
   // A monitoria e um par: quem coordena alcanca a edicao inteira, os
   // monitores so as instituicoes deles. O rotulo precisa deixar isso obvio na
   // hora de dar acesso, que e o unico momento em que alguem escolhe entre os

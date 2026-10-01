@@ -51,9 +51,13 @@ from app.schemas.criancas import (
     ResultadoImportacao,
     ResumoInstituicao,
 )
-from app.seeds.perfis_permissoes import PERFIL_COMISSARIO, PERFIL_COORDENACAO
+from app.seeds.perfis_permissoes import (
+    PERFIL_COMISSARIO,
+    PERFIL_COORDENACAO,
+    PERFIS_COMISSARIADO,
+)
 from app.seguranca.contexto import ContextoAcesso
-from app.seguranca.dependencias import Contexto, exige_permissao
+from app.seguranca.dependencias import Contexto, exige_permissao, exige_qualquer
 from app.servicos.apadrinhamento import CONFIRMADO, confirmado
 from app.servicos import codigos, dias, exclusao, importador
 from app.servicos.nomes import nome_proprio
@@ -70,6 +74,12 @@ PAPEL_ADMIN_GERAL = "Administracao geral"
 BD = Annotated[Session, Depends(get_db)]
 Ver = Annotated[ContextoAcesso, Depends(exige_permissao("ver_criancas"))]
 Editar = Annotated[ContextoAcesso, Depends(exige_permissao("editar_criancas"))]
+# Duas permissoes abrem a porta de editar: a larga, e a estreita de quem so
+# redistribui a lista entre o time. Qual delas de fato autoriza a chamada
+# depende do que ela esta mudando — ver `_permissoes_da_edicao`.
+EditarOuAtribuir = Annotated[
+    ContextoAcesso, Depends(exige_qualquer("editar_criancas", "atribuir_comissario"))
+]
 Importar = Annotated[ContextoAcesso, Depends(exige_permissao("importar_listas"))]
 
 PASTA_IMPORTACOES = config.caminho_arquivos / "importacoes"
@@ -246,12 +256,15 @@ def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int], str]]:
             # A conta de administracao geral entra pela consulta de baixo, com
             # a cidade inteira na mao, mesmo que tambem tenha vinculo aqui.
             Usuario.admin_geral.is_(False),
-            Perfil.nome.in_((PERFIL_COMISSARIO, PERFIL_COORDENACAO)),
+            Perfil.nome.in_((*PERFIS_COMISSARIADO, PERFIL_COORDENACAO)),
         )
         .order_by(Usuario.nome)
     ).all()
 
     for usuario_id, nome, papel, instituicao_id in linhas:
+        # So o comissario de base e recortado por instituicao. A coordenacao
+        # da captacao, como a da cidade, alcanca todas — e por isso ja nasce
+        # com a cidade inteira na mao.
         _, instituicoes, _ = time.setdefault(
             usuario_id,
             (nome, set() if papel == PERFIL_COMISSARIO else set(da_cidade), papel),
@@ -269,6 +282,38 @@ def _time(db: Session, edicao_id: int) -> dict[int, tuple[str, set[int], str]]:
         time[usuario_id] = (nome, set(da_cidade), PAPEL_ADMIN_GERAL)
 
     return time
+
+
+def _permissoes_da_edicao(mudancas: set[str]) -> tuple[str, ...]:
+    """Quais permissoes podem autorizar esta edicao, da mais larga para a mais
+    estreita.
+
+    Mexer SO no responsavel e um poder a parte, de quem coordena a captacao:
+    ela redistribui a lista entre o time sem poder criar, renomear nem apagar
+    crianca. Qualquer outro campo junto, e volta a ser `editar_criancas`.
+
+    Devolve mais de uma porque a permissao e POR EDICAO: a mesma pessoa pode
+    editar tudo numa edicao e so atribuir responsavel na seguinte, e quem
+    resolve isso e o filtro de alcance, tentado nesta ordem.
+    """
+    if mudancas <= {"comissario_id"}:
+        return ("editar_criancas", "atribuir_comissario")
+    return ("editar_criancas",)
+
+
+def _buscar_para_editar(
+    db: Session, ctx: ContextoAcesso, crianca_id: int, mudancas: set[str]
+) -> Crianca:
+    """A crianca, se alguma das permissoes de edicao alcancar esta edicao."""
+    for permissao in _permissoes_da_edicao(mudancas):
+        crianca = db.scalar(
+            select(Crianca)
+            .where(Crianca.id == crianca_id, ctx.filtro_criancas(permissao))
+            .options(*CARREGAR)
+        )
+        if crianca is not None:
+            return crianca
+    raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
 
 
 def _conferir_comissario(
@@ -531,17 +576,27 @@ def comissarios_da_edicao(db: BD, ctx: Ver, edicao_id: int):
 
 
 @router.post("/lote", response_model=list[CriancaOut])
-def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
+def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: EditarOuAtribuir):
     """Muda varias criancas de uma vez.
 
     Distribuir 1500 criancas pelos dias do evento uma a uma nao e trabalho que
     alguem faca — por isso o lote.
     """
-    criancas = db.scalars(
-        select(Crianca)
-        .where(Crianca.id.in_(dados.criancas), ctx.filtro_criancas("editar_criancas"))
-        .options(*CARREGAR)
-    ).all()
+    # O lote tambem muda de poder conforme o que mexe: so o responsavel e
+    # trabalho de quem coordena a captacao; qualquer outro campo junto volta a
+    # pedir `editar_criancas`. Mesma regra do PATCH de uma crianca so.
+    mexidos = set(dados.model_dump(exclude_unset=True)) - {"criancas"}
+    criancas: list[Crianca] = []
+    for permissao in _permissoes_da_edicao(mexidos):
+        criancas = list(
+            db.scalars(
+                select(Crianca)
+                .where(Crianca.id.in_(dados.criancas), ctx.filtro_criancas(permissao))
+                .options(*CARREGAR)
+            ).all()
+        )
+        if len(criancas) == len(set(dados.criancas)):
+            break
 
     if len(criancas) != len(set(dados.criancas)):
         raise HTTPException(
@@ -821,10 +876,11 @@ def criar(dados: CriancaIn, db: BD, ctx: Editar):
 
 
 @router.patch("/{crianca_id}", response_model=CriancaOut)
-def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: Editar):
-    crianca = _buscar(db, ctx, crianca_id, "editar_criancas")
-
+def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: EditarOuAtribuir):
+    # A mudanca e lida ANTES de buscar: e ela que diz qual permissao esta
+    # sendo exercida, e portanto qual alcance vale.
     mudancas = dados.model_dump(exclude_unset=True)
+    crianca = _buscar_para_editar(db, ctx, crianca_id, set(mudancas))
 
     # O responsavel passa pela conferencia do time antes de entrar.
     if mudancas.get("comissario_id") is not None:
@@ -847,7 +903,7 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: Editar):
         detalhes={"campos": sorted(mudancas)},
     )
     db.commit()
-    return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"), ctx)
+    return _saida(_buscar_para_editar(db, ctx, crianca_id, set(mudancas)), ctx)
 
 
 @router.patch("/{crianca_id}/desistencia", response_model=CriancaOut)

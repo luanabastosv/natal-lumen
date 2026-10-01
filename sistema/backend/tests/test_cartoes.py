@@ -166,7 +166,7 @@ def main() -> None:
         return u
 
     monitor = usuario("Monitor", "Monitoria - monitores", [inst_a.id])
-    comissario = usuario("Comissario", "Comissario", [inst_a.id])
+    comissario = usuario("Comissario", "Comissarios - comissario", [inst_a.id])
     # Sem instituicao atribuida: a coordenacao alcanca a edicao inteira.
     coord = usuario("Coord", "Coordenacao")
     # O comissario so alcanca as criancas atribuidas a ele. O monitor nao

@@ -5,6 +5,7 @@ import { AreaTexto, Entrada, Selecao } from "../core/Campo.jsx";
 import { Baixar, Visto } from "../core/icones.jsx";
 import Carregando from "../feedback/Carregando.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
+import { useSessao } from "../../contexts/useSessao.js";
 import {
   baixarComprovante,
   criarPagamento,
@@ -55,7 +56,18 @@ function resumoTipos(itens) {
  * Financeiro, que edita o valor solto.
  */
 export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) {
-  const aPagar = padrinho.apadrinhamentos.filter((a) => !a.pago);
+  const { usuario, vinculoAtivo } = useSessao();
+
+  // Um padrinho recebe criancas de varios comissarios. Quitar o apadrinhamento
+  // do colega e MEXER nele — era promessa e vira apadrinhamento confirmado, no
+  // nome de quem o registrou —, e por isso o comissario so quita os proprios.
+  // Quem coordena a captacao fecha a conta inteira.
+  const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
+  const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
+
+  const abertos = padrinho.apadrinhamentos.filter((a) => !a.pago);
+  const aPagar = abertos.filter(meu);
+  const doColega = abertos.length - aPagar.length;
 
   const [marcados, definirMarcados] = useState([]);
   const [data, definirData] = useState(() => new Date().toISOString().slice(0, 10));
@@ -212,10 +224,20 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
       {/* A aba existe mesmo sem nada a pagar: "tudo quitado" e uma resposta, e
           some-la faria a faixa de abas mudar de tamanho — o defeito que as abas
           vieram resolver. E, quitado ou nao, os comprovantes ficam aqui. */}
+      {/* Dois "nada a pagar" diferentes, e dizer o errado aqui faria a pessoa
+          procurar um defeito que nao existe. */}
       {aPagar.length === 0 ? (
-        <Mensagem tipo="sucesso">
-          Todos os apadrinhamentos deste padrinho já estão <strong>quitados</strong>.
-        </Mensagem>
+        doColega > 0 ? (
+          <Mensagem tipo="aviso">
+            Este padrinho tem {doColega} apadrinhamento(s) a pagar, mas todos foram
+            registrados por outra pessoa do time. Quem recebe o pagamento deles é quem
+            os registrou, ou quem coordena a captação.
+          </Mensagem>
+        ) : (
+          <Mensagem tipo="sucesso">
+            Todos os apadrinhamentos deste padrinho já estão <strong>quitados</strong>.
+          </Mensagem>
+        )
       ) : (
         <>
           {/* PRIMEIRO o que o dinheiro quita: e a decisao, e e dela que sai o

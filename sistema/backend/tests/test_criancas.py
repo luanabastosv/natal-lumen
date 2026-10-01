@@ -141,7 +141,7 @@ def main() -> None:
         return u
 
     coord = criar_usuario("Coord", "Coordenacao")
-    comissario = criar_usuario("Comissario", "Comissario", [inst_a.id])
+    comissario = criar_usuario("Comissario", "Comissarios - comissario", [inst_a.id])
     db.commit()
 
     try:
@@ -962,8 +962,8 @@ def main() -> None:
         print("\nTime de comissarios por instituicao")
         # Duas outras comissarias na MESMA Escola A: a instituicao e atendida
         # por um time, nao por uma pessoa.
-        bia = criar_usuario("Bia", "Comissario", [inst_a.id])
-        caio = criar_usuario("Caio", "Comissario", [inst_a.id, inst_b.id])
+        bia = criar_usuario("Bia", "Comissarios - comissario", [inst_a.id])
+        caio = criar_usuario("Caio", "Comissarios - comissario", [inst_a.id, inst_b.id])
         db.commit()
         cb = TestClient(app); entrar(cb, bia.email)
 
@@ -974,7 +974,7 @@ def main() -> None:
         # A lista nao e so de comissarios: coordenacao e administracao geral
         # tambem podem ficar com uma crianca no nome. Por isso a conta e pelo
         # papel, e nao pelo tamanho da lista.
-        so_comissarios = [n for n, c in time.items() if c["papel"] == "Comissario"]
+        so_comissarios = [n for n, c in time.items() if c["papel"] == "Comissarios - comissario"]
         verifica("os tres comissarios estao no time",
                  len(so_comissarios) == 3, str(sorted(so_comissarios)))
         verifica("cada um traz as instituicoes que atende",
@@ -990,7 +990,7 @@ def main() -> None:
                  >= {inst_a.id, inst_b.id},
                  str(time.get(f"{MARCA} Coord")))
         verifica("os comissarios vem antes na lista",
-                 [c["papel"] for c in r.json()][:3] == ["Comissario"] * 3,
+                 [c["papel"] for c in r.json()][:3] == ["Comissarios - comissario"] * 3,
                  str([c["papel"] for c in r.json()]))
 
         # E a coordenacao pode mesmo ficar com a crianca no nome dela.

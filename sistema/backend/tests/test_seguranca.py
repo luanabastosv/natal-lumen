@@ -156,10 +156,10 @@ def main() -> None:
         return u
 
     # O atacante: comissario da cidade A, responsavel por UMA instituicao.
-    atacante = usuario("Atacante", "Comissario", ea.id, [ia.id])
+    atacante = usuario("Atacante", "Comissarios - comissario", ea.id, [ia.id])
     # Um colega do mesmo time, na mesma instituicao: a lista dela e dividida
     # entre os dois, e nenhum dos dois alcanca a parte do outro.
-    colega = usuario("Colega", "Comissario", ea.id, [ia.id])
+    colega = usuario("Colega", "Comissarios - comissario", ea.id, [ia.id])
     coord_b = usuario("CoordB", "Coordenacao", eb.id)
     minha.comissario_id = atacante.id
     do_colega.comissario_id = colega.id

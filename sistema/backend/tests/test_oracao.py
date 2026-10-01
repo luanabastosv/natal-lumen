@@ -134,8 +134,8 @@ def main() -> None:
 
     coord = usuario("Coord", "Coordenacao")
     # Duas das cinco criancas da Escola A sao dele; as outras tres e a da B nao.
-    com = usuario("Com", "Comissario", [inst.id])
-    com_vazio = usuario("ComVazio", "Comissario", [inst.id])
+    com = usuario("Com", "Comissarios - comissario", [inst.id])
+    com_vazio = usuario("ComVazio", "Comissarios - comissario", [inst.id])
 
     criancas[0].comissario_id = com.id
     criancas[1].comissario_id = com.id

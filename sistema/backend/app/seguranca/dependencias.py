@@ -114,6 +114,26 @@ def exige_permissao(codigo: str):
     return verificar
 
 
+def exige_qualquer(*codigos: str):
+    """Como `exige_permissao`, mas basta UMA da lista.
+
+    E para a rota que dois poderes diferentes abrem — editar a crianca inteira,
+    ou so trocar o responsavel dela. A rota ainda tem de decidir, DENTRO dela,
+    qual das duas de fato autoriza aquela chamada: este portao so evita que
+    quem nao tem nenhuma chegue la.
+    """
+
+    def verificar(ctx: Contexto) -> ContextoAcesso:
+        if not any(ctx.pode(c) for c in codigos):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                f"Voce nao tem a permissao necessaria ({' ou '.join(codigos)}).",
+            )
+        return ctx
+
+    return verificar
+
+
 def exige_admin_geral(ctx: Contexto) -> ContextoAcesso:
     """So o admin_geral cria cidades, edicoes e coordenadores de cidade."""
     if not ctx.admin_geral:

@@ -39,7 +39,7 @@ import ImportarLista from "./ImportarLista.jsx";
  *  faria parecer que sao mais um comissario do time daquela escola.
  */
 function comoAparece(membro) {
-  return membro.papel === "Comissario"
+  return membro.papel === "Comissarios - comissario"
     ? membro.nome
     : `${membro.nome} · ${rotuloDoPerfil(membro.papel)}`;
 }
@@ -131,6 +131,10 @@ export default function Criancas() {
   // nisto: nenhuma das duas trabalha com padrinho, e a monitoria tambem nao
   // com kit.
   const veCaptacao = pode("ver_padrinhos");
+  // Trocar SO o responsavel e um poder a parte: quem coordena a captacao
+  // redistribui a lista entre o time sem poder criar nem renomear crianca.
+  // Por isso a coluna do responsavel nao olha `podeEditar` como as outras.
+  const podeAtribuir = podeEditar || pode("atribuir_comissario");
   const veKit = pode("gerenciar_kits");
 
   // No celular a planilha inteira nao cabe: ficam de pe as tres colunas que
@@ -842,7 +846,7 @@ export default function Criancas() {
                         {/* Responsavel por ESTA crianca. Nao muda quem alcanca o
                             que: o time inteiro da instituicao continua vendo e
                             trabalhando a lista toda dela. */}
-                        {podeEditar ? (
+                        {podeAtribuir ? (
                           <CelulaEditavel
                             valor={c.comissario_id}
                             opcoes={opcoesComissario(c.instituicao_id)}

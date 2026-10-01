@@ -133,7 +133,7 @@ def main() -> None:
         return u
 
     estrutura = usuario("Estrutura", "Estrutura")
-    comissario = usuario("Comissario", "Comissario")
+    comissario = usuario("Comissario", "Comissarios - comissario")
     # Os recebimentos sao da coordenacao: e a mesma permissao dos pagamentos.
     coord = usuario("Coord", "Coordenacao")
     padrinho = Padrinho(edicao_id=edicao.id, nome=f"{MARCA} Padrinho")

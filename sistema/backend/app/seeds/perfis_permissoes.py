@@ -22,6 +22,11 @@ PERMISSOES: dict[str, str] = {
     "ver_criancas": "Ver a lista e os dados das criancas",
     "editar_criancas": "Criar, editar e excluir criancas",
     "importar_listas": "Importar listas de criancas enviadas pelas instituicoes",
+    # Poder ESTREITO, separado de editar_criancas de proposito: muda so quem
+    # responde pela crianca, e nada mais dela. Quem coordena a captacao precisa
+    # redistribuir a lista entre os comissarios do time — e nao precisa criar,
+    # renomear nem apagar crianca para isso.
+    "atribuir_comissario": "Definir o comissario responsavel por uma crianca",
     "ver_padrinhos": "Ver a lista e os dados dos padrinhos",
     "editar_padrinhos": "Criar e editar padrinhos e apadrinhamentos",
     # O dinheiro que ENTRA se separa em duas permissoes desde 30/09/2026,
@@ -57,6 +62,20 @@ PERMISSOES: dict[str, str] = {
     "gerenciar_cadastros": "Cadastrar instituicoes e os dias do evento da edicao",
 }
 
+# Os dois lados do comissariado partem da MESMA lista; a coordenacao da
+# captacao ganha, alem dela, o poder de redistribuir a lista entre o time.
+COMISSARIADO = (
+    "ver_painel",
+    "ver_criancas",
+    "ver_padrinhos",
+    "editar_padrinhos",
+    # Sem isto o apadrinhamento que ele capta nunca se confirma sozinho:
+    # promessa nao conta em numero nenhum, e o pagamento e o que a
+    # transforma em apadrinhamento.
+    "registrar_pagamentos_padrinho",
+    "enviar_cartoes",
+)
+
 # As duas monitorias tem a MESMA lista de permissoes: o que as separa e o
 # alcance, nao o que cada uma faz. Escrita uma vez para que as duas nao possam
 # divergir numa linha solta.
@@ -91,19 +110,23 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
         "Coordenacao da cidade: todas as permissoes, em todas as edicoes dela",
         tuple(PERMISSOES),
     ),
-    "Comissario": (
-        "Capta padrinhos e envia os cartoes",
-        (
-            "ver_painel",
-            "ver_criancas",
-            "ver_padrinhos",
-            "editar_padrinhos",
-            # Sem isto o apadrinhamento que ele capta nunca se confirma sozinho:
-            # promessa nao conta em numero nenhum, e o pagamento e o que a
-            # transforma em apadrinhamento.
-            "registrar_pagamentos_padrinho",
-            "enviar_cartoes",
-        ),
+    # O comissariado se parte em dois desde 01/10/2026, pelo mesmo motivo da
+    # monitoria: quem coordena a captacao precisa da edicao inteira, e quem
+    # capta no dia a dia responde por uma lista nominal de criancas.
+    #
+    # A diferenca aqui nao e so de alcance, e por isso as duas listas nao sao
+    # iguais: a coordenacao da captacao REDISTRIBUI a lista (atribuir_comissario)
+    # e nao fica presa as proprias criancas, e por nao ficar presa ela tambem
+    # pode mexer no apadrinhamento feito por qualquer um do time — ver
+    # `so_proprias_criancas` em seguranca/contexto.py, que e o que separa os
+    # dois no codigo.
+    "Comissarios - coordenacao": (
+        "Coordena a captacao: todas as instituicoes, e distribui a lista do time",
+        (*COMISSARIADO, "atribuir_comissario"),
+    ),
+    "Comissarios - comissario": (
+        "Capta padrinhos das criancas atribuidas a ele e envia os cartoes",
+        COMISSARIADO,
     ),
     # A monitoria se parte em dois desde 01/10/2026, e a diferenca entre os
     # dois e SO o alcance — as permissoes sao as mesmas. Quem coordena a
@@ -135,7 +158,7 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
 
 # Perfis filtrados pelas instituicoes atribuidas em usuario_instituicao.
 # Coordenacao, Estrutura e a coordenacao da monitoria veem a edicao inteira.
-PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitoria - monitores")
+PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissarios - comissario", "Monitoria - monitores")
 
 # Perfis filtrados tambem crianca a crianca: nao basta a instituicao estar
 # atribuida, a crianca tem de ter o nome dele em criancas.comissario_id.
@@ -146,12 +169,12 @@ PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitoria - monitores")
 #
 # Consequencia de proposito: crianca sem responsavel nao aparece para nenhum
 # comissario — ela so existe para a coordenacao, que e quem distribui a lista.
-PERFIS_FILTRADOS_POR_CRIANCA = ("Comissario",)
+PERFIS_FILTRADOS_POR_CRIANCA = ("Comissarios - comissario",)
 
 # Perfis que respondem por um grupo da comunidade (usuario_edicao.grupo_id).
 # So o comissario: os monitores respondem pela instituicao e a coordenacao
 # pela edicao inteira, e nenhum deles pertence a um grupo enquanto esta ali.
-PERFIS_COM_GRUPO = ("Comissario",)
+PERFIS_COM_GRUPO = ("Comissarios - comissario",)
 
 # Os dois unicos lugares em que o sistema olha um perfil pelo NOME, e nao pela
 # permissao. Existem porque nenhum dos dois e uma permissao: sao papeis.
@@ -165,7 +188,10 @@ PERFIS_COM_GRUPO = ("Comissario",)
 #                       app/servicos/coordenacao.py.
 #
 # O nome vive na base e pode ser mudado la; se for mudado, mude aqui tambem.
-PERFIL_COMISSARIO = "Comissario"
+PERFIS_COMISSARIADO = ("Comissarios - coordenacao", "Comissarios - comissario")
+# O perfil cujo nome aparece primeiro na lista de responsaveis, e o unico que
+# e filtrado crianca a crianca.
+PERFIL_COMISSARIO = "Comissarios - comissario"
 PERFIL_COORDENACAO = "Coordenacao"
 
 

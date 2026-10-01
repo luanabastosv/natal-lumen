@@ -211,8 +211,8 @@ def main() -> None:
     coord = usuario("Coord", "Coordenacao")
     so_a = usuario("SoA", "Monitoria - monitores", [inst_a.id])
     # Dois comissarios: um com criancas na mao, outro sem nenhuma ainda.
-    com_a = usuario("ComA", "Comissario", [inst_a.id], grupo_id=grupo.id)
-    usuario("ComVazio", "Comissario", [inst_b.id], grupo_id=grupo.id)
+    com_a = usuario("ComA", "Comissarios - comissario", [inst_a.id], grupo_id=grupo.id)
+    usuario("ComVazio", "Comissarios - comissario", [inst_b.id], grupo_id=grupo.id)
 
     # A1 (completa) e A3 (sem nenhum padrinho) sao do ComA. A2 e as da B ficam
     # sem responsavel, para a linha "Sem comissario" ter o que contar.

@@ -223,7 +223,7 @@ def main() -> None:
 
         r = cc.post("/usuarios", json={
             "dados": {"nome": f"{MARCA} Comissario", "email": f"{MARCA.lower()}.com@exemplo.org"},
-            "vinculo": {"edicao_id": ed_for["id"], "perfil_id": perfis["Comissario"].id, "instituicoes": [inst_b["id"]]},
+            "vinculo": {"edicao_id": ed_for["id"], "perfil_id": perfis["Comissarios - comissario"].id, "instituicoes": [inst_b["id"]]},
         })
         verifica("coordenacao cria comissario na sua edicao", r.status_code == 201, r.text[:140])
         comissario = r.json()["usuario"] if r.status_code == 201 else None
@@ -283,7 +283,7 @@ def main() -> None:
                 "dados": {"nome": f"{MARCA} Comissario 2", "email": f"{MARCA.lower()}.c2@exemplo.org"},
                 "vinculo": {
                     "edicao_id": ed_for["id"],
-                    "perfil_id": perfis["Comissario"].id,
+                    "perfil_id": perfis["Comissarios - comissario"].id,
                     "instituicoes": [],
                     "grupo": "  élyon ",
                 },
