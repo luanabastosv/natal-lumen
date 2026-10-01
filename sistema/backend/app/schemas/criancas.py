@@ -49,7 +49,14 @@ class CriancaOut(BaseModel):
     # Preenchido = desistiu de ir. Aparece riscada na planilha, mas continua nela.
     desistiu_em: datetime | None = None
 
-    # Quem responde por esta crianca. Nulo = ninguem do time ainda pegou.
+    # Daqui para baixo, `None` quer dizer "nao e para voce": quem olha nao tem
+    # a permissao que revela aquele campo, e o servidor nem chega a manda-lo.
+    # Nao e a tela que esconde — ela so deixa de desenhar a coluna. Ver `_saida`
+    # em routers/criancas.py, que e onde a decisao acontece.
+    #
+    # Quem responde por esta crianca. Nulo tambem quando ninguem do time pegou,
+    # e os dois casos coincidem de proposito: nos dois a tela escreve a mesma
+    # coisa, e nenhuma delas e informacao sobre a crianca.
     comissario_id: int | None = None
     comissario: str | None = None
     # O grupo dele na comunidade, do vinculo com ESTA edicao. Nulo quando nao
@@ -58,15 +65,20 @@ class CriancaOut(BaseModel):
 
     # O panorama da crianca, para a tela ser um painel de controle e nao so
     # uma lista de nomes.
-    # Apadrinhamento que VALE: tem pagamento registrado.
-    tem_padrinho_cesta: bool = False
-    tem_padrinho_festa: bool = False
+    # Apadrinhamento que VALE: tem pagamento registrado. Nulo = sem
+    # `ver_padrinhos`.
+    tem_padrinho_cesta: bool | None = None
+    tem_padrinho_festa: bool | None = None
     # Prometido e ainda nao pago. Segura o lugar da crianca naquele tipo, mas
     # nao conta como apadrinhamento — ver servicos/apadrinhamento.py.
-    promessa_cesta: bool = False
-    promessa_festa: bool = False
+    promessa_cesta: bool | None = None
+    promessa_festa: bool | None = None
+    # Quantos cartoes ja foram digitalizados. Este fica de pe para todo mundo
+    # que ve a crianca: e o andamento do trabalho da monitoria, e nao diz nada
+    # sobre doador nenhum.
     cartoes: int = 0
-    kit_status: str = "pendente"
+    # Nulo = sem `gerenciar_kits`.
+    kit_status: str | None = None
 
 
 class PaginaCriancas(BaseModel):
@@ -131,9 +143,12 @@ class ResumoInstituicao(BaseModel):
     instituicao_id: int
     instituicao: str
     criancas: int
-    sem_padrinho: int
+    # Nulos pelo mesmo motivo do CriancaOut: quem nao tem `ver_padrinhos` nao
+    # recebe nem a conta. Somar o que nao se pode ver crianca a crianca ainda
+    # e ver — "3 sem padrinho" numa instituicao de 4 diz quem sao.
+    sem_padrinho: int | None = None
     sem_cartao: int
-    sem_comissario: int = 0
+    sem_comissario: int | None = None
     # O dia marcado para esta instituicao nesta edicao.
     dia_evento_id: int | None = None
     dia_evento: date | None = None
@@ -199,14 +214,20 @@ class CriancaDetalhe(BaseModel):
     comissario: str | None = None
     comissario_grupo: str | None = None
 
+    # Vazia para quem nao tem `ver_padrinhos`: nem os nomes, nem os valores,
+    # nem QUANTOS sao. A tela mostra no lugar uma linha dizendo que esta parte
+    # nao e daquele perfil.
     padrinhos: list[PadrinhoDaCrianca]
     cartoes: list[CartaoDaCrianca]
-    kit_status: str
-    kit_montado_em: datetime | None
+    # Nulos para quem nao tem `gerenciar_kits`.
+    kit_status: str | None = None
+    kit_montado_em: datetime | None = None
 
-    # O contato do padrinho so aparece para quem tem ver_padrinhos. Sem isto,
-    # um monitor veria o telefone de todos os doadores.
-    pode_ver_contato: bool
+    # A resposta da pergunta que decidiu tudo acima: este usuario tem
+    # `ver_padrinhos` nesta edicao? A tela usa a MESMA resposta para esconder a
+    # secao de padrinhos e a linha do comissario, em vez de perguntar de novo
+    # por conta propria e arriscar divergir do que o servidor mandou.
+    ve_captacao: bool
 
 
 class ComissarioDoTime(BaseModel):

@@ -317,7 +317,7 @@ def main() -> None:
         print("\n8. Identificador de importacao/cartao forjado")
         # Aqui e preciso um usuario que TENHA a permissao: se o 403 vier antes,
         # o teste nao chega a exercitar a validacao do identificador.
-        monitor = usuario("Monitor", "Monitor", ea.id, [ia.id])
+        monitor = usuario("Monitor", "Monitoria - monitores", ea.id, [ia.id])
         coord_a = usuario("CoordA", "Coordenacao", ea.id)
         db.commit()
 

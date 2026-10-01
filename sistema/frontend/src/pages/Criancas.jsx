@@ -125,6 +125,13 @@ export default function Criancas() {
   const [exclusao, definirExclusao] = useState(null);
 
   const podeEditar = pode("editar_criancas");
+  // Duas familias de coluna que nem todo perfil recebe. Quem decide e o
+  // servidor — sem a permissao os campos vem nulos —, e aqui a tela so deixa
+  // de desenhar o que nao viria preenchido. A monitoria e a estrutura caem
+  // nisto: nenhuma das duas trabalha com padrinho, e a monitoria tambem nao
+  // com kit.
+  const veCaptacao = pode("ver_padrinhos");
+  const veKit = pode("gerenciar_kits");
 
   // No celular a planilha inteira nao cabe: ficam de pe as tres colunas que
   // fazem alguem reconhecer a crianca e saber o que falta nela — codigo, nome
@@ -381,10 +388,14 @@ export default function Criancas() {
           <div className="pagina__eyebrow">Dados sensíveis</div>
           <h1 className="pagina__titulo">Crianças</h1>
           <Rabisco className="pagina__onda" />
+          {/* Prometer edicao a quem so le e mandar a pessoa clicar numa celula
+              que nao vai responder. A monitoria so enxerga a lista. */}
           <p className="pagina__lede">
             {estreita
               ? "Uma aba por instituição. Toque em Ver ficha para o resto dos dados da criança."
-              : "Uma aba por instituição. Clique na célula para editar — Enter salva, Esc desfaz."}
+              : podeEditar
+                ? "Uma aba por instituição. Clique na célula para editar — Enter salva, Esc desfaz."
+                : "Uma aba por instituição. Clique no olho para ver a ficha completa da criança."}
           </p>
         </div>
 
@@ -438,7 +449,11 @@ export default function Criancas() {
                 definirPagina(1);
                 definirMarcadas([]);
               }}
-              title={`${a.sem_padrinho} sem padrinho · ${a.sem_cartao} sem cartão`}
+              title={
+                veCaptacao
+                  ? `${a.sem_padrinho} sem padrinho · ${a.sem_cartao} sem cartão`
+                  : `${a.sem_cartao} sem cartão`
+              }
             >
               <span>
                 {a.instituicao}
@@ -654,17 +669,17 @@ export default function Criancas() {
                     <col style={{ width: 58 }} />
                     <col style={{ width: 112 }} />
                     <col style={{ width: 190 }} />
+                  </>
+                )}
+                {veCaptacao && !estreita && (
+                  <>
                     <col style={{ width: 150 }} />
                     <col style={{ width: 120 }} />
                   </>
                 )}
-                <col style={{ width: estreita ? 62 : 84 }} />
-                {!estreita && (
-                  <>
-                    <col style={{ width: 72 }} />
-                    <col style={{ width: 72 }} />
-                  </>
-                )}
+                {veCaptacao && <col style={{ width: estreita ? 62 : 84 }} />}
+                {!estreita && <col style={{ width: 72 }} />}
+                {veKit && !estreita && <col style={{ width: 72 }} />}
                 {/* Condicional junto com o <th>: um <col> a mais que as celulas
                     nao some — vira uma coluna vazia no fim, e a planilha
                     parece nao alcancar a borda do container. */}
@@ -696,6 +711,10 @@ export default function Criancas() {
                       <th>Sexo</th>
                       <th>Dia</th>
                       <th>Instituição</th>
+                    </>
+                  )}
+                  {veCaptacao && !estreita && (
+                    <>
                       <th title="Comissário responsável por esta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
                         Comissário
                       </th>
@@ -704,13 +723,9 @@ export default function Criancas() {
                       </th>
                     </>
                   )}
-                  <th title="Padrinho de cesta e de festa">Padrinhos</th>
-                  {!estreita && (
-                    <>
-                      <th title="Cartões digitalizados, de 2">Cartões</th>
-                      <th>Kit</th>
-                    </>
-                  )}
+                  {veCaptacao && <th title="Padrinho de cesta e de festa">Padrinhos</th>}
+                  {!estreita && <th title="Cartões digitalizados, de 2">Cartões</th>}
+                  {veKit && !estreita && <th>Kit</th>}
                   {mostrarCheckin && !estreita && <th>Check-in</th>}
                   <th className="planilha__acoes" />
                 </tr>
@@ -819,6 +834,10 @@ export default function Criancas() {
                           {c.instituicao}
                         </span>
                       </td>
+                      </>
+                    )}
+                    {veCaptacao && !estreita && (
+                      <>
                       <td>
                         {/* Responsavel por ESTA crianca. Nao muda quem alcanca o
                             que: o time inteiro da instituicao continua vendo e
@@ -860,31 +879,32 @@ export default function Criancas() {
                       </td>
                       </>
                     )}
-                    <td>
-                      {/* O cursor de "aqui nao se clica" so vale onde a celula
-                          e mesmo o alvo. No celular o alvo e a linha, e ela
-                          toda mostra a mao. */}
-                      <span
-                        className="celula"
-                        style={estreita ? undefined : { cursor: "default" }}
-                      >
-                        <Marcador
-                          letra="C"
-                          tipo="cesta"
-                          feito={c.tem_padrinho_cesta}
-                          prometido={c.promessa_cesta}
-                        />
-                        <Marcador
-                          letra="F"
-                          tipo="festa"
-                          feito={c.tem_padrinho_festa}
-                          prometido={c.promessa_festa}
-                        />
-                      </span>
-                    </td>
+                    {veCaptacao && (
+                      <td>
+                        {/* O cursor de "aqui nao se clica" so vale onde a celula
+                            e mesmo o alvo. No celular o alvo e a linha, e ela
+                            toda mostra a mao. */}
+                        <span
+                          className="celula"
+                          style={estreita ? undefined : { cursor: "default" }}
+                        >
+                          <Marcador
+                            letra="C"
+                            tipo="cesta"
+                            feito={c.tem_padrinho_cesta}
+                            prometido={c.promessa_cesta}
+                          />
+                          <Marcador
+                            letra="F"
+                            tipo="festa"
+                            feito={c.tem_padrinho_festa}
+                            prometido={c.promessa_festa}
+                          />
+                        </span>
+                      </td>
+                    )}
                     {!estreita && (
-                      <>
-                        <td>
+                      <td>
                         <span className="celula" style={{ cursor: "default" }}>
                           <span
                             className={`marcador ${
@@ -895,6 +915,8 @@ export default function Criancas() {
                           </span>
                         </span>
                       </td>
+                    )}
+                    {veKit && !estreita && (
                       <td>
                         <span className="celula" style={{ cursor: "default" }}>
                           <span
@@ -902,11 +924,13 @@ export default function Criancas() {
                               c.kit_status === "montado" ? "marcador--feito" : ""
                             }`}
                           >
-                            {c.kit_status.slice(0, 4)}
+                            {/* Nulo nao deveria chegar aqui — a coluna so
+                                existe para quem recebe o campo —, mas um
+                                `.slice` em nulo derruba a planilha inteira. */}
+                            {(c.kit_status ?? "").slice(0, 4)}
                           </span>
                         </span>
                       </td>
-                      </>
                     )}
                     {mostrarCheckin && !estreita && (
                       <td>

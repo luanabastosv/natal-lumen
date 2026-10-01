@@ -90,16 +90,31 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                 "sem dia marcado"
               )}
             </dd>
-            <dt>Comissário</dt>
-            <dd>
-              {ficha.comissario ?? "sem responsável"}
-              {ficha.comissario_grupo && ` · ${ficha.comissario_grupo}`}
-            </dd>
-            <dt>Kit</dt>
-            <dd>
-              {ficha.kit_status}
-              {ficha.kit_montado_em && ` · ${formatarDataHora(ficha.kit_montado_em)}`}
-            </dd>
+            {/* Quem responde pela crianca e assunto da captacao, e so chega a
+                quem capta — para a monitoria e para a estrutura o campo vem
+                nulo e a linha nem existe. Quem manda e o servidor: `pode_ver_
+                contato` e a MESMA pergunta que decidiu o que veio, e por isso
+                a tela nao a refaz por conta propria. */}
+            {ficha.ve_captacao && (
+              <>
+                <dt>Comissário</dt>
+                <dd>
+                  {ficha.comissario ?? "sem responsável"}
+                  {ficha.comissario_grupo && ` · ${ficha.comissario_grupo}`}
+                </dd>
+              </>
+            )}
+            {/* Nulo aqui nao e "kit pendente": e "este perfil nao monta kit".
+                Pendente viria escrito. */}
+            {ficha.kit_status !== null && (
+              <>
+                <dt>Kit</dt>
+                <dd>
+                  {ficha.kit_status}
+                  {ficha.kit_montado_em && ` · ${formatarDataHora(ficha.kit_montado_em)}`}
+                </dd>
+              </>
+            )}
             <dt>Check-in</dt>
             <dd>{ficha.checkin_em ? formatarDataHora(ficha.checkin_em) : "não fez"}</dd>
             {ficha.observacoes && (
@@ -110,10 +125,16 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
             )}
           </dl>
 
-          {/* A conta e dos CONFIRMADOS: promessa nao e apadrinhamento, e um
+          {/* A secao inteira some para quem nao capta — nem a conta aparece.
+              "0 de 2" ja seria informacao sobre o apadrinhamento desta crianca,
+              e e justamente isso que a monitoria e a estrutura nao recebem.
+
+              A conta e dos CONFIRMADOS: promessa nao e apadrinhamento, e um
               "2 de 2" contando promessa diria que esta crianca esta pronta
               quando ainda ha dinheiro a entrar. As promessas aparecem logo
               abaixo, uma a uma, com a etiqueta delas. */}
+          {ficha.ve_captacao && (
+            <>
           <div className="ficha__secao">
             Padrinhos ({ficha.padrinhos.filter((p) => p.pago).length} de 2)
           </div>
@@ -138,7 +159,7 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                       {p.pago ? "confirmado" : "promessa · falta pagar"}
                     </span>{" "}
                     <span className="etiqueta etiqueta--neutra">{dinheiro(p.valor)}</span>
-                    {ficha.pode_ver_contato && (p.whatsapp || p.email) && (
+                    {ficha.ve_captacao && (p.whatsapp || p.email) && (
                       <div style={{ marginTop: 6 }}>
                         {p.whatsapp &&
                           (zap ? (
@@ -165,12 +186,8 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                 </Mensagem>
               )}
 
-              {!ficha.pode_ver_contato && (
-                <p className="campo__dica" style={{ marginTop: 0 }}>
-                  O nome e o contato do padrinho só aparecem para quem tem permissão de
-                  ver padrinhos.
-                </p>
-              )}
+            </>
+          )}
             </>
           )}
 

@@ -57,6 +57,15 @@ PERMISSOES: dict[str, str] = {
     "gerenciar_cadastros": "Cadastrar instituicoes e os dias do evento da edicao",
 }
 
+# As duas monitorias tem a MESMA lista de permissoes: o que as separa e o
+# alcance, nao o que cada uma faz. Escrita uma vez para que as duas nao possam
+# divergir numa linha solta.
+MONITORIA = (
+    "ver_criancas",
+    "subir_cartoes",
+    "fazer_checkin",
+)
+
 # nome do perfil -> (descricao, permissoes)
 # Vem da especificacao, com duas mudancas pedidas depois. A primeira: o
 # comissario perdeu registrar_pagamentos e fazer_checkin — o caixa da edicao e a
@@ -72,8 +81,11 @@ PERMISSOES: dict[str, str] = {
 # Nota: ver_painel vale para a coordenacao e para o comissario, e os dois veem
 # coisas diferentes com ela — a coordenacao, a edicao inteira; o comissario, so
 # as criancas atribuidas a ele, porque o painel passa pelo mesmo filtro das
-# telas. Monitor e estrutura seguem sem. Para abrir para eles e acrescentar
-# "ver_painel" aqui (ou na base, sem mexer no codigo).
+# telas. As monitorias e a estrutura seguem sem — o painel delas ainda esta
+# por definir. Para abrir e acrescentar "ver_painel" aqui (ou na base, sem
+# mexer no codigo), mas antes vale escolher o que cada uma veria ali: o painel
+# de hoje e o da captacao, e mostraria a elas numero de padrinho e de dinheiro
+# que nenhuma das duas alcanca nas telas.
 PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
     "Coordenacao": (
         "Coordenacao da cidade: todas as permissoes, em todas as edicoes dela",
@@ -93,13 +105,22 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
             "enviar_cartoes",
         ),
     ),
-    "Monitor": (
-        "Recolhe e digitaliza os cartoes das criancas",
-        (
-            "ver_criancas",
-            "subir_cartoes",
-            "fazer_checkin",
-        ),
+    # A monitoria se parte em dois desde 01/10/2026, e a diferenca entre os
+    # dois e SO o alcance — as permissoes sao as mesmas. Quem coordena a
+    # monitoria precisa da edicao inteira (abre qualquer pasta de cartao, faz
+    # check-in de qualquer instituicao); o monitor responde por uma
+    # instituicao, e normalmente em dupla ou trio.
+    #
+    # Nenhum dos dois ve padrinho nem kit: as colunas sumem sozinhas, porque
+    # quem decide isso e a permissao, nao o perfil. Ver `_saida` em
+    # routers/criancas.py.
+    "Monitoria - coordenacao": (
+        "Coordena a monitoria: todas as instituicoes da edicao",
+        MONITORIA,
+    ),
+    "Monitoria - monitores": (
+        "Recolhe e digitaliza os cartoes das instituicoes sob sua responsabilidade",
+        MONITORIA,
     ),
     "Estrutura": (
         "Compra e monta os kits e faz a entrega",
@@ -113,21 +134,23 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 # Perfis filtrados pelas instituicoes atribuidas em usuario_instituicao.
-# Coordenacao e Estrutura veem a edicao inteira.
-PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitor")
+# Coordenacao, Estrutura e a coordenacao da monitoria veem a edicao inteira.
+PERFIS_FILTRADOS_POR_INSTITUICAO = ("Comissario", "Monitoria - monitores")
 
 # Perfis filtrados tambem crianca a crianca: nao basta a instituicao estar
 # atribuida, a crianca tem de ter o nome dele em criancas.comissario_id.
 # So o comissario. O monitor continua vendo a instituicao inteira porque o
-# trabalho dele e da lista toda: recolher e digitalizar os cartoes do dia.
+# trabalho dele e da lista toda: recolher e digitalizar os cartoes do dia — e
+# porque uma instituicao costuma ter uma dupla ou um trio de monitores, que
+# precisam enxergar a mesma lista.
 #
 # Consequencia de proposito: crianca sem responsavel nao aparece para nenhum
 # comissario — ela so existe para a coordenacao, que e quem distribui a lista.
 PERFIS_FILTRADOS_POR_CRIANCA = ("Comissario",)
 
 # Perfis que respondem por um grupo da comunidade (usuario_edicao.grupo_id).
-# So o comissario: o monitor responde pela instituicao e a coordenacao pela
-# edicao inteira, e nenhum dos dois pertence a um grupo enquanto esta ali.
+# So o comissario: os monitores respondem pela instituicao e a coordenacao
+# pela edicao inteira, e nenhum deles pertence a um grupo enquanto esta ali.
 PERFIS_COM_GRUPO = ("Comissario",)
 
 # Os dois unicos lugares em que o sistema olha um perfil pelo NOME, e nao pela

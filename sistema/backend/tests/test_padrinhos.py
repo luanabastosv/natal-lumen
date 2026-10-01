@@ -142,7 +142,7 @@ def main() -> None:
     # O colega do mesmo TIME da Escola A: alcanca a mesma instituicao, mas
     # outras criancas.
     colega = usuario("Colega", "Comissario", [e1.id], [i1.id])
-    monitor = usuario("Monitor", "Monitor", [e1.id])
+    monitor = usuario("Monitor", "Monitoria - monitores", [e1.id])
     db.flush()
 
     # Quem responde por quem. Sem isto o comissario nao alcanca crianca nenhuma:

@@ -95,12 +95,20 @@ export default function Checkin() {
                 />
               </>
             )}
-            {" · "}
             {/* O kit e montado ou nao: o estado "entregue" saiu do sistema, e
-                a entrega no dia e este proprio check-in. */}
-            <span className={`etiqueta etiqueta--${resultado.kit_status === "montado" ? "ok" : "espera"}`}>
-              kit {resultado.kit_status}
-            </span>
+                a entrega no dia e este proprio check-in. Nulo quer dizer outra
+                coisa: quem esta na porta nao monta kit, e o estado dele nao e
+                assunto dessa pessoa. */}
+            {resultado.kit_status !== null && (
+              <>
+                {" · "}
+                <span
+                  className={`etiqueta etiqueta--${resultado.kit_status === "montado" ? "ok" : "espera"}`}
+                >
+                  kit {resultado.kit_status}
+                </span>
+              </>
+            )}
           </p>
 
           {resultado.avisos.length === 0 ? (

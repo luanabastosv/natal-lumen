@@ -470,8 +470,14 @@ def main() -> None:
         if entrada:
             verifica("identifica a crianca", entrada["nome"] == "Ana Clara")
             verifica("nao e repetido na primeira vez", entrada["ja_tinha_checkin"] is False)
-            verifica("avisa que nao tem padrinho",
-                     any("padrinho" in a for a in entrada["avisos"]), str(entrada["avisos"]))
+            # A estrutura monta kit, e nao capta: na porta ela recebe o aviso
+            # do kit e nao o do padrinho. Cada equipe so e avisada do proprio
+            # assunto — a mesma regra das colunas da planilha.
+            verifica("NAO avisa de padrinho a quem nao capta",
+                     not any("padrinho" in a for a in entrada["avisos"]),
+                     str(entrada["avisos"]))
+            verifica("mas recebe o estado do kit, que e o assunto dela",
+                     entrada["kit_status"] is not None, str(entrada["kit_status"]))
             verifica("avisa sobre os cartoes que faltam",
                      any("cartoes" in a for a in entrada["avisos"]), str(entrada["avisos"]))
             verifica("nao avisa do dia, porque e hoje",
@@ -488,6 +494,12 @@ def main() -> None:
         r = ce.post("/checkin", json={"codigo": "003", "edicao_id": edicao.id})
         verifica("avisa quando a crianca nao esta marcada em nenhum dia",
                  any("nenhum dia" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
+
+        # Quem capta continua sendo avisado: a restricao e por permissao, e nao
+        # um aviso que foi desligado para todo mundo.
+        r = cc.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        verifica("a coordenacao, que capta, E avisada do padrinho que falta",
+                 any("padrinho" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
 
         r = ce.post("/checkin", json={"codigo": "999", "edicao_id": edicao.id})
         verifica("codigo inexistente devolve 404", r.status_code == 404, str(r.status_code))

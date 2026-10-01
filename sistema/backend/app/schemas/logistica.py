@@ -74,6 +74,7 @@ class CheckinOut(BaseModel):
     dia_evento_descricao: str | None = None
     ja_tinha_checkin: bool
     checkin_em: datetime
-    kit_status: str
+    # Nulo = quem fez o check-in nao monta kit, e nao recebe o estado dele.
+    kit_status: str | None = None
     # Avisos para quem esta na porta: dia errado, sem padrinho, etc.
     avisos: list[str]

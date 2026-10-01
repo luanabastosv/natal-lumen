@@ -828,12 +828,12 @@ def main() -> None:
             verifica("mostra o tipo e se esta pago",
                      p0["tipo"] == "cesta" and p0["pago"] is False)
 
-        # O monitor tem ver_criancas mas NAO ver_padrinhos.
+        # O monitor tem ver_criancas mas NAO ver_padrinhos nem gerenciar_kits.
         monitor = Usuario(nome=f"{MARCA} Monitor", email=f"{MARCA.lower()}.mon@exemplo.org",
                           senha_hash=gerar_hash(SENHA))
         db.add(monitor); db.flush()
         vm = UsuarioEdicao(usuario_id=monitor.id, edicao_id=edicao.id,
-                           perfil_id=perfis["Monitor"].id)
+                           perfil_id=perfis["Monitoria - monitores"].id)
         db.add(vm); db.flush()
         db.add(UsuarioInstituicao(usuario_edicao_id=vm.id, instituicao_id=inst_a.id))
         db.commit()
@@ -843,19 +843,87 @@ def main() -> None:
         verifica("monitor abre a ficha", r.status_code == 200, str(r.status_code))
         do_monitor = r.json() if r.status_code == 200 else {}
 
-        if do_monitor.get("padrinhos"):
-            pm = do_monitor["padrinhos"][0]
-            verifica("monitor SABE que ha padrinho", pm["tipo"] == "cesta")
-            verifica("monitor NAO ve o nome do padrinho",
-                     f"{MARCA} Jose Doador" not in pm["nome"], pm["nome"])
-            verifica("monitor NAO ve o WhatsApp", pm["whatsapp"] is None, str(pm["whatsapp"]))
-            verifica("monitor NAO ve o email", pm["email"] is None, str(pm["email"]))
-            verifica("a ficha avisa que o contato esta oculto",
-                     do_monitor["pode_ver_contato"] is False)
+        # Nao e so o contato que some: e a existencia do apadrinhamento. Saber
+        # que ha UM padrinho de cesta ja e saber da captacao desta crianca, e
+        # numa ficha so a conta "1 de 2" nao esconde coisa nenhuma.
+        verifica("monitor NAO recebe padrinho nenhum na ficha",
+                 do_monitor.get("padrinhos") == [], str(do_monitor.get("padrinhos")))
+        verifica("a ficha diz que este perfil nao capta",
+                 do_monitor.get("ve_captacao") is False, str(do_monitor.get("ve_captacao")))
+        verifica("monitor NAO recebe o comissario responsavel",
+                 do_monitor.get("comissario") is None
+                 and do_monitor.get("comissario_id") is None,
+                 str(do_monitor.get("comissario")))
+        verifica("monitor NAO recebe o kit",
+                 do_monitor.get("kit_status") is None, str(do_monitor.get("kit_status")))
+        verifica("mas recebe os cartoes, que sao o trabalho dele",
+                 "cartoes" in do_monitor, str(list(do_monitor)[:4]))
+
+        r = cmon.get("/criancas", params={"edicao_id": edicao.id})
+        linha = next((i for i in r.json()["itens"] if i["id"] == ana["id"]), {})
+        verifica("na LISTA tambem nao vem padrinho",
+                 linha.get("tem_padrinho_cesta") is None
+                 and linha.get("promessa_cesta") is None,
+                 str(linha.get("tem_padrinho_cesta")))
+        verifica("na lista nao vem kit nem comissario",
+                 linha.get("kit_status") is None and linha.get("comissario") is None,
+                 str(linha.get("kit_status")))
+        verifica("na lista vem codigo, nome, idade, sexo, instituicao, dia e checkin",
+                 all(c in linha for c in ("codigo", "nome", "idade", "sexo",
+                                          "instituicao", "dia_evento", "checkin_em")))
+        verifica("e vem a conta de cartoes", linha.get("cartoes") == 0, str(linha.get("cartoes")))
+
+        # As portas dos fundos: a mesma informacao, por filtro e por resumo.
+        r = cmon.get("/criancas", params={"edicao_id": edicao.id, "sem_comissario": True})
+        verifica("monitor nao filtra por 'sem responsavel'",
+                 r.status_code == 403, str(r.status_code))
+        r = cmon.get("/criancas", params={"edicao_id": edicao.id, "comissario_id": coord.id})
+        verifica("monitor nao filtra por comissario",
+                 r.status_code == 403, str(r.status_code))
+        r = cmon.get("/criancas/comissarios", params={"edicao_id": edicao.id})
+        verifica("monitor nao lista o time de comissarios",
+                 r.status_code == 403, str(r.status_code))
+
+        r = cmon.get("/criancas/resumo-instituicoes", params={"edicao_id": edicao.id})
+        resumo = r.json() if r.status_code == 200 else []
+        verifica("monitor ve as abas das instituicoes dele", len(resumo) == 1, str(len(resumo)))
+        if resumo:
+            verifica("sem a conta de quem esta sem padrinho",
+                     resumo[0]["sem_padrinho"] is None, str(resumo[0]["sem_padrinho"]))
+            verifica("mas com a de quem esta sem cartao, que e o trabalho dele",
+                     isinstance(resumo[0]["sem_cartao"], int), str(resumo[0]["sem_cartao"]))
 
         r = cmon.get(f"/criancas/{bruno['id']}")
         verifica("monitor nao abre ficha de crianca fora do alcance",
                  r.status_code == 404, str(r.status_code))
+
+        print("\nMonitoria - coordenacao: a edicao inteira, e nada de captacao")
+        mcoord = criar_usuario("Mcoord", "Monitoria - coordenacao")
+        db.commit()
+        cmc = TestClient(app); entrar(cmc, mcoord.email)
+
+        r = cmc.get("/criancas/resumo-instituicoes", params={"edicao_id": edicao.id})
+        resumo_mc = r.json() if r.status_code == 200 else []
+        verifica("alcanca TODAS as instituicoes, sem instituicao atribuida",
+                 len(resumo_mc) == 2, str(len(resumo_mc)))
+
+        r = cmc.get(f"/criancas/{bruno['id']}")
+        verifica("abre a ficha de crianca de qualquer instituicao",
+                 r.status_code == 200, str(r.status_code))
+        ficha_mc = r.json() if r.status_code == 200 else {}
+        verifica("e mesmo assim nao ve padrinho",
+                 ficha_mc.get("padrinhos") == [] and ficha_mc.get("ve_captacao") is False,
+                 str(ficha_mc.get("ve_captacao")))
+        verifica("nem kit", ficha_mc.get("kit_status") is None, str(ficha_mc.get("kit_status")))
+
+        # A coordenacao continua vendo tudo: a restricao e por permissao, e nao
+        # um remendo que desligou a coluna para todo mundo.
+        r = cc.get("/criancas", params={"edicao_id": edicao.id})
+        linha_cc = next((i for i in r.json()["itens"] if i["id"] == ana["id"]), {})
+        verifica("a coordenacao segue recebendo padrinho e kit na lista",
+                 linha_cc.get("promessa_cesta") is True
+                 and linha_cc.get("kit_status") is not None,
+                 f"{linha_cc.get('promessa_cesta')} / {linha_cc.get('kit_status')}")
 
         print("\nDesistencia")
         r = cc.patch(f"/criancas/{ana['id']}/desistencia", json={"desistiu": True})

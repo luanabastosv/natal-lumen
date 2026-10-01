@@ -8,7 +8,7 @@
  *  Em arquivo proprio: um modulo que exporta componente e constante quebra o
  *  fast refresh do Vite.
  */
-export const PERFIS_POR_INSTITUICAO = ["Comissario", "Monitor"];
+export const PERFIS_POR_INSTITUICAO = ["Comissario", "Monitoria - monitores"];
 
 export function pedeInstituicoes(perfil) {
   return PERFIS_POR_INSTITUICAO.includes(perfil?.nome);
@@ -64,7 +64,12 @@ export function valeCidadeInteira(perfil) {
 const ROTULOS = {
   Coordenacao: "Coordenação",
   Comissario: "Comissário",
-  Monitor: "Monitor",
+  // A monitoria e um par: quem coordena alcanca a edicao inteira, os
+  // monitores so as instituicoes deles. O rotulo precisa deixar isso obvio na
+  // hora de dar acesso, que e o unico momento em que alguem escolhe entre os
+  // dois.
+  "Monitoria - coordenacao": "Monitoria - coordenação",
+  "Monitoria - monitores": "Monitoria - monitores",
   Estrutura: "Estrutura",
   // Nao e um perfil da base: e o atributo da conta que alcanca tudo. Aparece
   // aqui porque a lista de responsaveis por crianca mistura os dois.

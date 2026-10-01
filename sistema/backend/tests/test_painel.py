@@ -209,7 +209,7 @@ def main() -> None:
     db.add(grupo); db.flush()
 
     coord = usuario("Coord", "Coordenacao")
-    so_a = usuario("SoA", "Monitor", [inst_a.id])
+    so_a = usuario("SoA", "Monitoria - monitores", [inst_a.id])
     # Dois comissarios: um com criancas na mao, outro sem nenhuma ainda.
     com_a = usuario("ComA", "Comissario", [inst_a.id], grupo_id=grupo.id)
     usuario("ComVazio", "Comissario", [inst_b.id], grupo_id=grupo.id)
@@ -352,7 +352,7 @@ def main() -> None:
         # no fim.
         from app.models import Permissao
 
-        perfil_monitor = perfis["Monitor"]
+        perfil_monitor = perfis["Monitoria - monitores"]
         ver_painel = db.scalar(select(Permissao).where(Permissao.codigo == "ver_painel"))
         perfil_monitor.permissoes.append(ver_painel)
         db.commit()

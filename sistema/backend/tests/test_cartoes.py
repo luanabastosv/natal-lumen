@@ -165,7 +165,7 @@ def main() -> None:
             db.add(UsuarioInstituicao(usuario_edicao_id=v.id, instituicao_id=i))
         return u
 
-    monitor = usuario("Monitor", "Monitor", [inst_a.id])
+    monitor = usuario("Monitor", "Monitoria - monitores", [inst_a.id])
     comissario = usuario("Comissario", "Comissario", [inst_a.id])
     # Sem instituicao atribuida: a coordenacao alcanca a edicao inteira.
     coord = usuario("Coord", "Coordenacao")

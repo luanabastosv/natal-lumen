@@ -103,8 +103,31 @@ def _grupo_do_comissario(crianca: Crianca) -> str | None:
     return None
 
 
-def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
+def _ve_padrinho(ctx: ContextoAcesso, edicao_id: int) -> bool:
+    """Quem nao capta nao recebe dado de captacao.
+
+    Vale para o monitor e para a estrutura: nenhum dos dois trabalha com
+    padrinho, e dado que nao chega a tela e dado que nao vaza por ela. Por
+    EDICAO, e nao pelo usuario inteiro: a mesma pessoa pode coordenar uma
+    edicao e so monitorar a seguinte.
+
+    Leva junto o comissario responsavel, que e a outra ponta do mesmo assunto:
+    quem respondeu por aquela crianca na captacao.
+    """
+    return ctx.alcanca_edicao(edicao_id, "ver_padrinhos")
+
+
+def _ve_kit(ctx: ContextoAcesso, edicao_id: int) -> bool:
+    """Mesma ideia, do lado da estrutura: so quem monta kit ve o kit."""
+    return ctx.alcanca_edicao(edicao_id, "gerenciar_kits")
+
+
+def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) -> CriancaOut:
     extra = panorama or {}
+    # As duas perguntas sao feitas aqui, no unico lugar por onde a crianca sai
+    # para a tela da lista: assim nao ha rota que esqueca de perguntar.
+    padrinho = _ve_padrinho(ctx, crianca.edicao_id)
+    kit = _ve_kit(ctx, crianca.edicao_id)
     return CriancaOut(
         id=crianca.id,
         edicao_id=crianca.edicao_id,
@@ -120,15 +143,15 @@ def _saida(crianca: Crianca, panorama: dict | None = None) -> CriancaOut:
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
         desistiu_em=crianca.desistiu_em,
-        comissario_id=crianca.comissario_id,
-        comissario=crianca.comissario.nome if crianca.comissario else None,
-        comissario_grupo=_grupo_do_comissario(crianca),
-        tem_padrinho_cesta=extra.get("cesta", False),
-        tem_padrinho_festa=extra.get("festa", False),
-        promessa_cesta=extra.get("promessa_cesta", False),
-        promessa_festa=extra.get("promessa_festa", False),
+        comissario_id=crianca.comissario_id if padrinho else None,
+        comissario=(crianca.comissario.nome if crianca.comissario else None) if padrinho else None,
+        comissario_grupo=_grupo_do_comissario(crianca) if padrinho else None,
+        tem_padrinho_cesta=extra.get("cesta", False) if padrinho else None,
+        tem_padrinho_festa=extra.get("festa", False) if padrinho else None,
+        promessa_cesta=extra.get("promessa_cesta", False) if padrinho else None,
+        promessa_festa=extra.get("promessa_festa", False) if padrinho else None,
         cartoes=extra.get("cartoes", 0),
-        kit_status=extra.get("kit", "pendente"),
+        kit_status=extra.get("kit", "pendente") if kit else None,
     )
 
 
@@ -344,6 +367,19 @@ def listar(
         condicao = condicao & (Crianca.instituicao_id == instituicao_id)
     if dia_evento_id is not None:
         condicao = condicao & (Crianca.dia_evento_id == dia_evento_id)
+    # Filtrar por responsavel e a mesma informacao que a coluna Comissario, so
+    # que pela porta de tras: quem nao recebe a coluna tambem nao pergunta por
+    # ela. Sem isto, bastava filtrar "sem responsavel" para descobrir quais
+    # criancas ainda nao foram pegas por ninguem.
+    # Sem edicao escolhida a pergunta e sobre o usuario inteiro: so passa quem
+    # capta em alguma edicao. Com edicao, vale a daquela edicao — a mesma
+    # pessoa pode coordenar uma e so monitorar a seguinte.
+    capta = _ve_padrinho(ctx, edicao_id) if edicao_id is not None else ctx.pode("ver_padrinhos")
+    if (comissario_id is not None or sem_comissario) and not capta:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Este perfil nao trabalha com comissario responsavel.",
+        )
     if comissario_id is not None:
         condicao = condicao & (Crianca.comissario_id == comissario_id)
     if sem_comissario:
@@ -389,7 +425,7 @@ def listar(
     return PaginaCriancas(
         total=total, pagina=pagina, por_pagina=por_pagina,
         com_checkin=com_checkin,
-        itens=[_saida(c, panorama.get(c.id)) for c in itens],
+        itens=[_saida(c, ctx, panorama.get(c.id)) for c in itens],
     )
 
 
@@ -401,6 +437,9 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
     esta o atraso — nao abrir aba por aba para descobrir.
     """
     alcance = ctx.filtro_criancas("ver_criancas") & (Crianca.edicao_id == edicao_id)
+    # A conta tambem e dado: "3 das 4 sem padrinho" numa instituicao pequena
+    # diz quase quem sao. Quem nao alcanca a coluna nao alcanca o resumo dela.
+    pode_padrinho = _ve_padrinho(ctx, edicao_id)
 
     # "Com padrinho" quer dizer apadrinhamento que vale: o que so foi prometido
     # e trabalho que ainda falta, e e justamente o atraso que estas abas existem
@@ -447,7 +486,9 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
     return [
         ResumoInstituicao(
             instituicao_id=i, instituicao=nome, criancas=total,
-            sem_padrinho=sp, sem_cartao=sc, sem_comissario=scom,
+            sem_padrinho=sp if pode_padrinho else None,
+            sem_cartao=sc,
+            sem_comissario=scom if pode_padrinho else None,
             dia_evento_id=dias_marcados.get(i, (None, None, None))[0],
             dia_evento=dias_marcados.get(i, (None, None, None))[1],
             dia_evento_descricao=dias_marcados.get(i, (None, None, None))[2],
@@ -466,7 +507,17 @@ def comissarios_da_edicao(db: BD, ctx: Ver, edicao_id: int):
     Os comissarios vem primeiro porque sao a escolha do dia a dia; coordenacao
     e administracao geral ficam no fim da lista, onde nao atrapalham quem esta
     distribuindo mil criancas pelo time.
+
+    Pede `ver_padrinhos`, e nao so `ver_criancas`: quem e o responsavel por uma
+    crianca e assunto da captacao, e a monitoria e a estrutura nao recebem essa
+    coluna nem este seletor. A tela trata a recusa calada — o filtro de
+    responsavel simplesmente nao aparece.
     """
+    if not _ve_padrinho(ctx, edicao_id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Este perfil nao trabalha com comissario responsavel.",
+        )
     if not ctx.alcanca_edicao(edicao_id, "ver_criancas"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
@@ -562,7 +613,7 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: Editar):
         .order_by(Crianca.nome)
     ).all()
     panorama = _panorama(db, [c.id for c in atualizadas])
-    return [_saida(c, panorama.get(c.id)) for c in atualizadas]
+    return [_saida(c, ctx, panorama.get(c.id)) for c in atualizadas]
 
 
 @router.post("/renumerar", response_model=list[CriancaOut])
@@ -652,7 +703,7 @@ def renumerar(dados: RenumerarIn, db: BD, ctx: Editar):
         .order_by(Crianca.codigo)
     ).all()
     panorama = _panorama(db, [c.id for c in atualizadas])
-    return [_saida(c, panorama.get(c.id)) for c in atualizadas]
+    return [_saida(c, ctx, panorama.get(c.id)) for c in atualizadas]
 
 
 @router.get("/{crianca_id}", response_model=CriancaDetalhe)
@@ -666,9 +717,12 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
     if crianca is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
 
-    # O contato do padrinho e dado de quem doa, nao da crianca: quem so tem
-    # ver_criancas fica sabendo QUE ha padrinho, mas nao quem e nem o telefone.
-    pode_contato = ctx.pode("ver_padrinhos")
+    # Padrinho e dado de quem doa, nao da crianca. Quem nao capta nao recebe
+    # nada dessa parte — nem os nomes, nem os valores, nem quantos sao: a conta
+    # sozinha ja entrega o que a lista esconde ("1 de 2") e, numa crianca so,
+    # entrega tudo. A tela poe no lugar uma linha dizendo de quem e esse pedaco.
+    pode_contato = _ve_padrinho(ctx, crianca.edicao_id)
+    pode_kit = _ve_kit(ctx, crianca.edicao_id)
 
     apadrinhamentos = db.execute(
         select(Apadrinhamento, Padrinho)
@@ -677,16 +731,16 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         .order_by(Apadrinhamento.tipo)
     ).all()
 
-    padrinhos = [
+    padrinhos = [] if not pode_contato else [
         PadrinhoDaCrianca(
             apadrinhamento_id=a.id,
             tipo=a.tipo,
             valor=a.valor,
             pago=confirmado(a),
             padrinho_id=p.id,
-            nome=p.nome if pode_contato else "(sem permissao para ver)",
-            whatsapp=p.whatsapp if pode_contato else None,
-            email=p.email if pode_contato else None,
+            nome=p.nome,
+            whatsapp=p.whatsapp,
+            email=p.email,
         )
         for a, p in apadrinhamentos
     ]
@@ -712,9 +766,11 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
         desistiu_em=crianca.desistiu_em,
-        comissario_id=crianca.comissario_id,
-        comissario=crianca.comissario.nome if crianca.comissario else None,
-        comissario_grupo=_grupo_do_comissario(crianca),
+        comissario_id=crianca.comissario_id if pode_contato else None,
+        comissario=(
+            (crianca.comissario.nome if crianca.comissario else None) if pode_contato else None
+        ),
+        comissario_grupo=_grupo_do_comissario(crianca) if pode_contato else None,
         padrinhos=padrinhos,
         cartoes=[
             CartaoDaCrianca(
@@ -723,9 +779,9 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
             )
             for c in cartoes
         ],
-        kit_status=kit.status if kit else "pendente",
-        kit_montado_em=kit.montado_em if kit else None,
-        pode_ver_contato=pode_contato,
+        kit_status=(kit.status if kit else "pendente") if pode_kit else None,
+        kit_montado_em=(kit.montado_em if kit else None) if pode_kit else None,
+        ve_captacao=pode_contato,
     )
 
 
@@ -761,7 +817,7 @@ def criar(dados: CriancaIn, db: BD, ctx: Editar):
         detalhes={"codigo": crianca.codigo, "edicao_id": crianca.edicao_id},
     )
     db.commit()
-    return _saida(_buscar(db, ctx, crianca.id, "editar_criancas"))
+    return _saida(_buscar(db, ctx, crianca.id, "editar_criancas"), ctx)
 
 
 @router.patch("/{crianca_id}", response_model=CriancaOut)
@@ -791,7 +847,7 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: Editar):
         detalhes={"campos": sorted(mudancas)},
     )
     db.commit()
-    return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"))
+    return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"), ctx)
 
 
 @router.patch("/{crianca_id}/desistencia", response_model=CriancaOut)
@@ -824,7 +880,9 @@ def desistencia(crianca_id: int, dados: DesistenciaIn, db: BD, ctx: Editar):
     db.commit()
 
     panorama = _panorama(db, [crianca.id])
-    return _saida(_buscar(db, ctx, crianca_id, "editar_criancas"), panorama.get(crianca.id))
+    return _saida(
+        _buscar(db, ctx, crianca_id, "editar_criancas"), ctx, panorama.get(crianca.id)
+    )
 
 
 @router.get("/{crianca_id}/dependencias", response_model=DependenciasOut)

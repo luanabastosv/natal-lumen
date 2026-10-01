@@ -189,7 +189,7 @@ def main() -> None:
             "/usuarios",
             json={
                 "dados": {"nome": f"{MARCA} Monitor", "email": f"{MARCA.lower()}.monitor@exemplo.org"},
-                "vinculo": {"edicao_id": ed_for["id"], "perfil_id": perfis["Monitor"].id, "instituicoes": [inst_a["id"]]},
+                "vinculo": {"edicao_id": ed_for["id"], "perfil_id": perfis["Monitoria - monitores"].id, "instituicoes": [inst_a["id"]]},
             },
         )
         verifica("cria usuario com vinculo e instituicao", r.status_code == 201, r.text[:160])
@@ -230,7 +230,7 @@ def main() -> None:
 
         r = cc.post("/usuarios", json={
             "dados": {"nome": f"{MARCA} Intruso", "email": f"{MARCA.lower()}.int@exemplo.org"},
-            "vinculo": {"edicao_id": ed_cau["id"], "perfil_id": perfis["Monitor"].id, "instituicoes": []},
+            "vinculo": {"edicao_id": ed_cau["id"], "perfil_id": perfis["Monitoria - monitores"].id, "instituicoes": []},
         })
         verifica("coordenacao NAO cria usuario na edicao de outra cidade", r.status_code == 403)
 
@@ -306,7 +306,7 @@ def main() -> None:
                 # a funcao, sem a tela precisar pedir.
                 r = cc.patch(
                     f"/usuarios/{segundo['id']}/vinculos/{segundo['vinculos'][0]['id']}",
-                    json={"perfil_id": perfis["Monitor"].id},
+                    json={"perfil_id": perfis["Monitoria - monitores"].id},
                 )
                 v = r.json()["vinculos"][0] if r.status_code == 200 else {}
                 verifica(
@@ -354,7 +354,7 @@ def main() -> None:
             # Ele passa a trabalhar tambem em Caucaia, que esta coordenacao nao
             # gerencia: apagar a conta levaria junto um acesso que ela nao deu.
             r = ca.post(f"/usuarios/{comissario['id']}/vinculos", json={
-                "edicao_id": ed_cau["id"], "perfil_id": perfis["Monitor"].id, "instituicoes": [],
+                "edicao_id": ed_cau["id"], "perfil_id": perfis["Monitoria - monitores"].id, "instituicoes": [],
             })
             verifica("admin da um segundo vinculo", r.status_code == 201, r.text[:110])
             vinculo_caucaia = r.json()["vinculos"]

@@ -163,7 +163,7 @@ def montar_cenario(db) -> dict:
     db.add(v_com)
     # Monitor com vinculo, mas SEM instituicao atribuida ainda.
     db.add(UsuarioEdicao(
-        usuario_id=monitor.id, edicao_id=ed_for.id, perfil_id=perfis["Monitor"].id
+        usuario_id=monitor.id, edicao_id=ed_for.id, perfil_id=perfis["Monitoria - monitores"].id
     ))
     db.flush()
     db.add(UsuarioInstituicao(usuario_edicao_id=v_com.id, instituicao_id=inst_a.id))

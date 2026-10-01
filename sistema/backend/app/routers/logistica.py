@@ -305,16 +305,26 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     elif crianca.dia_evento is None:
         avisos.append("Esta crianca nao esta marcada em nenhum dia.")
 
+    # O check-in e feito por tres equipes diferentes, e cada uma recebe so os
+    # avisos do proprio assunto — a mesma regra das colunas da planilha, ver
+    # `_saida` em routers/criancas.py. Na pratica: a monitoria na porta nao fica
+    # sabendo do kit nem do padrinho daquela crianca.
+    ve_kit = ctx.alcanca_edicao(crianca.edicao_id, "gerenciar_kits")
+    ve_padrinho = ctx.alcanca_edicao(crianca.edicao_id, "ver_padrinhos")
+
     kit = db.scalar(select(Kit).where(Kit.crianca_id == crianca.id))
     kit_status = kit.status if kit else StatusKit.PENDENTE.value
-    if kit_status == StatusKit.PENDENTE.value:
+    if kit_status == StatusKit.PENDENTE.value and ve_kit:
         avisos.append("O kit dela ainda nao esta montado.")
 
-    padrinhos = db.scalar(
-        select(func.count()).select_from(Apadrinhamento).where(Apadrinhamento.crianca_id == crianca.id)
-    )
-    if not padrinhos:
-        avisos.append("Esta crianca nao tem padrinho.")
+    if ve_padrinho:
+        padrinhos = db.scalar(
+            select(func.count())
+            .select_from(Apadrinhamento)
+            .where(Apadrinhamento.crianca_id == crianca.id)
+        )
+        if not padrinhos:
+            avisos.append("Esta crianca nao tem padrinho.")
 
     cartoes = db.scalar(
         select(func.count()).select_from(Cartao).where(Cartao.crianca_id == crianca.id)
@@ -342,7 +352,7 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
         dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
         ja_tinha_checkin=ja_tinha,
         checkin_em=crianca.checkin_em,
-        kit_status=kit_status,
+        kit_status=kit_status if ve_kit else None,
         avisos=avisos,
     )
 
