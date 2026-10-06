@@ -4044,13 +4044,15 @@ textarea.campo__controle {
 
 /* O acento do primeiro nome continua sendo COR, nao amarelo: sobre fundo
    claro o amarelo em tipo da 1,6:1, e a regra vale igual aqui para que nao
-   existam duas gramaticas. O creme separa do branco sem virar tinta amarela. */
+   existam duas gramaticas. Azul clarinho, e nao creme: texto bege no banner
+   ficou feio, e o azul separa do branco sem sair da paleta do navy. */
 .abertura--arte .abertura__nome {
-  color: var(--text-on-dark-secondary);
+  color: var(--navy-200);
 }
 
+/* Todo o resto do texto do banner e branco. Nada de creme aqui. */
 .abertura--arte .abertura__lede {
-  color: var(--text-on-dark-secondary);
+  color: var(--text-on-dark-primary);
   /* Com a onda ao lado do titulo, nao ha mais nada separando a saudacao da
      lede — o respiro tem de vir da margem. */
   margin-top: var(--space-4);
@@ -4085,7 +4087,7 @@ textarea.campo__controle {
 .abertura--arte .chip--discreto {
   background: transparent;
   border-color: var(--border-dark);
-  color: var(--text-on-dark-secondary);
+  color: var(--text-on-dark-primary);
 }
 
 /* A contagem para a festa. O marcador e amarelo; a letra, nao — amarelo e
@@ -4338,10 +4340,14 @@ textarea.campo__controle {
 }
 
 /* O total da edicao e o numero de onde todos os outros saem: ele abre a
-   fileira com tinta quente atras, para nao se perder entre iguais. */
+   fileira com um fundo azul clarinho, para nao se perder entre iguais. Era
+   creme, e fundo bege no painel ficou feio. E o navy-50, o mais clarinho da
+   escala: com o navy-100 o card pesava demais ao lado dos outros. A borda e
+   que marca o destaque, em navy-500: forte o bastante para o card se separar
+   da fileira mesmo com o fundo quase branco. */
 .metrica--destaque {
-  background: var(--surface-card-alt);
-  border-color: var(--border-light);
+  background: var(--navy-50);
+  border-color: var(--navy-500);
 }
 
 .metrica__rotulo {
