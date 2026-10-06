@@ -4615,3 +4615,119 @@ textarea.campo__controle {
    saia Letter retrato mesmo com a regra escrita. Quem escreve a regra e o
    proprio componente de impressao, num <style> montado na hora com a
    orientacao escolhida. Uma `@page` sem nome funciona em todo lugar. */
+
+/* ---------- Lista de check-in do monitor ----------
+ *
+ * Feita para o celular, no onibus, com uma mao so e a outra segurando uma
+ * crianca. O botao tem 48px — o alvo de dedo que o iOS e o Android pedem, e o
+ * mesmo `--control-h` dos campos — e ocupa a coluna inteira: errar o toque por
+ * alguns milimetros num onibus em movimento nao pode ser o motivo de uma
+ * crianca ficar sem presenca.
+ */
+.checkin-lista__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.checkin-lista__topo .campo {
+  flex: 1 1 220px;
+  max-width: 320px;
+  margin: 0;
+}
+
+.checkin-lista__contagem {
+  margin: 0;
+  font-size: var(--size-body-sm);
+}
+
+.checkin-lista td {
+  vertical-align: middle;
+}
+
+.checkin-lista td:first-child {
+  white-space: nowrap;
+}
+
+.checkin-lista__coluna-acao {
+  width: 1%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.checkin-lista__botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 2px solid var(--color-primary);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  /* Sem o atraso de toque duplo e sem o zoom que ele dispara. */
+  touch-action: manipulation;
+  transition: background-color var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+
+/* So no mouse: no toque o :hover gruda no ultimo circulo tocado, e o
+   circulo seguinte (o da crianca que ja confirmou) nascia clarinho. */
+@media (hover: hover) {
+  button.checkin-lista__botao:not(:disabled):hover {
+    background: var(--navy-100);
+  }
+}
+
+button.checkin-lista__botao:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+.checkin-lista__botao:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.checkin-lista__botao:disabled {
+  cursor: progress;
+}
+
+/* Confirmada: o mesmo circulo, cheio. Nao e botao, entao nao recebe toque —
+   um segundo toque nao desfaria nada, e so geraria um aviso de repetido. */
+.checkin-lista__botao--feito {
+  background: var(--color-primary);
+  color: #fff;
+  cursor: default;
+}
+
+.checkin-lista .campo__dica,
+.checkin-lista .campo__erro {
+  margin-top: 2px;
+}
+
+.checkin-lista__aviso {
+  display: block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-destaque);
+  color: var(--navy-900);
+  font-size: var(--size-caption);
+}
+
+/* No celular a coluna de acao manda: o rotulo comprido do cabecalho encolhe
+   para nao roubar largura do nome. */
+@media (max-width: 720px) {
+  .checkin-lista th.checkin-lista__coluna-acao {
+    white-space: normal;
+    width: 72px;
+  }
+
+  .checkin-lista__topo .campo {
+    max-width: none;
+  }
+}

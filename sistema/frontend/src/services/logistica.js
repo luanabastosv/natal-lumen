@@ -21,4 +21,12 @@ export const mudarKits = (criancas, status, observacoes = null) =>
 export const fazerCheckin = (codigo, edicaoId) =>
   api.post("/checkin", { codigo, edicao_id: edicaoId });
 
+/** Se hoje e dia do evento da edicao — o check-in so abre nesses dias. */
+export const checkinAberto = (edicaoId) =>
+  comFiltros("/checkin/aberto", { edicao_id: edicaoId });
+
+/** As criancas que o usuario pode receber, para o monitor confirmar uma a uma. */
+export const listaDoCheckin = (edicaoId) =>
+  comFiltros("/checkin/lista", { edicao_id: edicaoId });
+
 export const urlDoQrCode = (criancaId) => `${API_URL}/checkin/qrcode/${criancaId}`;

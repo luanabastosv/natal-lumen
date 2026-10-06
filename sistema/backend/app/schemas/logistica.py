@@ -65,6 +65,39 @@ class CheckinIn(BaseModel):
     edicao_id: int
 
 
+class DiaCheckin(BaseModel):
+    data: date
+    descricao: str | None = None
+
+
+class CheckinAberto(BaseModel):
+    """Se o check-in desta edicao esta aberto hoje, e quando ele abre."""
+
+    aberto: bool
+    # O dia de hoje no fuso de Sao Paulo, que e o que vale para o evento.
+    hoje: date
+    # Os dias do evento da edicao, para a tela dizer quando o check-in abre.
+    dias: list[DiaCheckin]
+
+
+class CheckinLinha(BaseModel):
+    """Uma crianca na lista de check-in do monitor.
+
+    So o que se le de relance no onibus: codigo, nome e se ja confirmou. Kit e
+    padrinho nao entram — nao sao assunto da monitoria.
+    """
+
+    crianca_id: int
+    codigo: str
+    nome: str
+    instituicao_id: int
+    instituicao: str
+    checkin_em: datetime | None
+    # Quem desistiu continua na lista, riscado, como nas outras telas: some-la
+    # faria a conta do monitor nao bater com a lista de papel.
+    desistiu_em: datetime | None
+
+
 class CheckinOut(BaseModel):
     crianca_id: int
     nome: str

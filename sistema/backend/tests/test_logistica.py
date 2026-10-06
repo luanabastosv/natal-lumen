@@ -136,6 +136,7 @@ def main() -> None:
     comissario = usuario("Comissario", "Comissarios - comissario")
     # Os recebimentos sao da coordenacao: e a mesma permissao dos pagamentos.
     coord = usuario("Coord", "Coordenacao")
+    monitor = usuario("Monitor", "Monitoria - monitores")
     padrinho = Padrinho(edicao_id=edicao.id, nome=f"{MARCA} Padrinho")
     db.add(padrinho); db.flush()
     # No Bruno e na Carla, nunca na Ana: o check-in dela confere justamente o
@@ -159,6 +160,7 @@ def main() -> None:
         ce = TestClient(app); entrar(ce, estrutura.email)
         ck = TestClient(app); entrar(ck, comissario.email)
         cc = TestClient(app); entrar(cc, coord.email)
+        cm = TestClient(app); entrar(cm, monitor.email)
 
         print("\nKits")
         r = ce.get("/kits")
@@ -512,6 +514,62 @@ def main() -> None:
         verifica("gera o QR code", r.status_code == 200 and r.headers["content-type"] == "image/png",
                  str(r.status_code))
         verifica("o PNG tem conteudo", len(r.content) > 200, str(len(r.content)))
+
+        print("\nLista de check-in do monitor")
+        # Uma escola que NAO e do monitor, criada so agora para nao mexer nas
+        # contas de kit la de cima.
+        inst_b = Instituicao(cidade_id=cidade.id, nome=f"{MARCA} Escola B"); db.add(inst_b); db.flush()
+        db.add(Crianca(edicao_id=edicao.id, instituicao_id=inst_b.id, dia_evento_id=hoje.id,
+                       codigo="004", nome="Davi Rocha", idade=9, sexo="M"))
+        db.commit()
+
+        r = cm.get("/checkin/lista", params={"edicao_id": edicao.id})
+        verifica("o monitor recebe a lista", r.status_code == 200, r.text[:130])
+        lista = r.json() if r.status_code == 200 else []
+        verifica("so com as criancas da instituicao dele",
+                 [l["codigo"] for l in lista] == ["001", "002", "003"], str([l["codigo"] for l in lista]))
+        ana_na_lista = next((l for l in lista if l["codigo"] == "001"), {})
+        verifica("quem ja fez check-in vem marcado", ana_na_lista.get("checkin_em") is not None)
+        verifica("e a linha nao fala de kit nem de padrinho",
+                 not {"kit_status", "padrinhos"} & set(ana_na_lista), str(sorted(ana_na_lista)))
+
+        r = cm.post("/checkin", json={"codigo": "004", "edicao_id": edicao.id})
+        verifica("o monitor NAO confirma crianca de outra escola", r.status_code == 404, str(r.status_code))
+
+        r = cc.get("/checkin/lista", params={"edicao_id": edicao.id})
+        verifica("a coordenacao alcanca a edicao inteira", len(r.json()) == 4, str(len(r.json())))
+
+        r = ck.get("/checkin/lista", params={"edicao_id": edicao.id})
+        verifica("comissario NAO ve a lista de check-in", r.status_code == 403, str(r.status_code))
+
+        print("\nCheck-in so no dia do evento")
+        r = cm.get("/checkin/aberto", params={"edicao_id": edicao.id})
+        verifica("hoje e dia do evento: o check-in esta aberto",
+                 r.status_code == 200 and r.json()["aberto"] is True, r.text[:130])
+
+        # Tira o "hoje" da edicao: sobram so os dias que ainda vao chegar.
+        hoje.data = date.today() + timedelta(days=1)
+        db.commit()
+
+        r = cm.get("/checkin/aberto", params={"edicao_id": edicao.id})
+        verifica("fora do dia do evento, fechado",
+                 r.status_code == 200 and r.json()["aberto"] is False, r.text[:130])
+        verifica("e conta quando ele abre",
+                 len(r.json()["dias"]) == 2, str(r.json()["dias"]))
+        r = cm.get("/checkin/lista", params={"edicao_id": edicao.id})
+        verifica("a lista do monitor NAO abre", r.status_code == 403, str(r.status_code))
+        r = cm.post("/checkin", json={"codigo": "002", "edicao_id": edicao.id})
+        verifica("o monitor NAO confirma presenca", r.status_code == 403, str(r.status_code))
+        # O Davi e o unico que ainda nao entrou: os outros tres ja passaram
+        # pelo check-in la em cima.
+        r = cc.post("/checkin", json={"codigo": "004", "edicao_id": edicao.id})
+        verifica("nem a coordenacao, pelo codigo", r.status_code == 403, str(r.status_code))
+        db.expire_all()
+        davi = db.scalar(select(Crianca).where(Crianca.edicao_id == edicao.id, Crianca.codigo == "004"))
+        verifica("e nada foi gravado", davi.checkin_em is None)
+
+        r = ck.get("/checkin/aberto", params={"edicao_id": edicao.id})
+        verifica("comissario NAO pergunta pelo check-in", r.status_code == 403, str(r.status_code))
 
     finally:
         limpar(db, log_inicial)

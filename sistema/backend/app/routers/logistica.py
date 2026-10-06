@@ -20,8 +20,11 @@ from app.database import get_db
 from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Instituicao, Kit
 from app.models.tipos import StatusKit
 from app.schemas.logistica import (
+    CheckinAberto,
     CheckinIn,
+    CheckinLinha,
     CheckinOut,
+    DiaCheckin,
     InstituicaoKits,
     KitMudar,
     KitOut,
@@ -30,6 +33,7 @@ from app.schemas.logistica import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos.log import registrar
+from app.servicos.oracao import FUSO
 
 router = APIRouter(tags=["logistica"])
 
@@ -267,6 +271,83 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
 
 # ---------------------------------------------------------------- check-in
 
+def _hoje() -> date:
+    """O dia de hoje no fuso do evento.
+
+    O servidor roda em UTC: com `date.today()` o check-in de um sabado a noite
+    fecharia as 21h de Brasilia, porque em UTC ja seria domingo.
+    """
+    return datetime.now(FUSO).date()
+
+
+def _dias_da_edicao(db: Session, edicao_id: int) -> list[DiaEvento]:
+    return list(
+        db.scalars(
+            select(DiaEvento).where(DiaEvento.edicao_id == edicao_id).order_by(DiaEvento.data)
+        ).all()
+    )
+
+
+def _exige_dia_do_evento(db: Session, edicao_id: int) -> None:
+    """Recusa o check-in fora dos dias do evento da edicao.
+
+    Fica no backend, e nao so na tela: e aqui que a regra vale de verdade. Sem
+    isso, um toque perdido na lista uma semana antes marcaria a crianca como
+    presente — e no dia ela apareceria como "ja tinha feito check-in".
+    """
+    if not any(d.data == _hoje() for d in _dias_da_edicao(db, edicao_id)):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "O check-in so abre no dia do evento desta edicao.",
+        )
+
+
+@router.get("/checkin/aberto", response_model=CheckinAberto)
+def checkin_aberto(db: BD, ctx: Checkin, edicao_id: int):
+    """Se hoje e um dos dias do evento desta edicao. A tela pergunta antes de abrir."""
+    if not ctx.alcanca_edicao(edicao_id, "fazer_checkin"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
+    hoje = _hoje()
+    dias = _dias_da_edicao(db, edicao_id)
+    return CheckinAberto(
+        aberto=any(d.data == hoje for d in dias),
+        hoje=hoje,
+        dias=[DiaCheckin(data=d.data, descricao=d.descricao) for d in dias],
+    )
+
+
+@router.get("/checkin/lista", response_model=list[CheckinLinha])
+def lista_do_checkin(db: BD, ctx: Checkin, edicao_id: int):
+    """As criancas que este usuario pode receber, para confirmar uma a uma.
+
+    E a tela do monitor: ele responde por uma ou duas instituicoes e faz o
+    check-in a caminho do evento, no celular, com a lista na mao — em vez de
+    digitar codigo por codigo. Passa pelo mesmo filtro do check-in, entao cada
+    um ve so as instituicoes dele.
+    """
+    _exige_dia_do_evento(db, edicao_id)
+    criancas = db.scalars(
+        select(Crianca)
+        .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
+        .where(Crianca.edicao_id == edicao_id, ctx.filtro_criancas("fazer_checkin"))
+        .options(joinedload(Crianca.instituicao))
+        .order_by(Instituicao.nome, Crianca.codigo)
+    ).all()
+
+    return [
+        CheckinLinha(
+            crianca_id=c.id,
+            codigo=c.codigo,
+            nome=c.nome,
+            instituicao_id=c.instituicao_id,
+            instituicao=c.instituicao.nome,
+            checkin_em=c.checkin_em,
+            desistiu_em=c.desistiu_em,
+        )
+        for c in criancas
+    ]
+
+
 @router.post("/checkin", response_model=CheckinOut)
 def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     """Registra a chegada da crianca no dia do evento.
@@ -275,6 +356,7 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     estiver estranho — dia errado, sem padrinho, kit nao montado — volta como
     aviso na tela.
     """
+    _exige_dia_do_evento(db, dados.edicao_id)
     crianca = db.scalar(
         select(Crianca)
         .where(
@@ -296,7 +378,7 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     if ja_tinha:
         avisos.append("Esta crianca ja tinha feito check-in.")
 
-    if crianca.dia_evento and crianca.dia_evento.data != date.today():
+    if crianca.dia_evento and crianca.dia_evento.data != _hoje():
         # Na porta o que ajuda e o nome do dia ("Sabado"); a data vai junto
         # porque e ela que resolve a duvida de quem chegou no dia errado.
         data = crianca.dia_evento.data.strftime("%d/%m/%Y")
