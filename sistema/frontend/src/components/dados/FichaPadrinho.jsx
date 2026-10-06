@@ -12,6 +12,7 @@ import { salvarBlob } from "../../services/api.js";
 import {
   apagarApadrinhamento,
   baixarAgradecimento,
+  baixarTodosAgradecimentos,
   detalharPadrinho,
   editarPadrinho,
   enviarAgradecimento,
@@ -110,6 +111,7 @@ export default function FichaPadrinho({
   // Qual cartao esta sendo gerado ou enviado: o PNG e montado no servidor e
   // demora um instante, entao aquele bloco precisa dizer que esta ocupado.
   const [baixandoCartao, definirBaixandoCartao] = useState(null);
+  const [baixandoTodos, definirBaixandoTodos] = useState(false);
   const [enviando, definirEnviando] = useState(null);
   const [desfazendo, definirDesfazendo] = useState(null);
   // Qual apadrinhamento PAGO esta esperando confirmacao. Promessa se desfaz num
@@ -128,6 +130,12 @@ export default function FichaPadrinho({
   const zap = linkWhatsapp(padrinho.whatsapp);
 
   const aPagar = padrinho.apadrinhamentos.filter((a) => !a.pago).length;
+
+  // Um cartao por crianca, e nao por apadrinhamento: cesta e festa da mesma
+  // crianca sao o mesmo cartao. E a mesma conta que o servidor faz no ZIP.
+  const cartoesProntos = new Set(
+    padrinho.apadrinhamentos.filter((a) => a.pago).map((a) => a.crianca_id),
+  ).size;
 
   // A contagem vive no rotulo da aba: e o que diz se vale a pena entrar nela.
   const abas = [
@@ -179,6 +187,18 @@ export default function FichaPadrinho({
       definirErro(e.message);
     } finally {
       definirBaixandoCartao(null);
+    }
+  }
+
+  async function baixarTodos() {
+    definirErro("");
+    definirBaixandoTodos(true);
+    try {
+      await baixarTodosAgradecimentos(padrinho.id);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirBaixandoTodos(false);
     }
   }
 
@@ -323,111 +343,143 @@ export default function FichaPadrinho({
               Este padrinho ainda não apadrinhou ninguém.
             </p>
           ) : (
-            <div className="ficha__lista">
-              {padrinho.apadrinhamentos.map((a) => (
-                <div key={a.id} className="ficha__linha">
-                  <div className="ficha__linha-corpo">
-                    <span className="ficha__linha-etiquetas">
-                      <span className="etiqueta etiqueta--neutra">{TIPOS[a.tipo] ?? a.tipo}</span>
-                      <span className={`etiqueta ${a.pago ? "etiqueta--ok" : "etiqueta--espera"}`}>
-                        {a.pago ? "confirmado" : "promessa · falta pagar"}
+            <>
+              <div className="ficha__lista">
+                {padrinho.apadrinhamentos.map((a) => (
+                  <div key={a.id} className="ficha__linha">
+                    <div className="ficha__linha-corpo">
+                      <span className="ficha__linha-etiquetas">
+                        <span className="etiqueta etiqueta--neutra">{TIPOS[a.tipo] ?? a.tipo}</span>
+                        <span className={`etiqueta ${a.pago ? "etiqueta--ok" : "etiqueta--espera"}`}>
+                          {a.pago ? "confirmado" : "promessa · falta pagar"}
+                        </span>
+                        {a.cartao_status === "enviado" && (
+                          <span
+                            className="etiqueta etiqueta--ok"
+                            title={
+                              a.cartao_enviado_em
+                                ? `Cartão enviado em ${formatarDataHora(a.cartao_enviado_em)}`
+                                : "Cartão já enviado"
+                            }
+                          >
+                            enviado
+                          </span>
+                        )}
+                        {a.cartao_status === "falhou" && (
+                          <span className="etiqueta etiqueta--espera" title="O último envio falhou">
+                            falhou
+                          </span>
+                        )}
+                        {/* Quem trouxe esta criança. Um padrinho é captado por
+                            mais de um comissário ao longo da campanha, e sem
+                            isto a lista fica um monte de nomes sem dono: dois
+                            comissários cobram o mesmo doador pela mesma cesta,
+                            ou nenhum dos dois cobra.
+
+                            Texto discreto, e não etiqueta: as etiquetas desta
+                            linha são o ESTADO daquela criança — o que falta
+                            fazer com ela. Quem registrou não é estado, é
+                            procedência, e em pílula competia com "a pagar" pela
+                            mesma atenção. O nome completo fica na dica do mouse,
+                            para dois comissários de mesmo primeiro nome. */}
+                        {a.comissario && (
+                          <span
+                            className="ficha__linha-autor"
+                            title={`Apadrinhamento registrado por ${a.comissario}`}
+                          >
+                            comissário: {primeiroNome(a.comissario)}
+                          </span>
+                        )}
                       </span>
-                      {a.cartao_status === "enviado" && (
-                        <span
-                          className="etiqueta etiqueta--ok"
-                          title={
-                            a.cartao_enviado_em
-                              ? `Cartão enviado em ${formatarDataHora(a.cartao_enviado_em)}`
-                              : "Cartão já enviado"
+
+                      {/* Codigo na frente do nome completo: e assim que a linha
+                          aqui casa com a linha da planilha de criancas. */}
+                      <span
+                        className="ficha__linha-nome"
+                        title={`${a.crianca_codigo} · ${a.crianca_nome}`}
+                      >
+                        <span className="ficha__linha-codigo">{a.crianca_codigo}</span>
+                        {a.crianca_nome}, {a.crianca_idade}
+                      </span>
+                    </div>
+
+                    {/* Tres acoes repetidas por crianca: escritas, uma ficha de vinte
+                        criancas virava sessenta pilulas. O rotulo nao sumiu — virou a
+                        dica do mouse e o nome no leitor de tela. */}
+                    <span className="ficha__linha-acoes">
+                      {/* O cartao AGRADECE a doacao: enquanto e promessa nao ha o
+                          que agradecer, e o servidor recusa (409). Sem o botao,
+                          ninguem clica para receber um erro. O envio pelo
+                          WhatsApp segue a mesma regra, pelo mesmo motivo. */}
+                      {a.pago && (
+                        <>
+                          <BotaoIcone
+                            titulo={`Baixar o cartão de ${a.crianca_primeiro_nome}`}
+                            onClick={() => baixarCartao(a)}
+                            carregando={baixandoCartao === a.id}
+                          >
+                            <Baixar t={16} />
+                          </BotaoIcone>
+                          <BotaoIcone
+                            titulo={
+                              padrinho.whatsapp
+                                ? `${a.cartao_status === "enviado" ? "Reenviar" : "Enviar"} o cartão de ` +
+                                  `${a.crianca_primeiro_nome} pelo WhatsApp`
+                                : "Este padrinho não tem WhatsApp cadastrado"
+                            }
+                            onClick={() => enviarNoWhatsapp(a)}
+                            disabled={!padrinho.whatsapp}
+                            carregando={enviando === a.id}
+                          >
+                            <Enviar t={16} />
+                          </BotaoIcone>
+                        </>
+                      )}
+                      {/* Sem pagamento, quem capta desfaz. Com pagamento, so a
+                          coordenacao — e a dica diz o que vai acontecer com o
+                          dinheiro, porque ele NAO some junto. */}
+                      {((podeEditar && !a.pago && meu(a)) || podeExcluir) && (
+                        <BotaoIcone
+                          perigo
+                          titulo={
+                            a.pago
+                              ? `Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}. ` +
+                                "O pagamento continua no caixa, sem destino."
+                              : `Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}`
                           }
+                          onClick={() => (a.pago ? definirADesfazer(a) : desligar(a))}
+                          carregando={desfazendo === a.id}
                         >
-                          enviado
-                        </span>
+                          <Desfazer t={16} />
+                        </BotaoIcone>
                       )}
-                      {a.cartao_status === "falhou" && (
-                        <span className="etiqueta etiqueta--espera" title="O último envio falhou">
-                          falhou
-                        </span>
-                      )}
-                      {/* Quem trouxe esta criança. Um padrinho é captado por
-                          mais de um comissário ao longo da campanha, e sem
-                          isto a lista fica um monte de nomes sem dono: dois
-                          comissários cobram o mesmo doador pela mesma cesta,
-                          ou nenhum dos dois cobra.
-
-                          Texto discreto, e não etiqueta: as etiquetas desta
-                          linha são o ESTADO daquela criança — o que falta
-                          fazer com ela. Quem registrou não é estado, é
-                          procedência, e em pílula competia com "a pagar" pela
-                          mesma atenção. O nome completo fica na dica do mouse,
-                          para dois comissários de mesmo primeiro nome. */}
-                      {a.comissario && (
-                        <span
-                          className="ficha__linha-autor"
-                          title={`Apadrinhamento registrado por ${a.comissario}`}
-                        >
-                          comissário: {primeiroNome(a.comissario)}
-                        </span>
-                      )}
-                    </span>
-
-                    {/* Codigo na frente do nome completo: e assim que a linha
-                        aqui casa com a linha da planilha de criancas. */}
-                    <span
-                      className="ficha__linha-nome"
-                      title={`${a.crianca_codigo} · ${a.crianca_nome}`}
-                    >
-                      <span className="ficha__linha-codigo">{a.crianca_codigo}</span>
-                      {a.crianca_nome}, {a.crianca_idade}
                     </span>
                   </div>
-
-                  {/* Tres acoes repetidas por crianca: escritas, uma ficha de vinte
-                      criancas virava sessenta pilulas. O rotulo nao sumiu — virou a
-                      dica do mouse e o nome no leitor de tela. */}
-                  <span className="ficha__linha-acoes">
-                    <BotaoIcone
-                      titulo={`Baixar o cartão de ${a.crianca_primeiro_nome}`}
-                      onClick={() => baixarCartao(a)}
-                      carregando={baixandoCartao === a.id}
-                    >
-                      <Baixar t={16} />
-                    </BotaoIcone>
-                    <BotaoIcone
-                      titulo={
-                        padrinho.whatsapp
-                          ? `${a.cartao_status === "enviado" ? "Reenviar" : "Enviar"} o cartão de ` +
-                            `${a.crianca_primeiro_nome} pelo WhatsApp`
-                          : "Este padrinho não tem WhatsApp cadastrado"
-                      }
-                      onClick={() => enviarNoWhatsapp(a)}
-                      disabled={!padrinho.whatsapp}
-                      carregando={enviando === a.id}
-                    >
-                      <Enviar t={16} />
-                    </BotaoIcone>
-                    {/* Sem pagamento, quem capta desfaz. Com pagamento, so a
-                        coordenacao — e a dica diz o que vai acontecer com o
-                        dinheiro, porque ele NAO some junto. */}
-                    {((podeEditar && !a.pago && meu(a)) || podeExcluir) && (
-                      <BotaoIcone
-                        perigo
-                        titulo={
-                          a.pago
-                            ? `Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}. ` +
-                              "O pagamento continua no caixa, sem destino."
-                            : `Desfazer o apadrinhamento de ${a.crianca_primeiro_nome}`
-                        }
-                        onClick={() => (a.pago ? definirADesfazer(a) : desligar(a))}
-                        carregando={desfazendo === a.id}
-                      >
-                        <Desfazer t={16} />
-                      </BotaoIcone>
-                    )}
-                  </span>
+                ))}
+              </div>
+              {/* Depois da lista: primeiro se ve quais criancas estao pagas,
+                  depois se baixa o cartao de todas de uma vez. */}
+              {cartoesProntos > 0 && (
+                <div className="barra-acoes ficha__baixar-cartoes">
+                  {/* A dica antes do botao: com a barra alinhada a direita, e
+                      o botao que fica na ponta, onde o olho termina a lista. */}
+                  {cartoesProntos > 1 && (
+                    <span className="campo__dica">Num arquivo .zip, um cartão por criança paga.</span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    iconLeft={<Baixar t={14} />}
+                    onClick={baixarTodos}
+                    carregando={baixandoTodos}
+                  >
+                    {cartoesProntos === 1
+                      ? "Baixar o cartão"
+                      : `Baixar os ${cartoesProntos} cartões`}
+                  </Button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           ))}
 
         {aba === "apadrinhar" && (

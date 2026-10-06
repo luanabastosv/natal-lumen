@@ -595,6 +595,29 @@ def main() -> None:
         verifica("monitor (sem ver_padrinhos) nao baixa cartao",
                  r.status_code == 403, str(r.status_code))
 
+        print("\nTodos os cartoes do padrinho de uma vez")
+        r = ck.get(f"/padrinhos/{jose['id']}/agradecimentos")
+        verifica("baixa o ZIP dos cartoes", r.status_code == 200, r.text[:140])
+        if r.status_code == 200:
+            import zipfile
+            from io import BytesIO
+            disposicao = r.headers.get("content-disposition", "")
+            verifica("como AGRADECIMENTOS_NOME_DO_PADRINHO.zip",
+                     'filename="AGRADECIMENTOS_' in disposicao and disposicao.endswith('.zip"'),
+                     disposicao)
+            nomes_zip = zipfile.ZipFile(BytesIO(r.content)).namelist()
+            pagos = {a["crianca_codigo"] for a in
+                     ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"] if a["pago"]}
+            verifica("um cartao por crianca paga, e so as pagas",
+                     sorted(n.split("_")[0] for n in nomes_zip) == sorted(pagos),
+                     f"{nomes_zip} x {pagos}")
+
+        r = cm.get(f"/padrinhos/{jose['id']}/agradecimentos")
+        verifica("monitor (sem ver_padrinhos) nao baixa o ZIP",
+                 r.status_code == 403, str(r.status_code))
+        r = ck.get("/padrinhos/99999999/agradecimentos")
+        verifica("padrinho inexistente da 404", r.status_code == 404, str(r.status_code))
+
         print("\nEnvio pelo WhatsApp (Cloud API)")
         import httpx2 as httpx
         from app.config import config as cfg

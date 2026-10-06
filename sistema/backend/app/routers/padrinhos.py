@@ -12,6 +12,8 @@ da mesma moeda e a regra em `criar_apadrinhamento`: o comissario so apadrinha
 as criancas da propria lista.
 """
 
+import io
+import zipfile
 from decimal import Decimal
 
 DOIS_DECIMAIS = Decimal("0.01")
@@ -45,6 +47,7 @@ from app.servicos.apadrinhamento import confirmado
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import agradecimento, comprovantes, exclusao, whatsapp
+from app.servicos.arquivos import limpar_texto
 from app.servicos.log import registrar
 from app.servicos.nomes import nome_proprio
 
@@ -452,6 +455,67 @@ def cartao_de_agradecimento(apadrinhamento_id: int, db: BD, ctx: Ver):
         content=png,
         media_type="image/png",
         headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
+
+
+@router.get("/padrinhos/{padrinho_id}/agradecimentos")
+def cartoes_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
+    """Todos os cartoes de agradecimento de um padrinho, num ZIP so.
+
+    Quem apadrinhou quinze criancas recebe quinze cartoes, e baixar um a um
+    sao quinze cliques e quinze "salvar como". As regras sao as do cartao
+    avulso: so o que ja foi pago, e so as criancas que quem pede alcanca —
+    o padrinho de outra cidade pode ter criancas de la, e essas ficam de fora.
+
+    Um cartao por CRIANCA, e nao por apadrinhamento: quem deu cesta e festa
+    para a mesma crianca tem dois apadrinhamentos e um cartao so — a arte nao
+    muda com o tipo, e o ZIP sairia com o mesmo arquivo duas vezes.
+    """
+    padrinho = db.scalar(
+        select(Padrinho).where(Padrinho.id == padrinho_id, _filtro_padrinhos(ctx, "ver_padrinhos"))
+    )
+    if padrinho is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Padrinho nao encontrado.")
+
+    apadrinhamentos = db.scalars(
+        select(Apadrinhamento)
+        .join(Crianca, Crianca.id == Apadrinhamento.crianca_id)
+        .where(Apadrinhamento.padrinho_id == padrinho.id, Apadrinhamento.pagamento_id.is_not(None))
+        .options(
+            joinedload(Apadrinhamento.crianca).joinedload(Crianca.instituicao),
+            joinedload(Apadrinhamento.crianca).joinedload(Crianca.dia_evento),
+            joinedload(Apadrinhamento.padrinho)
+            .joinedload(Padrinho.edicao)
+            .joinedload(Edicao.cidade),
+        )
+        .order_by(Crianca.codigo)
+    ).all()
+
+    por_crianca = {}
+    for a in apadrinhamentos:
+        if ctx.alcanca_edicao(a.crianca.edicao_id, "ver_criancas"):
+            por_crianca.setdefault(a.crianca_id, a)
+
+    if not por_crianca:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Este padrinho ainda nao tem apadrinhamento pago. Os cartoes de "
+            "agradecimento so saem depois que o pagamento for registrado.",
+        )
+
+    buffer = io.BytesIO()
+    # PNG ja e comprimido: o ZIP so junta os arquivos, sem gastar tempo
+    # tentando espremer o que nao encolhe.
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as zip_:
+        for a in por_crianca.values():
+            png, nome = _montar_cartao(a)
+            zip_.writestr(nome, png)
+
+    nome_zip = f"AGRADECIMENTOS_{limpar_texto(padrinho.nome) or padrinho.id}.zip"
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{nome_zip}"'},
     )
 
 

@@ -3417,6 +3417,18 @@ textarea.campo__controle {
   border-top: var(--stroke-hairline) solid var(--border-light);
 }
 
+/* "Baixar os cartoes", no pe da lista de criancas: afastado da ultima linha e
+   na ponta direita, como a acao que fecha a lista. */
+.ficha__baixar-cartoes {
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+  margin-bottom: 0;
+}
+
+.ficha__baixar-cartoes .campo__dica {
+  margin-top: 0;
+}
+
 .ficha__linha {
   display: flex;
   align-items: center;
