@@ -387,8 +387,8 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     elif crianca.dia_evento is None:
         avisos.append("Esta crianca nao esta marcada em nenhum dia.")
 
-    # O check-in e feito por tres equipes diferentes, e cada uma recebe so os
-    # avisos do proprio assunto — a mesma regra das colunas da planilha, ver
+    # O check-in e feito pela monitoria e pela coordenacao, e cada uma recebe
+    # so os avisos do proprio assunto — a mesma regra das colunas da planilha, ver
     # `_saida` em routers/criancas.py. Na pratica: a monitoria na porta nao fica
     # sabendo do kit nem do padrinho daquela crianca.
     ve_kit = ctx.alcanca_edicao(crianca.edicao_id, "gerenciar_kits")

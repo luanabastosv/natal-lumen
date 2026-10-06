@@ -213,6 +213,7 @@ def main() -> None:
     # Dois comissarios: um com criancas na mao, outro sem nenhuma ainda.
     com_a = usuario("ComA", "Comissarios - comissario", [inst_a.id], grupo_id=grupo.id)
     usuario("ComVazio", "Comissarios - comissario", [inst_b.id], grupo_id=grupo.id)
+    estrutura = usuario("Estrutura", "Estrutura")
 
     # A1 (completa) e A3 (sem nenhum padrinho) sao do ComA. A2 e as da B ficam
     # sem responsavel, para a linha "Sem comissario" ter o que contar.
@@ -409,6 +410,30 @@ def main() -> None:
                  [(l["instituicao"], l["criancas"]) for l in meu.get("por_instituicao", [])]
                  == [(f"{MARCA} Escola A", 2)],
                  str(meu.get("por_instituicao")))
+
+        print("\nO painel da estrutura e o da logistica")
+        ce = TestClient(app); entrar(ce, estrutura.email)
+        r = ce.get(f"/painel/{edicao.id}")
+        verifica("a estrutura ve o painel", r.status_code == 200, r.text[:140])
+        est = r.json() if r.status_code == 200 else {}
+        verifica("a tela sabe que este painel e o da logistica",
+                 est.get("so_logistica") is True, str(est.get("so_logistica")))
+        verifica("ve a edicao inteira: as duas instituicoes",
+                 len(est.get("por_instituicao", [])) == 2, str(len(est.get("por_instituicao", []))))
+        verifica("com cesta e festa de cada uma",
+                 [(l["cesta"], l["festa"]) for l in est.get("por_instituicao", [])] == [(2, 1), (1, 0)],
+                 str([(l["cesta"], l["festa"]) for l in est.get("por_instituicao", [])]))
+        verifica("recebe a quebra por dia", len(est.get("por_dia", [])) == 2,
+                 str(len(est.get("por_dia", []))))
+        verifica("recebe a quebra por idade", len(est.get("por_idade", [])) > 0,
+                 str(est.get("por_idade")))
+        verifica("NAO recebe a cobranca por comissario",
+                 est.get("por_comissario") == [], str(est.get("por_comissario")))
+        verifica("NAO recebe as promessas a cobrar",
+                 est.get("resumo", {}).get("prometidos") == 0,
+                 str(est.get("resumo", {}).get("prometidos")))
+        verifica("o painel inteiro da coordenacao nao e o da logistica",
+                 rel.get("so_logistica") is False, str(rel.get("so_logistica")))
 
         print("\nAlcance")
         outra = Edicao(cidade_id=cidade.id, ano=2027, nome=f"{MARCA} Outra",

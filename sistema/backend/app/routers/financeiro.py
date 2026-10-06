@@ -2,13 +2,14 @@
 
 Sao duas permissoes, e nao uma, de proposito:
 
-    gerenciar_compras     lanca e ve as SAIDAS. A estrutura tem.
+    gerenciar_compras     lanca e ve as SAIDAS. Hoje so a coordenacao tem; a
+                          estrutura teve ate 06/10/2026.
     registrar_pagamentos  lanca e ve os RECEBIMENTOS. So a coordenacao tem —
                           e a mesma permissao dos pagamentos dos padrinhos,
                           porque e o mesmo assunto: dinheiro que entrou.
 
-Por isso nao existe uma rota so, de resumo, devolvendo tudo: quem cuida da
-estrutura ve o que a edicao gastou sem ver o que ela arrecadou. O saldo aparece
+Por isso nao existe uma rota so, de resumo, devolvendo tudo: quem cuida so das
+compras ve o que a edicao gastou sem ver o que ela arrecadou. O saldo aparece
 na tela de quem alcanca as duas metades, somado la.
 
 `GET /recebimentos` e a lista de TODO o dinheiro que entrou, e junta duas

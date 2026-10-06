@@ -5,6 +5,10 @@ instituicoes ve os numeros dessas instituicoes, e nao da edicao inteira. Com o
 comissario o filtro vai mais fundo — crianca a crianca — e o painel entao deixa
 de ser o da edicao para ser o dele: as criancas que estao na mao dele, e quanto
 ainda falta apadrinhar delas.
+
+A estrutura abre um painel mais estreito (ver_painel_logistica): as mesmas
+contas, mas so as quebras por dia, por idade e por instituicao — o que orienta
+a compra e a montagem dos kits. O resto e a cobranca da captacao, e sai vazio.
 """
 
 from datetime import date
@@ -39,12 +43,14 @@ from app.schemas.painel import (
 from app.seeds.perfis_permissoes import PERFIL_COMISSARIO
 from app.seguranca.contexto import ContextoAcesso
 from app.servicos.apadrinhamento import CONFIRMADO, PROMETIDO
-from app.seguranca.dependencias import exige_permissao
+from app.seguranca.dependencias import exige_qualquer
 
 router = APIRouter(prefix="/painel", tags=["painel"])
 
 BD = Annotated[Session, Depends(get_db)]
-Painel = Annotated[ContextoAcesso, Depends(exige_permissao("ver_painel"))]
+Painel = Annotated[
+    ContextoAcesso, Depends(exige_qualquer("ver_painel", "ver_painel_logistica"))
+]
 
 CESTA = TipoApadrinhamento.CESTA.value
 FESTA = TipoApadrinhamento.FESTA.value
@@ -83,12 +89,21 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     edicao = db.scalar(
         select(Edicao).where(Edicao.id == edicao_id).options(joinedload(Edicao.cidade))
     )
-    if edicao is None or not ctx.alcanca_edicao(edicao_id, "ver_painel"):
+    if edicao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
+
+    # Qual painel abre e decidido nesta edicao: quem tem os dois fica com o
+    # inteiro, e quem nao tem nenhum dos dois aqui nao ve a edicao.
+    if ctx.alcanca_edicao(edicao_id, "ver_painel"):
+        permissao, so_logistica = "ver_painel", False
+    elif ctx.alcanca_edicao(edicao_id, "ver_painel_logistica"):
+        permissao, so_logistica = "ver_painel_logistica", True
+    else:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
     # Mesmo filtro das telas: quem so alcanca algumas instituicoes ve os
     # numeros dessas instituicoes.
-    alcance = ctx.filtro_criancas("ver_painel") & (Crianca.edicao_id == edicao_id)
+    alcance = ctx.filtro_criancas(permissao) & (Crianca.edicao_id == edicao_id)
     criancas_visiveis = select(Crianca.id).where(alcance)
 
     criancas = db.scalar(select(func.count()).select_from(Crianca).where(alcance)) or 0
@@ -136,7 +151,8 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         cesta_feitos=por_tipo.get(CESTA, 0),
         festa_feitos=por_tipo.get(FESTA, 0),
         completas=completas,
-        prometidos=prometidos,
+        # As promessas sao cobranca da captacao, nao assunto de quem monta kit.
+        prometidos=0 if so_logistica else prometidos,
     )
 
     # O comissario ja esta vendo so as criancas dele — a quebra por comissario
@@ -148,10 +164,11 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     return Relatorio(
         resumo=resumo,
         so_minhas_criancas=so_minhas_criancas,
+        so_logistica=so_logistica,
         por_instituicao=por_instituicao,
         por_comissario=(
             []
-            if so_minhas_criancas
+            if so_minhas_criancas or so_logistica
             else _por_comissario(db, alcance, criancas_visiveis, edicao_id)
         ),
         por_idade=_por_idade(db, alcance),

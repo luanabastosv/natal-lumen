@@ -96,7 +96,9 @@ export default function Painel() {
   const [carregando, definirCarregando] = useState(false);
   const [erro, definirErro] = useState("");
 
-  const podeVerNumeros = pode("ver_painel");
+  // A estrutura tem um painel proprio, mais estreito: quem decide o que vem
+  // nele e o backend (`so_logistica`), e a tela so esconde o que veio vazio.
+  const podeVerNumeros = pode("ver_painel") || pode("ver_painel_logistica");
   const faltamDias = diasParaAFesta(relatorio?.por_dia);
   const maxPorDia = Math.max(1, ...(relatorio?.por_dia ?? []).map((d) => d.criancas));
   const maxPorIdade = Math.max(
@@ -130,6 +132,9 @@ export default function Painel() {
   // uma frase sim. A edicao vazia da coordenacao continua mostrando os zeros —
   // la eles sao a noticia.
   const semCriancas = soMinhas && r?.criancas === 0;
+  // O painel da estrutura: por dia, por idade e por instituicao, e mais nada.
+  // O resumo de padrinhos e o anel sao a cobranca da captacao.
+  const soLogistica = Boolean(relatorio?.so_logistica);
 
   return (
     <div>
@@ -180,7 +185,9 @@ export default function Painel() {
             <p className="abertura__lede">
               {soMinhas && r
                 ? ledeDoComissario(r)
-                : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
+                : soLogistica
+                  ? "Quantas crianças vêm em cada dia, de cada instituição e de cada idade."
+                  : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
             </p>
           </div>
           <div className="abertura__contexto">
@@ -231,7 +238,7 @@ export default function Painel() {
 
               {/* Cada crianca precisa de um padrinho de cesta e um de festa.
                   Os dois se comparam ao total de criancas, nunca entre si. */}
-              {!semCriancas && (
+              {!semCriancas && !soLogistica && (
                 <div className="metricas">
                   <Metrica
                     rotulo="Crianças"
@@ -289,7 +296,10 @@ export default function Painel() {
                   ao lado. O anel repete o numero de "Completas" de proposito —
                   la ele e contagem, aqui e proporcao, e a coordenacao decide
                   olhando a proporcao. */}
-              <div className="painel__grade painel__grade--larga">
+              {/* Sem o anel, o dia do evento ocupa a linha inteira. */}
+              <div
+                className={`painel__grade${soLogistica ? "" : " painel__grade--larga"}`}
+              >
                 {relatorio.por_dia.length > 0 && (
                   <section className="cartao">
                     <div className="cartao__topo">
@@ -344,7 +354,7 @@ export default function Painel() {
                   </section>
                 )}
 
-                {!semCriancas && (
+                {!semCriancas && !soLogistica && (
                   <section className="cartao cartao--anel">
                     <Anel
                       valor={r.completas}

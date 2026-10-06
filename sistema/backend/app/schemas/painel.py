@@ -126,6 +126,10 @@ class Relatorio(BaseModel):
 
     resumo: ResumoEdicao
     so_minhas_criancas: bool = False
+    # O painel da estrutura: so valem as quebras por dia, por idade e por
+    # instituicao. O resumo vem para dar nome a edicao, mas a tela nao o mostra
+    # como numero, e as promessas e a lista de comissarios vem zeradas.
+    so_logistica: bool = False
     por_instituicao: list[LinhaInstituicao]
     # Vazia para o comissario: a lista existe para a coordenacao distribuir e
     # cobrar, e para ele so traria os colegas zerados pelo proprio filtro.

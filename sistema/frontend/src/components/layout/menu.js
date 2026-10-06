@@ -12,8 +12,8 @@ export const ITENS_MENU = [
   { para: "/padrinhos", rotulo: "Padrinhos", permissao: "ver_padrinhos" },
   { para: "/cartoes", rotulo: "Cartões", permissao: "subir_cartoes" },
   { para: "/kits", rotulo: "Kits", permissao: "gerenciar_kits" },
-  // Duas permissoes, e basta UMA: a estrutura entra pelas saidas, a
-  // coordenacao pelas duas abas. Quem tem so uma delas ve so a sua metade —
+  // Duas permissoes, e basta UMA: a coordenacao entra pelas duas abas, mas
+  // um perfil pode receber so as saidas. Quem tem so uma delas ve so a sua metade —
   // quem cuida de compras nao precisa saber quanto a edicao arrecadou.
   //
   // Nao ha destino separado para os pagamentos dos padrinhos: eles sao linhas

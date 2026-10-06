@@ -267,25 +267,31 @@ def main() -> None:
         r = ck.post("/kits", json={"criancas": [ana.id], "status": "montado"})
         verifica("comissario NAO mexe em kits", r.status_code == 403, str(r.status_code))
 
+        print("\nEstrutura: so os kits")
+        r = ce.get("/criancas")
+        verifica("estrutura NAO abre a lista de criancas", r.status_code == 403, str(r.status_code))
+        r = ce.get("/compras")
+        verifica("estrutura NAO ve as saidas", r.status_code == 403, str(r.status_code))
+
         print("\nFinanceiro — saidas")
-        r = ce.post("/compras", json={
+        r = cc.post("/compras", json={
             "edicao_id": edicao.id, "descricao": "Cestas basicas", "categoria": "cesta",
             "quantidade": 100, "valor_total": "5000.00", "fornecedor": "Atacado X",
             "data": str(date.today()),
         })
         verifica("registra compra", r.status_code == 201, r.text[:130])
-        verifica("guarda quem registrou", r.json()["responsavel"] == estrutura.nome, str(r.json()["responsavel"]))
+        verifica("guarda quem registrou", r.json()["responsavel"] == coord.nome, str(r.json()["responsavel"]))
 
-        ce.post("/compras", json={
+        cc.post("/compras", json={
             "edicao_id": edicao.id, "descricao": "Brinquedos", "categoria": "presente",
             "quantidade": 100, "valor_total": "3000.00", "data": str(date.today()),
         })
-        ce.post("/compras", json={
+        cc.post("/compras", json={
             "edicao_id": edicao.id, "descricao": "Sabonetes", "categoria": "cesta",
             "quantidade": 100, "valor_total": "500.00", "data": str(date.today()),
         })
 
-        r = ce.get("/compras")
+        r = cc.get("/compras")
         verifica("soma o total gasto", r.json()["total_gasto"] == "8500.00", r.json()["total_gasto"])
         verifica("agrupa por categoria",
                  r.json()["por_categoria"] == {"cesta": "5500.00", "presente": "3000.00"},
@@ -466,34 +472,38 @@ def main() -> None:
         verifica("comissario NAO faz check-in", r.status_code == 403, str(r.status_code))
 
         r = ce.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
-        verifica("estrutura faz check-in", r.status_code == 200, r.text[:130])
+        verifica("estrutura NAO faz check-in", r.status_code == 403, str(r.status_code))
+
+        r = cm.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        verifica("monitor faz check-in", r.status_code == 200, r.text[:130])
         entrada = r.json() if r.status_code == 200 else {}
 
         if entrada:
             verifica("identifica a crianca", entrada["nome"] == "Ana Clara")
             verifica("nao e repetido na primeira vez", entrada["ja_tinha_checkin"] is False)
-            # A estrutura monta kit, e nao capta: na porta ela recebe o aviso
-            # do kit e nao o do padrinho. Cada equipe so e avisada do proprio
+            # O monitor nao capta nem monta kit: na porta ele nao recebe o
+            # aviso de nenhum dos dois. Cada equipe so e avisada do proprio
             # assunto — a mesma regra das colunas da planilha.
             verifica("NAO avisa de padrinho a quem nao capta",
                      not any("padrinho" in a for a in entrada["avisos"]),
                      str(entrada["avisos"]))
-            verifica("mas recebe o estado do kit, que e o assunto dela",
-                     entrada["kit_status"] is not None, str(entrada["kit_status"]))
+            verifica("NAO avisa de kit a quem nao monta",
+                     not any("kit" in a for a in entrada["avisos"]),
+                     str(entrada["avisos"]))
             verifica("avisa sobre os cartoes que faltam",
                      any("cartoes" in a for a in entrada["avisos"]), str(entrada["avisos"]))
             verifica("nao avisa do dia, porque e hoje",
                      not any("dia dela" in a for a in entrada["avisos"]), str(entrada["avisos"]))
 
-        r = ce.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        r = cm.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
         verifica("check-in repetido avisa, mas nao recusa",
                  r.status_code == 200 and r.json()["ja_tinha_checkin"] is True, str(r.status_code))
 
-        r = ce.post("/checkin", json={"codigo": "002", "edicao_id": edicao.id})
+        r = cm.post("/checkin", json={"codigo": "002", "edicao_id": edicao.id})
         verifica("avisa quando o dia da crianca nao e hoje",
                  any("nao hoje" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
 
-        r = ce.post("/checkin", json={"codigo": "003", "edicao_id": edicao.id})
+        r = cm.post("/checkin", json={"codigo": "003", "edicao_id": edicao.id})
         verifica("avisa quando a crianca nao esta marcada em nenhum dia",
                  any("nenhum dia" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
 
@@ -503,14 +513,14 @@ def main() -> None:
         verifica("a coordenacao, que capta, E avisada do padrinho que falta",
                  any("padrinho" in a for a in r.json()["avisos"]), str(r.json()["avisos"]))
 
-        r = ce.post("/checkin", json={"codigo": "999", "edicao_id": edicao.id})
+        r = cm.post("/checkin", json={"codigo": "999", "edicao_id": edicao.id})
         verifica("codigo inexistente devolve 404", r.status_code == 404, str(r.status_code))
 
         db.expire_all()
         verifica("o check-in ficou gravado na crianca", db.get(Crianca, ana.id).checkin_em is not None)
 
         print("\nQR code do cracha")
-        r = ce.get(f"/checkin/qrcode/{ana.id}")
+        r = cm.get(f"/checkin/qrcode/{ana.id}")
         verifica("gera o QR code", r.status_code == 200 and r.headers["content-type"] == "image/png",
                  str(r.status_code))
         verifica("o PNG tem conteudo", len(r.content) > 200, str(len(r.content)))

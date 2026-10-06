@@ -19,6 +19,12 @@ from app.models import Perfil, Permissao
 # so para a Coordenacao, entao na pratica nada mudou de alcance.
 PERMISSOES: dict[str, str] = {
     "ver_painel": "Ver o painel inicial e os indicadores da edicao",
+    # O painel da estrutura, desde 06/10/2026: so as quebras que orientam a
+    # compra e a montagem — por dia do evento, por idade e por instituicao.
+    # Separada de ver_painel porque o painel inteiro e o da captacao: o resumo
+    # de padrinhos, as promessas a cobrar e a cobranca por comissario nao sao
+    # assunto de quem monta kit.
+    "ver_painel_logistica": "Ver o painel da logistica: por dia, por idade e por instituicao",
     "ver_criancas": "Ver a lista e os dados das criancas",
     "editar_criancas": "Criar, editar e excluir criancas",
     "importar_listas": "Importar listas de criancas enviadas pelas instituicoes",
@@ -89,7 +95,7 @@ MONITORIA = (
 # Vem da especificacao, com duas mudancas pedidas depois. A primeira: o
 # comissario perdeu registrar_pagamentos e fazer_checkin — o caixa da edicao e a
 # conferencia do dinheiro ficam com a coordenacao, e o check-in do dia e do
-# monitor e da estrutura. A segunda, de 30/09/2026: ele reganhou o registro do
+# monitor. A segunda, de 30/09/2026: ele reganhou o registro do
 # pagamento DO PADRINHO DELE (registrar_pagamentos_padrinho), porque agora e o
 # pagamento que confirma o apadrinhamento — sem isso nada do que ele capta
 # apareceria nos numeros ate a coordenacao passar por ali.
@@ -100,11 +106,8 @@ MONITORIA = (
 # Nota: ver_painel vale para a coordenacao e para o comissario, e os dois veem
 # coisas diferentes com ela — a coordenacao, a edicao inteira; o comissario, so
 # as criancas atribuidas a ele, porque o painel passa pelo mesmo filtro das
-# telas. As monitorias e a estrutura seguem sem — o painel delas ainda esta
-# por definir. Para abrir e acrescentar "ver_painel" aqui (ou na base, sem
-# mexer no codigo), mas antes vale escolher o que cada uma veria ali: o painel
-# de hoje e o da captacao, e mostraria a elas numero de padrinho e de dinheiro
-# que nenhuma das duas alcanca nas telas.
+# telas. A estrutura tem o painel dela, mais estreito (ver_painel_logistica).
+# As monitorias seguem sem — o painel delas ainda esta por definir.
 PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
     "Coordenacao": (
         "Coordenacao da cidade: todas as permissoes, em todas as edicoes dela",
@@ -145,13 +148,15 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
         "Recolhe e digitaliza os cartoes das instituicoes sob sua responsabilidade",
         MONITORIA,
     ),
+    # So a tela de kits, desde 06/10/2026. As saidas do financeiro ficam com a
+    # coordenacao, e o check-in do dia com a monitoria. A lista de criancas
+    # tambem sai: tudo o que a estrutura precisa da crianca para montar o kit
+    # ja vem na propria tela de kits, que tem permissao propria.
     "Estrutura": (
-        "Compra e monta os kits e faz a entrega",
+        "Monta os kits das criancas",
         (
-            "ver_criancas",
+            "ver_painel_logistica",
             "gerenciar_kits",
-            "gerenciar_compras",
-            "fazer_checkin",
         ),
     ),
 }
