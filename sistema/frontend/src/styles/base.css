@@ -217,6 +217,7 @@ textarea.campo__controle {
 @media (pointer: coarse) {
   .campo__controle,
   .barra-acoes .campo__controle,
+  .faixa-abas-filtros__filtros .campo__controle,
   .ficha__acao .campo__controle {
     font-size: 16px;
   }
@@ -1255,6 +1256,133 @@ textarea.campo__controle {
   color: var(--text-on-light-muted);
 }
 
+/* ---------- Numeros compactos (Financeiro) ----------
+   A mesma fileira de numeros, em tamanho de resumo: a tela do financeiro e a
+   lista, e os cards cheios do painel comiam um terco da altura antes dela
+   comecar. Menos respiro, valor menor — continua sendo o primeiro numero que
+   se le, so que nao e mais manchete. */
+.numeros--compactos {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.numeros--compactos .numero {
+  padding: var(--space-3) var(--space-4);
+}
+
+.numeros--compactos .numero__rotulo {
+  margin-bottom: 2px;
+}
+
+.numeros--compactos .numero__valor,
+.numeros--compactos.numeros .numero--dinheiro .numero__valor {
+  font-size: 18px;
+}
+
+.numeros--compactos .numero__nota {
+  margin-top: 2px;
+}
+
+/* ---------- De onde veio o dinheiro (Financeiro) ----------
+   Um card com o dobro da largura, mas a altura dos outros: uma barra so,
+   partida por categoria, e a legenda embaixo com nome e valor. */
+.numero--largo {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .numero--largo {
+    grid-column: auto;
+  }
+}
+
+.origem__barra {
+  display: flex;
+  /* O vao de 2px e o branco do card entre as fatias: sem ele, duas cores
+     vizinhas de mesma luminosidade viravam uma fatia so. */
+  gap: 2px;
+  height: 10px;
+  margin-top: var(--space-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.origem__fatia {
+  flex-basis: 0;
+  /* Uma fatia minima, para R$ 20 num caixa de R$ 20 mil ainda aparecer. */
+  min-width: 3px;
+  background: var(--cor-origem, var(--navy-300));
+}
+
+.origem__legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+}
+
+.origem__legenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.origem__legenda li::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cor-origem, var(--navy-300));
+}
+
+.origem__legenda strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-on-light-primary);
+}
+
+/* Uma cor por categoria, presa a ela e nao a posicao: a ordem das barras muda
+   com os valores, a cor nao. Cesta e festa sao as mesmas do painel. As tres
+   novas foram escolhidas pelo validador de paleta contra as duas: todos os
+   pares passam de deltaE 9 nos tres tipos de daltonismo e de 16 em visao
+   normal. Amarelo e verde ficam abaixo de 3:1 sobre o branco — por isso o
+   nome e o valor vao escritos na legenda e em toda etiqueta.
+
+   A mesma classe pinta a barra do grafico e a etiqueta da lista: `--cor-origem`
+   e a cor cheia (barra e pontinho), `--cor-origem-fundo` o tom claro do fundo
+   da etiqueta, onde o texto escuro passa no AA. */
+.origem--apadrinhamento_cesta { --cor-origem: var(--navy-500); --cor-origem-fundo: var(--navy-100); }
+.origem--apadrinhamento_festa { --cor-origem: var(--amarelo-600); --cor-origem-fundo: var(--amarelo-200); }
+.origem--apadrinhamento { --cor-origem: #9085e9; --cor-origem-fundo: #ebe8fb; }
+.origem--doacao { --cor-origem: #1baf7a; --cor-origem-fundo: #daf2e9; }
+.origem--outros { --cor-origem: #eb6834; --cor-origem-fundo: #fce4da; }
+
+/* O tipo do recebimento na lista. O pontinho e a cor da barra do grafico, para
+   a linha casar com ela de relance; o fundo e so um tom dela. */
+.etiqueta--origem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: var(--space-2);
+  vertical-align: 1px;
+  background: var(--cor-origem-fundo, var(--cream-100));
+  color: var(--navy-900);
+}
+
+.etiqueta--origem::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cor-origem, var(--navy-300));
+  flex-shrink: 0;
+}
+
 /* Icones lado a lado dentro de uma celula — o par "baixar / abrir no Drive"
    dos comprovantes. Irmao de .ficha__linha-acoes, que faz o mesmo dentro da
    ficha; aqui o contexto e a planilha, e o alinhamento e com o texto da linha.
@@ -1293,6 +1421,70 @@ textarea.campo__controle {
   margin-bottom: var(--space-4);
   border-bottom: var(--stroke-hairline) solid var(--border-default);
   scrollbar-width: thin;
+}
+
+/* ---------- Abas e filtros na mesma linha (Financeiro) ----------
+   As abas a esquerda, os filtros empurrados para a direita. O filete de baixo
+   passa das abas para a faixa inteira, para que os dois lados fiquem em cima
+   da mesma linha. Sem espaco, os filtros quebram para baixo, ainda a direita. */
+.faixa-abas-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: var(--stroke-hairline) solid var(--border-default);
+}
+
+.faixa-abas-filtros__abas {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.faixa-abas-filtros__filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.faixa-abas-filtros__filtros .campo {
+  margin-bottom: 0;
+}
+
+/* O botao de "Novo" na mesma altura dos filtros, para a faixa ter uma linha
+   de base so. */
+.faixa-abas-filtros__filtros > .botao {
+  height: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+}
+
+/* Na faixa, o filtro tem o tamanho do que esta escrito nele, e nao a largura
+   inteira — tres selecoes de 100% empilhariam uma em cima da outra. */
+.faixa-abas-filtros__filtros .campo__controle {
+  width: auto;
+  height: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+}
+
+/* No celular cada filtro ocupa a linha inteira: lado a lado, eles quebravam
+   em larguras desiguais, cada um do tamanho do proprio texto. */
+@media (max-width: 720px) {
+  .faixa-abas-filtros__filtros {
+    flex: 1 1 100%;
+  }
+
+  .faixa-abas-filtros__filtros .campo {
+    flex: 1 1 100%;
+  }
+
+  .faixa-abas-filtros__filtros .campo__controle {
+    width: 100%;
+  }
 }
 
 /* ---------- Faixa de abas com chevron nas pontas ----------

@@ -34,6 +34,37 @@ import {
 } from "../services/padrinhos.js";
 import { dinheiro, formatarData } from "../utils/dinheiro.js";
 
+/** O nome curto do tipo, para a etiqueta da lista. O rotulo inteiro
+ *  ("Apadrinhamento - cesta") fica na dica do mouse: repetido em toda linha, o
+ *  "Apadrinhamento" e so ruido. */
+const ETIQUETA_ORIGEM = {
+  apadrinhamento_cesta: "cesta",
+  apadrinhamento_festa: "festa",
+  apadrinhamento: "cesta + festa",
+  doacao: "doação",
+  outros: "outros",
+};
+
+/** A etiqueta do tipo da linha, na cor da barra do grafico. */
+function EtiquetaOrigem({ linha }) {
+  const doPagamento = linha.fonte === "pagamento";
+  // O pagamento sem apadrinhamento cai na mesma categoria de "cesta + festa";
+  // chamar de cesta + festa um dinheiro que nao quita nada seria mentir.
+  const texto = linha.sem_destino
+    ? "sem destino"
+    : (ETIQUETA_ORIGEM[linha.categoria] ?? linha.categoria);
+  const rotulo = ROTULO_CATEGORIA[linha.categoria] ?? linha.categoria;
+
+  return (
+    <span
+      className={`etiqueta etiqueta--origem origem--${linha.categoria}`}
+      title={doPagamento ? `${rotulo}: ${linha.descricao}` : rotulo}
+    >
+      {texto}
+    </span>
+  );
+}
+
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 const NOVA_SAIDA = {
@@ -52,10 +83,57 @@ const SEM_RECEBIMENTOS = {
 
 const SEM_FILTRO = { categoria: "", conferido: "", comprovante: "" };
 
+/** De onde veio o que entrou: uma barra so, partida por categoria.
+ *
+ * Mora na fileira dos numeros, e nao num painel proprio: e o detalhe do
+ * "Recebido", e se le junto com ele. Uma barra partida, e nao uma por
+ * categoria, para o card ter a altura dos outros — cinco barras empilhadas
+ * faziam a fileira inteira crescer e empurravam a lista para baixo. Cada
+ * categoria tem a sua cor, a mesma da etiqueta na lista; a legenda embaixo
+ * escreve nome e valor, para a cor nunca ser a unica pista. Vem de todas as
+ * linhas, antes de qualquer filtro: e um retrato da edicao, e nao da lista que
+ * esta na tela.
+ */
+function OrigemDoRecebido({ porCategoria, total }) {
+  const linhas = Object.entries(porCategoria)
+    .map(([categoria, valor]) => [categoria, Number(valor)])
+    .filter(([, valor]) => valor > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (linhas.length === 0 || total <= 0) return null;
+
+  const dica = (categoria, valor) =>
+    `${ROTULO_CATEGORIA[categoria] ?? categoria}: ${dinheiro(valor)} ` +
+    `(${Math.round((valor / total) * 100)}% do recebido)`;
+
+  return (
+    <div className="numero numero--largo">
+      <span className="numero__rotulo">De onde veio</span>
+      <div className="origem__barra" role="img" aria-label={linhas.map(([c, v]) => dica(c, v)).join("; ")}>
+        {linhas.map(([categoria, valor]) => (
+          <span
+            key={categoria}
+            className={`origem__fatia origem--${categoria}`}
+            style={{ flexGrow: valor }}
+            title={dica(categoria, valor)}
+          />
+        ))}
+      </div>
+      <ul className="origem__legenda">
+        {linhas.map(([categoria, valor]) => (
+          <li key={categoria} className={`origem--${categoria}`} title={dica(categoria, valor)}>
+            {ETIQUETA_ORIGEM[categoria] ?? categoria} <strong>{dinheiro(valor)}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** O caixa da edição: o que saiu e o que entrou.
  *
  * Duas abas porque são dois lançamentos diferentes, e duas permissões também:
- * a estrutura lança saídas, a coordenação lança e confere o que entra. Quem tem
+ * uma lança saídas, a outra lança e confere o que entra. Quem tem
  * só uma delas vê só a sua aba, e a faixa de abas nem aparece. O saldo só
  * existe para quem alcança as duas metades: com meia conta na mão, um saldo
  * seria um número errado com cara de certo.
@@ -317,21 +395,6 @@ export default function Financeiro() {
           <div className="pagina__eyebrow">Edição</div>
           <h1 className="pagina__titulo">Financeiro</h1>
           <Rabisco className="pagina__onda" />
-          <p className="pagina__lede">
-            Todo o dinheiro da edição num lugar: o que a equipe gastou, o que os
-            padrinhos pagaram e as doações que chegam soltas.
-          </p>
-        </div>
-
-        <div className="pagina__acoes">
-          {/* Um botao cheio por tela. Os dois nunca aparecem juntos: qual
-              existe depende da aba aberta. */}
-          <Button
-            onClick={() => definirModal(aba)}
-            disabled={!edicaoAtiva || carregando}
-          >
-            {aba === SAIDAS ? "Nova saída" : "Novo recebimento"}
-          </Button>
         </div>
       </div>
 
@@ -378,9 +441,7 @@ export default function Financeiro() {
       )}
 
       {modal === RECEBIMENTOS && (
-        // `grande`: a lista do que o dinheiro quita cresce com o padrinho
-        // escolhido, e uma janela que muda de altura pula embaixo do ponteiro.
-        <Modal titulo="Novo recebimento" tamanho="grande" aoFechar={() => definirModal(null)}>
+        <Modal titulo="Novo recebimento" aoFechar={() => definirModal(null)}>
           <NovoRecebimento
             edicaoId={edicaoAtiva}
             aoFechar={() => definirModal(null)}
@@ -395,13 +456,12 @@ export default function Financeiro() {
         <>
           {/* A conta da edicao, antes das abas: e a resposta que a coordenacao
               vem buscar aqui, e ela nao muda quando se troca de aba. */}
-          <div className="numeros">
+          <div className="numeros numeros--compactos">
             {podeRecebimentos && (
               <Numero
                 rotulo="Recebido"
                 valor={dinheiro(recebimentos.total_recebido)}
                 moeda
-                nota={`${dinheiro(recebimentos.apadrinhamento)} de apadrinhamento em ${recebimentos.pagamentos} pagamento(s)`}
               />
             )}
             {podeSaidas && (
@@ -409,7 +469,6 @@ export default function Financeiro() {
                 rotulo="Saídas"
                 valor={dinheiro(saidas.total_gasto)}
                 moeda
-                nota={`${saidas.total} lançamento(s)`}
               />
             )}
             {podeSaidas && podeRecebimentos && (
@@ -418,37 +477,108 @@ export default function Financeiro() {
                 valor={dinheiro(saldo)}
                 moeda
                 negativo={saldo < 0}
-                nota={saldo < 0 ? "a edição gastou mais do que recebeu" : "recebido menos saídas"}
+              />
+            )}
+            {/* So na aba de recebimentos: e o detalhe dela, e com as saidas
+                abertas seria um grafico falando de outra lista. */}
+            {aba === RECEBIMENTOS && (
+              <OrigemDoRecebido
+                porCategoria={recebimentos.por_categoria}
+                total={Number(recebimentos.total_recebido)}
               />
             )}
           </div>
 
-          {/* Com uma aba so, a faixa nao aparece: quem tem uma permissao das
-              duas nao precisa saber que existe uma metade que ele nao alcanca. */}
-          {podeSaidas && podeRecebimentos && (
-            <div className="abas" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={aba === SAIDAS}
-                className={`aba ${aba === SAIDAS ? "aba--ativa" : ""}`}
-                onClick={() => trocarAba(SAIDAS)}
+          {/* Abas a esquerda, filtros a direita, numa linha so: a lista e o
+              que se veio ver, e duas faixas empilhadas a empurravam meia tela
+              para baixo. Os filtros sao da lista de recebimentos, e so
+              aparecem com ela aberta. Sem espaco, eles descem para a linha de
+              baixo, ainda alinhados a direita. */}
+          <div className="faixa-abas-filtros">
+            {/* Com uma aba so, a faixa nao aparece: quem tem uma permissao das
+                duas nao precisa saber que existe uma metade que ele nao alcanca. */}
+            {podeSaidas && podeRecebimentos && (
+              <div className="abas faixa-abas-filtros__abas" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={aba === SAIDAS}
+                  className={`aba ${aba === SAIDAS ? "aba--ativa" : ""}`}
+                  onClick={() => trocarAba(SAIDAS)}
+                >
+                  <span>Saídas</span>
+                  <span className="aba__contagem">{dinheiro(saidas.total_gasto)}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={aba === RECEBIMENTOS}
+                  className={`aba ${aba === RECEBIMENTOS ? "aba--ativa" : ""}`}
+                  onClick={() => trocarAba(RECEBIMENTOS)}
+                >
+                  <span>Recebimentos</span>
+                  <span className="aba__contagem">{dinheiro(recebimentos.total_recebido)}</span>
+                </button>
+              </div>
+            )}
+
+            <div className="faixa-abas-filtros__filtros">
+              {aba === RECEBIMENTOS && (
+                <>
+                  <Selecao
+                    aria-label="Filtrar por categoria"
+                    value={filtros.categoria}
+                    onChange={(e) => definirFiltros({ ...filtros, categoria: e.target.value })}
+                  >
+                    <option value="">Todas as categorias</option>
+                    {/* As derivadas tambem filtram: sao elas que aparecem na
+                        lista, e "Apadrinhamento" sozinho e o pagamento que
+                        quita cesta e festa juntas. */}
+                    {Object.entries(ROTULO_CATEGORIA).map(([valor, rotulo]) => (
+                      <option key={valor} value={valor}>{rotulo}</option>
+                    ))}
+                  </Selecao>
+                  <Selecao
+                    aria-label="Filtrar por conferência"
+                    value={filtros.conferido}
+                    onChange={(e) => definirFiltros({ ...filtros, conferido: e.target.value })}
+                  >
+                    <option value="">Conferidos e não conferidos</option>
+                    <option value="false">A conferir</option>
+                    <option value="true">Conferidos</option>
+                  </Selecao>
+                  <Selecao
+                    aria-label="Filtrar por comprovante"
+                    value={filtros.comprovante}
+                    onChange={(e) => definirFiltros({ ...filtros, comprovante: e.target.value })}
+                  >
+                    <option value="">Com e sem comprovante</option>
+                    <option value="false">Falta o comprovante</option>
+                    <option value="true">Comprovante guardado</option>
+                  </Selecao>
+                  {filtrando && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => definirFiltros(SEM_FILTRO)}
+                    >
+                      Limpar filtros
+                    </Button>
+                  )}
+                </>
+              )}
+              {/* O botao fica na faixa, ao lado dos filtros, e nao no topo da
+                  pagina: e a acao da lista aberta, e muda com a aba. Um botao
+                  cheio por tela — os dois nunca aparecem juntos. */}
+              <Button
+                size="sm"
+                onClick={() => definirModal(aba)}
+                disabled={!edicaoAtiva}
               >
-                <span>Saídas</span>
-                <span className="aba__contagem">{dinheiro(saidas.total_gasto)}</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={aba === RECEBIMENTOS}
-                className={`aba ${aba === RECEBIMENTOS ? "aba--ativa" : ""}`}
-                onClick={() => trocarAba(RECEBIMENTOS)}
-              >
-                <span>Recebimentos</span>
-                <span className="aba__contagem">{dinheiro(recebimentos.total_recebido)}</span>
-              </button>
+                {aba === SAIDAS ? "Nova saída" : "Novo recebimento"}
+              </Button>
             </div>
-          )}
+          </div>
 
           <div role="tabpanel" aria-label={aba === SAIDAS ? "Saídas" : "Recebimentos"}>
             {aba === SAIDAS ? (
@@ -533,75 +663,6 @@ export default function Financeiro() {
               </>
             ) : (
               <>
-                <div className="painel">
-                  <h2 className="painel__titulo">De onde vem o que entrou</h2>
-                  <div className="marcaveis">
-                    {Object.entries(recebimentos.por_categoria).map(([categoria, valor]) => (
-                      <span key={categoria} className="marcavel">
-                        {ROTULO_CATEGORIA[categoria] ?? categoria}:{" "}
-                        <strong>{dinheiro(valor)}</strong>
-                      </span>
-                    ))}
-                  </div>
-                  {/* Os dois numeros que pedem acao, e nao so somam. */}
-                  <p className="campo__dica">
-                    {Number(recebimentos.a_conferir) > 0
-                      ? `${dinheiro(recebimentos.a_conferir)} ainda não conferido`
-                      : "Tudo conferido"}
-                    {" · "}
-                    {recebimentos.sem_comprovante > 0
-                      ? `${recebimentos.sem_comprovante} linha(s) sem comprovante`
-                      : "todas as linhas com comprovante"}
-                  </p>
-                </div>
-
-                <div className="barra-acoes">
-                  <Selecao
-                    aria-label="Filtrar por categoria"
-                    value={filtros.categoria}
-                    onChange={(e) => definirFiltros({ ...filtros, categoria: e.target.value })}
-                  >
-                    <option value="">Todas as categorias</option>
-                    {/* As derivadas tambem filtram: sao elas que aparecem na
-                        lista, e "Apadrinhamento" sozinho e o pagamento que
-                        quita cesta e festa juntas. */}
-                    {Object.entries(ROTULO_CATEGORIA).map(([valor, rotulo]) => (
-                      <option key={valor} value={valor}>{rotulo}</option>
-                    ))}
-                  </Selecao>
-                  <Selecao
-                    aria-label="Filtrar por conferência"
-                    value={filtros.conferido}
-                    onChange={(e) => definirFiltros({ ...filtros, conferido: e.target.value })}
-                  >
-                    <option value="">Conferidos e não conferidos</option>
-                    <option value="false">A conferir</option>
-                    <option value="true">Conferidos</option>
-                  </Selecao>
-                  <Selecao
-                    aria-label="Filtrar por comprovante"
-                    value={filtros.comprovante}
-                    onChange={(e) => definirFiltros({ ...filtros, comprovante: e.target.value })}
-                  >
-                    <option value="">Com e sem comprovante</option>
-                    <option value="false">Falta o comprovante</option>
-                    <option value="true">Comprovante guardado</option>
-                  </Selecao>
-                  {filtrando && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => definirFiltros(SEM_FILTRO)}
-                    >
-                      Limpar filtros
-                    </Button>
-                  )}
-                  <span className="campo__dica" style={{ marginTop: 0 }}>
-                    {recebimentos.total} linha(s)
-                    {recebimentos.itens.length < recebimentos.total &&
-                      ` · mostrando as ${recebimentos.itens.length} mais recentes`}
-                  </span>
-                </div>
 
                 {recebimentos.itens.length === 0 ? (
                   <EmptyState
@@ -625,12 +686,7 @@ export default function Financeiro() {
                       <thead>
                         <tr>
                           <th>O que entrou</th>
-                          {!estreita && (
-                            <>
-                              <th>De quem</th>
-                              <th>Categoria</th>
-                            </>
-                          )}
+                          {!estreita && <th>De quem</th>}
                           <th>Valor</th>
                           {!estreita && (
                             <>
@@ -657,13 +713,18 @@ export default function Financeiro() {
                               estreita ? () => definirDetalhe(detalheDoRecebimento(l)) : undefined
                             }
                           >
-                            <td title={l.observacoes ?? undefined}>{l.descricao}</td>
-                            {!estreita && (
-                              <>
-                                <td>{l.quem ?? "—"}</td>
-                                <td>{ROTULO_CATEGORIA[l.categoria] ?? l.categoria}</td>
-                              </>
-                            )}
+                            <td title={l.observacoes ?? undefined}>
+                              {/* O tipo vem na frente, na cor da barra dele no
+                                  grafico — e por isso a coluna "Categoria"
+                                  saiu: dizia a mesma coisa, sem a cor. */}
+                              <EtiquetaOrigem linha={l} />
+                              {/* So "outros" escreve o que foi: no pagamento a
+                                  descricao e a contagem ("2 cestas + 1
+                                  festa"), que fica na dica da etiqueta; na
+                                  doacao, a etiqueta ja diz tudo. */}
+                              {l.categoria === "outros" && l.descricao}
+                            </td>
+                            {!estreita && <td>{l.quem ?? "—"}</td>}
                             <td><span className="dinheiro">{dinheiro(l.valor)}</span></td>
                             {!estreita && (
                               <>
@@ -743,6 +804,15 @@ export default function Financeiro() {
                       </tbody>
                     </table>
                   </div>
+                )}
+                {/* Embaixo da lista, e nao na faixa dos filtros: e rodape, e
+                    la em cima so alargava a faixa ate ela quebrar a linha. */}
+                {recebimentos.itens.length > 0 && (
+                  <p className="campo__dica">
+                    {recebimentos.total} linha(s)
+                    {recebimentos.itens.length < recebimentos.total &&
+                      ` · mostrando as ${recebimentos.itens.length} mais recentes`}
+                  </p>
                 )}
               </>
             )}

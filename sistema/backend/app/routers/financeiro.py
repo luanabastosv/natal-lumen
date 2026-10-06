@@ -256,6 +256,7 @@ def _linha_do_pagamento(pagamento: Pagamento, responsavel: str | None) -> LinhaR
         tem_comprovante=bool(pagamento.comprovante_arquivo),
         comprovante_drive_link=pagamento.comprovante_drive_link,
         responsavel=responsavel,
+        sem_destino=not pagamento.apadrinhamentos,
     )
 
 

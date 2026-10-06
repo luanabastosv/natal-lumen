@@ -7,7 +7,7 @@ models/financeiro.py); o que a tela chama de "saida" e exatamente isto.
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.tipos import CategoriaRecebimento
 
@@ -57,7 +57,11 @@ class PaginaCompras(BaseModel):
 
 class RecebimentoIn(BaseModel):
     edicao_id: int
-    descricao: str = Field(min_length=2, max_length=255)
+    # So "outros" pede descricao: a doacao ja se explica pela categoria, e o
+    # formulario nem mostra o campo para ela. Sem texto, a doacao grava
+    # "Doacao" — a coluna e obrigatoria, e e dela que o log e o nome do
+    # comprovante no Drive tiram o titulo quando nao ha doador.
+    descricao: str | None = Field(default=None, max_length=255)
     # Conjunto fechado. Apadrinhamento NAO entra: aquele dinheiro e um
     # pagamento de padrinho, registrado em /pagamentos, e a categoria dele e
     # derivada do que ele quita.
@@ -67,6 +71,17 @@ class RecebimentoIn(BaseModel):
     doador: str | None = Field(default=None, max_length=180)
     forma: str | None = Field(default=None, max_length=40)
     observacoes: str | None = None
+
+    @model_validator(mode="after")
+    def _descricao_de_outros(self):
+        texto = (self.descricao or "").strip()
+        if len(texto) >= 2:
+            self.descricao = texto
+        elif self.categoria == CategoriaRecebimento.OUTROS:
+            raise ValueError("Diga o que foi este recebimento.")
+        else:
+            self.descricao = "Doação"
+        return self
 
 
 class RecebimentoEditar(BaseModel):
@@ -122,6 +137,10 @@ class LinhaRecebimento(BaseModel):
     conferido: bool
     tem_comprovante: bool
     comprovante_drive_link: str | None
+    # Pagamento que nao quita apadrinhamento nenhum (o apadrinhamento foi
+    # desfeito e o dinheiro ficou). A categoria dele cai no "apadrinhamento"
+    # sem tipo, igual a cesta e festa juntas; isto e o que separa os dois.
+    sem_destino: bool = False
     responsavel: str | None
 
 

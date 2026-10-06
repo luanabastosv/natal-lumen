@@ -54,17 +54,12 @@ export const ROTULO_CATEGORIA = {
   outros: "Outros",
 };
 
-/** As quatro que alguem escolhe ao registrar.
+/** As duas que alguem escolhe ao registrar um recebimento.
  *
- * As duas de apadrinhamento nao viram um recebimento solto: elas levam o
- * formulario a registrar um PAGAMENTO do padrinho, ligado aos apadrinhamentos
- * que ele quita. E o que impede a categoria de dizer "cesta" num dinheiro que
- * pagou festa. */
+ * Apadrinhamento nao entra: o pagamento do padrinho se registra SO na ficha
+ * dele, na pagina de padrinhos, onde ele nasce ligado as criancas que quita. Na
+ * lista do financeiro ele aparece sozinho, sem ser lancado aqui. */
 export const CATEGORIAS_QUE_SE_ESCOLHEM = [
-  { valor: "apadrinhamento_cesta", rotulo: "Apadrinhamento - cesta", tipo: "cesta" },
-  { valor: "apadrinhamento_festa", rotulo: "Apadrinhamento - festa", tipo: "festa" },
   { valor: "doacao", rotulo: "Doação" },
   { valor: "outros", rotulo: "Outros" },
 ];
-
-export const eApadrinhamento = (categoria) => categoria.startsWith("apadrinhamento");
