@@ -244,15 +244,21 @@ export default function Kits() {
           buscarTudo={todosOsItens}
           colunas={[
             { id: "codigo", rotulo: "Código", valor: (k) => k.crianca_codigo },
-            { id: "nome", rotulo: "Criança", valor: (k) => k.crianca_nome },
+            {
+              id: "nome",
+              rotulo: "Criança",
+              valor: (k) => k.crianca_nome,
+              riscar: (k) => Boolean(k.desistiu_em),
+            },
             { id: "idade", rotulo: "Idade", valor: (k) => k.idade },
             { id: "sexo", rotulo: "Sexo", valor: (k) => k.sexo },
             { id: "instituicao", rotulo: "Instituição", valor: (k) => k.instituicao },
             {
               id: "situacao",
-              rotulo: "No sistema",
-              valor: (k) =>
-                k.desistiu_em ? "DESISTIU" : k.status === "montado" ? "montado" : "a montar",
+              rotulo: "Status",
+              // Em maiuscula so a desistente: no papel e ela que precisa saltar
+              // aos olhos de quem monta, porque e a caixa que NAO se faz.
+              valor: (k) => (k.desistiu_em ? "DESISTENTE" : "Confirmada"),
             },
           ]}
           /* A sugestao e o formato que a equipe de estrutura usa toda semana:
@@ -310,6 +316,7 @@ export default function Kits() {
                 </>
               )}
               {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
+              {!estreita && <col style={{ width: 116 }} />}
             </colgroup>
             <thead>
               <tr>
@@ -323,6 +330,7 @@ export default function Kits() {
                 {/* Dentro de uma aba de instituicao a coluna seria a mesma
                     palavra em todas as linhas — a aba ja diz qual escola e. */}
                 {!estreita && abaAtiva === TODAS && coluna("instituicao", "Instituição")}
+                {!estreita && <th>Status</th>}
               </tr>
             </thead>
             <tbody>
@@ -351,12 +359,26 @@ export default function Kits() {
                           {k.idade} anos · {k.sexo}
                           {abaAtiva === TODAS && ` · ${k.instituicao}`}
                         </span>
+                        {/* No celular nao ha coluna de status: "Confirmada"
+                            repetida em toda linha so empurraria o nome. Fica
+                            a excecao, que e o que muda o trabalho. */}
+                        {k.desistiu_em && (
+                          <>
+                            <br />
+                            <EtiquetaStatus desistiu />
+                          </>
+                        )}
                       </>
                     )}
                   </td>
                   {!estreita && <td>{k.idade}</td>}
                   {!estreita && <td>{k.sexo}</td>}
                   {!estreita && abaAtiva === TODAS && <td>{k.instituicao}</td>}
+                  {!estreita && (
+                    <td className="tabela__status">
+                      <EtiquetaStatus desistiu={Boolean(k.desistiu_em)} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -364,5 +386,14 @@ export default function Kits() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Confirmada ou desistente: se o kit desta crianca ainda deve ser montado. */
+function EtiquetaStatus({ desistiu }) {
+  return desistiu ? (
+    <span className="etiqueta etiqueta--parado">Desistente</span>
+  ) : (
+    <span className="etiqueta etiqueta--ok">Confirmada</span>
   );
 }

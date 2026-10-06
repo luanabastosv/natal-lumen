@@ -18,7 +18,9 @@ import Mensagem from "../feedback/Mensagem.jsx";
  * internet no dia do evento, e nao acrescenta dependencia nenhuma ao backend.
  * O que este arquivo faz e montar o HTML certo e dizer o tamanho da folha.
  *
- * `colunas`: [{ id, rotulo, valor: (item) => texto }]
+ * `colunas`: [{ id, rotulo, valor: (item) => texto, riscar?: (item) => bool }]
+ *   `riscar` risca a celula daquela linha — o nome de quem desistiu, como a
+ *   tela ja faz.
  * `sugestao`: { colunas: [id], orientacao, agruparPor, ordenarPor, caixinha }
  * `agrupamentos` e `ordenacoes`: [{ id, rotulo, de: (item) => valor }]
  * `buscarTudo`: devolve TODOS os itens do filtro atual — a tela mostra uma
@@ -248,7 +250,12 @@ export default function ImprimirLista({
                         </td>
                       )}
                       {escolhidas.map((c) => (
-                        <td key={c.id}>{c.valor(item)}</td>
+                        <td
+                          key={c.id}
+                          className={c.riscar?.(item) ? "impressao__riscado" : undefined}
+                        >
+                          {c.valor(item)}
+                        </td>
                       ))}
                     </tr>
                   ))}

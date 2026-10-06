@@ -1713,8 +1713,9 @@ textarea.campo__controle {
 /* Quem desistiu continua na lista, riscado. O kit dela NAO deve ser montado,
    e some-la faria a conta da equipe nao bater com a lista impressa — ninguem
    entenderia por que faltam tres caixas. A caixinha fica fora do risco: ela
-   ainda precisa ser clicavel, para o caso de a desistencia ser desfeita. */
-.tabela tr.tabela__linha--desistiu td:not(.tabela__marcar) {
+   ainda precisa ser clicavel, para o caso de a desistencia ser desfeita. O
+   status tambem: riscar a etiqueta "Desistente" apagaria justamente o aviso. */
+.tabela tr.tabela__linha--desistiu td:not(.tabela__marcar):not(.tabela__status) {
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
   text-decoration-color: var(--text-on-light-muted);
@@ -4568,6 +4569,14 @@ textarea.campo__controle {
 
   .impressao__tabela td:first-of-type {
     font-weight: 700;
+  }
+
+  /* Risco firme, que sobrevive a impressora fraca e a fotocopia: o fino da
+     tela some no papel. Preto e sem transparencia pelo mesmo motivo. */
+  .impressao__tabela td.impressao__riscado {
+    text-decoration: line-through;
+    text-decoration-thickness: 1pt;
+    text-decoration-color: #000;
   }
 
   .impressao__tabela th {
