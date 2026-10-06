@@ -69,6 +69,17 @@ body {
   width: 100%;
 }
 
+/* So o icone: o botao vira um circulo da mesma altura dos outros, para ficar
+   lado a lado com um botao de texto sem degrau. */
+.botao--so-icone {
+  width: var(--control-h);
+  padding: 0;
+}
+
+.botao--sm.botao--so-icone {
+  width: 32px;
+}
+
 /* Feedback tatil: todo botao afunda ao ser pressionado. */
 .botao:not(.botao--inativo):active {
   transform: scale(0.97);

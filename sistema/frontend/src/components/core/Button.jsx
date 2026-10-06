@@ -17,6 +17,10 @@ export default function Button({
   larguraTotal = false,
   type = "button",
   iconLeft,
+  // Botao so de icone, redondo. O `titulo` passa a ser obrigatorio: vira a
+  // dica do mouse e o que o leitor de tela anuncia, ja que nao ha texto.
+  soIcone = false,
+  titulo,
   children,
   onClick,
   as = "button",
@@ -30,6 +34,7 @@ export default function Button({
     `botao--${variant}`,
     TAMANHOS[size] ?? "",
     larguraTotal ? "botao--largo" : "",
+    soIcone ? "botao--so-icone" : "",
     inativo ? "botao--inativo" : "",
   ]
     .filter(Boolean)
@@ -42,6 +47,8 @@ export default function Button({
       type={as === "button" ? type : undefined}
       disabled={as === "button" ? inativo : undefined}
       aria-disabled={as === "a" && inativo ? true : undefined}
+      title={titulo}
+      aria-label={soIcone ? titulo : undefined}
       aria-busy={carregando || undefined}
       onClick={inativo ? undefined : onClick}
     >

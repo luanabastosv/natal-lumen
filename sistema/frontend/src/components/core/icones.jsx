@@ -123,6 +123,29 @@ export function Baixar({ t }) {
   );
 }
 
+/** Importar uma planilha: a seta sobe para dentro da bandeja, o avesso do
+ *  Baixar. Mesmo desenho de bandeja, para os dois lerem como par. */
+export function Importar({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M12 14.5V4" />
+      <path d="M8 8 12 4 16 8" />
+      <path d="M4.5 17.5v1.5a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-1.5" />
+    </Svg>
+  );
+}
+
+/** Imprimir: a impressora com a folha saindo embaixo. */
+export function Imprimir({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M7 8V3.5h10V8" />
+      <path d="M7 17H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 9h14a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 19 17h-2" />
+      <rect x="7" y="13.5" width="10" height="7" rx="0.5" />
+    </Svg>
+  );
+}
+
 /** Enviar pelo WhatsApp. */
 export function Enviar({ t }) {
   return (

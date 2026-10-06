@@ -4,9 +4,10 @@ import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
-import { Olho, Xis } from "../components/core/icones.jsx";
+import { Importar, Imprimir, Olho, Xis } from "../components/core/icones.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
+import ImprimirLista from "../components/dados/ImprimirLista.jsx";
 import { rotuloDoPerfil } from "../components/dados/perfis.js";
 import Carregando from "../components/feedback/Carregando.jsx";
 import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
@@ -29,6 +30,7 @@ import {
 } from "../services/criancas.js";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { tomDoDia } from "../utils/dias.js";
+import { rotuloDia } from "../utils/dinheiro.js";
 import ImportarLista from "./ImportarLista.jsx";
 
 /** Como um responsavel se escreve nas listas desta tela.
@@ -70,9 +72,17 @@ function Marcador({ letra, tipo, feito, prometido }) {
 }
 
 const POR_PAGINA = 100;
+// O teto que o servidor aceita por pagina. A impressao anda de pagina em
+// pagina ate o fim, porque o papel tem de sair com a lista inteira.
+const POR_PAGINA_MAXIMO = 200;
 const TODAS = "todas";
 const SEM_RESPONSAVEL = "sem";
 const NOVA = { instituicao_id: "", codigo: "", nome: "", idade: "", sexo: "F" };
+
+/** Cesta ou festa no papel: o mesmo tres-estados do Marcador, em palavra. */
+function padrinhoNoPapel(feito, prometido) {
+  return feito ? "Sim" : prometido ? "Prometido" : "—";
+}
 
 /* O que a janela de exclusao diz alem da conta. Desistencia e quase sempre o
    caminho certo: guarda o cadastro e so tira a crianca do evento — e da para
@@ -117,6 +127,7 @@ export default function Criancas() {
   const [campos, definirCampos] = useState(NOVA);
   const [salvando, definirSalvando] = useState(false);
   const [importando, definirImportando] = useState(false);
+  const [imprimindo, definirImprimindo] = useState(false);
   const [fichaAberta, definirFichaAberta] = useState(null);
 
   // A exclusao em curso: { registro, dependencias, erro, apagando }. Num
@@ -227,6 +238,26 @@ export default function Criancas() {
     // eslint-disable-next-line react/set-state-in-effect
     if (edicaoAtiva) buscar();
   }, [edicaoAtiva, abaAtiva, pagina, buscar]);
+
+  /** A lista inteira do filtro atual, para o papel. A tela mostra uma pagina;
+   *  aqui se busca uma atras da outra ate acabar. */
+  async function todasAsCriancas() {
+    const filtros = {
+      edicao_id: edicaoAtiva,
+      instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
+      comissario_id: filtroComissario === SEM_RESPONSAVEL ? "" : filtroComissario,
+      sem_comissario: filtroComissario === SEM_RESPONSAVEL ? true : "",
+      busca,
+      codigo,
+      por_pagina: POR_PAGINA_MAXIMO,
+    };
+    const tudo = [];
+    for (let p = 1; ; p += 1) {
+      const resposta = await listarCriancas({ ...filtros, pagina: p });
+      tudo.push(...resposta.itens);
+      if (resposta.itens.length === 0 || tudo.length >= resposta.total) return tudo;
+    }
+  }
 
   async function recarregarAbas() {
     try {
@@ -403,20 +434,36 @@ export default function Criancas() {
           </p>
         </div>
 
-        {/* Importar e acao da pagina, nao da lista: na folga lateral do titulo
-            ela nao custa nenhuma linha de altura. Sem permissao de importar,
-            o cabecalho fica so com o texto.
+        {/* Importar e imprimir sao acoes da pagina, nao da lista: na folga
+            lateral do titulo elas nao custam nenhuma linha de altura. Imprimir e
+            so o icone, ao lado: a impressora se explica sozinha, e o titulo
+            dela diz o resto.
 
-            No celular ela nao aparece: a importacao e escolher um arquivo de
-            planilha e conferir o que veio, e isso se faz onde a planilha
-            esta. */}
-        {pode("importar_listas") && !estreita && (
-          <div className="pagina__acoes">
-            <Button size="sm" variant="ghost" onClick={() => definirImportando(true)} disabled={!edicao}>
+            Importar nao aparece no celular: e escolher um arquivo de planilha
+            e conferir o que veio, e isso se faz onde a planilha esta.
+            Imprimir aparece para todo mundo que ve a lista. */}
+        <div className="pagina__acoes">
+          {pode("importar_listas") && !estreita && (
+            <Button
+              size="sm"
+              variant="ghost"
+              iconLeft={<Importar t={14} />}
+              onClick={() => definirImportando(true)}
+              disabled={!edicao}
+            >
               Importar lista
             </Button>
-          </div>
-        )}
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            soIcone
+            titulo="Imprimir lista"
+            iconLeft={<Imprimir t={15} />}
+            onClick={() => definirImprimindo(true)}
+            disabled={!edicao}
+          />
+        </div>
       </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -603,6 +650,93 @@ export default function Criancas() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {imprimindo && (
+        <ImprimirLista
+          titulo="Crianças"
+          subtitulo={edicao ? `${edicao.cidade} ${edicao.ano}` : undefined}
+          aoFechar={() => definirImprimindo(false)}
+          buscarTudo={todasAsCriancas}
+          /* As mesmas colunas da planilha, e so as que esta pessoa recebe: o
+             papel nao pode mostrar o que a tela esconde dela. */
+          colunas={[
+            { id: "codigo", rotulo: "Código", valor: (c) => c.codigo },
+            {
+              id: "nome",
+              rotulo: "Nome",
+              valor: (c) => c.nome,
+              riscar: (c) => Boolean(c.desistiu_em),
+            },
+            { id: "idade", rotulo: "Idade", valor: (c) => c.idade },
+            { id: "sexo", rotulo: "Sexo", valor: (c) => c.sexo },
+            {
+              id: "dia",
+              rotulo: "Dia",
+              valor: (c) => (c.dia_evento ? rotuloDia(c.dia_evento, c.dia_evento_descricao) : "sem dia"),
+            },
+            { id: "instituicao", rotulo: "Instituição", valor: (c) => c.instituicao },
+            ...(veCaptacao
+              ? [
+                  {
+                    id: "comissario",
+                    rotulo: "Comissário",
+                    valor: (c) => c.comissario ?? "sem responsável",
+                  },
+                  { id: "grupo", rotulo: "Grupo", valor: (c) => c.comissario_grupo ?? "—" },
+                  {
+                    id: "cesta",
+                    rotulo: "Padrinho cesta",
+                    valor: (c) => padrinhoNoPapel(c.tem_padrinho_cesta, c.promessa_cesta),
+                  },
+                  {
+                    id: "festa",
+                    rotulo: "Padrinho festa",
+                    valor: (c) => padrinhoNoPapel(c.tem_padrinho_festa, c.promessa_festa),
+                  },
+                ]
+              : []),
+            { id: "cartoes", rotulo: "Cartões", valor: (c) => `${c.cartoes}/2` },
+            ...(veKit
+              ? [{ id: "kit", rotulo: "Kit", valor: (c) => c.kit_status ?? "—" }]
+              : []),
+            { id: "checkin", rotulo: "Check-in", valor: (c) => (c.checkin_em ? "Sim" : "Não") },
+            {
+              id: "situacao",
+              rotulo: "Status",
+              // Em maiuscula so a desistente, como na lista de kits: e ela que
+              // precisa saltar aos olhos no papel.
+              valor: (c) => (c.desistiu_em ? "DESISTENTE" : "Confirmada"),
+            },
+          ]}
+          /* A sugestao e a lista de chamada: uma folha por instituicao, em pe,
+             por codigo, com o que identifica a crianca. Instituicao fica de
+             fora porque ja e o titulo da folha. */
+          sugestao={{
+            colunas: ["codigo", "nome", "idade", "sexo", "dia", "situacao"],
+            orientacao: "retrato",
+            agruparPor: "instituicao",
+            ordenarPor: "codigo",
+            caixinha: false,
+          }}
+          agrupamentos={[
+            { id: "instituicao", rotulo: "Instituição", de: (c) => c.instituicao },
+            {
+              id: "dia",
+              rotulo: "Dia",
+              de: (c) => (c.dia_evento ? rotuloDia(c.dia_evento, c.dia_evento_descricao) : null),
+            },
+            ...(veCaptacao
+              ? [{ id: "comissario", rotulo: "Comissário", de: (c) => c.comissario ?? "Sem responsável" }]
+              : []),
+          ]}
+          ordenacoes={[
+            { id: "codigo", rotulo: "Código", de: (c) => c.codigo },
+            { id: "nome", rotulo: "Nome", de: (c) => c.nome },
+            { id: "idade", rotulo: "Idade", de: (c) => String(c.idade).padStart(3, "0") },
+            { id: "sexo", rotulo: "Sexo", de: (c) => `${c.sexo} ${c.nome}` },
+          ]}
+        />
       )}
 
       {fichaAberta && (
