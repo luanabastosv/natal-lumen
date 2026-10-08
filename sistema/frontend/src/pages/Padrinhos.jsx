@@ -221,8 +221,8 @@ export default function Padrinhos() {
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         {estreita
-          ? "Toque na linha para a ficha com todos os dados e as ações de cada criança."
-          : " Clique em qualquer célula para editar; o menu abre a ficha com todas as crianças e as ações de cada uma."}
+          ? "Toque na linha para abrir a ficha do padrinho."
+          : "Clique na célula para editar; o menu abre a ficha com as crianças."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>

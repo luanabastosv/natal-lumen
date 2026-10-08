@@ -68,8 +68,7 @@ export default function ImportarLista({ edicao, instituicoes, aoTerminar }) {
       <h1 className="pagina__titulo">Importar lista</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
-        Envie a planilha que a instituição mandou. Nada é gravado até você conferir e
-        confirmar.
+        Envie a planilha da instituição. Nada é gravado antes de você confirmar.
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>

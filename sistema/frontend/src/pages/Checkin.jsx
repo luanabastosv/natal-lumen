@@ -60,8 +60,8 @@ export default function Checkin() {
           <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
             {porLista
-              ? "Confirme a presença de cada criança da sua instituição com um toque. O check-in nunca é recusado — o que estiver estranho aparece como aviso."
-              : "Leia o QR do crachá ou digite o código. O check-in nunca é recusado — o que estiver estranho aparece como aviso."}
+              ? "Toque para confirmar a presença. O check-in nunca é recusado, só avisa."
+              : "Leia o QR do crachá ou digite o código. O check-in nunca é recusado, só avisa."}
           </p>
         </div>
         <img className="abertura-dominio__cena" src="/acesso/images/cena-onibus.png" alt="" />

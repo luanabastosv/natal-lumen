@@ -249,9 +249,7 @@ export default function Instituicoes() {
           <h1 className="pagina__titulo">Instituições</h1>
           <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
-            Pertencem a uma cidade e continuam de um ano para o outro. São elas que
-            enviam as listas. <strong>O dia do evento é definido aqui</strong>, e vale
-            para todas as crianças da instituição.
+            Continuam de um ano para o outro. <strong>O dia do evento é definido aqui.</strong>
           </p>
         </div>
 

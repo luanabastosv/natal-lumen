@@ -179,9 +179,7 @@ export default function Kits() {
       <h1 className="pagina__titulo">Kits</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
-        Uma criança, um kit. Marque a caixinha conforme for montando — cada marca
-        vale na hora, não precisa salvar no fim. Quem desistiu do evento aparece
-        riscado: não monte kit para essas.
+        Uma criança, um kit. Cada marca vale na hora; riscada é quem desistiu.
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>

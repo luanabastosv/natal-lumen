@@ -347,8 +347,8 @@ export default function Cartoes() {
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         {pasta
-          ? "Os cartões e as autorizações desta instituição. Suba aqui cada pilha digitalizada dela — o nome de cada arquivo tem de ser o código da criança."
-          : "Uma pasta por instituição. Abra a da escola em que você está trabalhando para ver os cartões e as autorizações dela e subir as pilhas digitalizadas."}
+          ? "Suba as pilhas desta instituição. Cada arquivo leva o código da criança no nome."
+          : "Uma pasta por instituição. Abra a sua para ver e subir cartões e autorizações."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>

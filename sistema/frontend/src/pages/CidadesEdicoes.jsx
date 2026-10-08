@@ -350,8 +350,7 @@ export default function CidadesEdicoes() {
       <h1 className="pagina__titulo">Cidades e edições</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
-        Cada cidade num ano é uma edição independente. Os valores de cesta e festa
-        valem para os apadrinhamentos registrados a partir daí.
+        Cada cidade num ano é uma edição, com os próprios valores de cesta e festa.
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>

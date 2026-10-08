@@ -397,9 +397,7 @@ export default function Usuarios() {
           <h1 className="pagina__titulo">Usuários</h1>
           <Rabisco className="pagina__onda" />
           <p className="pagina__lede">
-            A equipe da edição escolhida na lateral. Cada pessoa define a própria senha
-            pelo link de primeiro acesso; comissários e monitores só alcançam as
-            instituições atribuídas a eles.
+            A equipe desta edição. Cada pessoa define a própria senha pelo link de acesso.
           </p>
         </div>
 
