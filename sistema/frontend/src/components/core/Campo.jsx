@@ -4,10 +4,24 @@ import { useId } from "react";
 // reaproveitar. Este segue os tokens e combina com os botoes: borda de 2px,
 // raio md e foco em navy.
 
-export function Campo({ rotulo, dica, erro, classe = "", children }) {
+/* `obrigatorio` poe o asterisco vermelho no rotulo E o `required` no
+   controle, juntos: assim o asterisco e a validacao do navegador nunca dizem
+   coisas diferentes. E opcional de proposito — o login, por exemplo, usa so
+   `required`, e um asterisco em "Senha" seria ruido. O asterisco e so visual:
+   quem usa leitor de tela ja ouve "obrigatorio" pelo `required`. */
+export function Campo({ rotulo, dica, erro, classe = "", obrigatorio = false, children }) {
   return (
     <label className={`campo ${classe}`.trim()}>
-      {rotulo && <span className="campo__rotulo">{rotulo}</span>}
+      {rotulo && (
+        <span className="campo__rotulo">
+          {rotulo}
+          {obrigatorio && (
+            <span className="campo__obrigatorio" aria-hidden="true">
+              *
+            </span>
+          )}
+        </span>
+      )}
       {children}
       {erro ? (
         <span className="campo__erro">{erro}</span>
@@ -22,17 +36,27 @@ export function Campo({ rotulo, dica, erro, classe = "", children }) {
  *  e um atalho para o que ja existe, nao um seletor — o primeiro grupo de uma
  *  cidade precisa poder ser escrito do zero.
  */
-export function Entrada({ rotulo, dica, erro, classe, tipo = "text", sugestoes, ...resto }) {
+export function Entrada({
+  rotulo,
+  dica,
+  erro,
+  classe,
+  tipo = "text",
+  sugestoes,
+  obrigatorio = false,
+  ...resto
+}) {
   const id = useId();
   const listaId = `${id}-sugestoes`;
   return (
-    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
+    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe} obrigatorio={obrigatorio}>
       <input
         id={id}
         type={tipo}
         className={`campo__controle ${erro ? "campo__controle--erro" : ""}`}
         aria-invalid={erro ? true : undefined}
         list={sugestoes?.length ? listaId : undefined}
+        required={obrigatorio || undefined}
         {...resto}
       />
       {sugestoes?.length > 0 && (
@@ -54,29 +78,31 @@ export function Entrada({ rotulo, dica, erro, classe, tipo = "text", sugestoes, 
  * escreveu. A altura vem de `linhas`, e nao do conteudo: um campo que estica
  * empurra o botao de salvar para baixo enquanto se digita.
  */
-export function AreaTexto({ rotulo, dica, erro, classe, linhas = 3, ...resto }) {
+export function AreaTexto({ rotulo, dica, erro, classe, linhas = 3, obrigatorio = false, ...resto }) {
   const id = useId();
   return (
-    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
+    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe} obrigatorio={obrigatorio}>
       <textarea
         id={id}
         rows={linhas}
         className={`campo__controle ${erro ? "campo__controle--erro" : ""}`}
         aria-invalid={erro ? true : undefined}
+        required={obrigatorio || undefined}
         {...resto}
       />
     </Campo>
   );
 }
 
-export function Selecao({ rotulo, dica, erro, classe, children, ...resto }) {
+export function Selecao({ rotulo, dica, erro, classe, children, obrigatorio = false, ...resto }) {
   const id = useId();
   return (
-    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe}>
+    <Campo rotulo={rotulo} dica={dica} erro={erro} classe={classe} obrigatorio={obrigatorio}>
       <select
         id={id}
         className={`campo__controle campo__controle--selecao ${erro ? "campo__controle--erro" : ""}`}
         aria-invalid={erro ? true : undefined}
+        required={obrigatorio || undefined}
         {...resto}
       >
         {children}

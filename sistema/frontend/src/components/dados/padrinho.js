@@ -1,6 +1,12 @@
 /* As regras do formulario do padrinho, divididas entre a janela do
    computador e a pagina de cadastro do celular (ver CamposPadrinho.jsx). */
 
+import { numeroLimpo } from "../../utils/whatsapp.js";
+
+// So o formato: alguma coisa, arroba, alguma coisa com ponto. Quem decide de
+// verdade e o servidor (EmailStr); isto so evita habilitar o botao cedo.
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /* As duas perguntas da captacao nascem vazias e sao obrigatorias: Sim ou Nao,
    sem "a perguntar". O cadastro so fecha quando a captacao perguntou. */
 export const PADRINHO_NOVO = {
@@ -43,6 +49,14 @@ export function dadosDoPadrinho(campos) {
   };
 }
 
+/** Tudo o que e obrigatorio esta preenchido: nome, WhatsApp com DDD, email
+ *  com cara de email e as duas perguntas. So a observacao e opcional. */
 export function padrinhoCompleto(campos) {
-  return Boolean(campos.nome.trim() && campos.membro_ser_feliz && campos.interesse_mensal);
+  return Boolean(
+    campos.nome.trim() &&
+      numeroLimpo(campos.whatsapp) &&
+      EMAIL.test(campos.email.trim()) &&
+      campos.membro_ser_feliz &&
+      campos.interesse_mensal,
+  );
 }

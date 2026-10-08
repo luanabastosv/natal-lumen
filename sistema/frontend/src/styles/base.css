@@ -5683,3 +5683,9 @@ button.checkin-lista__botao:not(:disabled):active {
 .campo__dica:empty {
   display: none;
 }
+
+/* O asterisco de campo obrigatorio, colado no rotulo. */
+.campo__obrigatorio {
+  margin-left: 2px;
+  color: #c0392b;
+}

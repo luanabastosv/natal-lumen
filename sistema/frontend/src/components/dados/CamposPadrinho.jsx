@@ -17,16 +17,33 @@ export function CamposPadrinho({ campos, definirCampos, avisoNome = null }) {
         value={campos.nome}
         onChange={mudar("nome")}
         dica={avisoNome}
-        required
+        obrigatorio
       />
-      <Entrada rotulo="WhatsApp" tipo="tel" value={campos.whatsapp} onChange={mudar("whatsapp")} />
-      <Entrada rotulo="Email" tipo="email" value={campos.email} onChange={mudar("email")} />
+      {/* WhatsApp e email obrigatorios: e por eles que o agradecimento chega,
+          e um padrinho sem contato e um padrinho que ninguem consegue cobrar
+          nem agradecer. So a observacao e opcional. */}
+      <Entrada
+        rotulo="WhatsApp"
+        tipo="tel"
+        inputMode="tel"
+        value={campos.whatsapp}
+        onChange={mudar("whatsapp")}
+        placeholder="(85) 99999-0000"
+        obrigatorio
+      />
+      <Entrada
+        rotulo="Email"
+        tipo="email"
+        value={campos.email}
+        onChange={mudar("email")}
+        obrigatorio
+      />
       <Entrada rotulo="Observações" value={campos.observacoes} onChange={mudar("observacoes")} />
       <Selecao
         rotulo="Já é membro Ser Feliz?"
         value={campos.membro_ser_feliz}
         onChange={mudar("membro_ser_feliz")}
-        required
+        obrigatorio
       >
         <option value="" disabled>
           Selecione
@@ -38,7 +55,7 @@ export function CamposPadrinho({ campos, definirCampos, avisoNome = null }) {
         rotulo="Tem interesse em contribuir mensalmente?"
         value={campos.interesse_mensal}
         onChange={mudar("interesse_mensal")}
-        required
+        obrigatorio
       >
         <option value="" disabled>
           Selecione
