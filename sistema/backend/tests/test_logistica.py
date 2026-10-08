@@ -3,7 +3,7 @@
 Rodar com:  python -m tests.test_logistica
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select, text
@@ -20,6 +20,7 @@ from app.models import (
     DiaEvento,
     Edicao,
     Instituicao,
+    InstituicaoDia,
     Kit,
     LogAtividade,
     Padrinho,
@@ -122,6 +123,8 @@ def main() -> None:
     carla = Crianca(edicao_id=edicao.id, instituicao_id=inst.id,
                     codigo="003", nome="Carla Souza", idade=7, sexo="F")
     db.add_all([ana, bruno, carla]); db.flush()
+    db.add(InstituicaoDia(edicao_id=edicao.id, instituicao_id=inst.id, dia_evento_id=hoje.id))
+    db.flush()
 
     def usuario(sufixo, perfil):
         u = Usuario(nome=f"{MARCA} {sufixo}", email=f"{MARCA.lower()}.{sufixo.lower()}@exemplo.org",
@@ -207,6 +210,39 @@ def main() -> None:
         verifica("e diz se a crianca desistiu",
                  "desistiu_em" in item, str(sorted(item)))
 
+        print("\nKits: quem montou e quem conferiu")
+        verifica("a linha diz quem montou", item.get("montado_por") == estrutura.nome,
+                 str(item.get("montado_por")))
+        verifica("e ainda ninguem conferiu", item.get("conferido_por") is None,
+                 str(item.get("conferido_por")))
+
+        r = ce.post(f"/kits/{carla.id}/conferir")
+        verifica("kit nao montado nao se confere", r.status_code == 409, str(r.status_code))
+
+        r = ce.post(f"/kits/{ana.id}/conferir")
+        verifica("conferir grava quem conferiu",
+                 r.status_code == 200 and r.json()["conferido_por"] == estrutura.nome
+                 and r.json()["conferido_em"] is not None, r.text[:160])
+        item = next(i for i in ce.get("/kits").json()["itens"] if i["crianca_id"] == ana.id)
+        verifica("e a lista mostra", item["conferido_por"] == estrutura.nome, str(item))
+
+        r = ck.post(f"/kits/{ana.id}/conferir")
+        verifica("comissario NAO confere kit", r.status_code == 403, str(r.status_code))
+
+        r = ce.post("/kits/conferir", json={"criancas": [ana.id, bruno.id, carla.id]})
+        por_id = {k["crianca_id"]: k for k in r.json()} if r.status_code == 200 else {}
+        verifica("confere em lote", r.status_code == 200 and len(por_id) == 3, r.text[:160])
+        verifica("o lote confere o montado que faltava",
+                 por_id.get(bruno.id, {}).get("conferido_por") == estrutura.nome, str(por_id.get(bruno.id)))
+        verifica("e pula o que nao esta montado, sem recusar o resto",
+                 por_id.get(carla.id, {}).get("conferido_por") is None, str(por_id.get(carla.id)))
+
+        r = ce.post("/kits", json={"criancas": [ana.id], "status": "pendente"})
+        verifica("desmontar apaga a conferencia",
+                 r.json()[0]["conferido_por"] is None and r.json()[0]["montado_por"] is None,
+                 str(r.json()[0]))
+        ce.post("/kits", json={"criancas": [ana.id], "status": "montado"})
+
         print("\nKits: duas pessoas marcando a mesma crianca")
         # A equipe de estrutura marca em paralelo na semana do evento. Antes,
         # "procura e se nao houver cria" deixava as duas inserirem, e a segunda
@@ -258,6 +294,46 @@ def main() -> None:
         somados = sum(a["total"] for a in abas)
         verifica("e os totais das abas somam a lista inteira",
                  somados == ce.get("/kits").json()["total"], f"{somados}")
+
+        verifica("a aba traz o dia da instituicao",
+                 all("dia_evento" in a and "dia_evento_descricao" in a for a in abas),
+                 str(abas[:1]))
+
+        aba = next(a for a in abas if a["instituicao_id"] == inst.id)
+        verifica("e e o dia que a instituicao vai",
+                 aba["dia_evento"] == str(hoje.data) and aba["dia_evento_descricao"] == "hoje",
+                 str(aba))
+
+        r = ce.get("/kits/perfil", params={"edicao_id": edicao.id})
+        verifica("o perfil por idade e sexo responde", r.status_code == 200, r.text[:130])
+        perfil = r.json() if r.status_code == 200 else []
+        verifica("o perfil conta idade e sexo",
+                 any(p["idade"] == 8 and p["sexo"] == "F" for p in perfil), str(perfil[:3]))
+        desistentes = sum(a["desistentes"] for a in abas)
+        verifica("e soma a lista inteira, sem as desistentes",
+                 sum(p["quantidade"] for p in perfil) == somados - desistentes,
+                 f"{sum(p['quantidade'] for p in perfil)} de {somados} - {desistentes}")
+
+        print("\nKits: a desistente nao e caixa a montar")
+        db.refresh(carla)
+        carla.desistiu_em = datetime.now(UTC)
+        db.commit()
+        r = ce.get("/kits", params={"edicao_id": edicao.id})
+        itens = r.json()["itens"]
+        esperado = sum(1 for i in itens if i["status"] == "pendente" and not i["desistiu_em"])
+        verifica("o 'a montar' nao conta a desistente",
+                 r.json()["resumo"].get("pendente", 0) == esperado,
+                 f"{r.json()['resumo']} esperado {esperado}")
+        verifica("mas ela continua na lista",
+                 any(i["crianca_id"] == carla.id for i in itens), str(len(itens)))
+        r = ce.post("/kits", json={"criancas": [carla.id], "status": "montado"})
+        verifica("kit de desistente nao se marca", r.status_code == 409, str(r.status_code))
+        r = ce.post("/kits", json={"criancas": [ana.id, carla.id], "status": "montado"})
+        verifica("nem misturado num lote", r.status_code == 409, str(r.status_code))
+        r = ce.post(f"/kits/{carla.id}/conferir")
+        verifica("nem se confere", r.status_code == 409, str(r.status_code))
+        carla.desistiu_em = None
+        db.commit()
 
         r = ce.get("/kits", params={"instituicao_id": abas[0]["instituicao_id"]})
         verifica("a lista filtra por instituicao",

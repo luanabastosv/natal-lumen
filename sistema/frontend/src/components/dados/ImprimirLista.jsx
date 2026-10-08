@@ -25,6 +25,12 @@ import Mensagem from "../feedback/Mensagem.jsx";
  * `agrupamentos` e `ordenacoes`: [{ id, rotulo, de: (item) => valor }]
  * `buscarTudo`: devolve TODOS os itens do filtro atual — a tela mostra uma
  *   pagina, mas o papel tem de sair com a lista inteira.
+ * `extra`: { rotulo, preparar: async () => (grupo) => JSX } — um bloco opcional
+ *   no topo de cada folha, desligado por padrao. `preparar` roda so na hora de
+ *   imprimir, e devolve o que desenhar para cada grupo (null sem agrupamento).
+ *   E por onde as estatisticas de idade e sexo entram na folha dos kits.
+ * `etiquetaDoGrupo`: (grupo, itens) => texto — uma etiqueta fixa no topo de
+ *   cada folha, sem opcao de tirar. Nos kits e o dia do evento da instituicao.
  */
 export default function ImprimirLista({
   titulo,
@@ -34,6 +40,8 @@ export default function ImprimirLista({
   agrupamentos = [],
   ordenacoes = [],
   buscarTudo,
+  extra,
+  etiquetaDoGrupo,
   aoFechar,
 }) {
   const [config, definirConfig] = useState({
@@ -42,6 +50,7 @@ export default function ImprimirLista({
     agruparPor: sugestao.agruparPor ?? "",
     ordenarPor: sugestao.ordenarPor ?? "",
     caixinha: sugestao.caixinha ?? false,
+    extra: false,
   });
   const [preparando, definirPreparando] = useState(false);
   const [erro, definirErro] = useState("");
@@ -67,7 +76,10 @@ export default function ImprimirLista({
     definirErro("");
     definirPreparando(true);
     try {
-      const itens = await buscarTudo();
+      const [itens, desenharExtra] = await Promise.all([
+        buscarTudo(),
+        extra && config.extra ? extra.preparar() : null,
+      ]);
       const ordenacao = ordenacoes.find((o) => o.id === config.ordenarPor);
       const agrupamento = agrupamentos.find((a) => a.id === config.agruparPor);
 
@@ -92,7 +104,7 @@ export default function ImprimirLista({
           ].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
         : [[null, ordenados]];
 
-      definirParaImprimir({ grupos, quando: new Date() });
+      definirParaImprimir({ grupos, desenharExtra, quando: new Date() });
 
       // Espera o navegador pintar a area de impressao antes de abrir o
       // dialogo: chamar print() no mesmo quadro imprimiria a pagina sem ela.
@@ -187,6 +199,17 @@ export default function ImprimirLista({
           Coluna vazia para marcar à mão no papel
         </label>
 
+        {extra && (
+          <label className="marcavel">
+            <input
+              type="checkbox"
+              checked={config.extra}
+              onChange={(e) => mudar("extra", e.target.checked)}
+            />
+            {extra.rotulo}
+          </label>
+        )}
+
         <div className="barra-acoes barra-acoes--fim">
           <Button onClick={imprimir} carregando={preparando} disabled={escolhidas.length === 0}>
             Imprimir
@@ -219,10 +242,15 @@ export default function ImprimirLista({
           <style>{`@page { size: A4 ${
             config.orientacao === "paisagem" ? "landscape" : "portrait"
           }; margin: ${config.orientacao === "paisagem" ? "10mm" : "12mm"}; }`}</style>
-          {paraImprimir.grupos.map(([grupo, itens], indice) => (
+          {paraImprimir.grupos.map(([grupo, itens], indice) => {
+            const etiqueta = etiquetaDoGrupo?.(grupo, itens);
+            return (
             <section key={grupo ?? indice} className="impressao__folha">
               <header className="impressao__topo">
-                <h1>{titulo}</h1>
+                <h1>
+                  {titulo}
+                  {etiqueta && <span className="impressao__etiqueta">{etiqueta}</span>}
+                </h1>
                 <p>
                   {grupo ? <strong>{grupo}</strong> : null}
                   {grupo && subtitulo ? " · " : null}
@@ -231,6 +259,8 @@ export default function ImprimirLista({
                   {itens.length} {itens.length === 1 ? "linha" : "linhas"}
                 </p>
               </header>
+
+              {paraImprimir.desenharExtra?.(grupo)}
 
               <table className="impressao__tabela">
                 <thead>
@@ -271,7 +301,8 @@ export default function ImprimirLista({
                 })}
               </footer>
             </section>
-          ))}
+            );
+          })}
           </div>,
           document.body,
         )}

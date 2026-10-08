@@ -24,6 +24,11 @@ class KitOut(BaseModel):
     dia_evento_descricao: str | None = None
     status: str
     montado_em: datetime | None
+    # Os nomes, e nao os ids: a coluna da lista mostra quem, e a equipe de
+    # estrutura nao tem permissao de abrir a lista de usuarios.
+    montado_por: str | None = None
+    conferido_em: datetime | None = None
+    conferido_por: str | None = None
     # Kit de quem desistiu nao deve ser montado. Vem para a lista em vez de ser
     # filtrado fora: some-lo faria a conta da equipe nao bater com a lista
     # impressa, e ninguem entenderia por que faltam tres caixas.
@@ -42,6 +47,22 @@ class InstituicaoKits(BaseModel):
     # Contadas a parte: elas entram no total (a lista as mostra), mas nao sao
     # trabalho — a equipe precisa saber que aquelas nao viram caixa.
     desistentes: int
+    # O dia em que a instituicao vai ao evento, para a etiqueta dentro da aba.
+    dia_evento: date | None = None
+    dia_evento_descricao: str | None = None
+
+
+class PerfilKits(BaseModel):
+    """Quantas criancas de uma idade e um sexo numa instituicao: "3 F de 4 anos".
+
+    E a conta da compra dos presentes, que se escolhem por idade e sexo.
+    """
+
+    instituicao_id: int
+    instituicao: str
+    idade: int
+    sexo: str
+    quantidade: int
 
 
 class PaginaKits(BaseModel):
@@ -57,6 +78,10 @@ class KitMudar(BaseModel):
     criancas: list[int] = Field(min_length=1)
     status: str = Field(pattern="^(pendente|montado)$")
     observacoes: str | None = None
+
+
+class KitConferir(BaseModel):
+    criancas: list[int] = Field(min_length=1)
 
 
 class CheckinIn(BaseModel):

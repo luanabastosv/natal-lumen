@@ -17,7 +17,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento, Instituicao, Kit
+from app.models import (
+    Apadrinhamento,
+    Cartao,
+    Crianca,
+    DiaEvento,
+    Instituicao,
+    InstituicaoDia,
+    Kit,
+)
 from app.models.tipos import StatusKit
 from app.schemas.logistica import (
     CheckinAberto,
@@ -26,9 +34,11 @@ from app.schemas.logistica import (
     CheckinOut,
     DiaCheckin,
     InstituicaoKits,
+    KitConferir,
     KitMudar,
     KitOut,
     PaginaKits,
+    PerfilKits,
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
@@ -64,6 +74,9 @@ def _saida_kit(crianca: Crianca, kit: Kit | None) -> dict:
         "dia_evento_descricao": crianca.dia_evento.descricao if crianca.dia_evento else None,
         "status": kit.status if kit else StatusKit.PENDENTE.value,
         "montado_em": kit.montado_em if kit else None,
+        "montado_por": kit.montador.nome if kit and kit.montador else None,
+        "conferido_em": kit.conferido_em if kit else None,
+        "conferido_por": kit.conferente.nome if kit and kit.conferente else None,
         "desistiu_em": crianca.desistiu_em,
         "observacoes": kit.observacoes if kit else None,
     }
@@ -144,8 +157,13 @@ def listar_kits(
     linhas = db.execute(consulta.order_by(Crianca.nome)).unique().all()
 
     resumo: dict[str, int] = defaultdict(int)
-    for _crianca, kit in linhas:
-        resumo[kit.status if kit else StatusKit.PENDENTE.value] += 1
+    for crianca, kit in linhas:
+        estado = kit.status if kit else StatusKit.PENDENTE.value
+        # A desistente continua na lista (riscada), mas nao e caixa a montar:
+        # conta-la em "a montar" deixava a pilha maior do que o trabalho.
+        if estado == StatusKit.PENDENTE.value and crianca.desistiu_em is not None:
+            continue
+        resumo[estado] += 1
 
     inicio = (pagina - 1) * por_pagina
     pagina_atual = linhas[inicio : inicio + por_pagina]
@@ -165,7 +183,7 @@ def listar_kits(
 
 @router.get("/kits/instituicoes", response_model=list[InstituicaoKits])
 def instituicoes_dos_kits(db: BD, ctx: Kits, edicao_id: int):
-    """As abas da tela de kits: uma por instituicao, com o que falta montar.
+    """As abas da tela de kits: uma por instituicao, com as confirmadas e o dia.
 
     Passa pelo mesmo filtro da lista, entao quem alcanca so algumas escolas ve
     so as abas delas.
@@ -183,12 +201,28 @@ def instituicoes_dos_kits(db: BD, ctx: Kits, edicao_id: int):
             func.count(Crianca.id).label("total"),
             func.count(case((Kit.status == StatusKit.MONTADO.value, 1))).label("montados"),
             func.count(case((Crianca.desistiu_em.is_not(None), 1))).label("desistentes"),
+            DiaEvento.data.label("dia_evento"),
+            DiaEvento.descricao.label("dia_evento_descricao"),
         )
         .select_from(Crianca)
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
         .outerjoin(Kit, Kit.crianca_id == Crianca.id)
+        # O dia e da instituicao na edicao (instituicao_dia), e nao o de cada
+        # crianca: e ele que diz para quando a pilha da escola tem de estar pronta.
+        .outerjoin(
+            InstituicaoDia,
+            (InstituicaoDia.instituicao_id == Instituicao.id)
+            & (InstituicaoDia.edicao_id == edicao_id),
+        )
+        .outerjoin(DiaEvento, DiaEvento.id == InstituicaoDia.dia_evento_id)
         .where(alcance)
-        .group_by(Instituicao.id, Instituicao.nome, Instituicao.sigla)
+        .group_by(
+            Instituicao.id,
+            Instituicao.nome,
+            Instituicao.sigla,
+            DiaEvento.data,
+            DiaEvento.descricao,
+        )
         .order_by(Instituicao.nome)
     ).all()
 
@@ -200,6 +234,51 @@ def instituicoes_dos_kits(db: BD, ctx: Kits, edicao_id: int):
             total=l.total,
             montados=l.montados,
             desistentes=l.desistentes,
+            dia_evento=l.dia_evento,
+            dia_evento_descricao=l.dia_evento_descricao,
+        )
+        for l in linhas
+    ]
+
+
+@router.get("/kits/perfil", response_model=list[PerfilKits])
+def perfil_dos_kits(db: BD, ctx: Kits, edicao_id: int):
+    """Quantas criancas de cada idade e sexo ha em cada instituicao.
+
+    E por idade e sexo que se compra o presente, entao a equipe precisa da
+    conta pronta ("3 meninas de 4 anos"), e nao de contar linha por linha.
+
+    A desistente fica de fora: a caixa dela nao se monta, e o presente dela
+    nao se compra. Passa pelo mesmo filtro da lista e das abas.
+    """
+    alcance = (
+        ctx.filtro_criancas("gerenciar_kits")
+        & (Crianca.edicao_id == edicao_id)
+        & Crianca.desistiu_em.is_(None)
+    )
+
+    linhas = db.execute(
+        select(
+            Instituicao.id,
+            Instituicao.nome,
+            Crianca.idade,
+            Crianca.sexo,
+            func.count(Crianca.id).label("quantidade"),
+        )
+        .select_from(Crianca)
+        .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
+        .where(alcance)
+        .group_by(Instituicao.id, Instituicao.nome, Crianca.idade, Crianca.sexo)
+        .order_by(Instituicao.nome, Crianca.idade, Crianca.sexo)
+    ).all()
+
+    return [
+        PerfilKits(
+            instituicao_id=l.id,
+            instituicao=l.nome,
+            idade=l.idade,
+            sexo=l.sexo,
+            quantidade=l.quantidade,
         )
         for l in linhas
     ]
@@ -220,6 +299,15 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
     if len(criancas) != len(set(dados.criancas)):
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "Ha criancas que voce nao alcanca ou que nao existem."
+        )
+
+    # Kit de desistente nao se mexe: a caixa dela nao se monta, e a tela ja
+    # trava o checkbox. A regra mora aqui para valer tambem fora da tela.
+    desistentes = [c.codigo for c in criancas if c.desistiu_em is not None]
+    if desistentes:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Crianca desistente nao tem kit para marcar: {', '.join(desistentes)}.",
         )
 
     agora = datetime.now(UTC)
@@ -253,11 +341,17 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
             kit.montado_por = ctx.usuario.id
         else:
             # Desmarcar limpa a data, senao ficaria hora de montagem num kit que
-            # voltou para a fila.
+            # voltou para a fila. E a conferencia vai junto: ela era da caixa
+            # que foi desfeita, e a remontada precisa ser conferida de novo.
             kit.montado_em = None
             kit.montado_por = None
+            kit.conferido_em = None
+            kit.conferido_por = None
 
         db.flush()
+        # Recarrega para o nome de quem montou vir certo: trocar o id nao
+        # atualiza sozinho o `montador` ja carregado.
+        db.refresh(kit)
         saida.append(KitOut(**_saida_kit(crianca, kit)))
 
     registrar(
@@ -267,6 +361,94 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
     )
     db.commit()
     return saida
+
+
+@router.post("/kits/{crianca_id}/conferir", response_model=KitOut)
+def conferir_kit(crianca_id: int, db: BD, ctx: Kits):
+    """Marca o kit como conferido por quem clicou.
+
+    So kit montado se confere: conferir e abrir a caixa pronta e checar o que
+    tem dentro. Conferir de novo nao troca o nome — o primeiro que conferiu e
+    quem responde pela caixa.
+    """
+    crianca = db.scalar(
+        select(Crianca)
+        .where(Crianca.id == crianca_id, ctx.filtro_criancas("gerenciar_kits"))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+    )
+    if crianca is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
+    if crianca.desistiu_em is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Crianca desistente nao tem kit para conferir."
+        )
+
+    kit = db.scalar(select(Kit).where(Kit.crianca_id == crianca.id))
+    if kit is None or kit.status != StatusKit.MONTADO.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "O kit ainda nao foi montado: nao ha o que conferir."
+        )
+
+    if kit.conferido_por is None:
+        kit.conferido_em = datetime.now(UTC)
+        kit.conferido_por = ctx.usuario.id
+        registrar(
+            db, "kit_conferido", usuario_id=ctx.usuario.id,
+            tabela="kits", registro_id=kit.id,
+            detalhes={"crianca": crianca.id},
+        )
+        db.commit()
+        db.refresh(kit)
+
+    return KitOut(**_saida_kit(crianca, kit))
+
+
+@router.post("/kits/conferir", response_model=list[KitOut])
+def conferir_kits(dados: KitConferir, db: BD, ctx: Kits):
+    """Confere varios kits de uma vez — o "conferir todos" da escola.
+
+    Em lote, o que nao tem o que conferir (nao montado, ou de desistente) e PULADO em vez de recusar o pedido
+    inteiro: na pilha de sessenta, um kit que alguem desmontou no meio do
+    caminho nao pode impedir a conferencia dos outros cinquenta e nove. Os ja
+    conferidos tambem ficam como estavam: o nome e de quem conferiu primeiro.
+    """
+    criancas = db.scalars(
+        select(Crianca)
+        .where(Crianca.id.in_(dados.criancas), ctx.filtro_criancas("gerenciar_kits"))
+        .options(joinedload(Crianca.instituicao), joinedload(Crianca.dia_evento))
+    ).all()
+    if len(criancas) != len(set(dados.criancas)):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "Ha criancas que voce nao alcanca ou que nao existem."
+        )
+
+    kits = {
+        k.crianca_id: k
+        for k in db.scalars(select(Kit).where(Kit.crianca_id.in_([c.id for c in criancas])))
+    }
+    agora = datetime.now(UTC)
+    conferidos = []
+    desistentes = {c.id for c in criancas if c.desistiu_em is not None}
+    for kit in kits.values():
+        if (
+            kit.status == StatusKit.MONTADO.value
+            and kit.conferido_por is None
+            and kit.crianca_id not in desistentes
+        ):
+            kit.conferido_em = agora
+            kit.conferido_por = ctx.usuario.id
+            conferidos.append(kit.crianca_id)
+
+    if conferidos:
+        registrar(
+            db, "kits_conferidos", usuario_id=ctx.usuario.id,
+            tabela="kits", detalhes={"criancas": conferidos},
+        )
+        db.commit()
+        for kit in kits.values():
+            db.refresh(kit)
+
+    return [KitOut(**_saida_kit(c, kits.get(c.id))) for c in criancas]
 
 
 # ---------------------------------------------------------------- check-in

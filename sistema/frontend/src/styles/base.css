@@ -4894,6 +4894,20 @@ textarea.campo__controle {
     margin: 0 0 2pt;
   }
 
+  /* O dia do evento ao lado do titulo, em caixa: e a primeira coisa que se
+     procura ao pegar a folha da pilha. Contorno, e nao fundo, para sair em
+     qualquer impressora. */
+  .impressao__etiqueta {
+    display: inline-block;
+    margin-left: 8pt;
+    padding: 1pt 6pt;
+    border: 1pt solid #000;
+    border-radius: 3pt;
+    font-size: 11pt;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+
   .impressao__topo p {
     font-size: 10pt;
     margin: 0 0 8pt;
@@ -4972,6 +4986,26 @@ textarea.campo__controle {
     width: 9pt;
     height: 9pt;
     border: 0.6pt solid #000;
+  }
+
+  /* As estatisticas antes da lista, na mesma folha: quem leva a folha da
+     escola para a compra leva a conta junto. */
+  .impressao__estatisticas {
+    margin-bottom: 10pt;
+    break-inside: avoid;
+  }
+
+  .impressao__estatisticas p {
+    font-size: 10pt;
+    margin: 0 0 4pt;
+  }
+
+  .impressao__estatisticas .impressao__tabela {
+    width: auto;
+  }
+
+  .impressao__estatisticas .impressao__tabela td:not(:first-of-type) {
+    text-align: right;
   }
 
   .impressao__rodape {
@@ -5162,6 +5196,33 @@ button.checkin-lista__botao:not(:disabled):active {
   color: var(--text-on-light-muted);
 }
 
+/* A janela de estatisticas dos kits: o resumo de meninas e meninos em cima,
+   a conta por idade embaixo. */
+.estatisticas-kits__resumo {
+  margin: 0 0 var(--space-4);
+  color: var(--text-on-light-secondary);
+}
+
+.estatisticas-kits__resumo strong {
+  color: var(--text-on-light-primary);
+}
+
+.estatisticas-kits__tabela td,
+.estatisticas-kits__tabela tfoot td {
+  font-variant-numeric: tabular-nums;
+}
+
+.estatisticas-kits__tabela th:not(:first-child),
+.estatisticas-kits__tabela td:not(:first-child) {
+  text-align: right;
+  padding-right: 0;
+  padding-left: var(--space-4);
+}
+
+.estatisticas-kits__zero {
+  color: var(--text-on-light-muted);
+}
+
 /* A etiqueta de desistente ao lado do nome da crianca, na mesma linha. */
 .etiqueta--ao-lado {
   margin-left: var(--space-2);
@@ -5176,4 +5237,54 @@ button.checkin-lista__botao:not(:disabled):active {
   margin: 0 0 var(--space-4);
   color: var(--text-on-light-secondary);
   font-size: var(--size-body-sm);
+}
+
+/* "Marcar como conferido" na lista de kits. Com cara de link e a altura do
+   texto: um botao de verdade aumentava a linha e era cortado pela coluna. */
+.link-conferir {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--size-caption);
+  font-weight: 700;
+  line-height: inherit;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* A seta anda um pouco ao passar o mouse: diz que o clique faz algo. */
+.link-conferir svg {
+  flex-shrink: 0;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.link-conferir:hover:not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+.link-conferir:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-focus);
+}
+
+/* A linha escolhida para uma acao em lote. */
+.tabela tr.tabela__linha--selecionada td {
+  background: var(--navy-100);
+}
+
+.link-conferir:disabled {
+  color: var(--text-on-light-muted);
+  cursor: default;
+}
+
+.lote__aviso {
+  font-size: var(--size-body-sm);
+  opacity: 0.85;
 }

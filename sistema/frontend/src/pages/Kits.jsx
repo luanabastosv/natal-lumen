@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
 import Rabisco from "../components/core/Rabisco.jsx";
 import { Selecao } from "../components/core/Campo.jsx";
+import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import Button from "../components/core/Button.jsx";
+import { ChevronDireita } from "../components/core/icones.jsx";
 import ImprimirLista from "../components/dados/ImprimirLista.jsx";
+import {
+  EstatisticasImpressas,
+  TabelaEstatisticas,
+} from "../components/dados/EstatisticasKits.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import Modal from "../components/feedback/Modal.jsx";
 import { useSessao } from "../contexts/useSessao.js";
+import { formatarData } from "../utils/dinheiro.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
-import { instituicoesDosKits, listarKits, mudarKits } from "../services/logistica.js";
+import {
+  conferirKit,
+  conferirKits,
+  instituicoesDosKits,
+  listarKits,
+  mudarKits,
+  perfilDosKits,
+} from "../services/logistica.js";
+import EtiquetaDesistente from "../components/core/EtiquetaDesistente.jsx";
 
 const TODAS = "todas";
 
@@ -20,12 +36,18 @@ const TODAS = "todas";
 export default function Kits() {
   const { edicaoAtiva } = useSessao();
 
-  const [situacao, definirSituacao] = useState("");
   const [dados, definirDados] = useState({ itens: [], total: 0, resumo: {} });
   const [abas, definirAbas] = useState([]);
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
   const [marcando, definirMarcando] = useState([]);
+  const [conferindo, definirConferindo] = useState([]);
+  // As linhas escolhidas para uma acao em lote (ids de crianca).
+  const [selecionadas, definirSelecionadas] = useState([]);
+  const [aplicandoLote, definirAplicandoLote] = useState(false);
   const [imprimindo, definirImprimindo] = useState(false);
+  // A conta de idade e sexo da instituicao da aba, que e a que vai para a
+  // compra dos presentes. null = janela fechada.
+  const [estatisticas, definirEstatisticas] = useState(null);
   /* A ordem e do servidor, e nao do navegador: ordenar so o que ja veio
      ordenaria a PAGINA, e nao a lista. Comeca por codigo porque e assim que a
      lista de papel da instituicao chega, e conferir uma contra a outra e o que
@@ -42,7 +64,6 @@ export default function Kits() {
       definirDados(
         await listarKits({
           edicao_id: edicaoAtiva,
-          situacao,
           instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
           ordenar_por: ordem.por,
           ordem: ordem.sentido,
@@ -57,7 +78,7 @@ export default function Kits() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoAtiva, situacao, abaAtiva, ordem]);
+  }, [edicaoAtiva, abaAtiva, ordem]);
 
   const recarregarAbas = useCallback(async () => {
     if (!edicaoAtiva) return;
@@ -72,7 +93,7 @@ export default function Kits() {
     // Buscar no servidor e justamente o que este efeito existe para fazer.
     // eslint-disable-next-line react/set-state-in-effect
     if (edicaoAtiva) buscar();
-  }, [edicaoAtiva, situacao, abaAtiva, ordem, buscar]);
+  }, [edicaoAtiva, abaAtiva, ordem, buscar]);
 
   useEffect(() => {
     // eslint-disable-next-line react/set-state-in-effect
@@ -86,15 +107,24 @@ export default function Kits() {
     definirAbaAtiva(TODAS);
   }
 
-  /** Marca ou desmarca UM kit, na hora do clique.
+  // Trocar de aba limpa a selecao: as linhas escolhidas eram de outra escola,
+  // e uma acao em lote nao pode alcancar o que nao esta na tela.
+  const [ultimaAba, definirUltimaAba] = useState(abaAtiva);
+  if (abaAtiva !== ultimaAba) {
+    definirUltimaAba(abaAtiva);
+    definirSelecionadas([]);
+  }
+
+  /** Marca UM kit como montado, na hora do clique.
    *
    *  A montagem acontece com a caixa na mao: a pessoa monta, marca, pega a
    *  proxima. Um "salvar" no fim da lista obrigaria a lembrar o que ja tinha
    *  feito, e um lote perdido no meio significaria remontar a conferencia
-   *  inteira de cabeca.
+   *  inteira de cabeca. Desfazer e pela selecao, de proposito: e o gesto raro,
+   *  e nao pode estar a um clique distraido de distancia.
    */
-  async function alternarKit(item) {
-    const alvo = item.status === "montado" ? "pendente" : "montado";
+  async function montar(item) {
+    const alvo = "montado";
     definirErro("");
     definirMarcando((a) => [...a, item.crianca_id]);
     try {
@@ -107,7 +137,10 @@ export default function Kits() {
         resumo: {
           ...atual.resumo,
           montado: (atual.resumo.montado ?? 0) + (alvo === "montado" ? 1 : -1),
-          pendente: (atual.resumo.pendente ?? 0) + (alvo === "montado" ? -1 : 1),
+          // A desistente nao conta em "a montar" (o servidor ja a deixa de fora).
+          pendente:
+            (atual.resumo.pendente ?? 0) +
+            (item.desistiu_em ? 0 : alvo === "montado" ? -1 : 1),
         },
       }));
       recarregarAbas();
@@ -118,19 +151,189 @@ export default function Kits() {
     }
   }
 
+  /** Quem clica e quem conferiu: o nome vem do servidor, que sabe quem esta
+   *  logado. Troca so a linha, pelo mesmo motivo do checkbox. */
+  async function conferir(item) {
+    definirErro("");
+    definirConferindo((a) => [...a, item.crianca_id]);
+    try {
+      const atualizado = await conferirKit(item.crianca_id);
+      definirDados((atual) => ({
+        ...atual,
+        itens: atual.itens.map((i) => (i.crianca_id === atualizado.crianca_id ? atualizado : i)),
+      }));
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirConferindo((a) => a.filter((x) => x !== item.crianca_id));
+    }
+  }
+
+  /* A selecao vale para o que esta NA TELA. A desistente nunca entra: o kit
+     dela nao se marca, nem sozinho nem em lote. */
+  const selecionaveis = dados.itens.filter((k) => !k.desistiu_em);
+  const escolhidas = dados.itens.filter((k) => selecionadas.includes(k.crianca_id));
+  const todasSelecionadas =
+    selecionaveis.length > 0 && selecionaveis.every((k) => selecionadas.includes(k.crianca_id));
+
+  function alternarSelecao(id) {
+    definirSelecionadas((atual) =>
+      atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id],
+    );
+  }
+
+  /** O seletor da barra: escolhe um grupo inteiro de uma vez. */
+  function selecionar(qual) {
+    const grupos = {
+      todas: selecionaveis,
+      a_montar: selecionaveis.filter((k) => k.status !== "montado"),
+      sem_conferencia: selecionaveis.filter((k) => k.status === "montado" && !k.conferido_por),
+      nenhuma: [],
+    };
+    definirSelecionadas((grupos[qual] ?? []).map((k) => k.crianca_id));
+  }
+
+  /* Cada acao so aparece se valer para TODAS as selecionadas: misturar
+     montados e a montar nao oferece nem conferir nem desmontar, porque metade
+     das linhas nao teria como receber a acao. */
+  const acoesDoLote = escolhidas.length
+    ? [
+        escolhidas.every((k) => k.status !== "montado") && {
+          id: "montar",
+          rotulo: "Montados",
+        },
+        escolhidas.every((k) => k.status === "montado" && !k.conferido_por) && {
+          id: "conferir",
+          rotulo: "Conferidos",
+        },
+        escolhidas.every((k) => k.status === "montado") && {
+          id: "desfazer",
+          rotulo: "A montar (desfazer montagem)",
+        },
+      ].filter(Boolean)
+    : [];
+
+  async function aplicarLote(acao) {
+    if (!acao) return;
+    definirErro("");
+    definirAplicandoLote(true);
+    try {
+      if (acao === "montar") {
+        const ids = escolhidas.filter((k) => k.status !== "montado").map((k) => k.crianca_id);
+        if (ids.length) await mudarKits(ids, "montado");
+      } else if (acao === "conferir") {
+        await conferirKits(escolhidas.map((k) => k.crianca_id));
+      } else if (acao === "desfazer") {
+        const ids = escolhidas.filter((k) => k.status === "montado").map((k) => k.crianca_id);
+        if (ids.length) await mudarKits(ids, "pendente");
+      }
+      definirSelecionadas([]);
+      await Promise.all([buscar(), recarregarAbas()]);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirAplicandoLote(false);
+    }
+  }
+
+  /** A celula de "montado por": o nome de quem montou, ou o link de montar. */
+  function celulaMontado(k) {
+    if (k.montado_por) return <span title={`Montado por ${k.montado_por}`}>{k.montado_por}</span>;
+    if (k.desistiu_em) return <span className="celula--vazia">—</span>;
+    const ocupado = marcando.includes(k.crianca_id);
+    return (
+      <button type="button" className="link-conferir" disabled={ocupado} onClick={() => montar(k)}>
+        {ocupado ? "Marcando..." : "Marcar como montado"}
+        {!ocupado && <ChevronDireita t={12} />}
+      </button>
+    );
+  }
+
+  /** A celula de "conferido por": o nome de quem conferiu, ou o botao. Kit
+   *  ainda nao montado nao tem o que conferir. */
+  function celulaConferido(k) {
+    if (k.conferido_por) return <span title={`Conferido por ${k.conferido_por}`}>{k.conferido_por}</span>;
+    if (k.status !== "montado" || k.desistiu_em) return <span className="celula--vazia">—</span>;
+    /* Um link, e nao o <Button>: o botao de 32px esticava a linha e nao
+       cabia na coluna fixa. Este tem a altura do texto, e a linha da tabela
+       continua com a mesma regua das outras. */
+    const ocupado = conferindo.includes(k.crianca_id);
+    return (
+      <button
+        type="button"
+        className="link-conferir"
+        disabled={ocupado}
+        onClick={() => conferir(k)}
+      >
+        {ocupado ? "Conferindo..." : "Marcar como conferido"}
+        {!ocupado && <ChevronDireita t={12} />}
+      </button>
+    );
+  }
+
   /* O papel sai com a lista INTEIRA do filtro, e nao com a pagina que esta na
      tela: a equipe leva a folha para a mesa de montagem, e uma lista cortada na
      centesima crianca faria faltar caixa sem ninguem entender por que. */
   async function todosOsItens() {
     const tudo = await listarKits({
       edicao_id: edicaoAtiva,
-      situacao,
       instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
       ordenar_por: ordem.por,
       ordem: ordem.sentido,
       por_pagina: 2000,
     });
     return tudo.itens;
+  }
+
+  /** As linhas de idade e sexo, ja recortadas pela aba. Busca na hora: a conta
+   *  muda quando alguem cadastra ou desiste, e a janela nao pode mostrar a
+   *  de ontem. */
+  async function buscarEstatisticas() {
+    const linhas = await perfilDosKits(edicaoAtiva);
+    return abaAtiva === TODAS
+      ? linhas
+      : linhas.filter((l) => String(l.instituicao_id) === String(abaAtiva));
+  }
+
+  async function abrirEstatisticas() {
+    definirErro("");
+    try {
+      definirEstatisticas(await buscarEstatisticas());
+    } catch (e) {
+      definirErro(e.message);
+    }
+  }
+
+  /* No papel, cada folha leva a conta da propria instituicao. Sem agrupar, a
+     folha unica leva a conta de tudo o que esta nela. */
+  async function prepararEstatisticas() {
+    const linhas = await buscarEstatisticas();
+    return (grupo) => (
+      <EstatisticasImpressas
+        linhas={grupo ? linhas.filter((l) => l.instituicao === grupo) : linhas}
+      />
+    );
+  }
+
+  /* O dia vai em toda folha, sempre: a pilha de cada escola tem de estar
+     pronta para o dia DELA, e a folha anda solta pela mesa de montagem. O dia
+     e o da instituicao (o da aba); sem agrupar, a folha so ganha dia se todas
+     as criancas nela forem no mesmo. */
+  function diaDaFolha(grupo, itens) {
+    const aba = grupo && abas.find((a) => a.instituicao === grupo);
+    let dia = aba?.dia_evento ? { data: aba.dia_evento, descricao: aba.dia_evento_descricao } : null;
+    if (!aba) {
+      const datas = new Set(itens.map((k) => k.dia_evento));
+      if (datas.size === 1 && itens[0]?.dia_evento) {
+        dia = { data: itens[0].dia_evento, descricao: itens[0].dia_evento_descricao };
+      } else if (datas.size > 1) {
+        return null;
+      }
+    }
+    if (!dia) return "Dia a definir";
+    return dia.descricao?.trim()
+      ? `${dia.descricao.trim()} · ${formatarData(dia.data)}`
+      : formatarData(dia.data);
   }
 
   /* Clicar no titulo da coluna ordena por ela; clicar de novo inverte. E o
@@ -170,6 +373,7 @@ export default function Kits() {
     );
   }
 
+  const abaDaVez = abas.find((a) => String(a.instituicao_id) === String(abaAtiva));
   const montados = dados.resumo.montado ?? 0;
   const pendentes = dados.resumo.pendente ?? 0;
 
@@ -194,7 +398,7 @@ export default function Kits() {
         >
           <span>Todas</span>
           <span className="aba__contagem">
-            {abas.reduce((s, a) => s + a.total, 0)} crianças
+            {abas.reduce((s, a) => s + a.total - a.desistentes, 0)} confirmadas
           </span>
         </button>
 
@@ -209,30 +413,61 @@ export default function Kits() {
             title={a.desistentes > 0 ? `${a.desistentes} desistente(s) nesta lista` : undefined}
           >
             <span>{a.instituicao}</span>
-            {/* O numero que se procura e o que FALTA montar, nao o que ja foi:
-                a pilha de caixas ainda por fazer e o trabalho de hoje. */}
+            {/* As confirmadas, sem as desistentes: e quantas caixas a escola
+                leva. O que falta montar fica na etiqueta dentro da aba. */}
             <span className="aba__contagem">
-              {a.total - a.montados} de {a.total} a montar
+              {a.total - a.desistentes}{" "}
+              {a.total - a.desistentes === 1 ? "confirmada" : "confirmadas"}
             </span>
           </button>
         ))}
       </FaixaDeAbas>
 
       <div className="barra-acoes">
-        <Selecao value={situacao} onChange={(e) => definirSituacao(e.target.value)}>
-          <option value="">Todos</option>
-          <option value="pendente">A montar</option>
-          <option value="montado">Montados</option>
+        {/* No lugar do antigo filtro: em vez de esconder linhas, escolhe as
+            linhas de uma vez, e a acao sai da barra de baixo. */}
+        <Selecao
+          value=""
+          onChange={(e) => selecionar(e.target.value)}
+          aria-label="Selecionar linhas"
+        >
+          <option value="" disabled>
+            Selecionar...
+          </option>
+          <option value="todas">Todas</option>
+          <option value="a_montar">As a montar</option>
+          <option value="sem_conferencia">As montadas sem conferência</option>
+          <option value="nenhuma">Nenhuma</option>
         </Selecao>
         <span className="etiqueta etiqueta--ok">{montados} montados</span>
         <span className="etiqueta etiqueta--espera">{pendentes} a montar</span>
+        {abaDaVez?.dia_evento && (
+          <EtiquetaDia data={abaDaVez.dia_evento} descricao={abaDaVez.dia_evento_descricao} />
+        )}
 
         <div className="barra-acoes__ponta">
+          {/* So dentro de uma instituicao: a conta e da compra de UMA escola. */}
+          {abaAtiva !== TODAS && (
+            <Button size="sm" variant="ghost" onClick={abrirEstatisticas}>
+              Ver estatísticas
+            </Button>
+          )}
           <Button size="sm" variant="secondary" onClick={() => definirImprimindo(true)}>
             Imprimir lista
           </Button>
         </div>
       </div>
+
+      {estatisticas && (
+        <Modal
+          titulo={abaDaVez?.instituicao ?? "Instituição"}
+          rotulo="Estatísticas:"
+          aoFechar={() => definirEstatisticas(null)}
+        >
+          <TabelaEstatisticas linhas={estatisticas} />
+          <p className="campo__dica">Sem as desistentes: a caixa delas não se monta.</p>
+        </Modal>
+      )}
 
       {imprimindo && (
         <ImprimirLista
@@ -240,6 +475,11 @@ export default function Kits() {
           subtitulo="Montagem"
           aoFechar={() => definirImprimindo(false)}
           buscarTudo={todosOsItens}
+          etiquetaDoGrupo={diaDaFolha}
+          extra={{
+            rotulo: "Estatísticas de idade e sexo no topo de cada folha",
+            preparar: prepararEstatisticas,
+          }}
           colunas={[
             { id: "codigo", rotulo: "Código", valor: (k) => k.crianca_codigo },
             {
@@ -251,6 +491,8 @@ export default function Kits() {
             { id: "idade", rotulo: "Idade", valor: (k) => k.idade },
             { id: "sexo", rotulo: "Sexo", valor: (k) => k.sexo },
             { id: "instituicao", rotulo: "Instituição", valor: (k) => k.instituicao },
+            { id: "montado_por", rotulo: "Montado por", valor: (k) => k.montado_por ?? "" },
+            { id: "conferido_por", rotulo: "Conferido por", valor: (k) => k.conferido_por ?? "" },
             {
               id: "situacao",
               rotulo: "Status",
@@ -286,11 +528,7 @@ export default function Kits() {
       ) : dados.itens.length === 0 ? (
         <EmptyState
           titulo="Nenhuma criança nesta lista"
-          corpo={
-            situacao
-              ? "Nenhuma criança com esse filtro."
-              : "Importe as listas das instituições para os kits aparecerem aqui."
-          }
+          corpo="Importe as listas das instituições para os kits aparecerem aqui."
         />
       ) : (
         <div className="tabela-rolagem">
@@ -304,7 +542,7 @@ export default function Kits() {
             }`}
           >
             <colgroup>
-              <col style={{ width: estreita ? 56 : 88 }} />
+              <col style={{ width: estreita ? 44 : 48 }} />
               <col style={{ width: estreita ? 74 : 92 }} />
               <col />
               {!estreita && (
@@ -315,12 +553,20 @@ export default function Kits() {
               )}
               {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
               {!estreita && <col style={{ width: 116 }} />}
+              {!estreita && <col style={{ width: 180 }} />}
+              {!estreita && <col style={{ width: 190 }} />}
             </colgroup>
             <thead>
               <tr>
-                {/* No celular a coluna tem 56px e "Montado" nao cabe: o
-                    cabecalho nao quebra linha, e a palavra sairia cortada. */}
-                {coluna("montado", estreita ? "Kit" : "Montado")}
+                <th className="tabela__marcar">
+                  <input
+                    type="checkbox"
+                    checked={todasSelecionadas}
+                    disabled={selecionaveis.length === 0}
+                    onChange={() => selecionar(todasSelecionadas ? "nenhuma" : "todas")}
+                    aria-label="Selecionar todas as linhas"
+                  />
+                </th>
                 {coluna("codigo", "Código")}
                 {coluna("nome", "Criança")}
                 {!estreita && coluna("idade", "Idade")}
@@ -329,22 +575,33 @@ export default function Kits() {
                     palavra em todas as linhas — a aba ja diz qual escola e. */}
                 {!estreita && abaAtiva === TODAS && coluna("instituicao", "Instituição")}
                 {!estreita && <th>Status</th>}
+                {/* Ordenar por "montado por" e ordenar por montado: os a
+                    montar juntos, que e o grupo que a equipe procura. */}
+                {!estreita && coluna("montado", "Montado por")}
+                {!estreita && <th>Conferido por</th>}
               </tr>
             </thead>
             <tbody>
               {dados.itens.map((k) => (
                 <tr
                   key={k.crianca_id}
-                  className={k.desistiu_em ? "tabela__linha--desistiu" : ""}
+                  className={[
+                    k.desistiu_em ? "tabela__linha--desistiu" : "",
+                    selecionadas.includes(k.crianca_id) ? "tabela__linha--selecionada" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   title={k.desistiu_em ? `${k.crianca_nome} desistiu do evento` : undefined}
                 >
                   <td className="tabela__marcar">
                     <input
                       type="checkbox"
-                      checked={k.status === "montado"}
-                      disabled={marcando.includes(k.crianca_id)}
-                      onChange={() => alternarKit(k)}
-                      aria-label={`Kit de ${k.crianca_nome} montado`}
+                      checked={selecionadas.includes(k.crianca_id)}
+                      /* Desistente nao se seleciona: o kit dela nao se marca. */
+                      disabled={Boolean(k.desistiu_em)}
+                      onChange={() => alternarSelecao(k.crianca_id)}
+                      aria-label={`Selecionar ${k.crianca_nome}`}
+                      title={k.desistiu_em ? "Criança desistente: o kit não se marca" : undefined}
                     />
                   </td>
                   <td>{k.crianca_codigo}</td>
@@ -366,6 +623,28 @@ export default function Kits() {
                             <EtiquetaStatus desistiu />
                           </>
                         )}
+                        {/* Sem colunas no celular: montagem e conferencia
+                            descem para baixo do nome. */}
+                        {!k.desistiu_em && (
+                          <>
+                            <br />
+                            {k.montado_por ? (
+                              <span className="campo__dica">Montado por {k.montado_por}</span>
+                            ) : (
+                              celulaMontado(k)
+                            )}
+                          </>
+                        )}
+                        {k.status === "montado" && !k.desistiu_em && (
+                          <>
+                            <br />
+                            {k.conferido_por ? (
+                              <span className="campo__dica">Conferido por {k.conferido_por}</span>
+                            ) : (
+                              celulaConferido(k)
+                            )}
+                          </>
+                        )}
                       </>
                     )}
                   </td>
@@ -377,10 +656,45 @@ export default function Kits() {
                       <EtiquetaStatus desistiu={Boolean(k.desistiu_em)} />
                     </td>
                   )}
+                  {!estreita && <td className="tabela__status">{celulaMontado(k)}</td>}
+                  {!estreita && <td className="tabela__status">{celulaConferido(k)}</td>}
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {selecionadas.length > 0 && (
+        <div className="lote">
+          <span className="lote__texto">
+            {selecionadas.length} {selecionadas.length === 1 ? "selecionada" : "selecionadas"}
+          </span>
+          {acoesDoLote.length > 0 ? (
+            <Selecao
+              value=""
+              disabled={aplicandoLote}
+              onChange={(e) => aplicarLote(e.target.value)}
+              aria-label="O que fazer com as selecionadas"
+            >
+              <option value="" disabled>
+                {aplicandoLote ? "Aplicando..." : "Marcar como..."}
+              </option>
+              {acoesDoLote.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.rotulo}
+                </option>
+              ))}
+            </Selecao>
+          ) : (
+            /* Diz por que nao ha acao, em vez de deixar a barra muda. */
+            <span className="lote__aviso">
+              Nenhuma ação vale para todas: a seleção mistura kits em situações diferentes.
+            </span>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => definirSelecionadas([])}>
+            Desmarcar
+          </Button>
         </div>
       )}
     </div>
@@ -390,7 +704,7 @@ export default function Kits() {
 /** Confirmada ou desistente: se o kit desta crianca ainda deve ser montado. */
 function EtiquetaStatus({ desistiu }) {
   return desistiu ? (
-    <span className="etiqueta etiqueta--parado">Desistente</span>
+    <EtiquetaDesistente />
   ) : (
     <span className="etiqueta etiqueta--ok">Confirmada</span>
   );

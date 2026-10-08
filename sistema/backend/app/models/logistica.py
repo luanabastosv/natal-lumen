@@ -138,6 +138,20 @@ class Kit(Base):
     montado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
+    # A segunda pessoa que abre a caixa e confere: quem monta nao enxerga o
+    # proprio erro. So existe em kit montado — desmontar apaga a conferencia.
+    conferido_em: Mapped[MomentoOpcional]
+    conferido_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
     observacoes: Mapped[str | None] = mapped_column(Text)
 
     crianca: Mapped["Crianca"] = relationship(back_populates="kit")  # noqa: F821
+    # `selectin`: a lista de kits traz quinhentas linhas de uma vez, e o nome
+    # de quem montou e de quem conferiu sai numa consulta so para todas.
+    montador: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[montado_por], lazy="selectin"
+    )
+    conferente: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[conferido_por], lazy="selectin"
+    )
