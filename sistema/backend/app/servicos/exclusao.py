@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Apadrinhamento,
+    Autorizacao,
     Cartao,
     Cidade,
     Compra,
@@ -202,6 +203,10 @@ def contar(db: Session, alcance: Alcance) -> list[ItemDependencia]:
         ("dias", _quantos(db, DiaEvento, DiaEvento.edicao_id.in_(alcance.edicoes))),
         ("criancas", _quantos(db, Crianca, Crianca.id.in_(alcance.criancas))),
         ("cartoes", _quantos(db, Cartao, Cartao.crianca_id.in_(alcance.criancas))),
+        (
+            "autorizacoes",
+            _quantos(db, Autorizacao, Autorizacao.crianca_id.in_(alcance.criancas)),
+        ),
         ("kits", _quantos(db, Kit, Kit.crianca_id.in_(alcance.criancas))),
         ("padrinhos", _quantos(db, Padrinho, Padrinho.id.in_(alcance.padrinhos))),
         # Conta pelos DOIS lados: apadrinhamento entre cidades e permitido,
@@ -332,6 +337,12 @@ def _arquivos_do_alcance(db: Session, alcance: Alcance) -> list[str]:
     caminhos = list(
         db.scalars(
             select(Cartao.arquivo).where(Cartao.crianca_id.in_(alcance.criancas))
+        ).all()
+    )
+    # A autorizacao tem a assinatura do responsavel: cai pelo mesmo motivo.
+    caminhos += list(
+        db.scalars(
+            select(Autorizacao.arquivo).where(Autorizacao.crianca_id.in_(alcance.criancas))
         ).all()
     )
     caminhos += list(

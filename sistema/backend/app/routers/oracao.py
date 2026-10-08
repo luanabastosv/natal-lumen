@@ -1,7 +1,8 @@
 """O convite de oracao do primeiro acesso do dia.
 
-Rota de leitura e nada mais: quem guarda que a pessoa ja viu o convite hoje e
-o proprio navegador. Por isso nao ha POST aqui, e nao ha tabela.
+Quem guarda que a pessoa ja viu o convite hoje e o proprio navegador. O
+servidor guarda outra coisa: que a crianca apareceu — cada convite entregue e
+uma ave-maria a mais na ficha dela (ver `contar_ave_maria`).
 """
 
 from typing import Annotated
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.oracao import ConviteDoDia
 from app.seguranca.dependencias import Contexto
-from app.servicos.oracao import crianca_do_dia
+from app.servicos.oracao import contar_ave_maria, crianca_do_dia
 
 router = APIRouter(prefix="/oracao", tags=["oracao"])
 
@@ -32,5 +33,7 @@ def convite(edicao_id: int, db: BD, ctx: Contexto):
     crianca = crianca_do_dia(db, ctx, edicao_id)
     if crianca is None:
         return ConviteDoDia()
+
+    contar_ave_maria(db, ctx, crianca)
 
     return ConviteDoDia(crianca=crianca.nome, instituicao=crianca.instituicao.nome)

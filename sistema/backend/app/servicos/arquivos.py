@@ -33,6 +33,11 @@ def pasta_dos_cartoes(cidade: str, ano: int) -> Path:
     return config.caminho_arquivos / "cartoes" / limpar_texto(cidade) / str(ano)
 
 
+def pasta_das_autorizacoes(cidade: str, ano: int) -> Path:
+    """{ARQUIVOS_DIR}/autorizacoes/{cidade}/{ano}/"""
+    return config.caminho_arquivos / "autorizacoes" / limpar_texto(cidade) / str(ano)
+
+
 def nome_do_comprovante(padrinho: str, data, extensao: str) -> str:
     """{NOME_DO_PADRINHO}_{AAAA_MM_DD}{.ext}"""
     base = limpar_texto(padrinho) or "COMPROVANTE"

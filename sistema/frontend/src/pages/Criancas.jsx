@@ -697,6 +697,7 @@ export default function Criancas() {
                 ]
               : []),
             { id: "cartoes", rotulo: "Cartões", valor: (c) => `${c.cartoes}/2` },
+            { id: "autorizacao", rotulo: "Autorização", valor: (c) => (c.autorizacao ? "Sim" : "Não") },
             ...(veKit
               ? [{ id: "kit", rotulo: "Kit", valor: (c) => c.kit_status ?? "—" }]
               : []),
@@ -863,6 +864,9 @@ export default function Criancas() {
                   )}
                   {veCaptacao && <th title="Padrinho de cesta e de festa">Padrinhos</th>}
                   {!estreita && <th title="Cartões digitalizados, de 2">Cartões</th>}
+                  {!estreita && (
+                    <th title="Autorização do responsável já digitalizada">Autorização</th>
+                  )}
                   {veKit && !estreita && <th>Kit</th>}
                   {mostrarCheckin && !estreita && <th>Check-in</th>}
                   <th className="planilha__acoes" />
@@ -1050,6 +1054,15 @@ export default function Criancas() {
                             }`}
                           >
                             {c.cartoes}/2
+                          </span>
+                        </span>
+                      </td>
+                    )}
+                    {!estreita && (
+                      <td>
+                        <span className="celula" style={{ cursor: "default" }}>
+                          <span className={`marcador ${c.autorizacao ? "marcador--feito" : ""}`}>
+                            {c.autorizacao ? "sim" : "não"}
                           </span>
                         </span>
                       </td>

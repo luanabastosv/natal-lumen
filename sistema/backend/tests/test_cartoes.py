@@ -17,6 +17,7 @@ from app.database import SessionLocal
 from app.main import app
 from app.models import (
     Apadrinhamento,
+    Autorizacao,
     Cartao,
     Cidade,
     Crianca,
@@ -79,6 +80,7 @@ def limpar(db, log_inicial: int = 0) -> None:
             pads = list(db.scalars(select(Padrinho.id).where(Padrinho.edicao_id.in_(eds))).all())
             if cris:
                 db.execute(delete(Cartao).where(Cartao.crianca_id.in_(cris)))
+                db.execute(delete(Autorizacao).where(Autorizacao.crianca_id.in_(cris)))
                 db.execute(delete(Apadrinhamento).where(Apadrinhamento.crianca_id.in_(cris)))
             if pads:
                 db.execute(delete(Padrinho).where(Padrinho.id.in_(pads)))
@@ -96,10 +98,13 @@ def limpar(db, log_inicial: int = 0) -> None:
     db.commit()
 
     # Imagens deixadas pelo teste
-    pasta = arquivos.pasta_dos_cartoes(f"{MARCA} Cidade", 2026)
-    if pasta.is_dir():
-        for arquivo in pasta.glob("*.jpg"):
-            arquivo.unlink()
+    for pasta in (
+        arquivos.pasta_dos_cartoes(f"{MARCA} Cidade", 2026),
+        arquivos.pasta_das_autorizacoes(f"{MARCA} Cidade", 2026),
+    ):
+        if pasta.is_dir():
+            for arquivo in pasta.glob("*.jpg"):
+                arquivo.unlink()
 
 
 def entrar(cliente: TestClient, email: str):
@@ -466,9 +471,28 @@ def main() -> None:
         # A pilha e digitalizada de uma vez: trocar duas fotos de lugar e o erro
         # mais provavel do processo, e ate agora nao havia como desfazer.
         antes = cm.get(f"/cartoes/{cartao_festa['id']}/imagem").content
+
+        # A troca so aceita o arquivo com o codigo da propria crianca: e o que
+        # impede corrigir uma troca de fotos repetindo o mesmo erro.
         r = cm.post(
             f"/cartoes/{cartao_festa['id']}/trocar",
-            files={"arquivo": ("nova.jpg", foto_de_cartao("CORRIGIDO"), "image/jpeg")},
+            files={"arquivo": ("nova.jpg", foto_de_cartao("SEM CODIGO"), "image/jpeg")},
+        )
+        verifica("troca com arquivo sem codigo e recusada", r.status_code == 422,
+                 f"{r.status_code} {r.text[:120]}")
+        r = cm.post(
+            f"/cartoes/{cartao_festa['id']}/trocar",
+            files={"arquivo": (f"{joao.codigo}.jpg", foto_de_cartao("JOAO"), "image/jpeg")},
+        )
+        verifica("troca com o codigo de outra crianca e recusada e diz qual",
+                 r.status_code == 422 and joao.codigo in r.text and ana.codigo in r.text,
+                 f"{r.status_code} {r.text[:160]}")
+        verifica("e a imagem continuou a mesma",
+                 cm.get(f"/cartoes/{cartao_festa['id']}/imagem").content == antes)
+
+        r = cm.post(
+            f"/cartoes/{cartao_festa['id']}/trocar",
+            files={"arquivo": (f"{ana.codigo}.jpg", foto_de_cartao("CORRIGIDO"), "image/jpeg")},
         )
         verifica("o monitor troca a imagem de um cartao", r.status_code == 200, r.text[:140])
         depois = cm.get(f"/cartoes/{cartao_festa['id']}/imagem").content
@@ -494,6 +518,93 @@ def main() -> None:
 
         r = cm.delete(f"/cartoes/{cartao_festa['id']}")
         verifica("apagar de novo da 404, nao erro", r.status_code == 404, str(r.status_code))
+
+        print("\nAutorizacoes: sobem pelo mesmo lote, numa pilha propria")
+        r = cm.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{ana.codigo}.jpg", foto_de_cartao("AUTORIZO"), "image/jpeg"))],
+            data={"tipo": "autorizacao", "edicao_id": edicao.id, "instituicao_id": inst_a.id},
+        )
+        verifica("a previa da autorizacao responde", r.status_code == 200, r.text[:160])
+        verifica("a crianca com cartao ainda aceita a autorizacao",
+                 r.json().get("validas") == 1, r.text[:160])
+        id_lote = r.json()["id"]
+
+        r = cm.post(f"/cartoes/lote/{id_lote}/confirmar")
+        verifica("sem as respostas a autorizacao nao grava", r.status_code == 422,
+                 f"{r.status_code} {r.text[:110]}")
+        r = cm.post(f"/cartoes/lote/{id_lote}/confirmar", json={"respostas": {"0": {
+            "necessidade_especial": True, "necessidade_especial_qual": "  ",
+            "restricao_alimentar": False, "tem_observacao": False}}})
+        verifica("sim sem dizer qual tambem nao grava", r.status_code == 422,
+                 f"{r.status_code} {r.text[:110]}")
+
+        r = cm.post(f"/cartoes/lote/{id_lote}/confirmar", json={"respostas": {"0": {
+            "necessidade_especial": False, "necessidade_especial_qual": "sobrou no campo",
+            "restricao_alimentar": True, "restricao_alimentar_qual": "Lactose",
+            "tem_observacao": False}}})
+        verifica("grava a autorizacao", r.json().get("gravados") == 1, r.text[:110])
+        verifica("e ela nao vira cartao",
+                 db.scalar(select(func.count()).select_from(Cartao)
+                           .where(Cartao.crianca_id == ana.id, Cartao.tipo == "autorizacao")) == 0)
+
+        r = cm.get("/autorizacoes", params={"edicao_id": edicao.id, "instituicao_id": inst_a.id})
+        verifica("a pasta lista a autorizacao", r.status_code == 200 and len(r.json()) == 1,
+                 r.text[:160])
+        autorizacao = r.json()[0] if r.status_code == 200 and r.json() else {}
+        verifica("as respostas ficaram gravadas",
+                 autorizacao.get("restricao_alimentar") is True
+                 and autorizacao.get("restricao_alimentar_qual") == "Lactose"
+                 and autorizacao.get("necessidade_especial") is False,
+                 str(autorizacao))
+        verifica("o texto esquecido numa resposta nao e descartado",
+                 autorizacao.get("necessidade_especial_qual") is None, str(autorizacao))
+
+        r = cm.post(
+            "/cartoes/lote",
+            files=[("arquivos", (f"{ana.codigo}.jpg", foto_de_cartao("DE NOVO"), "image/jpeg"))],
+            data={"tipo": "autorizacao", "edicao_id": edicao.id, "instituicao_id": inst_a.id},
+        )
+        repetida = r.json()["arquivos"][0]
+        verifica("segunda autorizacao da mesma crianca e recusada na previa",
+                 repetida["valida"] is False
+                 and any("ja tem uma autorizacao" in e for e in repetida["erros"]),
+                 str(repetida["erros"]))
+
+        r = cc.get("/cartoes/pastas", params={"edicao_id": edicao.id})
+        pa = {p["instituicao"]: p for p in r.json()}.get(inst_a.nome, {})
+        verifica("a pasta conta a autorizacao", pa.get("autorizacoes") == 1, str(pa))
+
+        r = cc.get(f"/criancas/{ana.id}")
+        verifica("a ficha da crianca diz quando a autorizacao subiu",
+                 bool(r.json().get("autorizacao_em")), r.text[:160])
+
+        verifica("a imagem sai pela rota autenticada",
+                 cm.get(f"/autorizacoes/{autorizacao.get('id')}/imagem").status_code == 200)
+        verifica("e a miniatura tambem",
+                 cm.get(f"/autorizacoes/{autorizacao.get('id')}/miniatura").status_code == 200)
+        verifica("sem sessao a imagem nao sai",
+                 TestClient(app).get(f"/autorizacoes/{autorizacao.get('id')}/imagem").status_code
+                 in (401, 403))
+
+        r = cm.post(
+            f"/autorizacoes/{autorizacao.get('id')}/trocar",
+            files={"arquivo": (f"{joao.codigo}.jpg", foto_de_cartao("TROCADA"), "image/jpeg")},
+        )
+        verifica("autorizacao tambem recusa o codigo de outra crianca", r.status_code == 422,
+                 f"{r.status_code} {r.text[:120]}")
+        r = cm.post(
+            f"/autorizacoes/{autorizacao.get('id')}/trocar",
+            files={"arquivo": (f"{ana.codigo}.jpg", foto_de_cartao("TROCADA"), "image/jpeg")},
+        )
+        verifica("o monitor troca a imagem da autorizacao", r.status_code == 200, r.text[:140])
+
+        r = ck.delete(f"/autorizacoes/{autorizacao.get('id')}")
+        verifica("comissario NAO apaga autorizacao", r.status_code == 403, str(r.status_code))
+        r = cm.delete(f"/autorizacoes/{autorizacao.get('id')}")
+        verifica("o monitor apaga a autorizacao", r.status_code == 204, str(r.status_code))
+        verifica("e sobra nenhum arquivo dela no disco",
+                 not any(arquivos.pasta_das_autorizacoes(f"{MARCA} Cidade", 2026).glob("*.jpg")))
 
     finally:
         limpar(db, log_inicial)

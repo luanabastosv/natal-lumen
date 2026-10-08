@@ -16,13 +16,14 @@ comecarem em pontos diferentes da lista — senao a cidade inteira rezaria pelo
 mesmo nome todo dia.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Crianca
+from app.models import AveMaria, Crianca
 from app.seguranca.contexto import ContextoAcesso
 
 # O servidor roda em UTC. Sem o fuso daqui, o convite trocaria de crianca as
@@ -73,3 +74,29 @@ def crianca_do_dia(
         .offset(posicao)
         .limit(1)
     )
+
+
+def contar_ave_maria(db: Session, ctx: ContextoAcesso, crianca: Crianca) -> None:
+    """Soma uma ave-maria a crianca que acabou de aparecer no convite.
+
+    Uma por pessoa por dia: chamar de novo no mesmo dia — recarregar, abrir no
+    celular depois do computador — nao conta outra vez. ON CONFLICT em vez de
+    conferir antes, para duas abas abertas ao mesmo tempo nao darem erro.
+    """
+    db.execute(
+        insert(AveMaria)
+        .values(
+            crianca_id=crianca.id,
+            usuario_id=ctx.usuario.id,
+            dia=date.fromordinal(dia_de_hoje()),
+        )
+        .on_conflict_do_nothing(constraint="uq_ave_marias_crianca_usuario_dia")
+    )
+    db.commit()
+
+
+def ave_marias_da_crianca(db: Session, crianca_id: int) -> int:
+    """Quantas ave-marias ja foram rezadas por esta crianca, desde sempre."""
+    return db.scalar(
+        select(func.count()).select_from(AveMaria).where(AveMaria.crianca_id == crianca_id)
+    ) or 0

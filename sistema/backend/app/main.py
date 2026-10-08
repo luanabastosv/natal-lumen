@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import config
 from app.routers import (
     auth,
+    autorizacoes,
     cartoes,
     cidades,
     criancas,
@@ -56,6 +57,7 @@ if config.origens_permitidas:
 
 for router in (
     auth.router,
+    autorizacoes.router,
     cartoes.router,
     cidades.router,
     criancas.router,

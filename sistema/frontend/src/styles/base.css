@@ -1154,6 +1154,12 @@ textarea.campo__controle {
   background: var(--amarelo-600);
 }
 
+/* A terceira pilha da pasta de cartoes. Navy escuro, e nao uma terceira cor:
+   a paleta tem duas, e o par cesta/festa foi escolhido por se separar bem. */
+.progresso__marca--autorizacao {
+  background: var(--navy-900);
+}
+
 /* ---------- Lista de progresso (uma linha por instituicao) ---------- */
 .lista-progresso {
   display: grid;
@@ -2273,11 +2279,19 @@ textarea.campo__controle {
   color: var(--navy-900);
 }
 
+/* A autorizacao nao e cesta nem festa, e nao pode pegar emprestada a cor de
+   nenhuma das duas: fica no creme, com a tinta mais escura. */
+.etiqueta--autorizacao {
+  background: var(--cream-500);
+  color: var(--navy-900);
+}
+
 /* Em Criancas o pontinho vem DEPOIS do nome, e por isso o base tem
    margin-left. Aqui ele vem antes da palavra: a margem troca de lado, senao
    ele encosta no texto e descola da borda. */
 .aba__ponto.tipo--cesta,
-.aba__ponto.tipo--festa {
+.aba__ponto.tipo--festa,
+.aba__ponto.tipo--autorizacao {
   margin-left: 0;
   margin-right: 6px;
 }
@@ -2288,6 +2302,10 @@ textarea.campo__controle {
 
 .aba__ponto.tipo--festa {
   background: var(--amarelo-600);
+}
+
+.aba__ponto.tipo--autorizacao {
+  background: var(--navy-900);
 }
 
 /* O select das duas perguntas da captacao, dentro da ficha. O controle padrao
@@ -2355,7 +2373,15 @@ textarea.campo__controle {
  */
 .pastas {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  /* No maximo quatro por linha. Com tres barras dentro (cesta, festa e
+     autorizacao), a pasta estreita apertava os rotulos e os numeros. O
+     minimo e a maior entre 240px e um quarto da linha (descontados os tres
+     vaos): numa tela larga a quinta coluna nao cabe, e numa estreita as
+     colunas continuam caindo para tres, duas, uma. */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(240px, (100% - 3 * var(--space-4)) / 4), 1fr)
+  );
   gap: var(--space-4);
   margin-top: var(--space-5);
 }
@@ -2423,6 +2449,25 @@ textarea.campo__controle {
   flex-direction: column;
   gap: 4px;
   margin-top: 2px;
+}
+
+/* Na pasta os rotulos sao longos ("Cartao Cesta", "Autorizacao") e nao cabem
+   nos 48px do painel: quebravam em duas linhas. Aqui a coluna do rotulo cresce
+   ate caber, igual nas tres linhas para as barras comecarem no mesmo ponto, e
+   quem encolhe e a barra. */
+.pasta__barras .progresso {
+  grid-template-columns: 7.5em minmax(32px, 1fr) auto;
+  gap: var(--space-2);
+}
+
+.pasta__barras .progresso__rotulo {
+  white-space: nowrap;
+  /* 700 e o mais leve que a Typold Condensed tem: um 600 cairia nele mesmo. */
+  font-weight: 700;
+}
+
+.pasta__barras .progresso__trilho {
+  height: 8px;
 }
 
 .pasta__pilhas {
@@ -3331,6 +3376,82 @@ textarea.campo__controle {
   }
 }
 
+/* Na pilha de autorizacoes, as perguntas ficam AO LADO da foto: e lendo o
+   papel que se responde, e embaixo a foto teria de encolher para caber tudo.
+   No celular voltam para baixo dela. */
+.conferencia__com-respostas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .conferencia__com-respostas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.respostas-autorizacao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pergunta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pergunta__texto {
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+.pergunta__qual {
+  height: var(--control-h-sm);
+}
+
+/* Sim ou nao, lado a lado: a mesma pilula da troca de visao, com texto. Sem
+   nada marcado as duas ficam brancas — "ainda nao respondeu" e um estado, e
+   nao pode parecer um "nao". */
+.sim-nao {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  height: var(--control-h-sm);
+}
+
+.sim-nao__opcao {
+  min-width: 64px;
+  padding: 0 var(--space-4);
+  border: none;
+  background: var(--white);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-secondary);
+}
+
+.sim-nao__opcao + .sim-nao__opcao {
+  border-left: 1.5px solid var(--border-default);
+}
+
+.sim-nao__opcao:hover {
+  color: var(--color-primary);
+}
+
+.sim-nao__opcao--ativa,
+.sim-nao__opcao--ativa:hover {
+  background: var(--color-primary);
+  color: var(--white);
+}
+
 /* ---------- Lista de dados dentro da janela ---------- */
 .ficha {
   display: grid;
@@ -3415,6 +3536,27 @@ textarea.campo__controle {
 
 .ficha__vinculo a:hover {
   text-decoration: underline;
+}
+
+/* As ave-marias da crianca, numa etiqueta acima dos dados. Italico e na voz
+   de leitura porque e uma frase, nao um campo — e a Estrela rezando e a mesma
+   do convite, do tamanho da letra. */
+.ficha__oracao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-4);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-tint-warm);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--text-on-light-secondary);
+}
+
+.ficha__oracao img {
+  height: 16px;
 }
 
 /* ---------- Lista densa dentro da ficha ----------

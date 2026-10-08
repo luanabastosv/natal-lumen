@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.autorizacoes import RespostasAutorizacao
+
 
 class ArquivoDoLote(BaseModel):
     """Uma foto do lote, ja casada (ou nao) com uma crianca."""
@@ -30,6 +32,13 @@ class PreviaLote(BaseModel):
     validas: int
     com_erro: int
     arquivos: list[ArquivoDoLote]
+
+
+class ConfirmarLote(BaseModel):
+    """So a pilha de autorizacoes manda corpo: as respostas de cada foto, pelo
+    indice dela no lote. Cartao confirma sem corpo nenhum."""
+
+    respostas: dict[int, RespostasAutorizacao] = {}
 
 
 class ResultadoLote(BaseModel):
@@ -87,6 +96,8 @@ class PastaInstituicao(BaseModel):
     criancas: int
     cesta: int
     festa: int
+    # A autorizacao do responsavel, tambem uma por crianca.
+    autorizacoes: int = 0
 
 
 class MarcarEnviados(BaseModel):

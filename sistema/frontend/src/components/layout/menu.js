@@ -10,7 +10,7 @@ export const ITENS_MENU = [
   { para: "/painel", rotulo: "Painel" },
   { para: "/criancas", rotulo: "Crianças", permissao: "ver_criancas" },
   { para: "/padrinhos", rotulo: "Padrinhos", permissao: "ver_padrinhos" },
-  { para: "/cartoes", rotulo: "Cartões", permissao: "subir_cartoes" },
+  { para: "/cartoes", rotulo: "Cartões e Autorização", permissao: "subir_cartoes" },
   { para: "/kits", rotulo: "Kits", permissao: "gerenciar_kits" },
   // Duas permissoes, e basta UMA: a coordenacao entra pelas duas abas, mas
   // um perfil pode receber so as saidas. Quem tem so uma delas ve so a sua metade —

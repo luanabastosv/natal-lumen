@@ -6,7 +6,9 @@ Tres promessas, e o teste existe por causa delas:
      comissario so pode receber crianca que ja e dele;
   2. a crianca nao troca no meio do dia. Chamar duas vezes devolve a mesma;
   3. a lista gira. Em dias seguidos, nomes diferentes, ate a lista acabar —
-     e nao um sorteio que repete um nome e esquece outro por semanas.
+     e nao um sorteio que repete um nome e esquece outro por semanas;
+  4. cada convite e uma ave-maria na ficha da crianca — uma por pessoa por
+     dia, e nao uma por recarregar a pagina.
 
 Rodar com:  python -m tests.test_oracao
 """
@@ -157,6 +159,27 @@ def main() -> None:
         verifica("chamar de novo devolve a mesma crianca",
                  segunda.get("crianca") == convite.get("crianca"),
                  f"{convite.get('crianca')} -> {segunda.get('crianca')}")
+
+        print("\nCada convite e uma ave-maria na ficha")
+        escolhida = next(c for c in [*criancas, crianca_b] if c.nome == convite.get("crianca"))
+
+        def ave_marias():
+            r = cc.get(f"/criancas/{escolhida.id}")
+            return r.json().get("ave_marias") if r.status_code == 200 else r.text[:100]
+
+        verifica("o convite de hoje ja contou uma ave-maria",
+                 ave_marias() == 1, str(ave_marias()))
+
+        hoje_de_verdade = oracao.dia_de_hoje
+        try:
+            # Seis dias depois a lista deu a volta e a mesma crianca reaparece.
+            oracao.dia_de_hoje = lambda: hoje_de_verdade() + 6
+            cc.get(f"/oracao/{edicao.id}")
+            cc.get(f"/oracao/{edicao.id}")
+        finally:
+            oracao.dia_de_hoje = hoje_de_verdade
+        verifica("reaparecer noutro dia soma mais uma, e repetir no dia nao",
+                 ave_marias() == 2, str(ave_marias()))
 
         print("\nAlcance: o comissario so recebe crianca que ja e dele")
         ck = TestClient(app); entrar(ck, com.email)

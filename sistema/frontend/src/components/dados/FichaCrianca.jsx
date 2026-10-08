@@ -73,6 +73,17 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
 
       {ficha && (
         <>
+          {/* Uma ave-maria por vez que ela apareceu no convite de oracao do
+              dia, somando todo mundo. Sem nenhuma, a etiqueta nem existe. */}
+          {ficha.ave_marias > 0 && (
+            <p className="ficha__oracao">
+              {ficha.ave_marias === 1
+                ? "1 ave-maria já foi rezada por este coração"
+                : `${ficha.ave_marias} ave-marias já foram rezadas por este coração`}
+              <img src="/acesso/images/adesivo-oracao.png" alt="" />
+            </p>
+          )}
+
           <dl className="ficha ficha--duas">
             <dt>Código</dt>
             <dd>{ficha.codigo}</dd>
@@ -115,8 +126,29 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                 </dd>
               </>
             )}
+            <dt>Autorização</dt>
+            <dd>
+              {ficha.autorizacao_em
+                ? `recebida · ${formatarDataHora(ficha.autorizacao_em)}`
+                : "ainda não chegou"}
+            </dd>
             <dt>Check-in</dt>
             <dd>{ficha.checkin_em ? formatarDataHora(ficha.checkin_em) : "não fez"}</dd>
+            {/* O que o monitor marcou ao conferir a autorizacao. So existe
+                depois que ela subiu; nas antigas, sem resposta, a linha some. */}
+            {ficha.autorizacao_em &&
+              [
+                ["Necessidade especial", ficha.necessidade_especial, ficha.necessidade_especial_qual],
+                ["Alergia ou restrição", ficha.restricao_alimentar, ficha.restricao_alimentar_qual],
+                ["Obs. da autorização", ficha.tem_observacao, ficha.observacao_autorizacao],
+              ]
+                .filter(([, sim]) => sim !== null)
+                .map(([rotulo, sim, qual]) => (
+                  <div key={rotulo} style={{ display: "contents" }}>
+                    <dt className="ficha__dt-largo">{rotulo}</dt>
+                    <dd className="ficha__dd-largo">{sim ? `Sim · ${qual}` : "Não"}</dd>
+                  </div>
+                ))}
             {ficha.observacoes && (
               <>
                 <dt className="ficha__dt-largo">Observações</dt>

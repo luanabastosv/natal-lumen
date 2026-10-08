@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import ConferirCartoes from "../components/dados/ConferirCartoes.jsx";
-import { Selecao } from "../components/core/Campo.jsx";
+import { PERGUNTAS, RESPOSTAS_PADRAO } from "../components/dados/autorizacao.js";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import { ArquivoIcone, ListaIcone } from "../components/core/icones.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
@@ -15,15 +15,38 @@ import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 import {
   confirmarLote,
+  listarAutorizacoes,
   listarCartoes,
   listarPastas,
   subirLoteDeCartoes,
   urlDaImagem,
+  urlDaImagemDaAutorizacao,
   urlDaMiniatura,
+  urlDaMiniaturaDaAutorizacao,
+  apagarAutorizacao,
   apagarCartao,
+  trocarImagemDaAutorizacao,
   trocarImagemDoCartao,
 } from "../services/cartoes.js";
 import { formatarDataHora } from "../utils/dinheiro.js";
+
+const AUTORIZACAO = "autorizacao";
+
+/** O tipo como se escreve na tela. O servidor manda sem acento. */
+const NOME_DO_TIPO = { cesta: "cesta", festa: "festa", autorizacao: "autorização" };
+
+/* A autorizacao mora em rota propria no servidor, mas na tela ela e mais uma
+   pilha de papel da pasta: estas tres funcoes escolhem a porta pelo tipo, e o
+   resto da tela trata as duas coisas igual. */
+const ehAutorizacao = (item) => item.tipo === AUTORIZACAO;
+const imagemDe = (item) =>
+  ehAutorizacao(item) ? urlDaImagemDaAutorizacao(item.id) : urlDaImagem(item.id);
+const miniaturaDe = (item) =>
+  ehAutorizacao(item) ? urlDaMiniaturaDaAutorizacao(item.id) : urlDaMiniatura(item.id);
+
+/** "o cartão de Ana" / "a autorização de Ana", para as mensagens. */
+const doItem = (item) =>
+  `${ehAutorizacao(item) ? "a autorização" : "o cartão"} de ${item.crianca_nome}`;
 
 export default function Cartoes() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
@@ -42,7 +65,10 @@ export default function Cartoes() {
   const [previa, definirPrevia] = useState(null);
   // Quais fotos da previa ja passaram pela conferencia, pelo indice no lote.
   const [conferidos, definirConferidos] = useState([]);
-  const [conferindo, definirConferindo] = useState(false);
+  // So na pilha de autorizacoes: o que o monitor marcou em cada foto, pelo
+  // indice no lote. Vive aqui, e nao na janela da conferencia, para fechar e
+  // reabrir a conferencia sem perder o que ja foi respondido.
+  const [respostas, definirRespostas] = useState({});
   const [subindo, definirSubindo] = useState(false);
   const [salvando, definirSalvando] = useState(false);
 
@@ -59,10 +85,11 @@ export default function Cartoes() {
   // entre 900 era trabalho de filtro, e o filtro sumia a cada recarga.
   const [pastas, definirPastas] = useState([]);
   const [pasta, definirPasta] = useState(null);
-  // Dentro da pasta, qual pilha esta na mao: "" e a escola inteira. Cesta e
-  // festa sao duas pilhas separadas no mundo real — recolhidas e conferidas uma
-  // de cada vez —, e a aba deixa trabalhar numa sem perder de vista a outra.
-  const [abaTipo, definirAbaTipo] = useState("");
+  // Dentro da pasta, qual pilha esta na mao. Cesta, festa e autorizacao sao
+  // tres pilhas separadas no mundo real — recolhidas e conferidas uma de cada
+  // vez. Nao ha mais aba "Todos": a autorizacao nao e cartao, e misturar as
+  // tres numa grade so faria a pessoa separar de novo com os olhos.
+  const [abaTipo, definirAbaTipo] = useState("cesta");
   // O envio virou janela. Antes era um painel plantado no topo da pasta: ele
   // ocupava meia tela o tempo todo para uma acao que se faz de vez em quando, e
   // empurrava para baixo a lista, que e o que se vem ver aqui.
@@ -111,10 +138,14 @@ export default function Cartoes() {
     definirErro("");
     definirCorrigindo(true);
     try {
-      const atualizado = await trocarImagemDoCartao(trocandoDe.id, arquivo);
-      notificar(`Imagem do cartão de ${trocandoDe.crianca_nome} trocada.`);
+      const atualizado = ehAutorizacao(trocandoDe)
+        ? { ...(await trocarImagemDaAutorizacao(trocandoDe.id, arquivo)), tipo: AUTORIZACAO }
+        : await trocarImagemDoCartao(trocandoDe.id, arquivo);
+      notificar(`Imagem d${doItem(trocandoDe)} trocada.`);
       // Se a janela deste cartao estiver aberta, ela acompanha.
-      definirVendo((atual) => (atual && atual.id === atualizado.id ? atualizado : atual));
+      definirVendo((atual) =>
+        atual && atual.id === atualizado.id && atual.tipo === atualizado.tipo ? atualizado : atual,
+      );
       buscar();
     } catch (e) {
       definirErro(e.message);
@@ -128,9 +159,16 @@ export default function Cartoes() {
     definirErro("");
     definirCorrigindo(true);
     try {
-      await apagarCartao(apagandoDe.id);
-      notificar(`Cartão de ${apagandoDe.crianca_nome} apagado.`);
-      definirVendo((atual) => (atual && atual.id === apagandoDe.id ? null : atual));
+      if (ehAutorizacao(apagandoDe)) await apagarAutorizacao(apagandoDe.id);
+      else await apagarCartao(apagandoDe.id);
+      notificar(
+        `${ehAutorizacao(apagandoDe) ? "Autorização" : "Cartão"} de ${apagandoDe.crianca_nome} ${
+          ehAutorizacao(apagandoDe) ? "apagada" : "apagado"
+        }.`,
+      );
+      definirVendo((atual) =>
+        atual && atual.id === apagandoDe.id && atual.tipo === apagandoDe.tipo ? null : atual,
+      );
       definirApagandoDe(null);
       buscar();
     } catch (e) {
@@ -139,17 +177,6 @@ export default function Cartoes() {
       definirCorrigindo(false);
     }
   }
-
-  /* Os motivos das recusas, agrupados e contados. O mesmo motivo repetido
-     cinquenta vezes nao e cinquenta informacoes — e uma, com um numero. */
-  const motivosDaRecusa = (() => {
-    if (!previa) return [];
-    const conta = new Map();
-    for (const a of previa.arquivos) {
-      for (const erro of a.erros) conta.set(erro, (conta.get(erro) ?? 0) + 1);
-    }
-    return [...conta].sort((x, y) => y[1] - x[1]);
-  })();
 
   /** As correcoes de um cartao, atras dos tres pontinhos. Uma funcao so para as
    *  duas visoes: lista e mural oferecem exatamente o mesmo. */
@@ -174,6 +201,15 @@ export default function Cartoes() {
     try {
       if (!pasta) {
         definirPastas(await listarPastas(edicaoAtiva));
+      } else if (abaTipo === AUTORIZACAO) {
+        const autorizacoes = await listarAutorizacoes({
+          edicao_id: edicaoAtiva,
+          instituicao_id: pasta.instituicao_id,
+        });
+        definirCartoes({
+          itens: autorizacoes.map((a) => ({ ...a, tipo: AUTORIZACAO })),
+          total: autorizacoes.length,
+        });
       } else {
         definirCartoes(
           await listarCartoes({
@@ -213,7 +249,7 @@ export default function Cartoes() {
     definirPrevia(null);
     definirArquivos([]);
     definirConferidos([]);
-    definirConferindo(false);
+    definirRespostas({});
     definirSubindoAberto(false);
   }
 
@@ -227,19 +263,19 @@ export default function Cartoes() {
 
   function abrirPasta(p) {
     limparEnvio();
-    definirAbaTipo("");
+    definirAbaTipo("cesta");
+    definirTipo("cesta");
     definirCarregando(true);
     definirPasta(p);
   }
 
   /* Trocar de aba leva o tipo do envio junto: quem esta com a pilha de festa
      aberta vai subir festa, e ter de dizer isso num select ao lado seria
-     repetir o que a aba ja diz — e o lugar exato onde se erra. Na aba "Todos"
-     o select continua mandando, porque ali nao ha tipo escolhido. */
+     repetir o que a aba ja diz — e o lugar exato onde se erra. */
   function trocarAba(tipoDaAba) {
     definirCarregando(true);
     definirAbaTipo(tipoDaAba);
-    if (tipoDaAba) definirTipo(tipoDaAba);
+    definirTipo(tipoDaAba);
   }
 
   function voltarAsPastas() {
@@ -262,9 +298,7 @@ export default function Cartoes() {
         }),
       );
       definirConferidos([]);
-      // A conferencia e o passo seguinte do fluxo, nao um extra: quem subiu a
-      // pilha subiu para olhar cartao por cartao.
-      definirConferindo(true);
+      definirRespostas({});
     } catch (e) {
       definirErro(e.message);
     } finally {
@@ -276,9 +310,22 @@ export default function Cartoes() {
     definirErro("");
     definirSalvando(true);
     try {
-      const r = await confirmarLote(previa.id);
+      // Foto que ninguem mexeu vai com o padrao (tudo "Nao"): o padrao e uma
+      // resposta, e o servidor pede resposta para cada uma.
+      const r = await confirmarLote(
+        previa.id,
+        previa.tipo === AUTORIZACAO
+          ? Object.fromEntries(
+              previa.arquivos
+                .filter((a) => a.valida)
+                .map((a) => [a.indice, respostas[a.indice] ?? RESPOSTAS_PADRAO]),
+            )
+          : undefined,
+      );
       notificar(
-        `${r.gravados} cartão(ões) de ${previa.tipo} guardado(s).` +
+        (previa.tipo === AUTORIZACAO
+          ? `${r.gravados} autorização(ões) guardada(s).`
+          : `${r.gravados} cartão(ões) de ${previa.tipo} guardado(s).`) +
           (r.ignorados ? ` ${r.ignorados} ignorado(s).` : ""),
       );
       limparEnvio();
@@ -293,21 +340,15 @@ export default function Cartoes() {
 
 
 
-  // So as fotos que vao subir precisam de olho: as que ja estao com erro nao
-  // vao ser gravadas de qualquer jeito.
-  const faltamConferir = previa
-    ? previa.arquivos.filter((a) => a.valida && !conferidos.includes(a.indice)).length
-    : 0;
-
   return (
     <div>
       <div className="pagina__eyebrow">Monitoria</div>
-      <h1 className="pagina__titulo">Cartões</h1>
+      <h1 className="pagina__titulo">Cartões e Autorização</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         {pasta
-          ? "Os cartões desta instituição. Suba aqui a pilha digitalizada dela — o nome de cada arquivo tem de ser o código da criança."
-          : "Uma pasta por instituição. Abra a da escola em que você está trabalhando para ver os cartões dela e subir a pilha digitalizada."}
+          ? "Os cartões e as autorizações desta instituição. Suba aqui cada pilha digitalizada dela — o nome de cada arquivo tem de ser o código da criança."
+          : "Uma pasta por instituição. Abra a da escola em que você está trabalhando para ver os cartões e as autorizações dela e subir as pilhas digitalizadas."}
       </p>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -341,23 +382,13 @@ export default function Cartoes() {
           <button
             type="button"
             role="tab"
-            aria-selected={abaTipo === ""}
-            className={`aba ${abaTipo === "" ? "aba--ativa" : ""}`}
-            onClick={() => trocarAba("")}
-          >
-            <span>Todos</span>
-            <span className="aba__contagem">{pasta.cesta + pasta.festa} cartões</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={abaTipo === "cesta"}
             className={`aba ${abaTipo === "cesta" ? "aba--ativa" : ""}`}
             onClick={() => trocarAba("cesta")}
           >
             <span>
               <span className="aba__ponto tipo--cesta" />
-              Cesta
+              Cartão Cesta
             </span>
             <span className="aba__contagem">{pasta.cesta} cartões</span>
           </button>
@@ -370,9 +401,24 @@ export default function Cartoes() {
           >
             <span>
               <span className="aba__ponto tipo--festa" />
-              Festa
+              Cartão Festa
             </span>
             <span className="aba__contagem">{pasta.festa} cartões</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={abaTipo === AUTORIZACAO}
+            className={`aba ${abaTipo === AUTORIZACAO ? "aba--ativa" : ""}`}
+            onClick={() => trocarAba(AUTORIZACAO)}
+          >
+            <span>
+              <span className="aba__ponto tipo--autorizacao" />
+              Autorização
+            </span>
+            <span className="aba__contagem">
+              {pasta.autorizacoes} {pasta.autorizacoes === 1 ? "autorização" : "autorizações"}
+            </span>
           </button>
           </FaixaDeAbas>
 
@@ -407,7 +453,7 @@ export default function Cartoes() {
 
             {pode("subir_cartoes") && (
               <Button size="sm" onClick={() => definirSubindoAberto(true)}>
-                Subir cartões
+                {abaTipo === AUTORIZACAO ? "Subir autorizações" : "Subir cartões"}
               </Button>
             )}
           </div>
@@ -417,48 +463,28 @@ export default function Cartoes() {
       {/* O envio mora DENTRO da pasta: sobe-se a pilha de uma escola, e o
           servidor recusa na previa o arquivo cujo codigo for de outra. No andar
           das pastas nao ha o que subir — nao se sabe de quem seria. */}
-      {pasta && pode("subir_cartoes") && subindoAberto && (
+      {/* Depois de ler os arquivos esta janela da lugar a conferencia, e nao
+          fica aberta atras dela: duas janelas de conferencia empilhadas
+          diziam a mesma coisa duas vezes. */}
+      {pasta && pode("subir_cartoes") && subindoAberto && !previa && (
         <Modal
-          rotulo={`${pasta.instituicao}${abaTipo ? ` · ${abaTipo}` : ""}`}
-          titulo={previa ? "Conferência" : "Subir cartões digitalizados"}
-          /* Os dois passos pedem molduras diferentes. O formulario tem tres
-             campos fixos e cabe no tamanho padrao — em `grande` ele ficaria com
-             meia janela vazia embaixo. A conferencia pode ter cinquenta
-             arquivos, e ai vale o `grande`: moldura fixa, corpo rolando, sem a
-             janela crescer enquanto a pessoa marca um a um.
-
-             Isto nao e a janela mudando de tamanho com o conteudo, que o
-             PADROES_UI proibe: sao dois PASSOS da tarefa, e a troca acontece no
-             clique que leva de um para o outro — nao embaixo do ponteiro de
-             quem esta agindo dentro de um deles. */
-          tamanho={previa ? "grande" : "padrao"}
+          rotulo={`${pasta.instituicao} · ${NOME_DO_TIPO[abaTipo]}`}
+          titulo={
+            abaTipo === AUTORIZACAO
+              ? "Subir autorizações digitalizadas"
+              : "Subir cartões digitalizados"
+          }
           aoFechar={fecharEnvio}
         >
-          {!previa ? (
-            <form onSubmit={enviarLote}>
-              {/* Com uma pilha aberta, perguntar de que tipo ela e seria
-                  repetir o que a aba ja diz — e seria o lugar exato de errar:
-                  escolher "festa" com a aba Cesta na frente subiria a pilha
-                  inteira no tipo trocado. Na aba "Todos" nao ha tipo escolhido,
-                  e o campo volta. */}
-              {abaTipo ? (
-                <p className="campo__dica" style={{ marginTop: 0 }}>
-                  Vai para a pilha de{" "}
-                  <span className={`etiqueta etiqueta--${abaTipo}`}>{abaTipo}</span> desta
-                  instituição. Para subir a outra, troque de aba.
-                </p>
-              ) : (
-                <div className="linha-campos">
-                  <Selecao
-                    rotulo="Estes cartões são de"
-                    value={tipo}
-                    onChange={(e) => definirTipo(e.target.value)}
-                  >
-                    <option value="cesta">Cesta</option>
-                    <option value="festa">Festa</option>
-                  </Selecao>
-                </div>
-              )}
+          <form onSubmit={enviarLote}>
+              {/* Perguntar de que tipo e a pilha seria repetir o que a aba ja
+                  diz — e seria o lugar exato de errar: escolher "festa" com a
+                  aba Cesta na frente subiria a pilha inteira no tipo trocado. */}
+              <p className="campo__dica" style={{ marginTop: 0 }}>
+                Vai para a pilha de{" "}
+                <span className={`etiqueta etiqueta--${abaTipo}`}>{NOME_DO_TIPO[abaTipo]}</span>{" "}
+                desta instituição. Para subir outra, troque de aba.
+              </p>
 
               <label className="campo">
                 <span className="campo__rotulo">Arquivos</span>
@@ -470,7 +496,7 @@ export default function Cartoes() {
                 />
                 <span className="campo__dica">
                   Nomeie cada arquivo com o código da criança. Separe as pilhas de
-                  cesta e de festa antes de subir.
+                  cesta, festa e autorização antes de subir.
                 </span>
               </label>
 
@@ -486,129 +512,16 @@ export default function Cartoes() {
                 </Button>
               </div>
             </form>
-          ) : (
-            <div>
-              <p className="campo__dica" style={{ marginTop: 0 }}>
-                <strong>
-                  {previa.validas} de {previa.total} prontos.
-                </strong>{" "}
-                Nada foi gravado ainda.
-                {faltamConferir > 0
-                  ? ` Falta olhar ${faltamConferir} cartão(ões) um a um.`
-                  : " Todos já foram conferidos um a um."}
-              </p>
-
-              {/* O QUE deu errado, em cima e agrupado. Antes o motivo ficava so
-                  na linha de cada arquivo, em letra de dica: numa pilha de
-                  cinquenta, quem subia via "42 de 50" e nao descobria por que
-                  oito ficaram de fora sem caçar linha por linha. */}
-              {motivosDaRecusa.length > 0 && (
-                <Mensagem tipo="aviso">
-                  <strong>
-                    {previa.total - previa.validas} de {previa.total} não vão subir:
-                  </strong>
-                  <ul className="recusa">
-                    {motivosDaRecusa.map(([motivo, quantos]) => (
-                      <li key={motivo}>
-                        {quantos > 1 && <strong>{quantos}× </strong>}
-                        {motivo}
-                      </li>
-                    ))}
-                  </ul>
-                </Mensagem>
-              )}
-
-              <div className="ficha__lista">
-                {previa.arquivos.map((a) => (
-                  <div key={a.indice} className="ficha__linha">
-                    {a.miniatura ? (
-                      <img
-                        src={`data:image/jpeg;base64,${a.miniatura}`}
-                        alt=""
-                        style={{
-                          width: 44,
-                          height: 44,
-                          objectFit: "cover",
-                          borderRadius: "var(--radius-sm)",
-                          border: "var(--stroke-hairline) solid var(--border-default)",
-                          flex: "none",
-                        }}
-                      />
-                    ) : (
-                      <span style={{ width: 44, flex: "none" }} />
-                    )}
-
-                    <div className="ficha__linha-corpo">
-                      <span className="ficha__linha-etiquetas">
-                        {a.valida ? (
-                          <span className="etiqueta etiqueta--ok">
-                            {conferidos.includes(a.indice) ? "conferido" : "pronto"}
-                          </span>
-                        ) : (
-                          <span className="etiqueta etiqueta--parado">não vai subir</span>
-                        )}
-                        {a.avisos.map((aviso) => (
-                          <span key={aviso} className="etiqueta etiqueta--espera" title={aviso}>
-                            conferir
-                          </span>
-                        ))}
-                      </span>
-
-                      <span className="ficha__linha-nome" title={a.arquivo}>
-                        {a.crianca_nome ? (
-                          <>
-                            <span className="ficha__linha-codigo">{a.codigo}</span>
-                            {a.crianca_nome}
-                          </>
-                        ) : (
-                          <span className="celula--vazia">{a.arquivo}</span>
-                        )}
-                      </span>
-
-                      {/* O motivo da recusa NAO e uma dica: e a unica coisa
-                          que importa naquela linha. Em cinza de dica ele tinha
-                          o mesmo peso do nome do arquivo ao lado. */}
-                      {a.erros.length > 0 ? (
-                        <span className="linha-recusa">{a.erros.join(" ")}</span>
-                      ) : (
-                        a.crianca_nome && (
-                          <span className="campo__dica" style={{ marginTop: 2, display: "block" }}>
-                            {a.arquivo} · {a.instituicao}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="barra-acoes barra-acoes--fim" style={{ marginTop: "var(--space-4)" }}>
-                <Button
-                  onClick={gravarLote}
-                  carregando={salvando}
-                  disabled={previa.validas === 0 || faltamConferir > 0}
-                >
-                  Guardar {previa.validas} cartão(ões)
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => definirConferindo(true)}
-                  disabled={salvando}
-                >
-                  {faltamConferir > 0 ? "Conferir um a um" : "Rever um a um"}
-                </Button>
-                <Button variant="ghost" onClick={limparEnvio} disabled={salvando}>
-                  Descartar
-                </Button>
-              </div>
-            </div>
-          )}
         </Modal>
       )}
 
       {carregando ? (
         <Carregando tela>
-          {pasta ? "Carregando cartões..." : "Carregando as instituições..."}
+          {pasta
+            ? abaTipo === AUTORIZACAO
+              ? "Carregando autorizações..."
+              : "Carregando cartões..."
+            : "Carregando as instituições..."}
         </Carregando>
       ) : !pasta ? (
         pastas.length === 0 ? (
@@ -643,8 +556,14 @@ export default function Cartoes() {
                       telas medindo a mesma coisa nao deviam desenha-la de
                       jeitos diferentes. */}
                   <span className="pasta__barras">
-                    <Progresso rotulo="Cesta" valor={p.cesta} de={p.criancas} tom="cesta" />
-                    <Progresso rotulo="Festa" valor={p.festa} de={p.criancas} tom="festa" />
+                    <Progresso rotulo="Cartão Cesta" valor={p.cesta} de={p.criancas} tom="cesta" />
+                    <Progresso rotulo="Cartão Festa" valor={p.festa} de={p.criancas} tom="festa" />
+                    <Progresso
+                      rotulo="Autorização"
+                      valor={p.autorizacoes}
+                      de={p.criancas}
+                      tom="autorizacao"
+                    />
                   </span>
                 </span>
               </button>
@@ -653,7 +572,11 @@ export default function Cartoes() {
         )
       ) : cartoes.itens.length === 0 ? (
         <EmptyState
-          titulo="Nenhum cartão nesta instituição"
+          titulo={
+            abaTipo === AUTORIZACAO
+              ? "Nenhuma autorização nesta instituição"
+              : `Nenhum cartão de ${abaTipo} nesta instituição`
+          }
           corpo="Suba aqui a pilha digitalizada desta escola — o nome de cada arquivo tem de ser o código da criança."
         />
       ) : (
@@ -669,7 +592,7 @@ export default function Cartoes() {
                     outro. */}
                 {pode("subir_cartoes") && (
                   <span className="mural__acoes">
-                    <MenuAcoes titulo={`Ações do cartão de ${c.crianca_nome}`}
+                    <MenuAcoes titulo={`Ações d${doItem(c)}`}
                       itens={acoesDoCartao(c)} />
                   </span>
                 )}
@@ -677,17 +600,19 @@ export default function Cartoes() {
                   type="button"
                   className="mural__abrir"
                   onClick={() => definirVendo(c)}
-                  title={`Ver o cartão de ${c.crianca_nome}`}
+                  title={`Ver ${doItem(c)}`}
                 >
                 <span className="mural__imagem">
                   <img
-                    src={urlDaMiniatura(c.id)}
-                    alt={`Cartão de ${c.tipo} de ${c.crianca_nome}`}
+                    src={miniaturaDe(c)}
+                    alt={`${NOME_DO_TIPO[c.tipo]} de ${c.crianca_nome}`}
                     /* `lazy`: numa escola de sessenta, so baixa o que esta na
                        tela. Sem isto a grade puxaria tudo de uma vez. */
                     loading="lazy"
                   />
-                  <span className={`etiqueta etiqueta--${c.tipo} mural__tipo`}>{c.tipo}</span>
+                  <span className={`etiqueta etiqueta--${c.tipo} mural__tipo`}>
+                    {NOME_DO_TIPO[c.tipo]}
+                  </span>
                 </span>
                 <span className="mural__codigo">{c.crianca_codigo}</span>
                 <span className="mural__nome">{c.crianca_nome}</span>
@@ -707,12 +632,12 @@ export default function Cartoes() {
                 type="button"
                 className="cartoes-lista__abrir"
                 onClick={() => definirVendo(c)}
-                title={`Ver o cartão de ${c.crianca_nome}`}
+                title={`Ver ${doItem(c)}`}
               >
                 <span className="cartoes-lista__mini">
                   <img
-                    src={urlDaMiniatura(c.id)}
-                    alt={`Cartão de ${c.tipo} de ${c.crianca_nome}`}
+                    src={miniaturaDe(c)}
+                    alt={`${NOME_DO_TIPO[c.tipo]} de ${c.crianca_nome}`}
                     loading="lazy"
                   />
                 </span>
@@ -720,13 +645,13 @@ export default function Cartoes() {
                   <span className="cartoes-lista__codigo">{c.crianca_codigo}</span>
                   <span className="cartoes-lista__nome">{c.crianca_nome}</span>
                 </span>
-                <span className={`etiqueta etiqueta--${c.tipo}`}>{c.tipo}</span>
+                <span className={`etiqueta etiqueta--${c.tipo}`}>{NOME_DO_TIPO[c.tipo]}</span>
               </button>
 
               {pode("subir_cartoes") && (
                 <span className="cartoes-lista__acoes">
                   <MenuAcoes
-                    titulo={`Ações do cartão de ${c.crianca_nome}`}
+                    titulo={`Ações d${doItem(c)}`}
                     itens={acoesDoCartao(c)}
                   />
                 </span>
@@ -749,13 +674,20 @@ export default function Cartoes() {
 
       {apagandoDe && (
         <Modal
-          rotulo="Apagar cartão de:"
+          rotulo={ehAutorizacao(apagandoDe) ? "Apagar autorização de:" : "Apagar cartão de:"}
           titulo={apagandoDe.crianca_nome}
           aoFechar={() => !corrigindo && definirApagandoDe(null)}
         >
           <p className="campo__dica" style={{ marginTop: 0 }}>
-            A imagem sai do disco e o registro deste cartão de{" "}
-            <strong>{apagandoDe.tipo}</strong> some. Não dá para desfazer — se a
+            A imagem sai do disco e o registro{" "}
+            {ehAutorizacao(apagandoDe) ? (
+              "desta autorização"
+            ) : (
+              <>
+                deste cartão de <strong>{apagandoDe.tipo}</strong>
+              </>
+            )}{" "}
+            some. Não dá para desfazer — se a
             foto só saiu ruim, use <strong>Substituir imagem</strong>.
           </p>
           <div className="barra-acoes barra-acoes--fim">
@@ -769,22 +701,23 @@ export default function Cartoes() {
         </Modal>
       )}
 
-      {conferindo && previa && (
+      {previa && (
         <ConferirCartoes
           previa={previa}
+          salvando={salvando}
+          erro={erro}
           conferidos={conferidos}
+          respostas={respostas}
+          aoResponder={(indice, r) => definirRespostas((atual) => ({ ...atual, [indice]: r }))}
           aoConferir={(indice) =>
             definirConferidos((atual) =>
               atual.includes(indice) ? atual : [...atual, indice],
             )
           }
-          aoFechar={() => definirConferindo(false)}
-          aoGuardar={() => {
-            // Fecha antes de gravar: se der erro, a mensagem e o botao de
-            // tentar de novo estao no painel, atras da janela.
-            definirConferindo(false);
-            gravarLote();
-          }}
+          /* Fechar a conferencia descarta o lote: nada foi gravado, e os
+             arquivos continuam no computador de quem subiu. */
+          aoFechar={fecharEnvio}
+          aoGuardar={gravarLote}
         />
       )}
 
@@ -793,34 +726,61 @@ export default function Cartoes() {
           baixar o blob antes. */}
       {vendo && (
         <Modal
-          rotulo={`Cartão de ${vendo.tipo}`}
+          rotulo={ehAutorizacao(vendo) ? "Autorização de" : `Cartão de ${vendo.tipo}`}
           titulo={vendo.crianca_nome}
           tamanho="largo"
           aoFechar={() => definirVendo(null)}
         >
           <img
             className="cartao-imagem"
-            src={urlDaImagem(vendo.id)}
-            alt={`Cartão de ${vendo.tipo} de ${vendo.crianca_nome}`}
+            src={imagemDe(vendo)}
+            alt={`${NOME_DO_TIPO[vendo.tipo]} de ${vendo.crianca_nome}`}
           />
-          {/* Esta tela e controle de CARTAO: quantos ha, de que tipo, quais ja
+          {/* Esta tela e controle de PAPEL: quantos ha, de que tipo, quais ja
               sairam. Quem e o padrinho de cada crianca e assunto da tela de
-              padrinhos — aqui a pergunta e sobre a pilha de papel. */}
-          <dl className="ficha ficha--duas" style={{ marginTop: "var(--space-4)" }}>
-            <dt>Instituição</dt>
-            <dd>{vendo.instituicao}</dd>
-            <dt>Tipo</dt>
-            <dd>
-              <span className={`etiqueta etiqueta--${vendo.tipo}`}>{vendo.tipo}</span>
-            </dd>
-            <dt>Situação</dt>
-            <dd>
-              {vendo.status === "enviado" ? "Enviado" : "A enviar"}
-              {vendo.enviado_em && ` · ${formatarDataHora(vendo.enviado_em)}`}
-            </dd>
-            <dt>Digitalizado</dt>
-            <dd>{formatarDataHora(vendo.criado_em)}</dd>
-          </dl>
+              padrinhos — aqui a pergunta e sobre a pilha. */}
+          {ehAutorizacao(vendo) ? (
+            /* Os campos proprios da autorizacao ainda vao chegar. Por ora ela
+               mostra o que ja se sabe dela. */
+            <dl className="ficha ficha--duas" style={{ marginTop: "var(--space-4)" }}>
+              <dt>Instituição</dt>
+              <dd>{vendo.instituicao}</dd>
+              <dt>Código</dt>
+              <dd>{vendo.crianca_codigo}</dd>
+              <dt>Digitalizada</dt>
+              <dd>{formatarDataHora(vendo.criado_em)}</dd>
+              {/* As respostas que o monitor marcou ao conferir. Nulas so nas
+                  que subiram antes de o formulario existir. */}
+              {PERGUNTAS.map((p) => (
+                <div key={p.sim} style={{ display: "contents" }}>
+                  <dt className="ficha__dt-largo">{p.pergunta}</dt>
+                  <dd className="ficha__dd-largo">
+                    {vendo[p.sim] === true
+                      ? `Sim · ${vendo[p.qual]}`
+                      : vendo[p.sim] === false
+                        ? "Não"
+                        : "não respondido"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <dl className="ficha ficha--duas" style={{ marginTop: "var(--space-4)" }}>
+              <dt>Instituição</dt>
+              <dd>{vendo.instituicao}</dd>
+              <dt>Tipo</dt>
+              <dd>
+                <span className={`etiqueta etiqueta--${vendo.tipo}`}>{vendo.tipo}</span>
+              </dd>
+              <dt>Situação</dt>
+              <dd>
+                {vendo.status === "enviado" ? "Enviado" : "A enviar"}
+                {vendo.enviado_em && ` · ${formatarDataHora(vendo.enviado_em)}`}
+              </dd>
+              <dt>Digitalizado</dt>
+              <dd>{formatarDataHora(vendo.criado_em)}</dd>
+            </dl>
+          )}
         </Modal>
       )}
     </div>

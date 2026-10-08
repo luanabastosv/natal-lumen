@@ -1,5 +1,10 @@
 """Cartoes de agradecimento: digitalizacao em lote e envio aos padrinhos.
 
+A pilha de autorizacoes sobe pelo mesmo envio em lote, com `tipo=autorizacao`:
+o caminho do papel e o mesmo — digitalizar, nomear pelo codigo, conferir —, e
+so o lugar onde a linha e gravada muda. O resto delas mora em
+routers/autorizacoes.py.
+
 Cada crianca escreve dois cartoes, um para cada padrinho. O destinatario nao
 fica gravado no cartao: e encontrado por crianca + tipo -> apadrinhamento ->
 padrinho. Assim o cartao pode ser digitalizado antes de haver padrinho.
@@ -24,7 +29,6 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
-    Response,
     UploadFile,
     status,
 )
@@ -35,11 +39,20 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import config
 from app.database import get_db
-from app.models import Apadrinhamento, Cartao, Crianca, Edicao, Instituicao, Padrinho
+from app.models import (
+    Apadrinhamento,
+    Autorizacao,
+    Cartao,
+    Crianca,
+    Edicao,
+    Instituicao,
+    Padrinho,
+)
 from app.models.tipos import StatusCartao
 from app.schemas.cartoes import (
     ArquivoDoLote,
     CartaoOut,
+    ConfirmarLote,
     MarcarEnviados,
     PaginaCartoes,
     PastaInstituicao,
@@ -49,7 +62,7 @@ from app.schemas.cartoes import (
 from app.servicos.apadrinhamento import CONFIRMADO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import arquivos, nomes_de_arquivo, scanner
+from app.servicos import arquivos, imagens, nomes_de_arquivo, scanner
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
@@ -61,6 +74,8 @@ Enviar = Annotated[ContextoAcesso, Depends(exige_permissao("enviar_cartoes"))]
 Ver = Annotated[ContextoAcesso, Depends(exige_permissao("ver_criancas"))]
 
 PASTA_TEMP = config.caminho_arquivos / "cartoes_temp"
+
+AUTORIZACAO = "autorizacao"
 
 # Teto por envio: cada arquivo e lido inteiro na memoria para endireitar.
 MAX_POR_LOTE = 120
@@ -97,20 +112,6 @@ def _miniatura(imagem, largura: int = 220) -> str:
     pequena = cv2.resize(imagem, (largura, altura), interpolation=cv2.INTER_AREA)
     ok, buffer = cv2.imencode(".jpg", pequena, [cv2.IMWRITE_JPEG_QUALITY, 60])
     return base64.b64encode(buffer.tobytes()).decode() if ok else ""
-
-
-def _apagar_do_disco(caminho_relativo: str) -> None:
-    """Tira o arquivo do disco, sem reclamar se ele ja nao estiver la.
-
-    Falta de arquivo nao pode impedir o registro de sair: um cartao apontando
-    para um arquivo que sumiu e exatamente o caso que a pessoa esta tentando
-    limpar.
-    """
-    try:
-        caminho = arquivos.dentro_da_pasta(caminho_relativo)
-    except ValueError:
-        return
-    caminho.unlink(missing_ok=True)
 
 
 def _padrinho_do_cartao(db: Session, cartao: Cartao) -> Padrinho | None:
@@ -261,10 +262,14 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
             func.count(func.distinct(Crianca.id)).label("criancas"),
             func.count(case((Cartao.tipo == "cesta", 1))).label("cesta"),
             func.count(case((Cartao.tipo == "festa", 1))).label("festa"),
+            # Distinct pelo mesmo motivo: a autorizacao e uma por crianca, mas
+            # a linha dela se repete a cada cartao da mesma crianca.
+            func.count(func.distinct(Autorizacao.id)).label("autorizacoes"),
         )
         .select_from(Crianca)
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
         .outerjoin(Cartao, Cartao.crianca_id == Crianca.id)
+        .outerjoin(Autorizacao, Autorizacao.crianca_id == Crianca.id)
         .where(alcance)
         .group_by(Instituicao.id, Instituicao.nome, Instituicao.sigla)
         .order_by(Instituicao.nome)
@@ -278,6 +283,7 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
             criancas=l.criancas,
             cesta=l.cesta,
             festa=l.festa,
+            autorizacoes=l.autorizacoes,
         )
         for l in linhas
     ]
@@ -288,7 +294,7 @@ async def lote_previa(
     db: BD,
     ctx: Subir,
     arquivos_enviados: list[UploadFile] = File(..., alias="arquivos"),
-    tipo: str = Form(..., pattern="^(cesta|festa)$"),
+    tipo: str = Form(..., pattern="^(cesta|festa|autorizacao)$"),
     edicao_id: int = Form(...),
     # A pasta de onde o envio partiu. O envio acontece DENTRO de uma
     # instituicao, entao um cartao de outra escola na pilha e engano — e o
@@ -323,14 +329,14 @@ async def lote_previa(
     ).all()
     por_codigo = {c.codigo: c for c in criancas}
 
-    ja_tem = set(
-        db.scalars(
-            select(Cartao.crianca_id).where(
-                Cartao.crianca_id.in_([c.id for c in criancas] or [0]),
-                Cartao.tipo == tipo,
-            )
-        ).all()
-    )
+    ids = [c.id for c in criancas] or [0]
+    if tipo == AUTORIZACAO:
+        consulta = select(Autorizacao.crianca_id).where(Autorizacao.crianca_id.in_(ids))
+    else:
+        consulta = select(Cartao.crianca_id).where(
+            Cartao.crianca_id.in_(ids), Cartao.tipo == tipo
+        )
+    ja_tem = set(db.scalars(consulta).all())
 
     _limpar_lotes_velhos()
 
@@ -361,8 +367,9 @@ async def lote_previa(
             # o que houve, e quem subia ficava olhando um arquivo barrado sem
             # saber se o defeito era do arquivo, do cadastro ou dele.
             if crianca.id in ja_tem:
+                o_que = "uma autorizacao" if tipo == AUTORIZACAO else f"um cartao de {tipo}"
                 item.erros.append(
-                    f"{crianca.primeiro_nome} ja tem um cartao de {tipo} aqui. "
+                    f"{crianca.primeiro_nome} ja tem {o_que} aqui. "
                     "Para trocar a foto, use Substituir imagem na propria lista."
                 )
             # O casamento do codigo continua olhando a edicao inteira, e nao so
@@ -421,8 +428,14 @@ async def lote_previa(
 
 
 @router.post("/lote/{id_lote}/confirmar", response_model=ResultadoLote)
-def lote_confirmar(id_lote: str, db: BD, ctx: Subir):
-    """Grava os cartoes que passaram na previa."""
+def lote_confirmar(id_lote: str, db: BD, ctx: Subir, dados_in: ConfirmarLote | None = None):
+    """Grava os cartoes que passaram na previa.
+
+    Na pilha de autorizacoes, cada foto vem com as respostas que o monitor
+    marcou ao conferi-la, pelo indice no lote. Falta de resposta recusa o lote
+    inteiro ANTES de gravar qualquer coisa: gravar metade deixaria a pessoa sem
+    saber quais ainda precisam ser marcadas.
+    """
     if not id_lote.isalnum():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Identificador invalido.")
 
@@ -435,6 +448,18 @@ def lote_confirmar(id_lote: str, db: BD, ctx: Subir):
     dados = json.loads(caminho_manifesto.read_text(encoding="utf-8"))
     tipo = dados["tipo"]
     pasta_lote = PASTA_TEMP / id_lote
+
+    respostas = dados_in.respostas if dados_in else {}
+    if tipo == AUTORIZACAO:
+        sem_resposta = [
+            item["arquivo"] for item in dados["itens"] if item["indice"] not in respostas
+        ]
+        if sem_resposta:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"Falta marcar as respostas de {len(sem_resposta)} autorizacao(oes): "
+                + ", ".join(sem_resposta[:5]),
+            )
 
     gravados = 0
     ignorados = 0
@@ -457,25 +482,35 @@ def lote_confirmar(id_lote: str, db: BD, ctx: Subir):
             ignorados += 1
             continue
 
-        pasta = arquivos.pasta_dos_cartoes(crianca.edicao.cidade.nome, crianca.edicao.ano)
+        edicao = crianca.edicao
+        if tipo == AUTORIZACAO:
+            pasta = arquivos.pasta_das_autorizacoes(edicao.cidade.nome, edicao.ano)
+        else:
+            pasta = arquivos.pasta_dos_cartoes(edicao.cidade.nome, edicao.ano)
         pasta.mkdir(parents=True, exist_ok=True)
         destino = arquivos.caminho_disponivel(
             pasta, arquivos.nome_do_cartao(crianca.instituicao.nome, crianca.nome, tipo)
         )
         relativo = str(destino.relative_to(config.caminho_arquivos))
 
-        cartao = Cartao(
-            crianca_id=crianca.id,
-            tipo=tipo,
-            arquivo=relativo,
-            monitor_id=ctx.usuario.id,
-        )
-        db.add(cartao)
+        if tipo == AUTORIZACAO:
+            registro = Autorizacao(
+                crianca_id=crianca.id,
+                arquivo=relativo,
+                monitor_id=ctx.usuario.id,
+                **respostas[item["indice"]].model_dump(),
+            )
+        else:
+            registro = Cartao(
+                crianca_id=crianca.id, tipo=tipo, arquivo=relativo, monitor_id=ctx.usuario.id
+            )
+        # SAVEPOINT, e nao rollback: um rollback inteiro levaria junto o que
+        # este mesmo lote ja tinha gravado antes desta linha.
         try:
-            db.flush()
+            with db.begin_nested():
+                db.add(registro)
         except IntegrityError:
-            # Alguem subiu o cartao desta crianca entre a previa e o confirmar.
-            db.rollback()
+            # Alguem subiu o desta crianca entre a previa e o confirmar.
             ignorados += 1
             continue
 
@@ -485,7 +520,7 @@ def lote_confirmar(id_lote: str, db: BD, ctx: Subir):
 
     registrar(
         db, "cartoes_em_lote", usuario_id=ctx.usuario.id,
-        tabela="cartoes",
+        tabela="autorizacoes" if tipo == AUTORIZACAO else "cartoes",
         detalhes={"tipo": tipo, "gravados": gravados, "ignorados": ignorados},
     )
     db.commit()
@@ -523,63 +558,19 @@ def imagem_do_cartao(cartao_id: int, db: BD, ctx: Ver):
     if cartao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
 
-    try:
-        caminho = arquivos.dentro_da_pasta(cartao.arquivo)
-    except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
-
-    if not caminho.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
-
-    return FileResponse(caminho, media_type="image/jpeg")
+    return imagens.servir(cartao.arquivo)
 
 
 @router.get("/{cartao_id}/miniatura")
 def miniatura_do_cartao(cartao_id: int, db: BD, ctx: Ver):
-    """A mesma imagem, pequena. Para a visao de arquivo, que mostra muitas.
-
-    Existe porque o original tem ~290 KB: uma escola com sessenta cartoes
-    baixaria 17 MB so para desenhar a grade, e boa parte disso num celular no
-    meio do recolhimento. A miniatura fica em ~15 KB.
-
-    Gerada na hora, sem guardar em disco: redimensionar um JPEG desse tamanho
-    custa poucos milissegundos, e um cache em disco seria mais um lugar para
-    ficar desatualizado. Quem evita o trabalho repetido e o `Cache-Control`: o
-    navegador guarda por uma hora, e a imagem de um cartao nao muda.
-    """
+    """A mesma imagem, pequena, para a visao de arquivo (ver imagens.py)."""
     cartao = db.scalar(
         select(Cartao).where(Cartao.id == cartao_id, _filtro(ctx, "ver_criancas"))
     )
     if cartao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
 
-    try:
-        caminho = arquivos.dentro_da_pasta(cartao.arquivo)
-    except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
-
-    if not caminho.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo nao encontrado.")
-
-    imagem = cv2.imread(str(caminho))
-    if imagem is None:
-        # Arquivo ilegivel: melhor 404 do que 500. A grade mostra o buraco e a
-        # pessoa abre o original para ver o que houve.
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Imagem ilegivel.")
-
-    altura = max(1, int(imagem.shape[0] * 320 / imagem.shape[1]))
-    pequena = cv2.resize(imagem, (320, altura), interpolation=cv2.INTER_AREA)
-    ok, buffer = cv2.imencode(".jpg", pequena, [cv2.IMWRITE_JPEG_QUALITY, 70])
-    if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Imagem ilegivel.")
-
-    return Response(
-        content=buffer.tobytes(),
-        media_type="image/jpeg",
-        # `private`: e imagem de crianca, nao pode ficar em cache compartilhado
-        # de proxy nenhum no caminho.
-        headers={"Cache-Control": "private, max-age=3600"},
-    )
+    return imagens.servir_miniatura(cartao.arquivo)
 
 
 @router.delete("/{cartao_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -601,7 +592,7 @@ def apagar_cartao(cartao_id: int, db: BD, ctx: Subir):
     if cartao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
 
-    _apagar_do_disco(cartao.arquivo)
+    imagens.apagar_do_disco(cartao.arquivo)
 
     registrar(
         db, "cartao_apagado", usuario_id=ctx.usuario.id,
@@ -639,6 +630,8 @@ async def trocar_imagem(
     if cartao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
 
+    imagens.conferir_nome_da_troca(db, arquivo.filename, cartao.crianca)
+
     conteudo = await ler_limitado(arquivo)
     imagem = scanner.carregar_imagem(conteudo)
     endireitada, _aviso = scanner.digitalizar(imagem)
@@ -660,7 +653,7 @@ async def trocar_imagem(
     antiga = cartao.arquivo
     cartao.arquivo = str(destino.relative_to(config.caminho_arquivos))
     cartao.monitor_id = ctx.usuario.id
-    _apagar_do_disco(antiga)
+    imagens.apagar_do_disco(antiga)
 
     registrar(
         db, "cartao_trocado", usuario_id=ctx.usuario.id,

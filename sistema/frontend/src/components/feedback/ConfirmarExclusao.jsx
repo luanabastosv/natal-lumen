@@ -16,6 +16,7 @@ const ROTULOS = {
   dias: ["dia do evento", "dias do evento"],
   criancas: ["criança", "crianças"],
   cartoes: ["cartão digitalizado", "cartões digitalizados"],
+  autorizacoes: ["autorização digitalizada", "autorizações digitalizadas"],
   kits: ["kit", "kits"],
   padrinhos: ["padrinho", "padrinhos"],
   apadrinhamentos: ["apadrinhamento", "apadrinhamentos"],

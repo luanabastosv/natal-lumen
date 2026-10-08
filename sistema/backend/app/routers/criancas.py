@@ -20,6 +20,7 @@ from app.config import config
 from app.database import get_db
 from app.models import (
     Apadrinhamento,
+    Autorizacao,
     Cartao,
     Crianca,
     DiaEvento,
@@ -57,6 +58,7 @@ from app.seeds.perfis_permissoes import (
     PERFIS_COMISSARIADO,
 )
 from app.seguranca.contexto import ContextoAcesso
+from app.servicos.oracao import ave_marias_da_crianca
 from app.seguranca.dependencias import Contexto, exige_permissao, exige_qualquer
 from app.servicos.apadrinhamento import CONFIRMADO, confirmado
 from app.servicos import codigos, dias, exclusao, importador
@@ -161,12 +163,13 @@ def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) 
         promessa_cesta=extra.get("promessa_cesta", False) if padrinho else None,
         promessa_festa=extra.get("promessa_festa", False) if padrinho else None,
         cartoes=extra.get("cartoes", 0),
+        autorizacao=extra.get("autorizacao", False),
         kit_status=extra.get("kit", "pendente") if kit else None,
     )
 
 
 def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
-    """Padrinhos, cartoes e kit de varias criancas, em 3 consultas.
+    """Padrinhos, cartoes, autorizacao e kit de varias criancas, em 4 consultas.
 
     Buscar isso crianca por crianca daria 4500 consultas numa edicao de 1500 —
     a tela nunca abriria.
@@ -196,6 +199,11 @@ def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
         .group_by(Cartao.crianca_id)
     ).all():
         dados[crianca_id]["cartoes"] = quantos
+
+    for crianca_id in db.scalars(
+        select(Autorizacao.crianca_id).where(Autorizacao.crianca_id.in_(ids))
+    ).all():
+        dados[crianca_id]["autorizacao"] = True
 
     for crianca_id, estado in db.execute(
         select(Kit.crianca_id, Kit.status).where(Kit.crianca_id.in_(ids))
@@ -805,6 +813,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
     ).all()
 
     kit = db.scalar(select(Kit).where(Kit.crianca_id == crianca.id))
+    autorizacao = db.scalar(select(Autorizacao).where(Autorizacao.crianca_id == crianca.id))
 
     return CriancaDetalhe(
         id=crianca.id,
@@ -836,6 +845,16 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         ],
         kit_status=(kit.status if kit else "pendente") if pode_kit else None,
         kit_montado_em=(kit.montado_em if kit else None) if pode_kit else None,
+        autorizacao_em=autorizacao.criado_em if autorizacao else None,
+        necessidade_especial=autorizacao.necessidade_especial if autorizacao else None,
+        necessidade_especial_qual=(
+            autorizacao.necessidade_especial_qual if autorizacao else None
+        ),
+        restricao_alimentar=autorizacao.restricao_alimentar if autorizacao else None,
+        restricao_alimentar_qual=autorizacao.restricao_alimentar_qual if autorizacao else None,
+        tem_observacao=autorizacao.tem_observacao if autorizacao else None,
+        observacao_autorizacao=autorizacao.observacao if autorizacao else None,
+        ave_marias=ave_marias_da_crianca(db, crianca.id),
         ve_captacao=pode_contato,
     )
 

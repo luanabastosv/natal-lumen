@@ -1,10 +1,11 @@
-"""Modelos de logistica: os cartoes das criancas e os kits.
+"""Modelos de logistica: os cartoes e as autorizacoes das criancas, e os kits.
 
 Compras saiu daqui para models/financeiro.py: ela e uma SAIDA de dinheiro,
 e passou a dividir tela com os recebimentos.
 """
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     String,
@@ -71,6 +72,44 @@ class Cartao(Base):
     criado_em: Mapped[CriadoEm]
 
     crianca: Mapped["Crianca"] = relationship(back_populates="cartoes")  # noqa: F821
+
+
+class Autorizacao(Base):
+    """A autorizacao assinada pelo responsavel da crianca, uma por crianca.
+
+    Sobe pelo mesmo caminho dos cartoes — a pilha digitalizada, com o codigo
+    da crianca no nome do arquivo — e mora na mesma tela, numa aba propria.
+    Tabela separada, e nao um terceiro tipo de cartao, porque ela nao e
+    agradecimento: nao tem padrinho, nao e enviada a ninguem, e vai ganhar
+    campos que so ela tem.
+    """
+
+    __tablename__ = "autorizacoes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    crianca_id: Mapped[int] = mapped_column(
+        ForeignKey("criancas.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+
+    # Caminho relativo dentro de ARQUIVOS_DIR/autorizacoes/{cidade}/{ano}/.
+    arquivo: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    # O que o monitor le na autorizacao e marca na conferencia, uma crianca por
+    # vez. Sim/nao obrigatorio na entrada; o "qual" so existe quando e sim.
+    # Nulos so nas autorizacoes que subiram antes de o formulario existir.
+    necessidade_especial: Mapped[bool | None] = mapped_column(Boolean)
+    necessidade_especial_qual: Mapped[str | None] = mapped_column(Text)
+    restricao_alimentar: Mapped[bool | None] = mapped_column(Boolean)
+    restricao_alimentar_qual: Mapped[str | None] = mapped_column(Text)
+    tem_observacao: Mapped[bool | None] = mapped_column(Boolean)
+    observacao: Mapped[str | None] = mapped_column(Text)
+
+    monitor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+    criado_em: Mapped[CriadoEm]
+
+    crianca: Mapped["Crianca"] = relationship(back_populates="autorizacao")  # noqa: F821
 
 
 class Kit(Base):

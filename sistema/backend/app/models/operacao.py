@@ -249,6 +249,9 @@ class Crianca(Base):
     )
     cartoes: Mapped[list["Cartao"]] = relationship(back_populates="crianca")  # noqa: F821
     kit: Mapped["Kit | None"] = relationship(back_populates="crianca")  # noqa: F821
+    autorizacao: Mapped["Autorizacao | None"] = relationship(  # noqa: F821
+        back_populates="crianca"
+    )
 
     @property
     def primeiro_nome(self) -> str:

@@ -92,7 +92,10 @@ export async function subirLoteDeCartoes({ arquivos, tipo, edicaoId, instituicao
   return corpo;
 }
 
-export const confirmarLote = (id) => api.post(`/cartoes/lote/${id}/confirmar`);
+/** Grava a previa. A pilha de autorizacoes manda junto as respostas de cada
+ *  foto, pelo indice no lote; a de cartoes confirma sem corpo. */
+export const confirmarLote = (id, respostas) =>
+  api.post(`/cartoes/lote/${id}/confirmar`, respostas ? { respostas } : undefined);
 
 export const marcarEnviados = (cartoes) => api.post("/cartoes/enviados", { cartoes });
 
@@ -103,3 +106,35 @@ export const urlDaImagem = (id) => `${API_URL}/cartoes/${id}/imagem`;
  *  esta na pasta temporaria do lote e so sai por aqui. */
 export const urlDaImagemDoLote = (idLote, indice) =>
   `${API_URL}/cartoes/lote/${idLote}/${indice}/imagem`;
+
+/* ---------- Autorizacoes ----------
+   Sobem pelo mesmo `subirLoteDeCartoes`, com `tipo: "autorizacao"`. O resto
+   delas — listar, abrir, corrigir — tem rota propria no servidor. */
+
+export const listarAutorizacoes = ({ edicao_id, instituicao_id }) =>
+  api.get(`/autorizacoes?edicao_id=${edicao_id}&instituicao_id=${instituicao_id}`);
+
+export const urlDaImagemDaAutorizacao = (id) => `${API_URL}/autorizacoes/${id}/imagem`;
+
+export const urlDaMiniaturaDaAutorizacao = (id) => `${API_URL}/autorizacoes/${id}/miniatura`;
+
+export const apagarAutorizacao = (id) => api.delete(`/autorizacoes/${id}`);
+
+export async function trocarImagemDaAutorizacao(id, arquivo) {
+  const dados = new FormData();
+  dados.append("arquivo", arquivo);
+
+  const token = csrf();
+  const resposta = await fetch(`${API_URL}/autorizacoes/${id}/trocar`, {
+    method: "POST",
+    credentials: "include",
+    headers: token ? { "X-CSRF-Token": token } : {},
+    body: dados,
+  });
+
+  if (!resposta.ok) {
+    const corpo = await resposta.json().catch(() => ({}));
+    throw new Error(corpo.detail || "Não foi possível trocar a imagem.");
+  }
+  return resposta.json();
+}

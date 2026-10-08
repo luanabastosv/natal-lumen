@@ -77,6 +77,9 @@ class CriancaOut(BaseModel):
     # que ve a crianca: e o andamento do trabalho da monitoria, e nao diz nada
     # sobre doador nenhum.
     cartoes: int = 0
+    # A autorizacao do responsavel ja subiu. Como os cartoes, vale para todo
+    # mundo que ve a crianca.
+    autorizacao: bool = False
     # Nulo = sem `gerenciar_kits`.
     kit_status: str | None = None
 
@@ -222,6 +225,19 @@ class CriancaDetalhe(BaseModel):
     # Nulos para quem nao tem `gerenciar_kits`.
     kit_status: str | None = None
     kit_montado_em: datetime | None = None
+    # Quando a autorizacao do responsavel subiu. Nulo = ainda nao subiu.
+    autorizacao_em: datetime | None = None
+    # O que o monitor marcou ao conferir a autorizacao. Nulos enquanto ela nao
+    # subiu, e o "qual" so vem quando a resposta e sim.
+    necessidade_especial: bool | None = None
+    necessidade_especial_qual: str | None = None
+    restricao_alimentar: bool | None = None
+    restricao_alimentar_qual: str | None = None
+    tem_observacao: bool | None = None
+    observacao_autorizacao: str | None = None
+    # Quantas vezes ela apareceu no convite de oracao do dia, somando todo
+    # mundo. Vai para qualquer perfil que ve a ficha: nao diz nada de doador.
+    ave_marias: int = 0
 
     # A resposta da pergunta que decidiu tudo acima: este usuario tem
     # `ver_padrinhos` nesta edicao? A tela usa a MESMA resposta para esconder a
