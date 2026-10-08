@@ -15,6 +15,7 @@ import EnvioCartoes from "./pages/EnvioCartoes.jsx";
 import Financeiro from "./pages/Financeiro.jsx";
 import Kits from "./pages/Kits.jsx";
 import Criancas from "./pages/Criancas.jsx";
+import NovoPadrinho from "./pages/NovoPadrinho.jsx";
 import Padrinhos from "./pages/Padrinhos.jsx";
 import CidadesEdicoes from "./pages/CidadesEdicoes.jsx";
 import Instituicoes from "./pages/Instituicoes.jsx";
@@ -85,6 +86,18 @@ export default function App() {
                 element={
                   <RotaProtegida permissao="enviar_cartoes">
                     <EnvioCartoes />
+                  </RotaProtegida>
+                }
+              />
+
+              {/* O cadastro do padrinho como pagina, para o celular. No
+                  computador ele e a janela da lista. Antes do ":id", senao
+                  "novo" seria lido como id. */}
+              <Route
+                path="/padrinhos/novo"
+                element={
+                  <RotaProtegida permissao="editar_padrinhos">
+                    <NovoPadrinho />
                   </RotaProtegida>
                 }
               />

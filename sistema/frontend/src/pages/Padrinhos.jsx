@@ -4,8 +4,15 @@ import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Enviar } from "../components/core/icones.jsx";
-import { Entrada, Selecao } from "../components/core/Campo.jsx";
+import { Entrada } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
+import { AvisoParecidos, CamposPadrinho } from "../components/dados/CamposPadrinho.jsx";
+import {
+  PADRINHO_NOVO,
+  dadosDoPadrinho,
+  padrinhoCompleto,
+  paraOFormulario,
+} from "../components/dados/padrinho.js";
 import ApadrinharCriancas from "../components/dados/ApadrinharCriancas.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -20,6 +27,7 @@ import {
   apagarPadrinho,
   criarPadrinho,
   dependenciasDoPadrinho,
+  detalharPadrinho,
   editarPadrinho,
   listarPadrinhos,
 } from "../services/padrinhos.js";
@@ -29,18 +37,6 @@ const POR_PAGINA = 100;
 // O nome do perfil na base. Se for renomeado la, mude aqui e em
 // PERFIL_COORDENACAO (backend/app/seeds/perfis_permissoes.py).
 const PERFIL_COORDENACAO = "Coordenacao";
-/* As duas perguntas da captacao nascem VAZIAS, e vazio nao e "nao": e "ainda
-   nao perguntei". Quem cadastra o padrinho as vezes so tem o nome e o zap na
-   mao, e forcar uma resposta ali inventaria dado. */
-const NOVO = {
-  nome: "",
-  whatsapp: "",
-  email: "",
-  observacoes: "",
-  membro_ser_feliz: "",
-  interesse_mensal: "",
-};
-
 // Duas coisas que a conta de dependencias nao diz sozinha, e que mudam a
 // decisao de quem clica: a crianca NAO cai (e ela volta a ficar disponivel,
 // que e justamente o motivo de apagar um padrinho criado por engano), e o
@@ -50,24 +46,6 @@ const NOTA_PADRINHO =
   "As crianças não são apagadas: elas voltam a ficar disponíveis para " +
   "apadrinhar. Já o pagamento sai do caixa junto com o padrinho — se o " +
   "dinheiro entrou de verdade, desfaça só o apadrinhamento, na ficha.";
-
-/** "" -> null, "sim" -> true, "nao" -> false. */
-function resposta(valor) {
-  return valor === "" ? null : valor === "sim";
-}
-
-/** O caminho de volta: o que esta gravado, do jeito que o formulario le. */
-function paraOFormulario(padrinho) {
-  const sel = (v) => (v === true ? "sim" : v === false ? "nao" : "");
-  return {
-    nome: padrinho.nome ?? "",
-    whatsapp: padrinho.whatsapp ?? "",
-    email: padrinho.email ?? "",
-    observacoes: padrinho.observacoes ?? "",
-    membro_ser_feliz: sel(padrinho.membro_ser_feliz),
-    interesse_mensal: sel(padrinho.interesse_mensal),
-  };
-}
 
 export default function Padrinhos() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
@@ -91,7 +69,7 @@ export default function Padrinhos() {
   // celular e a pagina propria). Abre SOZINHO, sem a ficha por baixo: vem do
   // "Salvar e apadrinhar" do cadastro ou do "Apadrinhar" do menu da linha.
   const [apadrinhandoDe, definirApadrinhandoDe] = useState(null);
-  const [campos, definirCampos] = useState(NOVO);
+  const [campos, definirCampos] = useState(PADRINHO_NOVO);
   const [salvando, definirSalvando] = useState(false);
 
   // Guarda o id, nao o objeto: a ficha le sempre a linha que esta na lista,
@@ -182,14 +160,7 @@ export default function Padrinhos() {
     evento.preventDefault();
     definirErro("");
     definirSalvando(true);
-    const dados = {
-      nome: campos.nome.trim(),
-      whatsapp: campos.whatsapp.trim() || null,
-      email: campos.email.trim() || null,
-      observacoes: campos.observacoes.trim() || null,
-      membro_ser_feliz: resposta(campos.membro_ser_feliz),
-      interesse_mensal: resposta(campos.interesse_mensal),
-    };
+    const dados = dadosDoPadrinho(campos);
     try {
       if (emEdicao) {
         // Troca so a linha: a pessoa continua onde estava na planilha.
@@ -218,8 +189,13 @@ export default function Padrinhos() {
   }
 
   function abrirNovo() {
+    // No celular o cadastro e uma pagina, como o passo a passo de apadrinhar.
+    if (estreita) {
+      navegar("/padrinhos/novo");
+      return;
+    }
     definirEmEdicao(null);
-    definirCampos(NOVO);
+    definirCampos(PADRINHO_NOVO);
     definirFormAberto(true);
   }
 
@@ -231,10 +207,23 @@ export default function Padrinhos() {
     definirFormAberto(true);
   }
 
+  /** O nome digitado ja e de um padrinho: em vez de cadastrar de novo,
+   *  apadrinha pelo cadastro que existe. */
+  async function usarExistente(existente) {
+    definirErro("");
+    try {
+      const padrinho = await detalharPadrinho(existente.id);
+      fecharFormulario();
+      definirApadrinhandoDe(padrinho);
+    } catch (e) {
+      definirErro(e.message);
+    }
+  }
+
   function fecharFormulario() {
     definirFormAberto(false);
     definirEmEdicao(null);
-    definirCampos(NOVO);
+    definirCampos(PADRINHO_NOVO);
   }
 
   /** Abre a janela e ja pergunta ao servidor o que vai junto. */
@@ -360,49 +349,26 @@ export default function Padrinhos() {
           aoFechar={() => !salvando && fecharFormulario()}
         >
           <form onSubmit={salvar}>
-            <div className="linha-campos">
-              <Entrada rotulo="Nome" value={campos.nome}
-                onChange={(e) => definirCampos({ ...campos, nome: e.target.value })} required />
-              <Entrada rotulo="WhatsApp" value={campos.whatsapp}
-                onChange={(e) => definirCampos({ ...campos, whatsapp: e.target.value })} />
-              <Entrada rotulo="Email" tipo="email" value={campos.email}
-                onChange={(e) => definirCampos({ ...campos, email: e.target.value })} />
-              <Entrada rotulo="Observações" value={campos.observacoes}
-                onChange={(e) => definirCampos({ ...campos, observacoes: e.target.value })} />
-              <Selecao
-                rotulo="Já é membro Ser Feliz?"
-                value={campos.membro_ser_feliz}
-                onChange={(e) => definirCampos({ ...campos, membro_ser_feliz: e.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  Selecione
-                </option>
-                <option value="sim">Sim</option>
-                <option value="nao">Não</option>
-              </Selecao>
-              <Selecao
-                rotulo="Tem interesse em contribuir mensalmente?"
-                value={campos.interesse_mensal}
-                onChange={(e) => definirCampos({ ...campos, interesse_mensal: e.target.value })}
-                required
-              >
-                <option value="" disabled>
-                  Selecione
-                </option>
-                <option value="sim">Sim</option>
-                <option value="nao">Não</option>
-              </Selecao>
-            </div>
+            <CamposPadrinho
+              campos={campos}
+              definirCampos={definirCampos}
+              avisoNome={
+                !emEdicao && (
+                  <AvisoParecidos
+                    nome={campos.nome}
+                    edicaoId={edicaoAtiva}
+                    aoEscolher={usarExistente}
+                  />
+                )
+              }
+            />
             {/* Sozinho na barra, encostado a direita: e onde a janela termina
                 e onde o olho chega depois do ultimo campo. */}
             <div className="barra-acoes barra-acoes--fim" style={{ justifyContent: "flex-end" }}>
               <Button variant="secondary" type="submit" carregando={salvando}
                 /* As duas perguntas sao obrigatorias: Sim ou Nao, sem "a
                    perguntar". O cadastro so fecha quando a captacao perguntou. */
-                disabled={
-                  !campos.nome.trim() || !campos.membro_ser_feliz || !campos.interesse_mensal
-                }>
+                disabled={!padrinhoCompleto(campos)}>
                 {!emEdicao && salvarEApadrinhar ? "Salvar e apadrinhar" : "Salvar"}
               </Button>
             </div>

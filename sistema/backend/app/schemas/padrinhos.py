@@ -97,6 +97,16 @@ class PaginaPadrinhos(BaseModel):
     itens: list[PadrinhoOut]
 
 
+class PadrinhoParecido(BaseModel):
+    """Um padrinho ja cadastrado com nome parecido com o que se esta digitando."""
+
+    id: int
+    nome: str
+    whatsapp: str | None
+    # Quantas criancas ele ja tem: ajuda a reconhecer se e a mesma pessoa.
+    criancas: int
+
+
 class CriancaApadrinhada(BaseModel):
     crianca_id: int
     tipo: str = Field(pattern="^(cesta|festa)$")

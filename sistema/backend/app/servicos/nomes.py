@@ -15,6 +15,8 @@ espera de uma lista de nomes.
 """
 
 import re
+import unicodedata
+from difflib import SequenceMatcher
 
 # Ligadores de nome portugues, que vao em minuscula no meio do nome ("Maria das
 # Gracas", nunca "Maria Das Gracas"). Os estrangeiros entram porque sobrenome
@@ -52,3 +54,33 @@ def nome_proprio(nome: str | None) -> str:
         palavra.lower() if i and palavra.lower() in LIGADORES else palavra
         for i, palavra in enumerate(_palavra(p) for p in palavras)
     )
+
+
+def _chave(nome: str | None) -> list[str]:
+    """As palavras que identificam um nome: minusculas, sem acento e sem os
+    ligadores. "Jose  da SILVA" e "jose silva" viram as mesmas."""
+    sem_acento = unicodedata.normalize("NFKD", nome or "")
+    sem_acento = "".join(c for c in sem_acento if not unicodedata.combining(c))
+    return [p for p in LETRAS.findall(sem_acento.lower()) if p not in LIGADORES]
+
+
+def parecenca(a: str | None, b: str | None) -> float:
+    """De 0 a 1, o quanto dois nomes de pessoa parecem ser o mesmo.
+
+    Pega os tres jeitos em que o mesmo padrinho volta cadastrado de novo: com
+    outra grafia ("Jose" e "Jose", acento e caixa), com um nome do meio a
+    mais ou a menos ("Jose Silva" e "Jose Carlos Silva"), ou com erro de
+    digitacao ("Jose Slva"). Um nome so ("Maria") nunca conta como parecido:
+    seria parecido com metade da lista.
+    """
+    ka, kb = _chave(a), _chave(b)
+    if len(ka) < 2 or len(kb) < 2:
+        return 0.0
+    if ka == kb:
+        return 1.0
+    curto, longo = sorted((ka, kb), key=len)
+    # O nome mais curto inteiro dentro do mais longo, com o mesmo primeiro e
+    # o mesmo ultimo nome: e a mesma pessoa com o nome do meio omitido.
+    if set(curto) <= set(longo) and curto[0] == longo[0] and curto[-1] == longo[-1]:
+        return 0.95
+    return SequenceMatcher(None, " ".join(ka), " ".join(kb)).ratio()

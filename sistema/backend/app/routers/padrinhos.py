@@ -39,6 +39,7 @@ from app.schemas.padrinhos import (
     PadrinhoOut,
     PaginaPadrinhos,
     PaginaPagamentos,
+    PadrinhoParecido,
     PagamentoEditar,
     PagamentoIn,
     PagamentoOut,
@@ -49,7 +50,7 @@ from app.seguranca.dependencias import exige_permissao
 from app.servicos import agradecimento, comprovantes, exclusao, whatsapp
 from app.servicos.arquivos import limpar_texto
 from app.servicos.log import registrar
-from app.servicos.nomes import nome_proprio
+from app.servicos.nomes import nome_proprio, parecenca
 
 router = APIRouter(tags=["padrinhos"])
 
@@ -237,6 +238,48 @@ def listar_padrinhos(
         total=total, pagina=pagina, por_pagina=por_pagina,
         itens=[_saida(p) for p in itens],
     )
+
+
+# A partir de quanto dois nomes contam como "parecidos". Abaixo disto o
+# aviso aparecia para nomes so vagamente semelhantes, e a pessoa aprendia a
+# ignora-lo.
+PARECIDO = 0.85
+
+
+@router.get("/padrinhos/parecidos", response_model=list[PadrinhoParecido])
+def padrinhos_parecidos(db: BD, ctx: Ver, edicao_id: int, nome: str = Query(min_length=1)):
+    """Padrinhos da edicao com nome parecido com `nome` — no maximo tres.
+
+    E o aviso do cadastro: o mesmo doador volta semanas depois, outro
+    comissario o cadastra de novo, e ele vira dois padrinhos, com dois
+    pagamentos e dois agradecimentos. Antes de salvar, a tela pergunta isto e
+    oferece apadrinhar pelo cadastro que ja existe.
+
+    A comparacao e em Python, e nao no banco: sao centenas de padrinhos por
+    edicao, e "parecido" aqui e acento, nome do meio e erro de digitacao, que
+    um LIKE nao pega.
+    """
+    candidatos = db.scalars(
+        select(Padrinho)
+        .where(_filtro_padrinhos(ctx, "ver_padrinhos"), Padrinho.edicao_id == edicao_id)
+        .options(selectinload(Padrinho.apadrinhamentos))
+    ).all()
+
+    notas = sorted(
+        ((parecenca(nome, p.nome), p) for p in candidatos),
+        key=lambda par: par[0],
+        reverse=True,
+    )
+    return [
+        PadrinhoParecido(
+            id=p.id,
+            nome=p.nome,
+            whatsapp=p.whatsapp,
+            criancas=len({a.crianca_id for a in p.apadrinhamentos}),
+        )
+        for nota, p in notas[:3]
+        if nota >= PARECIDO
+    ]
 
 
 @router.post("/padrinhos", response_model=PadrinhoOut, status_code=status.HTTP_201_CREATED)

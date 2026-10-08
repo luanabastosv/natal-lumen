@@ -5641,3 +5641,45 @@ button.checkin-lista__botao:not(:disabled):active {
 .apadrinhar-final__agradecimento .ficha__secao {
   margin-bottom: 0;
 }
+
+/* O aviso de padrinho ja cadastrado, embaixo do campo de nome: uma linha
+   pequena, na tinta de aviso, com o link para ir ao cadastro que existe. */
+.aviso-parecidos {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+}
+
+.aviso-parecidos strong {
+  font-weight: 700;
+}
+
+.aviso-parecidos__acao {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* Formulario de pagina no celular: um campo por linha, no tamanho cheio
+   (48px, letra de 16px), e o link do aviso com altura de dedo. */
+.formulario-pagina .linha-campos {
+  grid-template-columns: 1fr;
+}
+
+.formulario-pagina .aviso-parecidos__acao {
+  padding: 6px 0;
+}
+
+/* Dica que nao tem nada dentro (o aviso de nome parecido quando nao achou
+   ninguem) nao ocupa espaco: senao o campo ganhava 8px de vao embaixo e
+   desalinhava do vizinho na grade. */
+.campo__dica:empty {
+  display: none;
+}

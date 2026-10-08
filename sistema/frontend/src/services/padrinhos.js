@@ -11,6 +11,11 @@ function comFiltros(caminho, filtros = {}) {
 export const listarPadrinhos = (filtros) => comFiltros("/padrinhos", filtros);
 export const detalharPadrinho = (id) => api.get(`/padrinhos/${id}`);
 export const criarPadrinho = (dados) => api.post("/padrinhos", dados);
+
+/** Padrinhos da edicao com nome parecido com `nome` (no maximo tres): o aviso
+ *  de cadastro repetido. */
+export const padrinhosParecidos = (edicaoId, nome) =>
+  comFiltros("/padrinhos/parecidos", { edicao_id: edicaoId, nome });
 export const editarPadrinho = (id, dados) => api.patch(`/padrinhos/${id}`, dados);
 
 export const apagarPadrinho = (id) => api.delete(`/padrinhos/${id}`);

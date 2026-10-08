@@ -186,6 +186,22 @@ def main() -> None:
         r = cm.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Nao Deveria"})
         verifica("monitor NAO capta padrinho", r.status_code == 403, str(r.status_code))
 
+        print("\nNome parecido com um padrinho ja cadastrado")
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "josé  doador"})
+        verifica("acha o mesmo nome com outra grafia",
+                 r.status_code == 200 and [p["id"] for p in r.json()] == [jose["id"]], r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Jose Carlos Doador"})
+        verifica("e com um nome do meio a mais",
+                 [p["id"] for p in r.json()] == [jose["id"]], r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Fulano Qualquer"})
+        verifica("nome diferente nao acha ninguem", r.json() == [], r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Jose"})
+        verifica("um nome so nao conta como parecido", r.json() == [], r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e2.id, "nome": "Jose Doador"})
+        verifica("so olha a edicao pedida", r.json() == [], r.text[:160])
+        r = cm.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Jose Doador"})
+        verifica("monitor NAO consulta padrinhos", r.status_code == 403, str(r.status_code))
+
         print("\nAs duas perguntas da captacao")
         # Nulo nao e "nao": e "ninguem perguntou". Quem cadastra as vezes so tem
         # o nome e o zap na mao, e um `false` ali afirmaria que a pessoa NAO e
