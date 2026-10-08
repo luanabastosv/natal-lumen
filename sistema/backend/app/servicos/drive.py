@@ -206,15 +206,26 @@ def garantir_subpasta(nome: str) -> str:
 
 
 def enviar(
-    conteudo: bytes, nome_arquivo: str, tipo_mime: str, pasta_id: str | None = None
+    conteudo: bytes,
+    nome_arquivo: str,
+    tipo_mime: str,
+    pasta_id: str | None = None,
+    converter_para: str | None = None,
 ) -> Enviado:
-    """Cria o arquivo na pasta indicada (ou na configurada) e devolve id e link."""
+    """Cria o arquivo na pasta indicada (ou na configurada) e devolve id e link.
+
+    `converter_para` pede ao Google que transforme o arquivo num documento
+    dele na chegada — a planilha diaria sobe como .xlsx e vira Planilha Google,
+    que abre no navegador e no celular sem baixar nada.
+    """
     if not configurado():
         raise ErroDrive("O envio para o Drive nao esta configurado neste servidor.")
 
     token = _access_token()
 
     metadados = {"name": nome_arquivo, "parents": [pasta_id or config.drive_pasta_id]}
+    if converter_para:
+        metadados["mimeType"] = converter_para
 
     try:
         with _cliente() as cliente:

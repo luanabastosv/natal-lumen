@@ -156,6 +156,27 @@ psql -d postgres -c "DROP DATABASE teste_restauro"
 
 Backup que nunca foi restaurado não é backup — é esperança.
 
+#### A planilha do dia
+
+Junto com o backup, toda noite, o `gerar_planilha.py` monta uma **planilha
+consolidada de cada edição ativa** e sobe para o Drive, na pasta "Planilhas
+diárias", já convertida em Planilha Google. É para o dia em que o sistema cair:
+a equipe continua acompanhando pela planilha da noite anterior.
+
+Ela imita a "LISTA GERAL" que a coordenação mantinha à mão: **CÁLCULOS** (por
+dia e instituição, com ônibus, apadrinhados, o que falta e as formas de
+pagamento), **CONSOLIDADO** (todas as crianças), **uma aba por instituição**
+(cada criança com o padrinho de cesta e de festa, pagamento, comissário, grupo,
+cartões, autorização, kit e check-in), **PADRINHOS** e **FINANCEIRO**.
+
+Cada noite é um arquivo novo (`Fortaleza 2026 — 2026-10-08`), e os anteriores
+ficam. É só leitura: mexer nela não muda nada no sistema. Edição de teste (`ZZ`)
+nunca sobe. Para gerar à mão e guardar o `.xlsx` numa pasta:
+
+```bash
+./.venv/bin/python gerar_planilha.py /uma/pasta
+```
+
 > ⚠️ `alembic downgrade base` **apaga todas as tabelas**. É útil em
 > desenvolvimento e desastroso em produção. Faça backup antes de qualquer
 > comando do Alembic que não seja `upgrade`.
@@ -171,6 +192,7 @@ cd backend
 ./.venv/bin/python -m tests.test_padrinhos      # 77 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
 ./.venv/bin/python -m tests.test_lembretes      # 16 verificações
+./.venv/bin/python -m tests.test_planilha       # 16 verificações
 ./.venv/bin/python -m tests.test_logistica      # 27 verificações
 ./.venv/bin/python -m tests.test_painel         # 29 verificações
 ./.venv/bin/python -m tests.test_seguranca      # 44 ataques barrados

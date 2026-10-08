@@ -80,6 +80,17 @@ if [ -x "$AQUI/.venv/bin/python" ] && [ -f "$AQUI/guardar_backup.py" ]; then
       "$DESTINO/arquivos_$QUANDO.tar.gz") || echo "    (o envio falhou; a copia local esta feita)"
 fi
 
+# ---------------------------------------------------------------- planilha
+# A planilha consolidada de cada edicao, para a equipe acompanhar pelo Drive no
+# dia em que o sistema cair. Mesma regra do envio acima: falhar aqui nao derruba
+# o backup, que ja esta feito.
+if [ -x "$AQUI/.venv/bin/python" ] && [ -f "$AQUI/gerar_planilha.py" ]; then
+  echo
+  echo "==> Planilha do dia"
+  (cd "$AQUI" && ./.venv/bin/python gerar_planilha.py) \
+    || echo "    (a planilha falhou; o backup esta feito)"
+fi
+
 # ------------------------------------------------------------------- limpeza
 # Sem isto o disco enche sozinho: sao ~4 MB por dia, e ninguem visita essa
 # pasta ate o dia em que precisa dela. Guarda os 14 ultimos de cada tipo — o
