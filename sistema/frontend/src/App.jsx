@@ -77,8 +77,8 @@ export default function App() {
               ))}
 
               {/* Fora do menu: chega-se pelo botao da tela de padrinhos, de
-                  onde o envio parte. O backend ainda exige que quem pede
-                  enxergue a edicao inteira — ver routers/lembretes.py. */}
+                  onde o envio parte. O backend ainda exige a coordenacao
+                  geral do evento — ver routers/lembretes.py. */}
               <Route
                 path="/padrinhos/envio-de-cartoes"
                 element={

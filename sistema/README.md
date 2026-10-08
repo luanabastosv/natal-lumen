@@ -787,7 +787,7 @@ npm run preview  # serve o build
 | `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
 | `/acesso/criancas` | Lista, cadastro, importação e o comissário responsável | `ver_criancas` |
 | `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
-| `/acesso/padrinhos/envio-de-cartoes` | O lembrete do evento: quem já pode receber, por dia | `enviar_cartoes`, enxergando a edição inteira |
+| `/acesso/padrinhos/envio-de-cartoes` | O lembrete do evento: quem já pode receber, por dia | perfil Coordenação (e admin geral) |
 | `/acesso/cartoes` | Digitalização, conferência e envio | `ver_criancas` |
 | `/acesso/kits` | Montagem e entrega dos kits | `gerenciar_kits` |
 | `/acesso/financeiro` | Saídas e recebimentos da edição (com os pagamentos dos padrinhos), comprovantes e saldo | `gerenciar_compras` **ou** `registrar_pagamentos` |

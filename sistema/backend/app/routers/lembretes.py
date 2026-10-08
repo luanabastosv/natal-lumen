@@ -35,6 +35,7 @@ from app.database import get_db
 from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento
 from app.schemas.lembretes import CartaoDoLembrete, DiaLembretes, LembretePadrinho
 from app.seguranca.contexto import ContextoAcesso
+from app.seeds.perfis_permissoes import PERFIL_COORDENACAO
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import whatsapp
 from app.servicos.apadrinhamento import CONFIRMADO
@@ -44,25 +45,22 @@ router = APIRouter(prefix="/lembretes", tags=["lembretes"])
 BD = Annotated[Session, Depends(get_db)]
 Enviar = Annotated[ContextoAcesso, Depends(exige_permissao("enviar_cartoes"))]
 
-# O que a tela mostra: o padrinho, e o nome e o cartao da crianca.
-PRECISA = frozenset({"enviar_cartoes", "ver_padrinhos", "ver_criancas"})
+def _e_coordenacao_geral(ctx: ContextoAcesso, edicao_id: int) -> bool:
+    """Se quem pede e a coordenacao geral do evento nesta edicao.
 
+    So ela, desde 08/10/2026 — nem a coordenacao da captacao. O lembrete sai
+    em nome do evento para todos os padrinhos de uma vez, e quem decide quando
+    e o que vai e quem responde pelo evento inteiro.
 
-def _ve_a_edicao_inteira(ctx: ContextoAcesso, edicao_id: int) -> bool:
-    """Se quem pede enxerga TODAS as criancas da edicao.
-
-    O lembrete fala de todas as criancas de um padrinho naquele dia, e um
-    padrinho recebe criancas de varios comissarios. Visto por quem so alcanca
-    as proprias, ele pareceria pronto com metade dos cartoes — e e justamente
-    essa a pergunta que a tela responde. Por isso o disparo e da coordenacao
-    (da cidade ou da captacao), e nao de cada comissario.
+    Pelo NOME do perfil, e nao por permissao, como os outros dois lugares do
+    sistema que olham papel em vez de poder (ver PERFIL_COORDENACAO em
+    seeds/perfis_permissoes.py). A coordenacao enxerga a edicao inteira, entao
+    o padrinho aparece sempre com todas as criancas dele — e nunca "pronto"
+    com metade dos cartoes, como pareceria a um comissario.
     """
     if ctx.admin_geral:
         return True
-    return any(
-        v.edicao_id == edicao_id and not v.filtrado_por_instituicao and PRECISA <= v.permissoes
-        for v in ctx.vinculos
-    )
+    return any(v.edicao_id == edicao_id and v.perfil == PERFIL_COORDENACAO for v in ctx.vinculos)
 
 
 def _situacao(faltam: int, whatsapp_valido: bool) -> str:
@@ -74,11 +72,10 @@ def _situacao(faltam: int, whatsapp_valido: bool) -> str:
 @router.get("", response_model=list[DiaLembretes])
 def listar(edicao_id: int, db: BD, ctx: Enviar):
     """Os lembretes da edicao, agrupados por dia do evento."""
-    if not _ve_a_edicao_inteira(ctx, edicao_id):
+    if not _e_coordenacao_geral(ctx, edicao_id):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "O envio dos lembretes e da coordenacao: e preciso enxergar todas "
-            "as criancas da edicao para saber se um padrinho esta pronto.",
+            "O envio dos lembretes e da coordenacao geral do evento.",
         )
 
     apadrinhamentos = db.scalars(

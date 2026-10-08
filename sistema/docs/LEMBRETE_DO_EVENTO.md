@@ -60,12 +60,15 @@ cartões enganaria sobre o que vai sair.
 
 ## Quem acessa
 
-A coordenação da cidade e a coordenação da captação — quem tem
-`enviar_cartoes` **e enxerga a edição inteira**. O comissário tem
-`enviar_cartoes`, mas não entra: ele só vê as próprias crianças, e um padrinho
-recebe crianças de vários comissários. Visto por ele, o padrinho pareceria
-pronto com metade dos cartões — e é justamente essa a pergunta que a tela
-responde. A trava é do backend (`routers/lembretes.py`), não só do botão.
+**Só a coordenação geral do evento** (o perfil "Coordenação") e a
+administração geral — desde 08/10/2026, nem a coordenação da captação. O
+lembrete sai em nome do evento para todos os padrinhos, e quem decide quando e
+o que vai é quem responde pelo evento inteiro.
+
+Isso também resolve a outra pergunta: o comissário só vê as próprias crianças,
+e um padrinho recebe crianças de vários comissários. Visto por ele, o padrinho
+pareceria pronto com metade dos cartões. A coordenação enxerga a edição
+inteira. A trava é do backend (`routers/lembretes.py`), não só do botão.
 
 ## A mensagem
 

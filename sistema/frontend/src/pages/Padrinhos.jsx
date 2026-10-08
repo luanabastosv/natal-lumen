@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
+import { Enviar } from "../components/core/icones.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
@@ -24,6 +25,9 @@ import {
 import { dinheiro } from "../utils/dinheiro.js";
 
 const POR_PAGINA = 100;
+// O nome do perfil na base. Se for renomeado la, mude aqui e em
+// PERFIL_COORDENACAO (backend/app/seeds/perfis_permissoes.py).
+const PERFIL_COORDENACAO = "Coordenacao";
 /* As duas perguntas da captacao nascem VAZIAS, e vazio nao e "nao": e "ainda
    nao perguntei". Quem cadastra o padrinho as vezes so tem o nome e o zap na
    mao, e forcar uma resposta ali inventaria dado. */
@@ -91,12 +95,11 @@ export default function Padrinhos() {
   // JA PAGO. Coordenacao e administracao geral — quem capta corrige o que
   // acabou de digitar, mas nao desfaz o que ja virou numero e dinheiro.
   const podeExcluir = pode("excluir_padrinhos");
-  // O envio dos lembretes e da coordenacao: o comissario, que so enxerga as
-  // proprias criancas, veria um padrinho "pronto" com metade dos cartoes. Quem
-  // responde por instituicoes recebe `instituicoes` preenchido — e esse o
-  // sinal, e nao o nome do perfil. O backend confere de novo.
+  // O envio dos lembretes e so da coordenacao geral do evento (e da
+  // administracao geral) — nem a coordenacao da captacao. O backend confere de
+  // novo, pelo mesmo perfil: ver routers/lembretes.py.
   const podeEnviarCartoes =
-    pode("enviar_cartoes") && (usuario?.admin_geral || (vinculoAtivo && !vinculoAtivo.instituicoes));
+    Boolean(usuario?.admin_geral) || vinculoAtivo?.perfil === PERFIL_COORDENACAO;
 
   // A exclusao em curso: { registro, dependencias, erro, apagando }. Fora dela,
   // null. Igual ao das outras telas que apagam cadastro — ver Instituicoes.
@@ -260,9 +263,12 @@ export default function Padrinhos() {
         {(podeEditar || podeEnviarCartoes) && (
           <div className="barra-acoes__ponta">
             {podeEnviarCartoes && (
+              /* Ghost, e nao cheio: o CTA da tela continua sendo "Novo
+                 padrinho". Este e um caminho para outra tela. */
               <Button
                 size="sm"
-                variant="secondary"
+                variant="ghost"
+                iconLeft={<Enviar t={14} />}
                 onClick={() => navegar("/padrinhos/envio-de-cartoes")}
                 disabled={!edicaoAtiva}
               >

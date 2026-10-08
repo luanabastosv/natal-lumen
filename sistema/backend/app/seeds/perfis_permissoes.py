@@ -190,9 +190,12 @@ PERFIS_COM_GRUPO = ("Comissarios - comissario",)
 #   PERFIL_COORDENACAO  o alcance de cidade inteira: o vinculo da coordenacao e
 #                       repetido em todas as edicoes ativas da cidade, e a
 #                       edicao nova ja nasce com ela dentro. Quem cuida disso e
-#                       app/servicos/coordenacao.py.
+#                       app/servicos/coordenacao.py. E tambem quem dispara o
+#                       lembrete do evento (routers/lembretes.py), que e da
+#                       coordenacao geral e de mais ninguem.
 #
-# O nome vive na base e pode ser mudado la; se for mudado, mude aqui tambem.
+# O nome vive na base e pode ser mudado la; se for mudado, mude aqui tambem —
+# e no frontend, em pages/Padrinhos.jsx, que esconde o botao do lembrete.
 PERFIS_COMISSARIADO = ("Comissarios - coordenacao", "Comissarios - comissario")
 # O perfil cujo nome aparece primeiro na lista de responsaveis, e o unico que
 # e filtrado crianca a crianca.

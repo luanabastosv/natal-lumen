@@ -8,7 +8,7 @@ O que ela promete:
      WhatsApp valido nao fica pronto, fica "sem_whatsapp";
   3. promessa e crianca desistente ficam de fora;
   4. cesta e festa da mesma crianca sao dois cartoes;
-  5. so quem enxerga a edicao inteira monta a lista.
+  5. so a coordenacao geral do evento monta a lista.
 
 Rodar com:  python -m tests.test_lembretes
 """
@@ -241,8 +241,8 @@ def main() -> None:
 
         print("\nQuem monta a lista")
         cap = TestClient(app); entrar(cap, coord_captacao.email)
-        verifica("coordenacao da captacao recebe 200",
-                 cap.get(f"/lembretes?edicao_id={edicao.id}").status_code == 200)
+        verifica("coordenacao da captacao recebe 403: e da coordenacao geral",
+                 cap.get(f"/lembretes?edicao_id={edicao.id}").status_code == 403)
         com = TestClient(app); entrar(com, comissario.email)
         verifica("comissario recebe 403: so ve as proprias criancas",
                  com.get(f"/lembretes?edicao_id={edicao.id}").status_code == 403)
