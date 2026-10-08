@@ -170,6 +170,7 @@ cd backend
 ./.venv/bin/python -m tests.test_criancas       # 143 verificações
 ./.venv/bin/python -m tests.test_padrinhos      # 77 verificações
 ./.venv/bin/python -m tests.test_cartoes        # 27 verificações
+./.venv/bin/python -m tests.test_lembretes      # 16 verificações
 ./.venv/bin/python -m tests.test_logistica      # 27 verificações
 ./.venv/bin/python -m tests.test_painel         # 29 verificações
 ./.venv/bin/python -m tests.test_seguranca      # 44 ataques barrados
@@ -655,6 +656,14 @@ pasta temporária. A cada prévia nova o servidor varre o que tem mais de 12h e
 apaga — sem isso ficariam fotos de cartão de criança ocupando disco sem nenhuma
 linha no banco apontando para elas.
 
+### Lembrete do evento
+
+Na semana do evento cada padrinho recebe um lembrete com os cartões das crianças
+dele — **uma mensagem por dia do evento**, cada uma com os cartões das crianças
+daquele dia. Só fica pronto quem tem todos os cartões do dia subidos. As regras,
+o texto da mensagem e o que falta para o disparo estão em
+[`docs/LEMBRETE_DO_EVENTO.md`](docs/LEMBRETE_DO_EVENTO.md).
+
 ### Kits
 
 A lista de kits parte das **crianças**, não dos kits: a criança existe desde a
@@ -756,6 +765,7 @@ npm run preview  # serve o build
 | `/acesso/cidades-edicoes` | Cidades, edições e dias do evento | `admin_geral` |
 | `/acesso/criancas` | Lista, cadastro, importação e o comissário responsável | `ver_criancas` |
 | `/acesso/padrinhos` | Padrinhos e apadrinhamentos | `ver_padrinhos` |
+| `/acesso/padrinhos/envio-de-cartoes` | O lembrete do evento: quem já pode receber, por dia | `enviar_cartoes`, enxergando a edição inteira |
 | `/acesso/cartoes` | Digitalização, conferência e envio | `ver_criancas` |
 | `/acesso/kits` | Montagem e entrega dos kits | `gerenciar_kits` |
 | `/acesso/financeiro` | Saídas e recebimentos da edição (com os pagamentos dos padrinhos), comprovantes e saldo | `gerenciar_compras` **ou** `registrar_pagamentos` |

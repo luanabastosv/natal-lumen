@@ -10,6 +10,7 @@ import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
 import Cartoes from "./pages/Cartoes.jsx";
 import Checkin from "./pages/Checkin.jsx";
+import EnvioCartoes from "./pages/EnvioCartoes.jsx";
 import Financeiro from "./pages/Financeiro.jsx";
 import Kits from "./pages/Kits.jsx";
 import Criancas from "./pages/Criancas.jsx";
@@ -74,6 +75,18 @@ export default function App() {
                   }
                 />
               ))}
+
+              {/* Fora do menu: chega-se pelo botao da tela de padrinhos, de
+                  onde o envio parte. O backend ainda exige que quem pede
+                  enxergue a edicao inteira — ver routers/lembretes.py. */}
+              <Route
+                path="/padrinhos/envio-de-cartoes"
+                element={
+                  <RotaProtegida permissao="enviar_cartoes">
+                    <EnvioCartoes />
+                  </RotaProtegida>
+                }
+              />
 
               {/* Os enderecos antigos. Compras virou Financeiro, e a tela de
                   pagamentos/comprovantes virou a aba Recebimentos dele — quem

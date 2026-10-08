@@ -5103,3 +5103,61 @@ button.checkin-lista__botao:not(:disabled):active {
     max-width: none;
   }
 }
+
+/* ---------- Envio de cartoes: o lembrete do evento ---------- */
+
+/* A aba do dia com os pontinhos das acoes dela. Os pontinhos sao irmaos do
+   botao da aba (botao dentro de botao e HTML invalido) e ficam por cima da
+   borda direita dela; a aba ganha folga a direita para eles caberem sem cobrir
+   o texto. */
+.aba-com-menu {
+  position: relative;
+  flex: none;
+  display: flex;
+}
+
+.aba--com-menu {
+  padding-right: 36px;
+}
+
+/* Centrado por flex, e nao por transform: um transform aqui viraria a
+   referencia do `position: fixed` da lista do menu, e ela abriria presa dentro
+   da faixa de abas, cortada. */
+.aba-com-menu__menu {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 6px;
+  display: flex;
+  align-items: center;
+}
+
+/* Na aba ativa o fundo e navy: o pontinho clareia para continuar visivel. */
+.aba-com-menu__menu--ativa .botao-icone {
+  color: var(--cream-500);
+}
+
+.aba-com-menu__menu--ativa .botao-icone:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--white);
+}
+
+/* pre-line: as quebras do texto sao as do WhatsApp, e tem de aparecer aqui. */
+.lembretes__texto {
+  margin: 0 0 var(--space-3);
+  max-width: 60ch;
+  white-space: pre-line;
+  font-size: var(--size-body-sm);
+  color: var(--text-on-light-primary);
+}
+
+.lembrete__dias {
+  margin-left: var(--space-2);
+}
+
+/* Os codigos que faltam: e o que se procura na pilha de papel. */
+.lembrete__falta {
+  font-size: var(--size-caption);
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}

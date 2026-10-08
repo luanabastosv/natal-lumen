@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
@@ -52,7 +53,8 @@ function resposta(valor) {
 
 export default function Padrinhos() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
-  const { pode, edicaoAtiva } = useSessao();
+  const { pode, edicaoAtiva, usuario, vinculoAtivo } = useSessao();
+  const navegar = useNavigate();
 
   const [padrinhos, definirPadrinhos] = useState({ itens: [], total: 0 });
   const [busca, definirBusca] = useState("");
@@ -89,6 +91,12 @@ export default function Padrinhos() {
   // JA PAGO. Coordenacao e administracao geral — quem capta corrige o que
   // acabou de digitar, mas nao desfaz o que ja virou numero e dinheiro.
   const podeExcluir = pode("excluir_padrinhos");
+  // O envio dos lembretes e da coordenacao: o comissario, que so enxerga as
+  // proprias criancas, veria um padrinho "pronto" com metade dos cartoes. Quem
+  // responde por instituicoes recebe `instituicoes` preenchido — e esse o
+  // sinal, e nao o nome do perfil. O backend confere de novo.
+  const podeEnviarCartoes =
+    pode("enviar_cartoes") && (usuario?.admin_geral || (vinculoAtivo && !vinculoAtivo.instituicoes));
 
   // A exclusao em curso: { registro, dependencias, erro, apagando }. Fora dela,
   // null. Igual ao das outras telas que apagam cadastro — ver Instituicoes.
@@ -249,11 +257,23 @@ export default function Padrinhos() {
 
         {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos de
             busca, sem roubar uma linha so para ele. */}
-        {podeEditar && (
+        {(podeEditar || podeEnviarCartoes) && (
           <div className="barra-acoes__ponta">
-            <Button size="sm" onClick={() => definirFormAberto(true)} disabled={!edicaoAtiva}>
-              Novo padrinho
-            </Button>
+            {podeEnviarCartoes && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => navegar("/padrinhos/envio-de-cartoes")}
+                disabled={!edicaoAtiva}
+              >
+                Ir para envio de cartões
+              </Button>
+            )}
+            {podeEditar && (
+              <Button size="sm" onClick={() => definirFormAberto(true)} disabled={!edicaoAtiva}>
+                Novo padrinho
+              </Button>
+            )}
           </div>
         )}
       </form>
