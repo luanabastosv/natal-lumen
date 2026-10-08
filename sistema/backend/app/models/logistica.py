@@ -27,7 +27,7 @@ from app.models.tipos import (
 
 
 class Cartao(Base):
-    """Cartao de agradecimento escrito pela crianca, um por tipo.
+    """O cartao que a crianca escreve para o padrinho, um por tipo (cesta e festa).
 
     O destinatario nao fica gravado aqui: e encontrado por
     crianca + tipo -> apadrinhamento -> padrinho. Assim o cartao pode ser

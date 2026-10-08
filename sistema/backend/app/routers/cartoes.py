@@ -1,4 +1,9 @@
-"""Cartoes de agradecimento: digitalizacao em lote e envio aos padrinhos.
+"""Cartoes das criancas, o de cesta e o de festa: digitalizacao em lote e
+envio aos padrinhos.
+
+Cartao e SO isto, o papel que a crianca escreve. A arte que o sistema monta
+para agradecer o padrinho e outra coisa, e se chama agradecimento
+(servicos/agradecimento.py).
 
 A pilha de autorizacoes sobe pelo mesmo envio em lote, com `tipo=autorizacao`:
 o caminho do papel e o mesmo — digitalizar, nomear pelo codigo, conferir —, e

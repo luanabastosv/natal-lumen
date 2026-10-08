@@ -213,8 +213,8 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                 <Mensagem tipo="aviso">
                   Só há <strong>promessa</strong> aqui: enquanto o pagamento não for
                   registrado, esta criança continua contando como{" "}
-                  <strong>sem padrinho</strong> no painel e nas listas, e o cartão de
-                  agradecimento não sai.
+                  <strong>sem padrinho</strong> no painel e nas listas, e o agradecimento
+                  não sai.
                 </Mensagem>
               )}
 

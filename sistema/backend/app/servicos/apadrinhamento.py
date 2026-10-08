@@ -4,7 +4,7 @@ Regra da campanha, decidida em 30/09/2026: **promessa nao e apadrinhamento.**
 Enquanto nao ha dinheiro registrado, a ligacao entre a crianca e o padrinho
 existe e SEGURA a crianca — ninguem mais pode apadrinha-la naquele tipo — mas
 ela nao conta como apadrinhada em lugar nenhum: nem no painel, nem na lista de
-criancas, nem para mandar o cartao de agradecimento.
+criancas, nem para mandar o agradecimento.
 
 Por que a promessa continua existindo, em vez de so se poder criar o
 apadrinhamento junto com o pagamento: nem sempre as duas coisas acontecem no

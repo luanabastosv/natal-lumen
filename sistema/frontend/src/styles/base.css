@@ -3572,13 +3572,13 @@ textarea.campo__controle {
 
 /* "Baixar os cartoes", no pe da lista de criancas: afastado da ultima linha e
    na ponta direita, como a acao que fecha a lista. */
-.ficha__baixar-cartoes {
+.ficha__baixar-agradecimentos {
   justify-content: flex-end;
   margin-top: var(--space-4);
   margin-bottom: 0;
 }
 
-.ficha__baixar-cartoes .campo__dica {
+.ficha__baixar-agradecimentos .campo__dica {
   margin-top: 0;
 }
 

@@ -6,7 +6,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 - Especificação: [docs/ESPECIFICACAO.md](docs/ESPECIFICACAO.md)
 - Identidade visual: [docs/IDENTIDADE_VISUAL.md](docs/IDENTIDADE_VISUAL.md)
 - Padrões de UI: [docs/PADROES_UI.md](docs/PADROES_UI.md)
-- Cartão de agradecimento: [docs/CARTAO_AGRADECIMENTO.md](docs/CARTAO_AGRADECIMENTO.md)
+- Agradecimento: [docs/AGRADECIMENTO.md](docs/AGRADECIMENTO.md)
 - Comprovante no Google Drive: [docs/COMPROVANTE_NO_DRIVE.md](docs/COMPROVANTE_NO_DRIVE.md)
 - Homologação e produção: [docs/DOIS_AMBIENTES.md](docs/DOIS_AMBIENTES.md)
 

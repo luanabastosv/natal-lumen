@@ -27,7 +27,7 @@ const TIPOS = { cesta: "Cesta", festa: "Festa" };
 /** A ficha de um padrinho: os dados dele e TODAS as criancas apadrinhadas.
  *
  * Esta janela existe por causa do volume. Um padrinho pode apadrinhar dez ou
- * quinze criancas, e cada apadrinhamento tem tres acoes (cartao, WhatsApp,
+ * quinze criancas, e cada apadrinhamento tem tres acoes (agradecimento, WhatsApp,
  * desfazer). Na planilha isso virava uma linha de altura indefinida com
  * dezenas de botoes; aqui cada crianca ganha o proprio bloco, com espaco.
  *
@@ -108,9 +108,13 @@ export default function FichaPadrinho({
     );
   }
 
-  // Qual cartao esta sendo gerado ou enviado: o PNG e montado no servidor e
-  // demora um instante, entao aquele bloco precisa dizer que esta ocupado.
-  const [baixandoCartao, definirBaixandoCartao] = useState(null);
+  // Qual agradecimento esta sendo gerado ou enviado: o PNG e montado no
+  // servidor e demora um instante, entao aquele bloco precisa dizer que esta
+  // ocupado.
+  //
+  // "Agradecimento", e nunca "cartao": cartao e so o de cesta e o de festa, o
+  // papel que a crianca escreve. O agradecimento e a arte que o sistema monta.
+  const [baixandoAgradecimento, definirBaixandoAgradecimento] = useState(null);
   const [baixandoTodos, definirBaixandoTodos] = useState(false);
   const [enviando, definirEnviando] = useState(null);
   const [desfazendo, definirDesfazendo] = useState(null);
@@ -131,9 +135,10 @@ export default function FichaPadrinho({
 
   const aPagar = padrinho.apadrinhamentos.filter((a) => !a.pago).length;
 
-  // Um cartao por crianca, e nao por apadrinhamento: cesta e festa da mesma
-  // crianca sao o mesmo cartao. E a mesma conta que o servidor faz no ZIP.
-  const cartoesProntos = new Set(
+  // Um agradecimento por crianca, e nao por apadrinhamento: cesta e festa da
+  // mesma crianca sao o mesmo agradecimento. E a mesma conta que o servidor
+  // faz no ZIP.
+  const agradecimentosProntos = new Set(
     padrinho.apadrinhamentos.filter((a) => a.pago).map((a) => a.crianca_id),
   ).size;
 
@@ -178,15 +183,15 @@ export default function FichaPadrinho({
     }
   }
 
-  async function baixarCartao(apadrinhamento) {
+  async function baixarUm(apadrinhamento) {
     definirErro("");
-    definirBaixandoCartao(apadrinhamento.id);
+    definirBaixandoAgradecimento(apadrinhamento.id);
     try {
       await baixarAgradecimento(apadrinhamento.id);
     } catch (e) {
       definirErro(e.message);
     } finally {
-      definirBaixandoCartao(null);
+      definirBaixandoAgradecimento(null);
     }
   }
 
@@ -216,7 +221,7 @@ export default function FichaPadrinho({
     try {
       await enviarAgradecimento(apadrinhamento.id);
       notificar(
-        `Cartão de ${apadrinhamento.crianca_primeiro_nome} enviado para ` +
+        `Agradecimento de ${apadrinhamento.crianca_primeiro_nome} enviado para ` +
           `${padrinho.nome.split(" ")[0]} no WhatsApp.`,
       );
       await recarregar();
@@ -240,7 +245,7 @@ export default function FichaPadrinho({
       const texto =
         `Oi, ${padrinho.nome.split(" ")[0]}! Obrigado por apadrinhar ` +
         `${apadrinhamento.crianca_primeiro_nome} no Natal Lumen. ` +
-        `Segue o cartão de agradecimento.`;
+        `Segue o nosso agradecimento.`;
 
       const arquivo = new File([blob], nomeArquivo, { type: "image/png" });
       if (podeCompartilharArquivo(arquivo)) {
@@ -252,7 +257,7 @@ export default function FichaPadrinho({
       const link = linkWhatsapp(padrinho.whatsapp, texto);
       if (link) window.open(link, "_blank", "noopener");
       notificar(
-        `Cartão de ${apadrinhamento.crianca_primeiro_nome} baixado. ` +
+        `Agradecimento de ${apadrinhamento.crianca_primeiro_nome} baixado. ` +
           "Arraste a imagem para a conversa que abriu.",
       );
     } catch (e) {
@@ -358,8 +363,8 @@ export default function FichaPadrinho({
                             className="etiqueta etiqueta--ok"
                             title={
                               a.cartao_enviado_em
-                                ? `Cartão enviado em ${formatarDataHora(a.cartao_enviado_em)}`
-                                : "Cartão já enviado"
+                                ? `Agradecimento enviado em ${formatarDataHora(a.cartao_enviado_em)}`
+                                : "Agradecimento já enviado"
                             }
                           >
                             enviado
@@ -407,23 +412,23 @@ export default function FichaPadrinho({
                         criancas virava sessenta pilulas. O rotulo nao sumiu — virou a
                         dica do mouse e o nome no leitor de tela. */}
                     <span className="ficha__linha-acoes">
-                      {/* O cartao AGRADECE a doacao: enquanto e promessa nao ha o
+                      {/* O agradecimento e pela doacao: enquanto e promessa nao ha o
                           que agradecer, e o servidor recusa (409). Sem o botao,
                           ninguem clica para receber um erro. O envio pelo
                           WhatsApp segue a mesma regra, pelo mesmo motivo. */}
                       {a.pago && (
                         <>
                           <BotaoIcone
-                            titulo={`Baixar o cartão de ${a.crianca_primeiro_nome}`}
-                            onClick={() => baixarCartao(a)}
-                            carregando={baixandoCartao === a.id}
+                            titulo={`Baixar o agradecimento de ${a.crianca_primeiro_nome}`}
+                            onClick={() => baixarUm(a)}
+                            carregando={baixandoAgradecimento === a.id}
                           >
                             <Baixar t={16} />
                           </BotaoIcone>
                           <BotaoIcone
                             titulo={
                               padrinho.whatsapp
-                                ? `${a.cartao_status === "enviado" ? "Reenviar" : "Enviar"} o cartão de ` +
+                                ? `${a.cartao_status === "enviado" ? "Reenviar" : "Enviar"} o agradecimento de ` +
                                   `${a.crianca_primeiro_nome} pelo WhatsApp`
                                 : "Este padrinho não tem WhatsApp cadastrado"
                             }
@@ -458,13 +463,13 @@ export default function FichaPadrinho({
                 ))}
               </div>
               {/* Depois da lista: primeiro se ve quais criancas estao pagas,
-                  depois se baixa o cartao de todas de uma vez. */}
-              {cartoesProntos > 0 && (
-                <div className="barra-acoes ficha__baixar-cartoes">
+                  depois se baixa o agradecimento de todas de uma vez. */}
+              {agradecimentosProntos > 0 && (
+                <div className="barra-acoes ficha__baixar-agradecimentos">
                   {/* A dica antes do botao: com a barra alinhada a direita, e
                       o botao que fica na ponta, onde o olho termina a lista. */}
-                  {cartoesProntos > 1 && (
-                    <span className="campo__dica">Num arquivo .zip, um cartão por criança paga.</span>
+                  {agradecimentosProntos > 1 && (
+                    <span className="campo__dica">Num arquivo .zip, um por criança paga.</span>
                   )}
                   <Button
                     size="sm"
@@ -473,9 +478,9 @@ export default function FichaPadrinho({
                     onClick={baixarTodos}
                     carregando={baixandoTodos}
                   >
-                    {cartoesProntos === 1
-                      ? "Baixar o cartão"
-                      : `Baixar os ${cartoesProntos} cartões`}
+                    {agradecimentosProntos === 1
+                      ? "Baixar agradecimento"
+                      : `Baixar os ${agradecimentosProntos} agradecimentos`}
                   </Button>
                 </div>
               )}

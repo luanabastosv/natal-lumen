@@ -256,7 +256,7 @@ Na prática:
   tinta discreta (`.ficha__linha-codigo`): identifica sem competir com o nome.
 
   O `crianca_primeiro_nome` continua existindo no schema e continua sendo o
-  que vai para o **padrinho** — é o que o cartão de agradecimento usa. Os
+  que vai para o **padrinho** — é o que o agradecimento usa. Os
   campos novos (`crianca_codigo`, `crianca_nome`) são para quem opera o
   sistema, e não alargam acesso: todo perfil que tem `ver_padrinhos` também
   tem `ver_criancas`, e essa saída só existe atrás dessas rotas.

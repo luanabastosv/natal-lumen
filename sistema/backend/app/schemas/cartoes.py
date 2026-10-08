@@ -1,4 +1,4 @@
-"""Entrada e saida dos cartoes de agradecimento."""
+"""Entrada e saida dos cartoes das criancas (cesta e festa) e das autorizacoes."""
 
 from datetime import datetime
 

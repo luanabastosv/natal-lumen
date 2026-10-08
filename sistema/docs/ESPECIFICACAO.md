@@ -4,7 +4,7 @@
 - Evento anual de caridade que acontece em várias cidades. Cada cidade num ano é um evento independente, chamado "edição" (ex.: Fortaleza 2026).
 - Instituições enviam listas de crianças carentes (nome, idade, sexo, código, instituição).
 - Cada criança recebe dois padrinhos: padrinho de CESTA (valor padrão R$ 120, paga cesta/presente/kit higiene) e padrinho de FESTA (valor padrão R$ 60, ajuda nos custos do evento). Os valores podem mudar por edição.
-- Cada criança escreve 2 cartões de agradecimento, um para cada padrinho. Os cartões são digitalizados e enviados aos padrinhos na semana do evento, junto com o convite para participar.
+- Cada criança escreve 2 cartões (cesta e festa), um para cada padrinho. Os cartões são digitalizados e enviados aos padrinhos na semana do evento, junto com o convite para participar.
 - Cada edição pode ter vários dias; cada criança vai a apenas um dia (normalmente +1500 crianças por edição).
 - Equipes: coordenação, comissários (captam padrinhos e enviam cartões), monitores (recolhem e digitalizam cartões), estrutura (compram e montam os kits e fazem a entrega).
 - Dados de crianças são sensíveis (LGPD): acesso sempre autenticado, isolado por cidade e registrado em log.

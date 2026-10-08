@@ -163,7 +163,7 @@ class Apadrinhamento(Base):
 
 
 class EnvioCartao(Base):
-    """Cada tentativa de mandar o cartao de agradecimento pelo WhatsApp.
+    """Cada tentativa de mandar o agradecimento pelo WhatsApp.
 
     Guarda tambem o que falhou, e de proposito: sem isso ninguem descobre que
     o numero de um padrinho esta errado, nem da para saber quem ficou sem

@@ -112,7 +112,7 @@ export function PessoaMais({ t }) {
   );
 }
 
-/** Baixar o cartao de agradecimento. */
+/** Baixar o agradecimento. */
 export function Baixar({ t }) {
   return (
     <Svg t={t}>

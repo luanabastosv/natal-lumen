@@ -387,8 +387,8 @@ def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
     return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
 
 
-def _apadrinhamento_do_cartao(db: Session, apadrinhamento_id: int, ctx: ContextoAcesso):
-    """Busca o apadrinhamento conferindo os dois alcances que o cartao exige."""
+def _apadrinhamento_do_agradecimento(db: Session, apadrinhamento_id: int, ctx: ContextoAcesso):
+    """Busca o apadrinhamento conferindo os dois alcances que o agradecimento exige."""
     apadrinhamento = db.scalar(
         select(Apadrinhamento)
         .join(Padrinho, Apadrinhamento.padrinho_id == Padrinho.id)
@@ -407,32 +407,37 @@ def _apadrinhamento_do_cartao(db: Session, apadrinhamento_id: int, ctx: Contexto
     if apadrinhamento is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Apadrinhamento nao encontrado.")
 
-    # O cartao leva nome, codigo e instituicao da crianca — mais do que a tela
+    # O agradecimento leva nome, codigo e instituicao da crianca — mais do que a tela
     # de padrinhos mostra de proposito. Por isso exige tambem ver_criancas, e
     # na edicao DA CRIANCA: quem so cuida de padrinhos nao le a ficha dela por
     # este caminho.
     if not ctx.alcanca_edicao(apadrinhamento.crianca.edicao_id, "ver_criancas"):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "Voce precisa alcancar as criancas desta edicao para gerar o cartao.",
+            "Voce precisa alcancar as criancas desta edicao para gerar o agradecimento.",
         )
 
-    # O cartao agradece quem doou. Enquanto o apadrinhamento e so promessa nao
-    # ha doacao para agradecer, e mandar o agradecimento antes do dinheiro e
+    # O agradecimento e para quem doou. Enquanto o apadrinhamento e so promessa
+    # nao ha doacao para agradecer, e mandar o agradecimento antes do dinheiro e
     # cobrar ao contrario. Barra aqui — no lugar por onde passam tanto o baixar
     # quanto o enviar — e nao em cada rota.
     if not confirmado(apadrinhamento):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "Este apadrinhamento ainda e uma promessa: nao ha pagamento "
-            "registrado. O cartao de agradecimento so sai depois que a "
+            "registrado. O agradecimento so sai depois que a "
             "coordenacao registrar o pagamento.",
         )
     return apadrinhamento
 
 
-def _montar_cartao(apadrinhamento) -> tuple[bytes, str]:
-    """PNG do cartao e o nome do arquivo. Montado na hora, nada fica guardado."""
+def _montar_agradecimento(apadrinhamento) -> tuple[bytes, str]:
+    """PNG do agradecimento e o nome do arquivo. Montado na hora, nada fica guardado.
+
+    "Agradecimento", e nunca "cartao": cartao e so o de cesta e o de festa, o
+    papel que a crianca escreve (routers/cartoes.py). O agradecimento e a arte
+    que o sistema monta.
+    """
     crianca = apadrinhamento.crianca
     edicao = apadrinhamento.padrinho.edicao
     png = agradecimento.gerar(
@@ -447,10 +452,10 @@ def _montar_cartao(apadrinhamento) -> tuple[bytes, str]:
 
 
 @router.get("/apadrinhamentos/{apadrinhamento_id}/agradecimento")
-def cartao_de_agradecimento(apadrinhamento_id: int, db: BD, ctx: Ver):
+def baixar_agradecimento(apadrinhamento_id: int, db: BD, ctx: Ver):
     """PNG de agradecimento desta crianca, para baixar e mandar a mao."""
-    apadrinhamento = _apadrinhamento_do_cartao(db, apadrinhamento_id, ctx)
-    png, nome = _montar_cartao(apadrinhamento)
+    apadrinhamento = _apadrinhamento_do_agradecimento(db, apadrinhamento_id, ctx)
+    png, nome = _montar_agradecimento(apadrinhamento)
     return Response(
         content=png,
         media_type="image/png",
@@ -459,16 +464,16 @@ def cartao_de_agradecimento(apadrinhamento_id: int, db: BD, ctx: Ver):
 
 
 @router.get("/padrinhos/{padrinho_id}/agradecimentos")
-def cartoes_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
-    """Todos os cartoes de agradecimento de um padrinho, num ZIP so.
+def agradecimentos_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
+    """Todos os agradecimentos de um padrinho, num ZIP so.
 
-    Quem apadrinhou quinze criancas recebe quinze cartoes, e baixar um a um
-    sao quinze cliques e quinze "salvar como". As regras sao as do cartao
-    avulso: so o que ja foi pago, e so as criancas que quem pede alcanca —
+    Quem apadrinhou quinze criancas recebe quinze agradecimentos, e baixar um a
+    um sao quinze cliques e quinze "salvar como". As regras sao as do
+    agradecimento avulso: so o que ja foi pago, e so as criancas que quem pede alcanca —
     o padrinho de outra cidade pode ter criancas de la, e essas ficam de fora.
 
-    Um cartao por CRIANCA, e nao por apadrinhamento: quem deu cesta e festa
-    para a mesma crianca tem dois apadrinhamentos e um cartao so — a arte nao
+    Um agradecimento por CRIANCA, e nao por apadrinhamento: quem deu cesta e
+    festa para a mesma crianca tem dois apadrinhamentos e um agradecimento so — a arte nao
     muda com o tipo, e o ZIP sairia com o mesmo arquivo duas vezes.
     """
     padrinho = db.scalar(
@@ -499,8 +504,8 @@ def cartoes_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
     if not por_crianca:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Este padrinho ainda nao tem apadrinhamento pago. Os cartoes de "
-            "agradecimento so saem depois que o pagamento for registrado.",
+            "Este padrinho ainda nao tem apadrinhamento pago. Os agradecimentos "
+            "so saem depois que o pagamento for registrado.",
         )
 
     buffer = io.BytesIO()
@@ -508,7 +513,7 @@ def cartoes_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
     # tentando espremer o que nao encolhe.
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as zip_:
         for a in por_crianca.values():
-            png, nome = _montar_cartao(a)
+            png, nome = _montar_agradecimento(a)
             zip_.writestr(nome, png)
 
     nome_zip = f"AGRADECIMENTOS_{limpar_texto(padrinho.nome) or padrinho.id}.zip"
@@ -523,8 +528,8 @@ def cartoes_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
     "/apadrinhamentos/{apadrinhamento_id}/agradecimento/enviar",
     response_model=EnvioCartaoOut,
 )
-def enviar_cartao(apadrinhamento_id: int, db: BD, ctx: Editar):
-    """Manda o cartao ao WhatsApp do padrinho pela Cloud API da Meta.
+def enviar_agradecimento(apadrinhamento_id: int, db: BD, ctx: Editar):
+    """Manda o agradecimento ao WhatsApp do padrinho pela Cloud API da Meta.
 
     Exige editar_padrinhos, e nao so ver: isto gasta dinheiro (a Meta cobra
     por conversa) e chega no telefone de um doador. Nao e uma leitura.
@@ -532,7 +537,7 @@ def enviar_cartao(apadrinhamento_id: int, db: BD, ctx: Editar):
     A tentativa fica gravada mesmo quando falha — sem isso ninguem descobre
     que o numero de um padrinho esta errado.
     """
-    apadrinhamento = _apadrinhamento_do_cartao(db, apadrinhamento_id, ctx)
+    apadrinhamento = _apadrinhamento_do_agradecimento(db, apadrinhamento_id, ctx)
     padrinho = apadrinhamento.padrinho
     telefone = whatsapp.telefone_e164(padrinho.whatsapp)
 
@@ -546,10 +551,10 @@ def enviar_cartao(apadrinhamento_id: int, db: BD, ctx: Editar):
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "O envio pelo WhatsApp nao esta configurado neste servidor. "
-            "Use o botao de baixar o cartao.",
+            "Use o botao de baixar o agradecimento.",
         )
 
-    png, nome_arquivo = _montar_cartao(apadrinhamento)
+    png, nome_arquivo = _montar_agradecimento(apadrinhamento)
 
     envio = EnvioCartao(
         apadrinhamento_id=apadrinhamento.id,

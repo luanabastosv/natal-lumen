@@ -544,7 +544,7 @@ def main() -> None:
         verifica("mas nao ve o padrinho sem ligacao com a cidade dele",
                  "Outro Doador" not in nomes, str(nomes))
 
-        print("\nCartao de agradecimento")
+        print("\nAgradecimento")
         # Relido agora: o bloco de remocao acima ja apagou o de cesta da Ana.
         vivos = ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]
         de_ana = [a for a in vivos if a["crianca_id"] == ana.id][0]

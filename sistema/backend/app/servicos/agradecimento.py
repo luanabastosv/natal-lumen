@@ -1,6 +1,10 @@
-"""Cartao de agradecimento: a arte que o padrinho recebe no WhatsApp.
+"""Agradecimento: a arte que o padrinho recebe no WhatsApp.
 
-Um cartao por crianca apadrinhada, com o nome dela, o codigo, a instituicao e
+"Agradecimento", e nunca "cartao": cartao e so o de cesta e o de festa, o
+papel que a crianca escreve (routers/cartoes.py). Esta e a arte que o
+sistema monta.
+
+Um agradecimento por crianca apadrinhada, com o nome dela, o codigo, a instituicao e
 o dia em que ela estara no evento.
 
 A arte em si NAO e desenhada aqui. Quem faz o template e o design, a mao, e
@@ -13,7 +17,7 @@ Onde ficam os arquivos (o primeiro que existir vence):
     {ARQUIVOS_DIR}/agradecimento/{CIDADE}/{ano}/template.png   <- por edicao
     {ARQUIVOS_DIR}/agradecimento/template.png                  <- para todas
 
-Sem nenhum dos dois, o sistema desenha um cartao simples com as cores da
+Sem nenhum dos dois, o sistema desenha uma arte simples com as cores da
 marca, para a funcionalidade nao ficar esperando o design ficar pronto.
 """
 
@@ -36,7 +40,7 @@ FONTES = {
     "extrabold": PASTA_FONTES / "Typold-ExtraBold.otf",
 }
 
-# Tamanho do cartao que o sistema desenha quando ainda nao ha template. 1080
+# Tamanho da arte que o sistema desenha quando ainda nao ha template. 1080
 # de largura e o que o WhatsApp entrega sem recomprimir demais.
 LARGURA_PADRAO = 1080
 ALTURA_PADRAO = 1350
@@ -75,7 +79,7 @@ class Layout:
     campos: dict[str, Campo] = field(default_factory=dict)
 
 
-# Posicoes do cartao que o sistema desenha sozinho. Quando houver template
+# Posicoes da arte que o sistema desenha sozinho. Quando houver template
 # proprio, o layout.json dele manda — estas ficam so de reserva.
 LAYOUT_PADRAO = Layout(
     campos={
@@ -181,7 +185,7 @@ def _escrever(desenho: ImageDraw.ImageDraw, texto: str, campo: Campo) -> None:
     desenho.text((campo.x, campo.y), texto, font=fonte, fill=campo.cor, anchor=campo.ancora)
 
 
-def _cartao_de_reserva() -> Image.Image:
+def _arte_de_reserva() -> Image.Image:
     """Arte simples, so com as cores da marca.
 
     Existe para a funcionalidade rodar antes de o design ficar pronto — nao
@@ -221,11 +225,11 @@ def gerar(
     cidade: str,
     ano: int,
 ) -> bytes:
-    """Devolve o PNG do cartao, pronto para baixar e mandar no WhatsApp."""
+    """Devolve o PNG do agradecimento, pronto para baixar e mandar no WhatsApp."""
     template = achar_template(cidade, ano)
 
     if template is None:
-        imagem = _cartao_de_reserva()
+        imagem = _arte_de_reserva()
     else:
         # convert: um template em CMYK ou com paleta indexada quebraria o
         # desenho do texto.

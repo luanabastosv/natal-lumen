@@ -1,9 +1,16 @@
-# Cartão de agradecimento
+# Agradecimento
 
-A arte que o padrinho recebe no WhatsApp: **um cartão por criança apadrinhada**,
+> **Agradecimento, e nunca "cartão".** No sistema, *cartão* é só o de cesta e o
+> de festa — o papel que a criança escreve e a monitoria digitaliza. O
+> agradecimento é a arte que o sistema monta, e o nome diferente existe para os
+> dois não se confundirem.
+
+A arte que o padrinho recebe no WhatsApp: **um agradecimento por criança apadrinhada**,
 com o nome dela, o código, a instituição e o dia em que ela estará no evento.
 
-Onde fica: **Padrinhos → botão "Cartão"**, na linha de cada criança apadrinhada.
+Onde fica: **Padrinhos → ficha do padrinho → "Baixar o agradecimento"**, na
+linha de cada criança apadrinhada, ou **"Baixar agradecimento"** no fim da
+lista, para todas de uma vez.
 Baixa um PNG pronto para anexar na conversa.
 
 O arquivo sai como **`{CÓDIGO}_{NOME_DA_CRIANÇA}.png`** — `001_ANA_CLARA_AVILA.png`.
@@ -17,7 +24,7 @@ dia do evento mudarem, é só baixar de novo.
 
 ## Enviar pelo WhatsApp
 
-Ao lado de "Cartão" há o botão **"WhatsApp"** (desabilitado se o padrinho não
+Ao lado de "Baixar o agradecimento" há o botão **"WhatsApp"** (desabilitado se o padrinho não
 tem número cadastrado). Ele se comporta de dois jeitos:
 
 | Onde | O que acontece |
@@ -34,7 +41,7 @@ contorna isso: é limite da plataforma. No celular o caminho é outro
 ### Envio automático (WhatsApp Cloud API)
 
 Está **implementado**. Com as credenciais no `.env`, o botão "WhatsApp" manda
-o cartão sozinho: o servidor sobe o PNG para a Meta e dispara o template. Sem
+o agradecimento sozinho: o servidor sobe o PNG para a Meta e dispara o template. Sem
 credenciais, o mesmo botão cai no envio a mão descrito acima — ninguém fica
 sem poder enviar.
 
@@ -87,7 +94,7 @@ Corpo sugerido:
 
 ```
 Oi, {{1}}! 💛 Obrigado por apadrinhar a {{2}} no Natal Lumen.
-Este é o cartão dela — guarde com carinho. Qualquer dúvida, é só responder aqui.
+Este é o nosso agradecimento — guarde com carinho. Qualquer dúvida, é só responder aqui.
 ```
 
 `{{1}}` = primeiro nome do padrinho · `{{2}}` = primeiro nome da criança.
@@ -101,7 +108,7 @@ vale ajustar o texto para soar como confirmação, não como divulgação.
 
 A Meta exige que o padrinho tenha concordado em receber mensagens antes do
 primeiro envio. Na prática: deixe explícito na ficha de apadrinhamento que o
-WhatsApp informado será usado para enviar o cartão e avisos do evento.
+WhatsApp informado será usado para enviar o agradecimento e avisos do evento.
 
 ### 5. `.env`
 
@@ -128,7 +135,7 @@ Toda tentativa vira uma linha em `envios_cartao` — **inclusive as que falham**
 Sem isso ninguém descobre que o número de um padrinho está errado, nem dá para
 saber quem ficou sem receber.
 
-Na tela, cada criança apadrinhada mostra `cartão enviado` ou `envio falhou`, e
+Na tela, cada criança apadrinhada mostra `enviado` ou `falhou`, e
 o botão vira **"Reenviar"** depois do primeiro envio. Reenviar acrescenta uma
 linha nova; não apaga a anterior.
 
@@ -163,7 +170,7 @@ arquivos/agradecimento/template.png              ← para todas as edições
 ```
 
 Vale o primeiro que existir, nessa ordem. Sem nenhum dos dois, o sistema
-desenha um cartão simples com as cores da marca — ele existe só para a
+desenha uma arte simples com as cores da marca — ele existe só para a
 funcionalidade rodar antes de o design ficar pronto.
 
 ### 3. Diga onde cada texto entra
@@ -213,7 +220,7 @@ Exige **duas** permissões: `ver_padrinhos` (para alcançar o apadrinhamento) e
 `ver_criancas` **na edição da criança**.
 
 A segunda não é burocracia: a tela de Padrinhos mostra de propósito só o
-primeiro nome e a idade da criança, e o cartão leva nome completo, código e
+primeiro nome e a idade da criança, e o agradecimento leva nome completo, código e
 instituição. Quem só cuida de padrinhos não passa a ler a ficha da criança por
 este caminho.
 
@@ -226,7 +233,7 @@ este caminho.
 | `backend/app/servicos/agradecimento.py` | Monta o PNG: acha o template, lê o layout, escreve os campos. |
 | `backend/app/routers/padrinhos.py` | `GET /apadrinhamentos/{id}/agradecimento` |
 | `backend/app/recursos/fontes/` | Typold Regular/Bold/ExtraBold, para o PNG sair na fonte da marca. |
-| `frontend/src/pages/Padrinhos.jsx` | O botão "Cartão" em cada criança apadrinhada. |
+| `frontend/src/components/dados/FichaPadrinho.jsx` | Os botões de baixar e enviar o agradecimento, em cada criança apadrinhada. |
 | `frontend/src/services/api.js` | `api.baixar()` — baixa e dispara o "salvar como". |
 | `backend/app/servicos/whatsapp.py` | Cloud API: sobe a mídia, manda o template, traduz o erro da Meta. |
 | `backend/app/models/apadrinhamento.py` | `EnvioCartao` — uma linha por tentativa de envio. |

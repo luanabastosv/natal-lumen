@@ -20,19 +20,19 @@ export const criarApadrinhamento = (dados) => api.post("/apadrinhamentos", dados
 export const editarApadrinhamento = (id, dados) => api.patch(`/apadrinhamentos/${id}`, dados);
 export const apagarApadrinhamento = (id) => api.delete(`/apadrinhamentos/${id}`);
 
-/** Todos os cartoes pagos de um padrinho, num ZIP so. */
+/** Todos os agradecimentos das criancas pagas de um padrinho, num ZIP so. */
 export const baixarTodosAgradecimentos = (padrinhoId) =>
   api.baixar(`/padrinhos/${padrinhoId}/agradecimentos`);
 
-/** Baixa o cartao de agradecimento desta crianca, pronto para o WhatsApp. */
+/** Baixa o agradecimento desta crianca, pronto para o WhatsApp. */
 export const baixarAgradecimento = (id) =>
   api.baixar(`/apadrinhamentos/${id}/agradecimento`);
 
-/** O mesmo cartao, como blob — para compartilhar em vez de so salvar. */
+/** O mesmo agradecimento, como blob — para compartilhar em vez de so salvar. */
 export const obterAgradecimento = (id) =>
   api.blob(`/apadrinhamentos/${id}/agradecimento`);
 
-/** Manda o cartao ao WhatsApp do padrinho pela Cloud API da Meta. */
+/** Manda o agradecimento ao WhatsApp do padrinho pela Cloud API da Meta. */
 export const enviarAgradecimento = (id) =>
   api.post(`/apadrinhamentos/${id}/agradecimento/enviar`);
 
