@@ -138,9 +138,13 @@ class LinhaRecebimento(BaseModel):
     tem_comprovante: bool
     comprovante_drive_link: str | None
     # Pagamento que nao quita apadrinhamento nenhum (o apadrinhamento foi
-    # desfeito e o dinheiro ficou). A categoria dele cai no "apadrinhamento"
-    # sem tipo, igual a cesta e festa juntas; isto e o que separa os dois.
+    # desfeito e o dinheiro ficou). A categoria dele e o "apadrinhamento" sem
+    # tipo.
     sem_destino: bool = False
+    # TODAS as categorias da linha, uma etiqueta cada. O pagamento que quita
+    # cesta e festa tem as duas, e nao uma terceira "cesta + festa": e assim
+    # que ele entra no filtro e na conta de onde veio o dinheiro.
+    categorias: list[str] = []
     responsavel: str | None
 
 

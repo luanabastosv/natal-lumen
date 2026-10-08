@@ -40,29 +40,32 @@ import { dinheiro, formatarData } from "../utils/dinheiro.js";
 const ETIQUETA_ORIGEM = {
   apadrinhamento_cesta: "cesta",
   apadrinhamento_festa: "festa",
-  apadrinhamento: "cesta + festa",
+  apadrinhamento: "sem destino",
   doacao: "doação",
   outros: "outros",
 };
 
-/** A etiqueta do tipo da linha, na cor da barra do grafico. */
+/** As etiquetas do tipo da linha, cada uma na cor da sua barra no grafico.
+ *
+ *  Uma por categoria, e nao uma "cesta + festa": o pagamento que quita as
+ *  duas tem as duas etiquetas, e e assim que ele conta no "De onde veio" —
+ *  partido, cesta de um lado e festa do outro. */
 function EtiquetaOrigem({ linha }) {
   const doPagamento = linha.fonte === "pagamento";
-  // O pagamento sem apadrinhamento cai na mesma categoria de "cesta + festa";
-  // chamar de cesta + festa um dinheiro que nao quita nada seria mentir.
-  const texto = linha.sem_destino
-    ? "sem destino"
-    : (ETIQUETA_ORIGEM[linha.categoria] ?? linha.categoria);
-  const rotulo = ROTULO_CATEGORIA[linha.categoria] ?? linha.categoria;
+  const categorias = linha.categorias?.length ? linha.categorias : [linha.categoria];
 
-  return (
-    <span
-      className={`etiqueta etiqueta--origem origem--${linha.categoria}`}
-      title={doPagamento ? `${rotulo}: ${linha.descricao}` : rotulo}
-    >
-      {texto}
-    </span>
-  );
+  return categorias.map((categoria) => {
+    const rotulo = ROTULO_CATEGORIA[categoria] ?? categoria;
+    return (
+      <span
+        key={categoria}
+        className={`etiqueta etiqueta--origem origem--${categoria}`}
+        title={doPagamento ? `${rotulo}: ${linha.descricao}` : rotulo}
+      >
+        {ETIQUETA_ORIGEM[categoria] ?? categoria}
+      </span>
+    );
+  });
 }
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -167,6 +170,10 @@ export default function Financeiro() {
   const [detalhe, definirDetalhe] = useState(null);
 
   const [modal, definirModal] = useState(null);
+  // O pagamento de padrinho esperando confirmacao para sair. Ele desfaz os
+  // apadrinhamentos junto, entao nao sai num clique so.
+  const [aRemover, definirARemover] = useState(null);
+  const [removendo, definirRemovendo] = useState(false);
   const [saida, definirSaida] = useState(NOVA_SAIDA);
   const [salvando, definirSalvando] = useState(false);
 
@@ -273,16 +280,20 @@ export default function Financeiro() {
 
   async function removerLinha(linha) {
     definirErro("");
+    definirRemovendo(true);
     try {
       await rotas(linha).apagar(linha.id);
       notificar(
         linha.fonte === "pagamento"
-          ? "Pagamento removido. Os apadrinhamentos voltaram a ficar em aberto."
+          ? `Pagamento de ${linha.quem ?? "padrinho"} desfeito. As crianças dele voltaram a ficar disponíveis.`
           : "Recebimento removido.",
       );
+      definirARemover(null);
       buscar();
     } catch (e) {
       definirErro(e.message);
+    } finally {
+      definirRemovendo(false);
     }
   }
 
@@ -408,6 +419,34 @@ export default function Financeiro() {
         onChange={aoEscolherArquivo}
         hidden
       />
+
+      {aRemover && (
+        <Modal
+          rotulo="Pagamento de padrinho"
+          titulo={`Desfazer o pagamento de ${aRemover.quem ?? "padrinho"}?`}
+          aoFechar={() => !removendo && definirARemover(null)}
+          rodape={
+            <div className="barra-acoes barra-acoes--fim" style={{ marginTop: 0 }}>
+              <Button
+                variant="perigo"
+                onClick={() => removerLinha(aRemover)}
+                carregando={removendo}
+              >
+                Desfazer pagamento
+              </Button>
+              <Button variant="ghost" onClick={() => definirARemover(null)} disabled={removendo}>
+                Cancelar
+              </Button>
+            </div>
+          }
+        >
+          <p className="exclusao__texto" style={{ marginTop: 0 }}>
+            {dinheiro(aRemover.valor)} de {formatarData(aRemover.data)} sai do caixa, e{" "}
+            <strong>os apadrinhamentos que ele pagava são desfeitos junto</strong>: as
+            crianças somem da ficha do padrinho e voltam a ficar disponíveis para apadrinhar.
+          </p>
+        </Modal>
+      )}
 
       {modal === SAIDAS && (
         <Modal titulo="Nova saída" aoFechar={() => !salvando && definirModal(null)}>
@@ -794,7 +833,12 @@ export default function Financeiro() {
                                   {
                                     rotulo: "Remover",
                                     perigo: true,
-                                    aoEscolher: () => removerLinha(l),
+                                    // Pagamento de padrinho pergunta antes:
+                                    // ele leva os apadrinhamentos junto.
+                                    aoEscolher: () =>
+                                      l.fonte === "pagamento"
+                                        ? definirARemover(l)
+                                        : removerLinha(l),
                                   },
                                 ]}
                               />

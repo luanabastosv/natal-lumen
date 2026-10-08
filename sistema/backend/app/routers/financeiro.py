@@ -71,7 +71,9 @@ ZERO = Decimal("0")
 # sao as de CategoriaRecebimento ('doacao', 'outros').
 CAT_CESTA = "apadrinhamento_cesta"
 CAT_FESTA = "apadrinhamento_festa"
-# Um pagamento que quita cesta E festa juntas, ou que ainda nao quita nada.
+# O pagamento que nao quita nada (o apadrinhamento foi desfeito e o dinheiro
+# ficou), ou a sobra de um pagamento antigo que nao bate com a soma do que ele
+# quita. Cesta e festa juntas NAO caem aqui: cada uma conta no proprio tipo.
 CAT_APADRINHAMENTO = "apadrinhamento"
 
 FONTE_PAGAMENTO = "pagamento"
@@ -212,19 +214,29 @@ def _saida_recebimento(r: Recebimento, responsavel: str | None) -> RecebimentoOu
     )
 
 
-def _categoria_do_pagamento(pagamento: Pagamento) -> str:
-    """A categoria sai do que o pagamento quita, e nao de um campo escolhido.
+def _partes_do_pagamento(pagamento: Pagamento) -> dict[str, Decimal]:
+    """Quanto deste pagamento foi cesta e quanto foi festa.
 
-    Um campo escolhido poderia dizer "cesta" num dinheiro que pagou festa; isto
-    aqui nao pode. Cesta e festa juntas, ou nada marcado ainda, caem no
-    apadrinhamento sem tipo — que e a verdade nos dois casos.
+    A categoria sai do que o pagamento quita, e nao de um campo escolhido: um
+    campo poderia dizer "cesta" num dinheiro que pagou festa. O pagamento que
+    quita as duas e PARTIDO pelo valor de cada apadrinhamento — a coordenacao
+    quer saber quanto entrou de cesta e quanto de festa, e nao quanto entrou
+    "junto". O que nao quita nada, ou a sobra de um pagamento antigo que nao
+    bate com a soma, fica no apadrinhamento sem tipo.
     """
-    tipos = {a.tipo for a in pagamento.apadrinhamentos}
-    if tipos == {CESTA}:
-        return CAT_CESTA
-    if tipos == {FESTA}:
-        return CAT_FESTA
-    return CAT_APADRINHAMENTO
+    partes: dict[str, Decimal] = defaultdict(lambda: ZERO)
+    for a in pagamento.apadrinhamentos:
+        partes[CAT_CESTA if a.tipo == CESTA else CAT_FESTA] += a.valor
+    sobra = pagamento.valor - sum(partes.values(), ZERO)
+    if sobra != ZERO or not partes:
+        partes[CAT_APADRINHAMENTO] += sobra
+    return dict(partes)
+
+
+def _categoria_do_pagamento(pagamento: Pagamento) -> str:
+    """A categoria principal, que da a cor da linha: a de maior valor."""
+    partes = _partes_do_pagamento(pagamento)
+    return max(partes, key=lambda c: (c != CAT_APADRINHAMENTO, partes[c]))
 
 
 def _resumo_do_pagamento(pagamento: Pagamento) -> str:
@@ -257,6 +269,10 @@ def _linha_do_pagamento(pagamento: Pagamento, responsavel: str | None) -> LinhaR
         comprovante_drive_link=pagamento.comprovante_drive_link,
         responsavel=responsavel,
         sem_destino=not pagamento.apadrinhamentos,
+        categorias=[
+            c for c in (CAT_CESTA, CAT_FESTA, CAT_APADRINHAMENTO)
+            if c in _partes_do_pagamento(pagamento)
+        ],
     )
 
 
@@ -275,6 +291,7 @@ def _linha_do_recebimento(r: Recebimento, responsavel: str | None) -> LinhaReceb
         tem_comprovante=bool(r.comprovante_arquivo),
         comprovante_drive_link=r.comprovante_drive_link,
         responsavel=responsavel,
+        categorias=[r.categoria],
     )
 
 
@@ -327,16 +344,21 @@ def listar_recebimentos(
 
     # Os totais saem de TODAS as linhas, antes de qualquer filtro.
     total_recebido = sum((l.valor for l in linhas), ZERO)
+    # O pagamento entra partido (cesta numa conta, festa na outra); o
+    # recebimento solto, inteiro na categoria dele.
     por_categoria: dict[str, Decimal] = defaultdict(lambda: ZERO)
-    for l in linhas:
-        por_categoria[l.categoria] += l.valor
+    for p in pagamentos:
+        for parte, valor in _partes_do_pagamento(p).items():
+            por_categoria[parte] += valor
+    for r in avulsos:
+        por_categoria[r.categoria] += r.valor
 
     a_conferir = sum((l.valor for l in linhas if not l.conferido), ZERO)
     sem_comprovante = sum(1 for l in linhas if not l.tem_comprovante)
     do_apadrinhamento = sum((p.valor for p in pagamentos), ZERO)
 
     if categoria is not None:
-        linhas = [l for l in linhas if l.categoria == categoria]
+        linhas = [l for l in linhas if categoria in l.categorias]
     if conferido is not None:
         linhas = [l for l in linhas if l.conferido is conferido]
     if comprovante is not None:

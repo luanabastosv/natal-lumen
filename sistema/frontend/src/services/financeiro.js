@@ -48,8 +48,9 @@ export const baixarComprovanteDoRecebimento = (id) =>
 export const ROTULO_CATEGORIA = {
   apadrinhamento_cesta: "Apadrinhamento - cesta",
   apadrinhamento_festa: "Apadrinhamento - festa",
-  // Um pagamento que quita cesta e festa juntas, ou que ainda nao quita nada.
-  apadrinhamento: "Apadrinhamento",
+  // O pagamento que nao quita nada (o apadrinhamento foi desfeito e o dinheiro
+  // ficou). Cesta e festa juntas nao caem aqui: cada uma conta no seu tipo.
+  apadrinhamento: "Apadrinhamento sem destino",
   doacao: "Doação",
   outros: "Outros",
 };

@@ -446,9 +446,9 @@ def main() -> None:
                  dados["apadrinhamento"] == "360.00", dados["apadrinhamento"])
         verifica("a categoria do apadrinhamento vem do que ele quita",
                  dados["por_categoria"] == {
-                     "apadrinhamento": "180.00",
-                     "apadrinhamento_cesta": "120.00",
-                     "apadrinhamento_festa": "60.00",
+                     # O misto entra partido: 120 na cesta, 60 na festa.
+                     "apadrinhamento_cesta": "240.00",
+                     "apadrinhamento_festa": "120.00",
                      "doacao": "1000.00",
                      "outros": "500.00",
                  },
@@ -465,6 +465,9 @@ def main() -> None:
         if linha_paga:
             verifica("com o nome do padrinho", linha_paga["quem"] == padrinho.nome,
                      str(linha_paga["quem"]))
+            verifica("cesta e festa sao duas etiquetas, e nao uma juntas",
+                     linha_paga["categorias"] == ["apadrinhamento_cesta", "apadrinhamento_festa"],
+                     str(linha_paga["categorias"]))
             verifica("e com o que ele quita escrito",
                      linha_paga["descricao"] == "1 cesta + 1 festa", linha_paga["descricao"])
             verifica("a observacao do pagamento chega na linha",
@@ -473,6 +476,9 @@ def main() -> None:
 
         r = cc.get("/recebimentos", params={"edicao_id": edicao.id, "categoria": "doacao"})
         verifica("filtra por categoria", r.json()["total"] == 1, str(r.json()["total"]))
+        r = cc.get("/recebimentos", params={"edicao_id": edicao.id, "categoria": "apadrinhamento_festa"})
+        verifica("o filtro de festa traz tambem o pagamento misto",
+                 r.json()["total"] == 2, str(r.json()["total"]))
         verifica("mas o total continua o da edicao inteira",
                  r.json()["total_recebido"] == "1860.00", r.json()["total_recebido"])
 
