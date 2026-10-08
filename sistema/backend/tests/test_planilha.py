@@ -117,7 +117,8 @@ def main() -> None:
         verifica("calculos primeiro, depois o consolidado", nomes[:2] == ["CÁLCULOS", "CONSOLIDADO"])
         verifica("uma aba por instituicao",
                  f"{MARCA} ESCOLA ESPERANÇA"[:31] in nomes and f"{MARCA} CRECHE SOL" in nomes, str(nomes))
-        verifica("padrinhos e financeiro no fim", nomes[-2:] == ["PADRINHOS", "FINANCEIRO"])
+        verifica("controles, padrinhos e financeiro no fim",
+                 nomes[-3:] == ["CONTROLES", "PADRINHOS", "FINANCEIRO"], str(nomes))
 
         print("\nA aba da instituicao")
         ws = livro[f"{MARCA} ESCOLA ESPERANÇA"[:31]]
@@ -154,6 +155,15 @@ def main() -> None:
         verifica("1 apadrinhamento pago, R$ 130", total[0] == 1 and total[1] == 130, str(total))
         # 3 criancas que vem (E1, E2, S1) x 2 = 6 vagas; so a cesta de E1 esta paga.
         verifica("faltam 5", total[2] == 5, str(total))
+
+        print("\nOs controles")
+        ctrl = livro["CONTROLES"]
+        verifica("saíram: 1", ctrl["A1"].value == "SAÍRAM" and ctrl["B1"].value == 1)
+        linhas_ctrl = {r[0]: r for r in ctrl.iter_rows(min_row=5, values_only=True) if r[0]}
+        # Ninguem tem comissario: as 3 que vem caem em "Sem comissário".
+        sem = linhas_ctrl.get("Sem comissário")
+        verifica("sem comissario: 3 criancas, 0 completas, faltam 3",
+                 sem is not None and sem[2] == 3 and sem[5] == 0 and sem[6] == 3, str(sem))
 
         print("\nNada de senha")
         texto = " ".join(

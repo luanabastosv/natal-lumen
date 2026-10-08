@@ -41,6 +41,7 @@ from app.models import (
     Recebimento,
     UsuarioEdicao,
 )
+from app.seeds.perfis_permissoes import PERFIL_COMISSARIO
 
 FUSO = ZoneInfo("America/Sao_Paulo")
 
@@ -153,15 +154,19 @@ class _Dados:
             db.execute(select(Kit.crianca_id, Kit.status).where(Kit.crianca_id.in_(ids))).all()
         )
 
-        # O grupo e do comissario NESTA edicao (usuario_edicao.grupo_id).
-        self.grupo_do_usuario = {
-            v.usuario_id: v.grupo.nome
-            for v in db.scalars(
-                select(UsuarioEdicao)
-                .where(UsuarioEdicao.edicao_id == edicao.id, UsuarioEdicao.grupo_id.is_not(None))
-                .options(joinedload(UsuarioEdicao.grupo))
-            ).all()
-        }
+        # O time da edicao, com o grupo de cada um NESTA edicao
+        # (usuario_edicao.grupo_id) e o perfil — e o perfil que diz quem e
+        # comissario e entra no controle por comissario mesmo sem crianca.
+        self.time = db.scalars(
+            select(UsuarioEdicao)
+            .where(UsuarioEdicao.edicao_id == edicao.id, UsuarioEdicao.ativo.is_(True))
+            .options(
+                joinedload(UsuarioEdicao.grupo),
+                joinedload(UsuarioEdicao.usuario),
+                joinedload(UsuarioEdicao.perfil),
+            )
+        ).all()
+        self.grupo_do_usuario = {v.usuario_id: v.grupo.nome for v in self.time if v.grupo}
 
         self.dias = db.scalars(
             select(DiaEvento).where(DiaEvento.edicao_id == edicao.id).order_by(DiaEvento.data)
@@ -309,7 +314,8 @@ def _lista_de_criancas(ws: Worksheet, dados: _Dados, criancas, titulo: str, extr
 def _idade_por_sexo(ws: Worksheet, criancas, coluna: int, linha: int = 3):
     """O quadro "quant. homens e mulheres por idade", ao lado da lista."""
     contagem = Counter((c.idade, c.sexo) for c in criancas if not c.desistiu_em)
-    ws.cell(row=linha - 1, column=coluna, value="POR IDADE E SEXO").font = NEGRITO
+    if ws.cell(row=linha - 1, column=coluna).value is None:
+        ws.cell(row=linha - 1, column=coluna, value="POR IDADE E SEXO").font = NEGRITO
     _cabecalho(ws, linha, [("Idade", 8), ("Masc", 7), ("Fem", 7)], inicio=coluna)
     idades = sorted({i for i, _ in contagem})
     for n, idade in enumerate(idades, start=linha + 1):
@@ -429,8 +435,6 @@ def _calculos(ws: Worksheet, dados: _Dados):
         celula.border = GRADE
         linha += 1
 
-    _idade_por_sexo(ws, dados.criancas, coluna=11, linha=5)
-
 
 def _linha_de_numeros(ws, linha, rotulo, numeros, negrito=False):
     onibus, criancas, cesta, festa, completas, sem = numeros
@@ -445,6 +449,84 @@ def _linha_de_numeros(ws, linha, rotulo, numeros, negrito=False):
             celula.number_format = "0.0%"
         if negrito:
             celula.font = NEGRITO
+
+
+def _pago(dados: _Dados, c: Crianca, tipo: str) -> bool:
+    a = dados.apadrinhamento.get((c.id, tipo))
+    return a is not None and a.pagamento_id is not None
+
+
+def _controles(ws: Worksheet, dados: _Dados):
+    """A aba CONTROLES da planilha antiga: quem saiu, o controle por
+    comissario e o de idade.
+
+    O bloco "Forms x consolidado & ajuste dos duplicados" nao vem: ele
+    conferia o Google Forms contra a planilha, e no sistema apadrinhamento
+    duplicado e impossivel — cada crianca tem no maximo uma cesta e uma festa.
+    """
+    vem = [c for c in dados.criancas if not c.desistiu_em]
+    sairam = len(dados.criancas) - len(vem)
+
+    ws["A1"] = "SAÍRAM"
+    ws["A1"].font = TITULO
+    ws["B1"] = sairam
+    ws["B1"].font = NEGRITO
+    ws["C1"] = "crianças desistiram e ficam fora das contas abaixo"
+
+    ws.cell(row=3, column=1, value="CONTROLE POR COMISSÁRIO").font = TITULO
+    colunas = [
+        ("Comissário", 30), ("Grupo", 16), ("Crianças", 10), ("Com cesta", 11),
+        ("Com festa", 11), ("Completas", 11), ("Falta apadrinhar", 16), ("% falta", 10),
+    ]
+    _cabecalho(ws, 4, colunas)
+
+    por_responsavel = defaultdict(list)
+    for c in vem:
+        por_responsavel[c.comissario_id].append(c)
+
+    # O time manda, e nao as criancas: o comissario sem nenhuma crianca na mao
+    # e justamente o que a coordenacao precisa enxergar. Mesma regra do painel.
+    nomes = {v.usuario_id: v.usuario.nome for v in dados.time}
+    responsaveis = {v.usuario_id for v in dados.time if v.perfil.nome == PERFIL_COMISSARIO}
+    responsaveis |= {i for i in por_responsavel if i is not None}
+    for c in vem:
+        if c.comissario_id and c.comissario_id not in nomes:
+            nomes[c.comissario_id] = c.comissario.nome
+
+    ordem = sorted(
+        responsaveis,
+        key=lambda i: (i not in dados.grupo_do_usuario, dados.grupo_do_usuario.get(i, ""), nomes[i]),
+    )
+    if None in por_responsavel:
+        ordem.append(None)
+
+    linha = 5
+    for i in ordem:
+        criancas = por_responsavel.get(i, [])
+        completas = sum(_pago(dados, c, "cesta") and _pago(dados, c, "festa") for c in criancas)
+        valores = [
+            nomes[i] if i else "Sem comissário",
+            dados.grupo_do_usuario.get(i, "") if i else "",
+            len(criancas),
+            sum(_pago(dados, c, "cesta") for c in criancas),
+            sum(_pago(dados, c, "festa") for c in criancas),
+            completas,
+            len(criancas) - completas,
+            (len(criancas) - completas) / len(criancas) if criancas else None,
+        ]
+        for k, v in enumerate(valores, start=1):
+            celula = ws.cell(row=linha, column=k, value=v)
+            celula.border = GRADE
+            if k > 2:
+                celula.alignment = CENTRO
+            if k == 8:
+                celula.number_format = "0.0%"
+        linha += 1
+    ws.freeze_panes = "B5"
+
+    linha += 2
+    ws.cell(row=linha, column=1, value="CONTROLE DE IDADE (FEMININO X MASCULINO)").font = TITULO
+    _idade_por_sexo(ws, dados.criancas, coluna=1, linha=linha + 1)
 
 
 def _padrinhos(ws: Worksheet, dados: _Dados):
@@ -555,7 +637,7 @@ def montar(db: Session, edicao: Edicao) -> bytes:
     """O .xlsx da edicao inteira."""
     dados = _Dados(db, edicao)
     livro = Workbook()
-    usados = {"CÁLCULOS", "CONSOLIDADO", "PADRINHOS", "FINANCEIRO"}
+    usados = {"CÁLCULOS", "CONSOLIDADO", "CONTROLES", "PADRINHOS", "FINANCEIRO"}
 
     # Os calculos vem primeiro: no dia em que o sistema cair, a primeira
     # pergunta e "como estamos", e nao "quem e a crianca MA123".
@@ -578,6 +660,7 @@ def montar(db: Session, edicao: Edicao) -> bytes:
         largura = _lista_de_criancas(ws, dados, criancas, f"{inst.nome.upper()}{quando}")
         _idade_por_sexo(ws, criancas, coluna=largura + 2)
 
+    _controles(livro.create_sheet("CONTROLES"), dados)
     _padrinhos(livro.create_sheet("PADRINHOS"), dados)
     _financeiro(livro.create_sheet("FINANCEIRO"), dados)
 
