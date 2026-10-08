@@ -2308,24 +2308,6 @@ textarea.campo__controle {
   background: var(--navy-900);
 }
 
-/* O select das duas perguntas da captacao, dentro da ficha. O controle padrao
-   tem 48px de altura e largura cheia — numa lista de pares rotulo/valor isso
-   empurraria as outras linhas para longe. Aqui ele encolhe para o tamanho da
-   resposta, que e "Sim", "Nao" ou "nao perguntado". */
-.ficha__resposta {
-  width: auto;
-  /* Um <select> dimensiona pela opcao mais longa, e com `width: auto` isso
-     vira largura minima: a 320px ele sozinho empurrava a ficha para fora da
-     janela de novo. O teto deixa o texto cortar com reticencias em vez de
-     estourar. */
-  max-width: 100%;
-  min-height: 32px;
-  height: 32px;
-  font-size: 13px;
-  padding: 0 34px 0 var(--space-3);
-  background-position: calc(100% - 19px) 55%, calc(100% - 13px) 55%;
-}
-
 /* A nota dos apadrinhamentos prometidos, no painel.
  *
  * Era uma `Mensagem` de aviso — uma caixa amarela da largura da tela, com o
@@ -3568,18 +3550,6 @@ textarea.campo__controle {
    Tudo cabe numa linha de 34px: nome, etiquetas e as tres acoes. */
 .ficha__lista {
   border-top: var(--stroke-hairline) solid var(--border-light);
-}
-
-/* "Baixar os cartoes", no pe da lista de criancas: afastado da ultima linha e
-   na ponta direita, como a acao que fecha a lista. */
-.ficha__baixar-agradecimentos {
-  justify-content: flex-end;
-  margin-top: var(--space-4);
-  margin-bottom: 0;
-}
-
-.ficha__baixar-agradecimentos .campo__dica {
-  margin-top: 0;
 }
 
 .ficha__linha {
@@ -5287,4 +5257,387 @@ button.checkin-lista__botao:not(:disabled):active {
 .lote__aviso {
   font-size: var(--size-body-sm);
   opacity: 0.85;
+}
+
+/* ---------- Passo a passo (apadrinhar) ----------
+   Um assunto por tela. A faixa diz onde se esta e o que vem depois; quem anda
+   e o rodape, com Voltar e Continuar sempre no mesmo lugar. */
+.passos {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+  padding: 0 0 var(--space-3);
+  list-style: none;
+  border-bottom: var(--stroke-hairline) solid var(--border-light);
+  font-size: var(--size-body-sm);
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}
+
+.passos__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.passos__numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 11px;
+}
+
+.passos__item--atual {
+  color: var(--color-primary);
+}
+
+.passos__item--atual .passos__numero {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--white);
+}
+
+.passos__item--feito {
+  color: var(--text-on-light-secondary);
+}
+
+.passos__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.passos__rodape > .botao:first-child {
+  margin-right: auto;
+}
+
+.passos__total {
+  margin-bottom: var(--space-4);
+}
+
+/* O pe da ficha do padrinho: baixar a esquerda, apadrinhar a direita — mesmo
+   quando so um dos dois aparece, apadrinhar continua na ponta direita. */
+.ficha__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ficha__rodape > .botao--primary {
+  margin-left: auto;
+}
+
+/* Cesta e festa de cada crianca no passo a passo: duas pilulas separadas, e o
+   "x" de tirar um pouco afastado delas. */
+.apadrinhar__escolhas {
+  gap: var(--space-2);
+}
+
+.apadrinhar__escolhas > .botao-icone {
+  margin-left: var(--space-1);
+}
+
+/* Formulario dentro de uma janela de tarefa (o pagamento do passo a passo):
+   o mesmo campo do sistema, na escala do resto da ficha — rotulo de 11px e
+   controle de 40px, como os da barra de acoes. O campo cheio, de 48px e
+   rotulo de 13px, e para formulario de pagina e pesava demais aqui. */
+.formulario-compacto .campo {
+  margin-bottom: var(--space-3);
+}
+
+.formulario-compacto .campo__rotulo {
+  font-size: 11px;
+  margin-bottom: var(--space-1);
+}
+
+.formulario-compacto .campo__controle {
+  min-height: var(--control-h-sm);
+  font-size: var(--size-small);
+  padding: 0 var(--space-3);
+}
+
+.formulario-compacto input.campo__controle,
+.formulario-compacto select.campo__controle {
+  height: var(--control-h-sm);
+}
+
+.formulario-compacto textarea.campo__controle {
+  padding: var(--space-2) var(--space-3);
+}
+
+.formulario-compacto .campo__dica {
+  font-size: var(--size-caption);
+}
+
+.formulario-compacto .arquivo {
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.formulario-compacto .arquivo__rotulo {
+  font-size: 11px;
+}
+
+.formulario-compacto .linha-campos {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+/* No toque a letra volta a 16px, pelo mesmo motivo de todo campo: menor que
+   isso o Safari do iPhone aproxima a tela sozinho. A altura nao muda. */
+@media (pointer: coarse) {
+  .formulario-compacto .campo__controle {
+    font-size: 16px;
+  }
+}
+
+/* Valor de ficha que nao quebra linha (o email do padrinho): corta com
+   reticencias. `min-width: 0` deixa a celula da grade encolher abaixo do
+   tamanho do texto, senao o corte nunca acontece. */
+.ficha dd.ficha__truncar {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.pagamento__ja-pagos--sozinho {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Lista compacta cuja linha NAO e clicavel (padrinhos): sem a mao e sem o
+   flash de toque, que prometiam um clique que nao existe. */
+.planilha--linha-parada tbody tr,
+.planilha--linha-parada tbody .celula {
+  cursor: default;
+}
+
+.planilha--linha-parada tbody tr:active td {
+  background: transparent;
+}
+
+/* ---------- Apadrinhar como pagina (celular) ----------
+   Cobre a tela inteira, em tres faixas: os passos fixos em cima, os botoes
+   fixos embaixo, e so o meio rola.
+
+   A altura vem SO do `inset: 0`, presa as quatro bordas da tela visivel. Com
+   um `height: 100dvh` junto, a caixa podia ficar mais alta que a tela (quando
+   a barra do navegador aparece) e o rodape saia por baixo, cortado.
+
+   z-index 75: acima da barra azul do celular (60) e do menu lateral (70),
+   que antes cobria o topo da pagina; abaixo das janelas (80) e dos avisos
+   (90), que continuam podendo aparecer por cima. */
+.apadrinhar-pagina {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+}
+
+.apadrinhar-pagina__topo,
+.apadrinhar-pagina__rodape {
+  flex: none;
+  padding: var(--space-3) var(--space-5);
+  background: var(--white);
+}
+
+.apadrinhar-pagina__topo {
+  border-bottom: var(--stroke-hairline) solid var(--border-light);
+}
+
+.apadrinhar-pagina__topo .pagina__titulo {
+  margin: 0 0 var(--space-3);
+  font-size: var(--size-h3);
+  line-height: var(--lh-h3);
+}
+
+.apadrinhar-pagina__topo .passos {
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+/* So esta faixa rola. `min-height: 0` deixa o filho de flex encolher abaixo
+   do conteudo — sem isto ele cresce e empurra o rodape para fora da tela. */
+.apadrinhar-pagina__meio {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4) var(--space-5);
+}
+
+.apadrinhar-pagina__rodape {
+  border-top: var(--stroke-hairline) solid var(--border-light);
+  /* A barra de gestos do iPhone fica por cima do pe da tela. */
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+/* O que falta vai numa linha propria, em cima; embaixo, os dois botoes
+   dividem a largura — o de seguir maior, que e o que se aperta. */
+.apadrinhar-pagina__rodape .passos__rodape {
+  justify-content: stretch;
+}
+
+.apadrinhar-pagina__rodape .pagamento__falta {
+  flex-basis: 100%;
+  order: -1;
+}
+
+.apadrinhar-pagina__rodape .passos__rodape > .botao {
+  flex: 1;
+  margin-right: 0;
+}
+
+.apadrinhar-pagina__rodape .passos__rodape > .botao:last-child {
+  flex: 2;
+}
+
+/* Tudo o que se toca no passo a passo, no tamanho do dedo. Na janela do
+   computador o mouse acerta alvo pequeno; no celular, com uma mao e o
+   telefone do padrinho na outra, nao. Os alvos ficam em 44-48px, a altura
+   que o iOS e o Android pedem. */
+.apadrinhar-pagina .pasta-aberta__voltar {
+  min-height: 44px;
+}
+
+/* Busca por codigo */
+.apadrinhar-pagina .ficha__acao .campo__controle {
+  height: var(--control-h);
+  min-height: var(--control-h);
+  font-size: 16px;
+  border-radius: var(--radius-md);
+}
+
+/* A linha de cada crianca: nome em cima, escolhas embaixo, com espaco. */
+.apadrinhar-pagina .ficha__linha {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
+.apadrinhar-pagina .ficha__linha-nome {
+  flex: 1 0 100%;
+  font-size: var(--size-body-sm);
+}
+
+.apadrinhar-pagina .apadrinhar__escolhas {
+  flex: 1 0 100%;
+  gap: var(--space-3);
+}
+
+/* Cesta e festa: pilulas de 44px, com o checkbox maior dentro. */
+.apadrinhar-pagina .marcavel {
+  min-height: 44px;
+  padding: 8px 16px;
+  font-size: var(--size-body-sm);
+}
+
+.apadrinhar-pagina .marcavel input {
+  width: 20px;
+  height: 20px;
+}
+
+.apadrinhar-pagina .apadrinhar__escolhas > .botao-icone {
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+}
+
+/* "cesta em todas" / "festa em todas" */
+.apadrinhar-pagina .link-conferir {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  font-size: var(--size-small);
+}
+
+/* Pagamento: os campos voltam ao tamanho cheio — o compacto e para a janela. */
+.apadrinhar-pagina .formulario-compacto .campo__rotulo {
+  font-size: var(--size-caption);
+}
+
+.apadrinhar-pagina .formulario-compacto .campo__controle,
+.apadrinhar-pagina .formulario-compacto input.campo__controle,
+.apadrinhar-pagina .formulario-compacto select.campo__controle {
+  height: var(--control-h);
+  min-height: var(--control-h);
+  font-size: 16px;
+}
+
+.apadrinhar-pagina .formulario-compacto textarea.campo__controle {
+  height: auto;
+}
+
+.apadrinhar-pagina .formulario-compacto .arquivo {
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+}
+
+/* A busca que ocupa o que sobra da linha (celular): o espaco que era do botao
+   Buscar volta para o campo, onde se toca e se digita. */
+.barra-acoes > .campo.barra-acoes__busca {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ---------- Barra de base (celular) ----------
+   O CTA da tela fixo no pe, a direita, onde o polegar alcanca. So o conteudo
+   rola; a barra fica. A pagina ganha respiro embaixo para a ultima linha da
+   lista nao ficar escondida atras dela. */
+.barra-base {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 55;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  background: var(--white);
+  border-top: var(--stroke-hairline) solid var(--border-light);
+}
+
+.pagina--com-base {
+  padding-bottom: 88px;
+}
+
+/* O fim do passo a passo no celular: o "deu certo" e, logo abaixo, o
+   agradecimento a um toque. */
+.apadrinhar-final__texto {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  font-size: var(--size-body-sm);
+  color: var(--text-on-light-primary);
+}
+
+.apadrinhar-final__texto svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--color-primary);
+}
+
+.apadrinhar-final__agradecimento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.apadrinhar-final__agradecimento .ficha__secao {
+  margin-bottom: 0;
 }

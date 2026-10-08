@@ -6,6 +6,7 @@ import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Enviar } from "../components/core/icones.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
+import ApadrinharCriancas from "../components/dados/ApadrinharCriancas.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
@@ -55,6 +56,19 @@ function resposta(valor) {
   return valor === "" ? null : valor === "sim";
 }
 
+/** O caminho de volta: o que esta gravado, do jeito que o formulario le. */
+function paraOFormulario(padrinho) {
+  const sel = (v) => (v === true ? "sim" : v === false ? "nao" : "");
+  return {
+    nome: padrinho.nome ?? "",
+    whatsapp: padrinho.whatsapp ?? "",
+    email: padrinho.email ?? "",
+    observacoes: padrinho.observacoes ?? "",
+    membro_ser_feliz: sel(padrinho.membro_ser_feliz),
+    interesse_mensal: sel(padrinho.interesse_mensal),
+  };
+}
+
 export default function Padrinhos() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
   const { pode, edicaoAtiva, usuario, vinculoAtivo } = useSessao();
@@ -69,6 +83,14 @@ export default function Padrinhos() {
   const notificar = useNotificar();
 
   const [formAberto, definirFormAberto] = useState(false);
+  // O padrinho sendo editado. null = o formulario e de um padrinho novo. A
+  // mesma janela serve aos dois: os campos sao os mesmos, so muda o titulo e
+  // para onde vai o salvar.
+  const [emEdicao, definirEmEdicao] = useState(null);
+  // O padrinho com o passo a passo de apadrinhar aberto, no computador (no
+  // celular e a pagina propria). Abre SOZINHO, sem a ficha por baixo: vem do
+  // "Salvar e apadrinhar" do cadastro ou do "Apadrinhar" do menu da linha.
+  const [apadrinhandoDe, definirApadrinhandoDe] = useState(null);
   const [campos, definirCampos] = useState(NOVO);
   const [salvando, definirSalvando] = useState(false);
 
@@ -76,13 +98,9 @@ export default function Padrinhos() {
   // entao uma mudanca feita dentro da janela aparece nos dois lugares de uma
   // vez, sem duas copias do mesmo padrinho podendo divergir.
   const [fichaAbertaId, definirFichaAbertaId] = useState(null);
-  // O icone de apadrinhar na linha abre a mesma ficha, ja com o formulario de
-  // ligacao aberto: e um atalho para a acao, nao um segundo caminho para ela.
-  const [abrirLigando, definirAbrirLigando] = useState(false);
   const fichaAberta = padrinhos.itens.find((p) => p.id === fichaAbertaId) ?? null;
 
-  function abrirFicha(id, ligando = false) {
-    definirAbrirLigando(ligando);
+  function abrirFicha(id) {
     definirFichaAbertaId(id);
   }
 
@@ -91,6 +109,9 @@ export default function Padrinhos() {
   // Nao e a do financeiro da edicao — o comissario tem esta e nao aquela, e e
   // por ela que o apadrinhamento dele se confirma.
   const podePagar = pode("registrar_pagamentos_padrinho");
+  // Cadastrar ja leva a apadrinhar: ninguem cadastra padrinho a toa, e o
+  // proximo passo da conversa e sempre escolher as criancas dele.
+  const salvarEApadrinhar = podeEditar && podePagar;
   // Desfazer engano de captacao: apagar o cadastro, e desfazer apadrinhamento
   // JA PAGO. Coordenacao e administracao geral — quem capta corrige o que
   // acabou de digitar, mas nao desfaz o que ja virou numero e dinheiro.
@@ -161,25 +182,59 @@ export default function Padrinhos() {
     evento.preventDefault();
     definirErro("");
     definirSalvando(true);
+    const dados = {
+      nome: campos.nome.trim(),
+      whatsapp: campos.whatsapp.trim() || null,
+      email: campos.email.trim() || null,
+      observacoes: campos.observacoes.trim() || null,
+      membro_ser_feliz: resposta(campos.membro_ser_feliz),
+      interesse_mensal: resposta(campos.interesse_mensal),
+    };
     try {
-      await criarPadrinho({
-        edicao_id: Number(edicaoAtiva),
-        nome: campos.nome.trim(),
-        whatsapp: campos.whatsapp.trim() || null,
-        email: campos.email.trim() || null,
-        observacoes: campos.observacoes.trim() || null,
-        membro_ser_feliz: resposta(campos.membro_ser_feliz),
-        interesse_mensal: resposta(campos.interesse_mensal),
-      });
-      notificar(`${campos.nome.trim()} cadastrado.`);
-      definirCampos(NOVO);
-      definirFormAberto(false);
-      buscar();
+      if (emEdicao) {
+        // Troca so a linha: a pessoa continua onde estava na planilha.
+        trocarLinha(await editarPadrinho(emEdicao.id, dados));
+        notificar(`${dados.nome} atualizado.`);
+      } else {
+        const novo = await criarPadrinho({ edicao_id: Number(edicaoAtiva), ...dados });
+        notificar(`${dados.nome} cadastrado.`);
+        fecharFormulario();
+        if (salvarEApadrinhar) {
+          if (estreita) {
+            navegar(`/padrinhos/${novo.id}/apadrinhar`);
+            return;
+          }
+          definirApadrinhandoDe(novo);
+        }
+        buscar();
+        return;
+      }
+      fecharFormulario();
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirSalvando(false);
     }
+  }
+
+  function abrirNovo() {
+    definirEmEdicao(null);
+    definirCampos(NOVO);
+    definirFormAberto(true);
+  }
+
+  /** Reabre o formulario de cadastro com o que ja esta gravado. */
+  function abrirEdicao(padrinho) {
+    definirErro("");
+    definirEmEdicao(padrinho);
+    definirCampos(paraOFormulario(padrinho));
+    definirFormAberto(true);
+  }
+
+  function fecharFormulario() {
+    definirFormAberto(false);
+    definirEmEdicao(null);
+    definirCampos(NOVO);
   }
 
   /** Abre a janela e ja pergunta ao servidor o que vai junto. */
@@ -218,13 +273,13 @@ export default function Padrinhos() {
   const totalPaginas = Math.max(1, Math.ceil(padrinhos.total / POR_PAGINA));
 
   return (
-    <div>
+    <div className={estreita && podeEditar ? "pagina--com-base" : undefined}>
       <div className="pagina__eyebrow">Captação</div>
       <h1 className="pagina__titulo">Padrinhos</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
         {estreita
-          ? "Toque na linha para abrir a ficha do padrinho."
+          ? "Toque nos três pontos para abrir a ficha ou apadrinhar."
           : "Clique na célula para editar; o menu abre a ficha com as crianças."}
       </p>
 
@@ -238,12 +293,22 @@ export default function Padrinhos() {
           buscar();
         }}
       >
+        {/* No celular a busca ocupa a linha inteira e o botao Buscar sai: a
+            lista ja filtra enquanto se digita, e o "ir" do teclado tambem
+            busca. No computador o botao fica, para quem espera ve-lo. */}
         <Entrada
+          classe={estreita ? "barra-acoes__busca" : undefined}
+          tipo={estreita ? "search" : "text"}
+          enterKeyHint="search"
           value={busca}
           onChange={(e) => definirBusca(e.target.value)}
           placeholder="Nome, WhatsApp ou email"
         />
-        <Button type="submit" size="sm" variant="ghost">Buscar</Button>
+        {!estreita && (
+          <Button type="submit" size="sm" variant="ghost">
+            Buscar
+          </Button>
+        )}
         {busca && (
           <Button
             size="sm"
@@ -256,12 +321,16 @@ export default function Padrinhos() {
             Limpar
           </Button>
         )}
-        <span className="campo__dica">{padrinhos.total} padrinho(s)</span>
+        {/* No celular a contagem sai: a linha e da busca. */}
+        {!estreita && <span className="campo__dica">{padrinhos.total} padrinho(s)</span>}
 
         {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos de
-            busca, sem roubar uma linha so para ele. */}
-        {(podeEditar || podeEnviarCartoes) && (
+            busca, sem roubar uma linha so para ele. No celular ela nao existe:
+            o envio e so no computador, e o Novo padrinho desce para a base. */}
+        {!estreita && (podeEditar || podeEnviarCartoes) && (
           <div className="barra-acoes__ponta">
+            {/* So no computador: o envio dos lembretes e trabalho de mesa,
+                com a lista de padrinhos e cartoes inteira na frente. */}
             {podeEnviarCartoes && (
               /* Ghost, e nao cheio: o CTA da tela continua sendo "Novo
                  padrinho". Este e um caminho para outra tela. */
@@ -276,7 +345,7 @@ export default function Padrinhos() {
               </Button>
             )}
             {podeEditar && (
-              <Button size="sm" onClick={() => definirFormAberto(true)} disabled={!edicaoAtiva}>
+              <Button size="sm" onClick={abrirNovo} disabled={!edicaoAtiva}>
                 Novo padrinho
               </Button>
             )}
@@ -285,7 +354,11 @@ export default function Padrinhos() {
       </form>
 
       {formAberto && (
-        <Modal titulo="Novo padrinho" aoFechar={() => !salvando && definirFormAberto(false)}>
+        <Modal
+          titulo={emEdicao ? "Editar informações" : "Novo padrinho"}
+          rotulo={emEdicao ? "Padrinho:" : undefined}
+          aoFechar={() => !salvando && fecharFormulario()}
+        >
           <form onSubmit={salvar}>
             <div className="linha-campos">
               <Entrada rotulo="Nome" value={campos.nome}
@@ -300,8 +373,11 @@ export default function Padrinhos() {
                 rotulo="Já é membro Ser Feliz?"
                 value={campos.membro_ser_feliz}
                 onChange={(e) => definirCampos({ ...campos, membro_ser_feliz: e.target.value })}
+                required
               >
-                <option value="">A perguntar</option>
+                <option value="" disabled>
+                  Selecione
+                </option>
                 <option value="sim">Sim</option>
                 <option value="nao">Não</option>
               </Selecao>
@@ -309,19 +385,25 @@ export default function Padrinhos() {
                 rotulo="Tem interesse em contribuir mensalmente?"
                 value={campos.interesse_mensal}
                 onChange={(e) => definirCampos({ ...campos, interesse_mensal: e.target.value })}
+                required
               >
-                <option value="">A perguntar</option>
+                <option value="" disabled>
+                  Selecione
+                </option>
                 <option value="sim">Sim</option>
                 <option value="nao">Não</option>
               </Selecao>
             </div>
-            <div className="barra-acoes barra-acoes--fim">
+            {/* Sozinho na barra, encostado a direita: e onde a janela termina
+                e onde o olho chega depois do ultimo campo. */}
+            <div className="barra-acoes barra-acoes--fim" style={{ justifyContent: "flex-end" }}>
               <Button variant="secondary" type="submit" carregando={salvando}
-                disabled={!campos.nome.trim()}>
-                Salvar
-              </Button>
-              <Button variant="ghost" onClick={() => definirFormAberto(false)} disabled={salvando}>
-                Cancelar
+                /* As duas perguntas sao obrigatorias: Sim ou Nao, sem "a
+                   perguntar". O cadastro so fecha quando a captacao perguntou. */
+                disabled={
+                  !campos.nome.trim() || !campos.membro_ser_feliz || !campos.interesse_mensal
+                }>
+                {!emEdicao && salvarEApadrinhar ? "Salvar e apadrinhar" : "Salvar"}
               </Button>
             </div>
           </form>
@@ -341,6 +423,20 @@ export default function Padrinhos() {
         />
       )}
 
+      {apadrinhandoDe && (
+        <ApadrinharCriancas
+          padrinho={apadrinhandoDe}
+          aoMudar={(atualizado) => {
+            definirApadrinhandoDe(atualizado);
+            trocarLinha(atualizado);
+          }}
+          aoFechar={() => {
+            definirApadrinhandoDe(null);
+            buscar();
+          }}
+        />
+      )}
+
       {fichaAberta && (
         <FichaPadrinho
           padrinho={fichaAberta}
@@ -348,7 +444,6 @@ export default function Padrinhos() {
           podeEditar={podeEditar}
           podePagar={podePagar}
           podeExcluir={podeExcluir}
-          iniciarLigando={abrirLigando}
           aoMudar={trocarLinha}
         />
       )}
@@ -367,7 +462,9 @@ export default function Padrinhos() {
       ) : (
         <>
           <div className="tabela-rolagem">
-            <table className={`planilha ${estreita ? "planilha--compacta" : ""}`}>
+            <table
+              className={`planilha ${estreita ? "planilha--compacta planilha--linha-parada" : ""}`}
+            >
               {/* So faz sentido onde a lista de fato rola. Na versao estreita
                   as tres colunas cabem na tela, e prometer arraste ali seria
                   mandar a pessoa procurar o que nao existe. */}
@@ -431,21 +528,11 @@ export default function Padrinhos() {
                   const quitado =
                     p.apadrinhamentos.length > 0 && p.apadrinhamentos.every((a) => a.pago);
                   return (
-                    <tr
-                      key={p.id}
-                      /* No celular a linha inteira abre a ficha: o alvo vira a
-                         faixa por toda a largura da tela, e nao so os tres
-                         pontinhos do canto. So no celular — no desktop o clique
-                         na celula e o que abre a edicao dela, e os dois nao
-                         cabem no mesmo lugar.
-
-                         O menu fica: e ele quem anuncia as acoes para quem
-                         navega por teclado ou leitor de tela. A linha e atalho
-                         de dedo, e por isso nao ganha `role` nem foco proprio
-                         — seria um segundo caminho dizendo o mesmo na frente de
-                         quem usa Tab. */
-                      onClick={estreita ? () => abrirFicha(p.id) : undefined}
-                    >
+                    /* A linha NAO abre a ficha no celular. Abria, e o toque nos
+                       tres pontinhos — que ficam dentro dela — chegava na linha
+                       tambem: quem queria apadrinhar ou editar caia sempre na
+                       ficha. O caminho e o menu, nos dois tamanhos de tela. */
+                    <tr key={p.id}>
                       {/* No celular o nome vira texto, mesmo para quem pode
                           editar: a celula que vira campo ao toque abriria o
                           teclado em quem so queria rolar a lista. Edicao e no
@@ -544,8 +631,17 @@ export default function Padrinhos() {
                           itens={[
                             { rotulo: "Ver ficha", aoEscolher: () => abrirFicha(p.id) },
                             podeEditar && {
+                              rotulo: "Editar informações",
+                              aoEscolher: () => abrirEdicao(p),
+                            },
+                            podeEditar && {
                               rotulo: "Apadrinhar uma criança",
-                              aoEscolher: () => abrirFicha(p.id, true),
+                              // No celular, a pagina do passo a passo; no
+                              // computador, a janela por cima da ficha.
+                              aoEscolher: () =>
+                                estreita
+                                  ? navegar(`/padrinhos/${p.id}/apadrinhar`)
+                                  : definirApadrinhandoDe(p),
                             },
                             podeExcluir && {
                               rotulo: "Apagar padrinho",
@@ -576,6 +672,17 @@ export default function Padrinhos() {
             </div>
           )}
         </>
+      )}
+
+      {/* No celular o CTA da tela fica na base, fixo e a mao do polegar: a
+          lista rola por baixo dele, e cadastrar um padrinho nao exige voltar
+          ao topo. */}
+      {estreita && podeEditar && (
+        <div className="barra-base">
+          <Button onClick={abrirNovo} disabled={!edicaoAtiva}>
+            Novo padrinho
+          </Button>
+        </div>
       )}
     </div>
   );

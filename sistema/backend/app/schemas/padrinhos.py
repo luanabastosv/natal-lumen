@@ -85,6 +85,9 @@ class PadrinhoOut(BaseModel):
     apadrinhamentos: list[ApadrinhamentoResumo]
     total_combinado: Decimal
     total_pago: Decimal
+    # So na resposta do apadrinhar: o pagamento que acabou de nascer, para o
+    # comprovante subir para ele em seguida.
+    ultimo_pagamento_id: int | None = None
 
 
 class PaginaPadrinhos(BaseModel):
@@ -94,13 +97,20 @@ class PaginaPadrinhos(BaseModel):
     itens: list[PadrinhoOut]
 
 
-class ApadrinhamentoIn(BaseModel):
+class CriancaApadrinhada(BaseModel):
     crianca_id: int
-    padrinho_id: int
     tipo: str = Field(pattern="^(cesta|festa)$")
-    # Em branco usa o valor da edicao da crianca.
-    valor: Decimal | None = Field(default=None, ge=0, decimal_places=2)
-    vai_ao_evento: bool | None = None
+
+
+class ApadrinharComPagamento(BaseModel):
+    """Apadrinhar e pagar sao um ato so: as criancas escolhidas e o dinheiro
+    que as quita entram juntos, ou nada entra. Nao ha mais "reservar" uma
+    crianca para pagar depois."""
+
+    criancas: list[CriancaApadrinhada] = Field(min_length=1)
+    data: date
+    forma: str | None = Field(default=None, max_length=40)
+    observacoes: str | None = None
 
 
 class ApadrinhamentoEditar(BaseModel):

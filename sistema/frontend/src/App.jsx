@@ -10,6 +10,7 @@ import Login from "./pages/Login.jsx";
 import NaoEncontrada from "./pages/NaoEncontrada.jsx";
 import Cartoes from "./pages/Cartoes.jsx";
 import Checkin from "./pages/Checkin.jsx";
+import Apadrinhar from "./pages/Apadrinhar.jsx";
 import EnvioCartoes from "./pages/EnvioCartoes.jsx";
 import Financeiro from "./pages/Financeiro.jsx";
 import Kits from "./pages/Kits.jsx";
@@ -84,6 +85,17 @@ export default function App() {
                 element={
                   <RotaProtegida permissao="enviar_cartoes">
                     <EnvioCartoes />
+                  </RotaProtegida>
+                }
+              />
+
+              {/* O passo a passo de apadrinhar como pagina, para o celular. No
+                  computador ele abre por cima da ficha do padrinho. */}
+              <Route
+                path="/padrinhos/:id/apadrinhar"
+                element={
+                  <RotaProtegida permissao="editar_padrinhos">
+                    <Apadrinhar />
                   </RotaProtegida>
                 }
               />

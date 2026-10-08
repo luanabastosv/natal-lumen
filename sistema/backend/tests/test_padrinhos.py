@@ -137,6 +137,22 @@ def main() -> None:
                 db.add(UsuarioInstituicao(usuario_edicao_id=vinculo.id, instituicao_id=inst))
         return u
 
+    def apadrinhar(cliente, padrinho_id, *pares, data=date(2026, 11, 9), forma="pix"):
+        """Apadrinhar e pagar, de uma vez — nao ha mais apadrinhar sem pagar."""
+        return cliente.post(f"/padrinhos/{padrinho_id}/apadrinhar", json={
+            "criancas": [{"crianca_id": c, "tipo": t} for c, t in pares],
+            "data": str(data), "forma": forma,
+        })
+
+    def prometer(crianca, padrinho_id, tipo, valor, comissario_id):
+        """Uma promessa (apadrinhamento sem pagamento) do jeito antigo. Nao se
+        cria mais pela API, mas as que ja existem na base continuam valendo e
+        sendo quitadas pela aba de pagamentos."""
+        a = Apadrinhamento(crianca_id=crianca.id, padrinho_id=padrinho_id, tipo=tipo,
+                           valor=valor, comissario_id=comissario_id)
+        db.add(a); db.commit()
+        return a.id
+
     coord = usuario("Coord", "Coordenacao", [e1.id, e2.id])
     comissario = usuario("Comissario", "Comissarios - comissario", [e1.id], [i1.id])
     # O colega do mesmo TIME da Escola A: alcanca a mesma instituicao, mas
@@ -211,40 +227,73 @@ def main() -> None:
 
         print("\nApadrinhamentos")
         r = ck.post("/apadrinhamentos", json={"crianca_id": ana.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        verifica("nao existe mais apadrinhar sem pagar (reservar a crianca)",
+                 r.status_code in (404, 405), str(r.status_code))
+        r = apadrinhar(ck, jose["id"], (ana.id, "cesta"))
         verifica("liga padrinho a crianca", r.status_code == 201, r.text[:130])
         dados = r.json() if r.status_code == 201 else {}
+        verifica("e ja nasce pago", dados["apadrinhamentos"][0]["pago"] is True if dados else False,
+                 str(dados.get("apadrinhamentos")))
+        verifica("devolve o pagamento criado, para o comprovante subir nele",
+                 bool(dados.get("ultimo_pagamento_id")), str(dados.get("ultimo_pagamento_id")))
+        if dados:
+            p = ck.get("/pagamentos", params={"padrinho_id": jose["id"]}).json()["itens"]
+            verifica("o pagamento vale a soma do que apadrinhou",
+                     len(p) == 1 and p[0]["valor"] == "120.00", str(p))
         verifica("valor vem da edicao da crianca", dados["apadrinhamentos"][0]["valor"] == "120.00",
                  str(dados["apadrinhamentos"][0]["valor"]) if dados else "")
         verifica("padrinho recebe so o primeiro nome da crianca",
                  dados["apadrinhamentos"][0]["crianca_primeiro_nome"] == "Ana",
                  str(dados["apadrinhamentos"][0]["crianca_primeiro_nome"]) if dados else "")
 
-        r = ck.post("/apadrinhamentos", json={"crianca_id": ana.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        r = apadrinhar(ck, jose["id"], (ana.id, "cesta"))
         verifica("recusa dois padrinhos de cesta para a mesma crianca", r.status_code == 409)
 
-        r = ck.post("/apadrinhamentos", json={"crianca_id": ana.id, "padrinho_id": jose["id"], "tipo": "festa"})
+        r = apadrinhar(ck, jose["id"], (ana.id, "festa"))
         verifica("a mesma crianca aceita padrinho de festa", r.status_code == 201, r.text[:110])
 
-        r = ck.post("/apadrinhamentos", json={"crianca_id": bruno.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        r = apadrinhar(ck, jose["id"], (bruno.id, "cesta"))
         verifica("o mesmo padrinho apadrinha uma segunda crianca", r.status_code == 201, r.text[:110])
 
-        r = ck.post("/apadrinhamentos", json={"crianca_id": carla.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        # Tudo ou nada: uma crianca barrada no meio da lista nao deixa as
+        # outras entrarem pela metade.
+        antes = len(ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"])
+        r = apadrinhar(ck, jose["id"], (bruno.id, "festa"), (ana.id, "cesta"))
+        verifica("lista com uma crianca ja apadrinhada e recusada inteira",
+                 r.status_code == 409, str(r.status_code))
+        depois = len(ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"])
+        verifica("e nada da lista foi gravado", antes == depois, f"{antes} -> {depois}")
+
+        r = apadrinhar(ck, jose["id"], (bruno.id, "festa"), (bruno.id, "festa"))
+        verifica("a mesma crianca e tipo duas vezes e recusada", r.status_code == 422, str(r.status_code))
+
+        bruno.desistiu_em = func.now(); db.commit()
+        r = apadrinhar(ck, jose["id"], (bruno.id, "festa"))
+        verifica("crianca desistente nao se apadrinha", r.status_code == 409, str(r.status_code))
+        bruno.desistiu_em = None; db.commit()
+
+        r = cm.post(f"/padrinhos/{jose['id']}/apadrinhar", json={
+            "criancas": [{"crianca_id": bruno.id, "tipo": "festa"}], "data": "2026-11-09",
+        })
+        verifica("monitor NAO apadrinha", r.status_code == 403, str(r.status_code))
+
+        r = apadrinhar(ck, jose["id"], (carla.id, "cesta"))
         verifica("comissario de Fortaleza nao alcanca crianca de Caucaia", r.status_code == 403, str(r.status_code))
 
         # A lista dele, e nao a escola dele: as duas abaixo sao da Escola A, que
         # esta atribuida a ele, e as duas tem de ser recusadas.
-        r = ck.post("/apadrinhamentos", json={"crianca_id": duda.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        r = apadrinhar(ck, jose["id"], (duda.id, "cesta"))
         verifica("comissario nao apadrinha crianca da lista do colega",
                  r.status_code == 403, str(r.status_code))
         verifica("e o erro diz de quem ela e", "Colega" in r.text, r.text[:160])
 
-        r = ck.post("/apadrinhamentos", json={"crianca_id": elias.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        r = apadrinhar(ck, jose["id"], (elias.id, "cesta"))
         verifica("comissario nao apadrinha crianca sem responsavel",
                  r.status_code == 403, str(r.status_code))
         verifica("e o erro manda falar com a coordenacao",
                  "coordenacao" in r.text.lower(), r.text[:160])
 
-        r = cc.post("/apadrinhamentos", json={"crianca_id": elias.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        r = apadrinhar(cc, jose["id"], (elias.id, "cesta"))
         verifica("a coordenacao apadrinha a crianca sem responsavel", r.status_code == 201, r.text[:140])
         if r.status_code == 201:
             de_elias = [a for a in r.json()["apadrinhamentos"] if a["crianca_id"] == elias.id][0]
@@ -261,7 +310,7 @@ def main() -> None:
             r = cc.delete(f"/apadrinhamentos/{de_elias['id']}")
             verifica("e o apadrinhamento de prova sai da ficha", r.status_code == 204, str(r.status_code))
 
-        r = cc.post("/apadrinhamentos", json={"crianca_id": carla.id, "padrinho_id": jose["id"], "tipo": "cesta"})
+        r = apadrinhar(cc, jose["id"], (carla.id, "cesta"))
         verifica("coordenacao das duas cidades faz o apadrinhamento cruzado", r.status_code == 201, r.text[:130])
         cruzado = r.json() if r.status_code == 201 else {}
         if cruzado:
@@ -297,7 +346,14 @@ def main() -> None:
                  str(de_carla_na_ficha.get("comissario")))
 
         print("\nPagamentos")
-        ids_cesta = [a["id"] for a in cruzado["apadrinhamentos"] if a["tipo"] == "cesta"][:2]
+        # Os apadrinhamentos acima ja nasceram pagos. Para provar que a aba de
+        # pagamentos ainda quita as promessas que vieram de antes, duas delas
+        # entram direto na base, como estavam: a do Bruno e do comissario, a do
+        # Elias da coordenacao.
+        ids_cesta = [
+            prometer(bruno, jose["id"], "festa", 60, comissario.id),
+            prometer(elias, jose["id"], "cesta", 120, coord.id),
+        ]
         # O comissario registra o pagamento dos padrinhos dele — e o pagamento
         # que confirma o apadrinhamento, entao sem isto o trabalho dele so
         # entraria nos numeros quando a coordenacao passasse por ali.
@@ -331,7 +387,7 @@ def main() -> None:
                  r.status_code == 204, str(r.status_code))
 
         r = cc.post("/pagamentos", json={
-            "padrinho_id": jose["id"], "valor": "240.00", "data": str(date(2026, 11, 10)),
+            "padrinho_id": jose["id"], "valor": "180.00", "data": str(date(2026, 11, 10)),
             "forma": "pix", "apadrinhamentos": ids_cesta,
         })
         verifica("um pagamento quita varios apadrinhamentos", r.status_code == 201, r.text[:140])
@@ -340,9 +396,10 @@ def main() -> None:
                  len(pagamento.get("apadrinhamentos", [])) == 2, str(pagamento.get("apadrinhamentos")))
 
         r = ck.get(f"/padrinhos/{jose['id']}")
-        verifica("total pago reflete os quitados", r.json()["total_pago"] == "240.00", r.json()["total_pago"])
+        verifica("total pago reflete os quitados (450 de antes + 180)",
+                 r.json()["total_pago"] == "630.00", r.json()["total_pago"])
         pagos = [a for a in r.json()["apadrinhamentos"] if a["pago"]]
-        verifica("dois apadrinhamentos aparecem como pagos", len(pagos) == 2, str(len(pagos)))
+        verifica("todos os seis aparecem como pagos", len(pagos) == 6, str(len(pagos)))
 
         r = cc.post("/pagamentos", json={
             "padrinho_id": jose["id"], "valor": "60.00", "data": str(date(2026, 11, 11)),
@@ -372,9 +429,11 @@ def main() -> None:
         r = cc.get("/pagamentos", params={"conferido": "true"})
         verifica("filtra pagamentos conferidos", r.json()["total"] == 1, str(r.json()["total"]))
 
+        # Os cinco do apadrinhar (o do Elias ficou, sem destino, quando o
+        # apadrinhamento de prova foi desfeito) e este: nenhum tem comprovante.
         r = cc.get("/pagamentos", params={"comprovante": "false"})
         verifica("acha os pagamentos que ainda nao tem comprovante",
-                 r.json()["total"] == 1, str(r.json()["total"]))
+                 r.json()["total"] == 6, str(r.json()["total"]))
         r = cc.get("/pagamentos", params={"comprovante": "true"})
         verifica("e nao confunde com os que ja tem",
                  r.json()["total"] == 0, str(r.json()["total"]))
@@ -527,10 +586,16 @@ def main() -> None:
         verifica("apaga o pagamento", r.status_code == 204, str(r.status_code))
 
         r = ck.get(f"/padrinhos/{jose['id']}")
-        verifica("apagar o pagamento solta os apadrinhamentos", r.json()["total_pago"] == "0.00", r.json()["total_pago"])
+        ids_na_ficha = {a["id"] for a in r.json()["apadrinhamentos"]}
+        verifica("apagar o pagamento desfaz os apadrinhamentos que ele pagava",
+                 not (set(ids_cesta) & ids_na_ficha), str(ids_na_ficha))
+        verifica("e o pago do padrinho volta ao de antes",
+                 r.json()["total_pago"] == "450.00", r.json()["total_pago"])
 
-        r = ck.delete(f"/apadrinhamentos/{ids_cesta[0]}")
-        verifica("agora o apadrinhamento pode ser apagado", r.status_code == 204, str(r.status_code))
+        # As criancas voltam a ficar livres: o pagamento desfeito nao deixa
+        # promessa para tras. A promessa do Elias e refeita para os blocos de
+        # baixo, que provam o agradecimento de quem ainda nao pagou.
+        ids_cesta = [None, prometer(elias, jose["id"], "cesta", 120, coord.id)]
 
         print("\nVisibilidade do caso entre cidades")
         # Um comissario so de Caucaia deve enxergar o padrinho de Fortaleza que
@@ -547,27 +612,29 @@ def main() -> None:
                  "Outro Doador" not in nomes, str(nomes))
 
         print("\nAgradecimento")
-        # Relido agora: o bloco de remocao acima ja apagou o de cesta da Ana.
         vivos = ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]
         de_ana = [a for a in vivos if a["crianca_id"] == ana.id][0]
 
         # Promessa nao e apadrinhamento: o cartao AGRADECE, e nao ha o que
-        # agradecer antes do dinheiro. Neste ponto o de_ana esta sem pagamento
-        # (o bloco acima apagou o pagamento que o quitava).
-        r = ck.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
+        # agradecer antes do dinheiro. A do Elias ficou sem pagamento quando o
+        # bloco acima apagou o pagamento que a quitava.
+        promessa = ids_cesta[1]
+        r = ck.get(f"/apadrinhamentos/{promessa}/agradecimento")
         verifica("promessa sem pagamento nao gera cartao", r.status_code == 409, str(r.status_code))
         verifica("e a recusa explica o que falta",
                  "pagamento" in r.text.lower(), r.text[:140])
-        r = ck.post(f"/apadrinhamentos/{de_ana['id']}/agradecimento/enviar")
+        r = ck.post(f"/apadrinhamentos/{promessa}/agradecimento/enviar")
         verifica("nem envia pelo WhatsApp", r.status_code == 409, str(r.status_code))
 
-        # Registrado o pagamento, o mesmo apadrinhamento passa a valer.
+        # Registrado o pagamento, a mesma promessa passa a valer.
         r = cc.post("/pagamentos", json={
-            "padrinho_id": jose["id"], "valor": "60.00", "data": str(date(2026, 11, 20)),
-            "apadrinhamentos": [de_ana["id"]],
+            "padrinho_id": jose["id"], "valor": "120.00", "data": str(date(2026, 11, 20)),
+            "apadrinhamentos": [promessa],
         })
         verifica("a coordenacao registra o pagamento da promessa",
                  r.status_code == 201, r.text[:140])
+        r = ck.get(f"/apadrinhamentos/{promessa}/agradecimento")
+        verifica("e a promessa paga passa a gerar o cartao", r.status_code == 200, str(r.status_code))
 
         r = ck.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
         verifica("gera o cartao", r.status_code == 200, r.text[:110])
@@ -575,8 +642,8 @@ def main() -> None:
                  str(r.headers.get("content-type")))
         disposicao = r.headers.get("content-disposition", "")
         verifica("baixa como anexo", "attachment" in disposicao, disposicao)
-        verifica("arquivo e CODIGO_NOME_DA_CRIANCA.png",
-                 f'filename="{ana.codigo}_ANA_CLARA_AVILA.png"' in disposicao, disposicao)
+        verifica("arquivo e CODIGO_PRIMEIRO_NOME_PAD_PRIMEIRO_NOME_DO_PADRINHO.png",
+                 f'filename="{ana.codigo}_ANA_PAD_JOSE.png"' in disposicao, disposicao)
         verifica("nome do arquivo e ASCII puro, sem espaco",
                  disposicao.isascii() and " " not in disposicao.split('filename="')[-1],
                  disposicao)
@@ -713,12 +780,7 @@ def main() -> None:
         ]
         verifica("ha apadrinhamento do proprio comissario para a prova", bool(dele), "nenhum")
         alvo = dele[0]["id"]
-        r = cc.post("/pagamentos", json={
-            "padrinho_id": jose["id"], "valor": "120.00", "data": str(date(2026, 11, 25)),
-            "apadrinhamentos": [alvo],
-        })
-        verifica("pagamento registrado no apadrinhamento errado",
-                 r.status_code == 201, r.text[:140])
+        verifica("o apadrinhamento errado ja nasceu pago", dele[0]["pago"] is True, str(dele[0]))
 
         r = ck.delete(f"/apadrinhamentos/{alvo}")
         verifica("comissario NAO desfaz apadrinhamento pago",
@@ -773,11 +835,14 @@ def main() -> None:
         # Duda e do colega: o apadrinhamento nasce no nome dele.
         r = ccol.post("/padrinhos", json={"edicao_id": e1.id, "nome": f"{MARCA} Doador do Colega"})
         do_colega = r.json()
-        r = ccol.post("/apadrinhamentos", json={
-            "crianca_id": duda.id, "padrinho_id": do_colega["id"], "tipo": "cesta",
-        })
+        r = apadrinhar(ccol, do_colega["id"], (duda.id, "festa"))
         verifica("o colega apadrinha a crianca dele", r.status_code == 201, r.text[:140])
-        alheio = [a for a in r.json()["apadrinhamentos"] if a["crianca_id"] == duda.id][0]["id"]
+        r = apadrinhar(ck, do_colega["id"], (duda.id, "cesta"))
+        verifica("e o outro comissario nao apadrinha a crianca do colega",
+                 r.status_code == 403, str(r.status_code))
+        # Uma promessa antiga do colega, para provar a regra de dono tambem no
+        # quitar.
+        alheio = prometer(duda, do_colega["id"], "cesta", 120, colega.id)
 
         r = ck.patch(f"/apadrinhamentos/{alheio}", json={"valor": "999.00"})
         verifica("o outro comissario NAO edita o apadrinhamento do colega",

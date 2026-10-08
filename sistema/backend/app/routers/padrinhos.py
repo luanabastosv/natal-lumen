@@ -31,7 +31,7 @@ from app.models.tipos import TipoApadrinhamento
 from app.schemas.cadastros import DependenciasOut
 from app.schemas.padrinhos import (
     ApadrinhamentoEditar,
-    ApadrinhamentoIn,
+    ApadrinharComPagamento,
     ApadrinhamentoResumo,
     EnvioCartaoOut,
     PadrinhoEditar,
@@ -310,14 +310,11 @@ def _fora_do_alcance(crianca: Crianca) -> str:
     return "Esta crianca nao esta na sua lista."
 
 
-@router.post("/apadrinhamentos", response_model=PadrinhoOut, status_code=status.HTTP_201_CREATED)
-def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
-    """Liga uma crianca a um padrinho, num dos dois tipos."""
-    padrinho = _carregar(db, dados.padrinho_id, ctx, "editar_padrinhos")
-
+def _crianca_para_apadrinhar(db: Session, ctx: ContextoAcesso, crianca_id: int) -> Crianca:
+    """A crianca, se quem pede pode apadrinha-la. Senao, o erro que diz por que."""
     crianca = db.scalar(
         select(Crianca)
-        .where(Crianca.id == dados.crianca_id)
+        .where(Crianca.id == crianca_id)
         .options(joinedload(Crianca.edicao), joinedload(Crianca.comissario))
     )
     if crianca is None:
@@ -347,45 +344,118 @@ def criar_apadrinhamento(dados: ApadrinhamentoIn, db: BD, ctx: Editar):
     if no_alcance is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, _fora_do_alcance(crianca))
 
-    valor = dados.valor
-    if valor is None:
+    # Quem desistiu nao vai ao evento: nao ha cesta nem festa para pagar.
+    if crianca.desistiu_em is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{crianca.codigo} desistiu de ir ao evento e nao pode ser apadrinhada.",
+        )
+    return crianca
+
+
+@router.post(
+    "/padrinhos/{padrinho_id}/apadrinhar",
+    response_model=PadrinhoOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def apadrinhar_com_pagamento(
+    padrinho_id: int, dados: ApadrinharComPagamento, db: BD, ctx: Editar
+):
+    """Apadrinha as criancas escolhidas E registra o pagamento delas, de uma vez.
+
+    Nao existe mais apadrinhar sem pagar. A "promessa" segurava a crianca
+    para um padrinho que podia nunca pagar, e enquanto isso nenhum outro
+    comissario podia oferece-la a ninguem. Agora a crianca so sai da lista de
+    disponiveis quando o dinheiro entra — e entra no mesmo ato.
+
+    Tudo ou nada: se UMA crianca da lista nao puder (ja tem padrinho, nao e da
+    sua lista, desistiu), nada e gravado, e o erro diz qual.
+
+    O valor do pagamento e a soma dos apadrinhamentos, cada um com o preco da
+    edicao da crianca. O comprovante sobe em seguida, por
+    POST /pagamentos/{id}/comprovante — o id volta em `ultimo_pagamento_id`.
+    """
+    padrinho = _carregar(db, padrinho_id, ctx, "editar_padrinhos")
+    # Apadrinhar agora e tambem registrar dinheiro: as duas permissoes.
+    if not ctx.alcanca_edicao(padrinho.edicao_id, "registrar_pagamentos_padrinho"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Apadrinhar registra o pagamento junto, e voce nao registra pagamentos.",
+        )
+
+    pares = [(c.crianca_id, c.tipo) for c in dados.criancas]
+    if len(set(pares)) != len(pares):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "A mesma crianca e tipo vieram duas vezes."
+        )
+
+    criancas = {cid: _crianca_para_apadrinhar(db, ctx, cid) for cid, _ in pares}
+
+    pagamento = Pagamento(
+        padrinho_id=padrinho.id,
+        valor=Decimal("0"),
+        data=dados.data,
+        forma=dados.forma,
+        observacoes=dados.observacoes,
+        registrado_por=ctx.usuario.id,
+    )
+    db.add(pagamento)
+    db.flush()
+
+    total = Decimal("0")
+    criados = []
+    for crianca_id, tipo in pares:
+        crianca = criancas[crianca_id]
         # Copiado da edicao da CRIANCA: e a edicao que define quanto custa a
         # cesta e a festa daquele evento.
         valor = (
             crianca.edicao.valor_cesta
-            if dados.tipo == TipoApadrinhamento.CESTA
+            if tipo == TipoApadrinhamento.CESTA
             else crianca.edicao.valor_festa
         )
-
-    apadrinhamento = Apadrinhamento(
-        crianca_id=crianca.id,
-        padrinho_id=padrinho.id,
-        tipo=dados.tipo,
-        valor=valor,
-        comissario_id=ctx.usuario.id,
-        vai_ao_evento=dados.vai_ao_evento,
-    )
-    db.add(apadrinhamento)
-
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"Esta crianca ja tem padrinho de {dados.tipo}.",
+        total += valor
+        apadrinhamento = Apadrinhamento(
+            crianca_id=crianca.id,
+            padrinho_id=padrinho.id,
+            tipo=tipo,
+            valor=valor,
+            comissario_id=ctx.usuario.id,
+            pagamento_id=pagamento.id,
         )
+        db.add(apadrinhamento)
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{crianca.codigo} ja tem padrinho de {tipo}. Nada foi gravado.",
+            )
+        criados.append(apadrinhamento)
 
+    pagamento.valor = total
+    for a in criados:
+        registrar(
+            db, "apadrinhamento_criado", usuario_id=ctx.usuario.id,
+            tabela="apadrinhamentos", registro_id=a.id,
+            detalhes={
+                "crianca_id": a.crianca_id, "padrinho_id": padrinho.id,
+                "tipo": a.tipo, "valor": str(a.valor), "pagamento_id": pagamento.id,
+            },
+        )
     registrar(
-        db, "apadrinhamento_criado", usuario_id=ctx.usuario.id,
-        tabela="apadrinhamentos", registro_id=apadrinhamento.id,
+        db, "pagamento_registrado", usuario_id=ctx.usuario.id,
+        tabela="pagamentos", registro_id=pagamento.id,
         detalhes={
-            "crianca_id": crianca.id, "padrinho_id": padrinho.id,
-            "tipo": dados.tipo, "valor": str(valor),
+            "padrinho_id": padrinho.id, "valor": str(total),
+            "apadrinhamentos": [a.id for a in criados],
         },
     )
     db.commit()
-    return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
+    db.expire_all()
+    saida = _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
+    saida.ultimo_pagamento_id = pagamento.id
+    return saida
 
 
 def _apadrinhamento_do_agradecimento(db: Session, apadrinhamento_id: int, ctx: ContextoAcesso):
@@ -449,7 +519,9 @@ def _montar_agradecimento(apadrinhamento) -> tuple[bytes, str]:
         cidade=edicao.cidade.nome,
         ano=edicao.ano,
     )
-    return png, agradecimento.nome_do_arquivo(crianca.codigo, crianca.nome)
+    return png, agradecimento.nome_do_arquivo(
+        crianca.codigo, crianca.nome, apadrinhamento.padrinho.nome
+    )
 
 
 @router.get("/apadrinhamentos/{apadrinhamento_id}/agradecimento")
@@ -468,8 +540,9 @@ def baixar_agradecimento(apadrinhamento_id: int, db: BD, ctx: Ver):
 def agradecimentos_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
     """Todos os agradecimentos de um padrinho, num ZIP so.
 
-    Quem apadrinhou quinze criancas recebe quinze agradecimentos, e baixar um a
-    um sao quinze cliques e quinze "salvar como". As regras sao as do
+    A tela so usa este caminho com MAIS DE DEZ criancas: ate dez ela baixa os
+    arquivos soltos, um por um, que e o que se anexa direto na conversa. Com
+    quinze, quinze downloads soltos viram bagunca na pasta, e o ZIP junta. As regras sao as do
     agradecimento avulso: so o que ja foi pago, e so as criancas que quem pede alcanca —
     o padrinho de outra cidade pode ter criancas de la, e essas ficam de fora.
 
@@ -889,10 +962,17 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Auditar):
 
     _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos")
 
-    # Solta os apadrinhamentos que ele quitava, senao ficariam apontando para
-    # um pagamento que nao existe mais.
-    for a in pagamento.apadrinhamentos:
-        a.pagamento_id = None
+    # Os apadrinhamentos que ele quitava saem JUNTO. Desde que apadrinhar e
+    # pagar viraram um ato so, nao ha mais promessa: soltar o apadrinhamento
+    # do pagamento deixava a crianca presa a um padrinho que nao pagou, e a
+    # ficha dele continuava mostrando a crianca como se nada tivesse
+    # acontecido. Desfeito o pagamento, a crianca volta a ficar disponivel.
+    desfeitos = [
+        {"id": a.id, "crianca_id": a.crianca_id, "tipo": a.tipo}
+        for a in pagamento.apadrinhamentos
+    ]
+    for a in list(pagamento.apadrinhamentos):
+        db.delete(a)
 
     # O comprovante sai do disco junto: sem a linha, ninguem mais alcanca o
     # arquivo, e ele ficaria ocupando lugar para sempre.
@@ -901,7 +981,7 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Auditar):
     registrar(
         db, "pagamento_apagado", usuario_id=ctx.usuario.id,
         tabela="pagamentos", registro_id=pagamento.id,
-        detalhes={"valor": str(pagamento.valor)},
+        detalhes={"valor": str(pagamento.valor), "apadrinhamentos_desfeitos": desfeitos},
     )
     db.delete(pagamento)
     db.commit()

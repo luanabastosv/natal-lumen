@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import BotaoIcone from "../core/BotaoIcone.jsx";
 import Button from "../core/Button.jsx";
 import { Baixar, Desfazer, Enviar } from "../core/icones.jsx";
@@ -6,24 +7,22 @@ import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
 import ApadrinharCriancas from "./ApadrinharCriancas.jsx";
 import RegistrarPagamento from "./RegistrarPagamento.jsx";
-import { useNotificar } from "../../contexts/useNotificar.js";
 import { useSessao } from "../../contexts/useSessao.js";
-import { salvarBlob } from "../../services/api.js";
 import {
   apagarApadrinhamento,
   baixarAgradecimento,
   baixarTodosAgradecimentos,
   detalharPadrinho,
-  editarPadrinho,
-  enviarAgradecimento,
-  obterAgradecimento,
 } from "../../services/padrinhos.js";
 import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { primeiroNome } from "../../utils/nomes.js";
-import { linkWhatsapp, podeCompartilharArquivo } from "../../utils/whatsapp.js";
+import { linkWhatsapp } from "../../utils/whatsapp.js";
+import useTelaEstreita from "../../hooks/useTelaEstreita.js";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
+// Ate quantos agradecimentos o "baixar todos" entrega soltos; acima, num ZIP.
+const LIMITE_SOLTOS = 10;
 
 /** A ficha de um padrinho: os dados dele e TODAS as criancas apadrinhadas.
  *
@@ -48,12 +47,8 @@ export default function FichaPadrinho({
   // Quem registra pagamento nao e quem edita padrinho: sao duas permissoes
   // diferentes, e ha comissario que so faz uma das duas.
   podePagar = false,
-  // A linha da planilha tem um atalho que abre esta ficha ja no
-  // formulario de apadrinhar.
-  iniciarLigando = false,
 }) {
   const [erro, definirErro] = useState("");
-  const notificar = useNotificar();
   const { usuario, vinculoAtivo } = useSessao();
 
   // O comissario de base so mexe no apadrinhamento que ele mesmo registrou —
@@ -62,51 +57,12 @@ export default function FichaPadrinho({
   const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
   const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
 
-  // Qual das duas perguntas da captacao esta sendo salva. Elas sao respondidas
-  // numa conversa que quase nunca e a do cadastro — o doador diz "esse ano
-  // quero contribuir todo mes" semanas depois —, entao tem de dar para mudar
-  // aqui, e nao so no formulario de criar.
-  const [salvandoCampo, definirSalvandoCampo] = useState("");
-
-  async function responder(campo, valor) {
-    definirErro("");
-    definirSalvandoCampo(campo);
-    try {
-      aoMudar?.(await editarPadrinho(padrinho.id, { [campo]: valor }));
-    } catch (e) {
-      definirErro(e.message);
-    } finally {
-      definirSalvandoCampo("");
-    }
-  }
-
-  /* Tres estados, e o vazio NAO e "nao": e "ninguem perguntou". Um select de
-     sim/nao obrigaria a responder por quem nunca foi perguntado — e e
-     justamente a lista dos que faltam perguntar que a captacao reaproveita no
-     ano seguinte. */
-  /* Funcao que devolve JSX, e nao componente: declarado aqui dentro, um
-     componente nasceria diferente a cada render e o <select> remontaria —
-     perdendo o foco de quem estava respondendo. */
-  function resposta(campo, valor) {
-    if (!podeEditar) {
-      return <dd>{valor === true ? "Sim" : valor === false ? "Não" : "a perguntar"}</dd>;
-    }
-    return (
-      <dd>
-        <select
-          className="campo__controle campo__controle--selecao ficha__resposta"
-          value={valor === true ? "sim" : valor === false ? "nao" : ""}
-          disabled={salvandoCampo === campo}
-          onChange={(e) =>
-            responder(campo, e.target.value === "" ? null : e.target.value === "sim")
-          }
-        >
-          <option value="">a perguntar</option>
-          <option value="sim">Sim</option>
-          <option value="nao">Não</option>
-        </select>
-      </dd>
-    );
+  /* As duas perguntas da captacao, so para ler. Responder e no cadastro
+     ("Editar informacoes", no menu da linha), que exige Sim ou Nao — a ficha
+     nao tem mais seletor. "a perguntar" so aparece em cadastro antigo, de
+     antes de as perguntas serem obrigatorias. */
+  function resposta(valor) {
+    return <dd>{valor === true ? "Sim" : valor === false ? "Não" : "a perguntar"}</dd>;
   }
 
   // Qual agradecimento esta sendo gerado ou enviado: o PNG e montado no
@@ -117,7 +73,6 @@ export default function FichaPadrinho({
   // papel que a crianca escreve. O agradecimento e a arte que o sistema monta.
   const [baixandoAgradecimento, definirBaixandoAgradecimento] = useState(null);
   const [baixandoTodos, definirBaixandoTodos] = useState(false);
-  const [enviando, definirEnviando] = useState(null);
   const [desfazendo, definirDesfazendo] = useState(null);
   // Qual apadrinhamento PAGO esta esperando confirmacao. Promessa se desfaz num
   // clique — nada se perde, e quem capta erra e corrige na mesma conversa. Com
@@ -129,7 +84,20 @@ export default function FichaPadrinho({
   // janela empurravam a lista para baixo a cada clique: a pessoa apertava um
   // botao e o que ela estava lendo mudava de lugar. A faixa de abas fica
   // sempre no mesmo ponto e so o conteudo abaixo dela troca.
-  const [aba, definirAba] = useState(iniciarLigando ? "apadrinhar" : "criancas");
+  const [aba, definirAba] = useState("criancas");
+  // O passo a passo de apadrinhar abre POR CIMA da ficha, numa janela propria:
+  // e uma tarefa com comeco, meio e fim, e nao mais uma aba para olhar.
+  const podeApadrinhar = podeEditar && podePagar;
+  const [apadrinhando, definirApadrinhando] = useState(false);
+  const estreita = useTelaEstreita();
+  const navegar = useNavigate();
+
+  /** No celular o passo a passo e uma pagina; no computador, uma janela por
+   *  cima da ficha. */
+  function apadrinhar() {
+    if (estreita) navegar(`/padrinhos/${padrinho.id}/apadrinhar`);
+    else definirApadrinhando(true);
+  }
 
 
   const zap = linkWhatsapp(padrinho.whatsapp);
@@ -150,14 +118,14 @@ export default function FichaPadrinho({
       rotulo: "Crianças",
       contagem: `${padrinho.apadrinhamentos.length} apadrinhada(s)`,
     },
-    podeEditar && { id: "apadrinhar", rotulo: "Apadrinhar", contagem: "ligar mais uma" },
     podePagar &&
       padrinho.apadrinhamentos.length > 0 && {
         id: "pagamento",
-        rotulo: "Pagamento",
+        rotulo: "Pagamentos",
         // Curto de proposito: a aba divide a largura com as outras duas, e
-        // no celular um rotulo longo era cortado no meio da palavra.
-        contagem: aPagar === 0 ? "tudo confirmado" : `${aPagar} a confirmar`,
+        // no celular um rotulo longo era cortado no meio da palavra. As
+        // promessas sao as de antes de o pagamento entrar junto.
+        contagem: aPagar === 0 ? "comprovantes" : `${aPagar} promessa(s)`,
       },
   ].filter(Boolean);
 
@@ -196,11 +164,29 @@ export default function FichaPadrinho({
     }
   }
 
+  /** Ate dez, um arquivo por crianca, soltos — e o que se anexa direto na
+   *  conversa com o padrinho. Acima de dez, um ZIP: quinze downloads soltos
+   *  viram bagunca na pasta.
+   *
+   *  Em serie e com uma pausa curta: disparados juntos, o navegador descarta
+   *  parte dos downloads. Na primeira vez o Chrome pergunta se o site pode
+   *  baixar varios arquivos — e preciso permitir. */
   async function baixarTodos() {
     definirErro("");
     definirBaixandoTodos(true);
     try {
-      await baixarTodosAgradecimentos(padrinho.id);
+      if (agradecimentosProntos > LIMITE_SOLTOS) {
+        await baixarTodosAgradecimentos(padrinho.id);
+      } else {
+        const porCrianca = new Map();
+        for (const a of padrinho.apadrinhamentos) {
+          if (a.pago && !porCrianca.has(a.crianca_id)) porCrianca.set(a.crianca_id, a);
+        }
+        for (const a of porCrianca.values()) {
+          await baixarAgradecimento(a.id);
+          await new Promise((pronto) => setTimeout(pronto, 400));
+        }
+      }
     } catch (e) {
       definirErro(e.message);
     } finally {
@@ -208,63 +194,27 @@ export default function FichaPadrinho({
     }
   }
 
-  /** Manda a arte para o WhatsApp do padrinho.
+  /** Abre a conversa com o padrinho no WhatsApp, com a mensagem pronta.
    *
-   * Caminho principal: o servidor envia sozinho pela Cloud API da Meta.
-   * Se o servidor nao tiver credenciais (503), cai no envio a mao — no
-   * celular pela folha de compartilhar nativa, que entrega o PNG de verdade;
-   * no desktop baixando o arquivo e abrindo a conversa com o texto pronto,
-   * porque o link do WhatsApp so aceita texto, nunca anexo.
+   * So abre: a imagem nao vai por aqui. O link do WhatsApp carrega so texto,
+   * e o agradecimento quem baixa e o comissario, pelo botao de baixar ao lado
+   * (ou o ZIP de todos), para anexar na conversa que este abre.
+   *
+   * O envio automatico pela Cloud API da Meta esta DESLIGADO de proposito: o
+   * agradecimento sai da conversa de quem captou o padrinho, e nao de um
+   * numero do sistema. A rota do servidor (/agradecimento/enviar) continua
+   * existindo, so nao e mais chamada daqui.
+   *
+   * Sincrono de proposito: o `window.open` no mesmo clique nao e barrado como
+   * pop-up, e depois de um `await` seria.
    */
-  async function enviarNoWhatsapp(apadrinhamento) {
-    definirErro("");
-    definirEnviando(apadrinhamento.id);
-    try {
-      await enviarAgradecimento(apadrinhamento.id);
-      notificar(
-        `Agradecimento de ${apadrinhamento.crianca_primeiro_nome} enviado para ` +
-          `${padrinho.nome.split(" ")[0]} no WhatsApp.`,
-      );
-      await recarregar();
-    } catch (e) {
-      // 503 = este servidor nao tem a Cloud API ligada. Qualquer outro erro
-      // (numero invalido, recusa da Meta) e erro de verdade e tem de aparecer.
-      if (e.status !== 503) {
-        definirErro(e.message);
-        return;
-      }
-      await enviarAMao(apadrinhamento);
-    } finally {
-      definirEnviando(null);
-    }
-  }
-
-  /** Reserva: sem Cloud API, quem envia e a pessoa. */
-  async function enviarAMao(apadrinhamento) {
-    try {
-      const { blob, nomeArquivo } = await obterAgradecimento(apadrinhamento.id);
-      const texto =
-        `Oi, ${padrinho.nome.split(" ")[0]}! Obrigado por apadrinhar ` +
-        `${apadrinhamento.crianca_primeiro_nome} no Natal Lumen. ` +
-        `Segue o nosso agradecimento.`;
-
-      const arquivo = new File([blob], nomeArquivo, { type: "image/png" });
-      if (podeCompartilharArquivo(arquivo)) {
-        await navigator.share({ files: [arquivo], text: texto });
-        return;
-      }
-
-      salvarBlob(blob, nomeArquivo);
-      const link = linkWhatsapp(padrinho.whatsapp, texto);
-      if (link) window.open(link, "_blank", "noopener");
-      notificar(
-        `Agradecimento de ${apadrinhamento.crianca_primeiro_nome} baixado. ` +
-          "Arraste a imagem para a conversa que abriu.",
-      );
-    } catch (e) {
-      // Fechar a folha de compartilhar nao e erro.
-      if (e.name !== "AbortError") definirErro(e.message);
-    }
+  function abrirWhatsapp(apadrinhamento) {
+    const texto =
+      `Oi, ${padrinho.nome.split(" ")[0]}! Obrigado por apadrinhar ` +
+      `${apadrinhamento.crianca_primeiro_nome} no Natal Lumen. ` +
+      `Segue o nosso agradecimento.`;
+    const link = linkWhatsapp(padrinho.whatsapp, texto);
+    if (link) window.open(link, "_blank", "noopener");
   }
 
   return (
@@ -273,6 +223,37 @@ export default function FichaPadrinho({
       titulo={padrinho.nome}
       aoFechar={aoFechar}
       tamanho="grande"
+      /* As duas acoes da ficha no pe, uma de cada lado: um so botao cheio, o
+         de apadrinhar, que e o que se vem fazer aqui. Baixar o ZIP so aparece
+         com mais de uma crianca paga — com uma, o icone na linha dela ja e o
+         caminho, e um segundo botao para a mesma coisa so pesaria. */
+      rodape={
+        (agradecimentosProntos > 1 || podeApadrinhar) && (
+          <div className="ficha__rodape">
+            {agradecimentosProntos > 1 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                iconLeft={<Baixar t={14} />}
+                onClick={baixarTodos}
+                carregando={baixandoTodos}
+                titulo={
+                  agradecimentosProntos > LIMITE_SOLTOS
+                    ? "Num arquivo .zip, um por criança paga"
+                    : "Um arquivo por criança paga"
+                }
+              >
+                Baixar os {agradecimentosProntos} agradecimentos
+              </Button>
+            )}
+            {podeApadrinhar && (
+              <Button size="sm" variant="primary" onClick={apadrinhar}>
+                Apadrinhar uma criança
+              </Button>
+            )}
+          </div>
+        )
+      }
     >
       <Mensagem tipo="erro">{erro}</Mensagem>
 
@@ -296,7 +277,9 @@ export default function FichaPadrinho({
           )}
         </dd>
         <dt>Email</dt>
-        <dd>
+        {/* Numa linha so, cortado com reticencias: o email inteiro fica na dica
+            do mouse e no proprio link. Quebrado em duas, empurrava a ficha. */}
+        <dd className="ficha__truncar" title={padrinho.email || undefined}>
           {padrinho.email ? <a href={`mailto:${padrinho.email}`}>{padrinho.email}</a> : "—"}
         </dd>
         {/* As duas perguntas da captacao. Ficam junto do contato, e nao no fim:
@@ -306,8 +289,6 @@ export default function FichaPadrinho({
         {resposta("membro_ser_feliz", padrinho.membro_ser_feliz)}
         <dt>Contribuição mensal</dt>
         {resposta("interesse_mensal", padrinho.interesse_mensal)}
-        <dt>Combinado</dt>
-        <dd>{dinheiro(padrinho.total_combinado)}</dd>
         <dt>Pago</dt>
         <dd>{dinheiro(padrinho.total_pago)}</dd>
         {padrinho.observacoes && (
@@ -431,14 +412,13 @@ export default function FichaPadrinho({
                           </BotaoIcone>
                           <BotaoIcone
                             titulo={
-                              padrinho.whatsapp
-                                ? `${a.cartao_status === "enviado" ? "Reenviar" : "Enviar"} o agradecimento de ` +
-                                  `${a.crianca_primeiro_nome} pelo WhatsApp`
-                                : "Este padrinho não tem WhatsApp cadastrado"
+                              zap
+                                ? `Abrir a conversa com ${padrinho.nome.split(" ")[0]} no WhatsApp, ` +
+                                  `com o agradecimento de ${a.crianca_primeiro_nome} escrito`
+                                : "Este padrinho não tem WhatsApp válido cadastrado"
                             }
-                            onClick={() => enviarNoWhatsapp(a)}
-                            disabled={!padrinho.whatsapp}
-                            carregando={enviando === a.id}
+                            onClick={() => abrirWhatsapp(a)}
+                            disabled={!zap}
                           >
                             <Enviar t={16} />
                           </BotaoIcone>
@@ -466,38 +446,9 @@ export default function FichaPadrinho({
                   </div>
                 ))}
               </div>
-              {/* Depois da lista: primeiro se ve quais criancas estao pagas,
-                  depois se baixa o agradecimento de todas de uma vez. */}
-              {agradecimentosProntos > 0 && (
-                <div className="barra-acoes ficha__baixar-agradecimentos">
-                  {/* A dica antes do botao: com a barra alinhada a direita, e
-                      o botao que fica na ponta, onde o olho termina a lista. */}
-                  {agradecimentosProntos > 1 && (
-                    <span className="campo__dica">Num arquivo .zip, um por criança paga.</span>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    iconLeft={<Baixar t={14} />}
-                    onClick={baixarTodos}
-                    carregando={baixandoTodos}
-                  >
-                    {agradecimentosProntos === 1
-                      ? "Baixar agradecimento"
-                      : `Baixar os ${agradecimentosProntos} agradecimentos`}
-                  </Button>
-                </div>
-              )}
             </>
           ))}
 
-        {aba === "apadrinhar" && (
-          <ApadrinharCriancas
-            padrinho={padrinho}
-            aoMudar={aoMudar}
-            aoTerminar={voltarParaLista}
-          />
-        )}
 
         {aba === "pagamento" && (
           <RegistrarPagamento
@@ -507,6 +458,17 @@ export default function FichaPadrinho({
           />
         )}
       </div>
+
+      {apadrinhando && (
+        <ApadrinharCriancas
+          padrinho={padrinho}
+          aoMudar={aoMudar}
+          aoFechar={() => {
+            definirApadrinhando(false);
+            voltarParaLista();
+          }}
+        />
+      )}
 
       {/* Por cima da ficha, e nao no lugar dela: a pessoa decide sem perder de
           vista de qual padrinho e a lista. */}

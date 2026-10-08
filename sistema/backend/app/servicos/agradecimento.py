@@ -253,13 +253,21 @@ def gerar(
     return saida.getvalue()
 
 
-def nome_do_arquivo(codigo: str, crianca_nome: str) -> str:
-    """{CODIGO}_{NOME_DA_CRIANCA}.png
+def nome_do_arquivo(codigo: str, crianca_nome: str, padrinho_nome: str) -> str:
+    """{CODIGO}_{PRIMEIRO_NOME_DA_CRIANCA}_PAD_{PRIMEIRO_NOME_DO_PADRINHO}.png
+
+    "ES01_ANA_PAD_JOSE.png": o codigo casa o arquivo com a planilha, e os dois
+    primeiros nomes dizem de quem para quem, sem abrir a imagem — e o que o
+    comissario procura na pasta de downloads com varios padrinhos no mesmo dia.
 
     Passa pelo limpar_texto, como o nome dos cartoes digitalizados: sem acento
     e sem espaco o arquivo atravessa WhatsApp, Windows e Drive sem virar
-    "ES01_Ana%20Clara%20A%CC%81vila".
+    "ES01_Ana%20A%CC%81vila".
     """
-    partes = [limpar_texto(p) for p in (codigo, crianca_nome)]
+    def primeiro(nome: str) -> str:
+        return limpar_texto((nome or "").strip().split(" ")[0])
+
+    partes = [limpar_texto(codigo), primeiro(crianca_nome)]
     base = "_".join(p for p in partes if p) or "AGRADECIMENTO"
-    return f"{base}.png"
+    padrinho = primeiro(padrinho_nome)
+    return f"{base}_PAD_{padrinho}.png" if padrinho else f"{base}.png"

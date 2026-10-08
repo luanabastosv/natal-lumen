@@ -73,6 +73,11 @@ class CriancaOut(BaseModel):
     # nao conta como apadrinhamento — ver servicos/apadrinhamento.py.
     promessa_cesta: bool | None = None
     promessa_festa: bool | None = None
+    # Quanto custa apadrinhar esta crianca em cada tipo: o preco e da edicao
+    # DELA, e o apadrinhar por codigo alcanca criancas de outra cidade. Nulo =
+    # sem `ver_padrinhos`.
+    valor_cesta: Decimal | None = None
+    valor_festa: Decimal | None = None
     # Quantos cartoes ja foram digitalizados. Este fica de pe para todo mundo
     # que ve a crianca: e o andamento do trabalho da monitoria, e nao diz nada
     # sobre doador nenhum.

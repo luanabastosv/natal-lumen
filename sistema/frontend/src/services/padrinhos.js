@@ -16,7 +16,11 @@ export const editarPadrinho = (id, dados) => api.patch(`/padrinhos/${id}`, dados
 export const apagarPadrinho = (id) => api.delete(`/padrinhos/${id}`);
 export const dependenciasDoPadrinho = (id) => api.get(`/padrinhos/${id}/dependencias`);
 
-export const criarApadrinhamento = (dados) => api.post("/apadrinhamentos", dados);
+/** Apadrinha as criancas e registra o pagamento delas, num ato so:
+ *  { criancas: [{ crianca_id, tipo }], data, forma, observacoes }. Devolve o
+ *  padrinho atualizado, com `ultimo_pagamento_id` para o comprovante. */
+export const apadrinharComPagamento = (padrinhoId, dados) =>
+  api.post(`/padrinhos/${padrinhoId}/apadrinhar`, dados);
 export const editarApadrinhamento = (id, dados) => api.patch(`/apadrinhamentos/${id}`, dados);
 export const apagarApadrinhamento = (id) => api.delete(`/apadrinhamentos/${id}`);
 

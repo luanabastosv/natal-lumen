@@ -234,13 +234,15 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
             registrados por outra pessoa do time. Quem recebe o pagamento deles é quem
             os registrou, ou quem coordena a captação.
           </Mensagem>
-        ) : (
-          <Mensagem tipo="sucesso">
-            Todos os apadrinhamentos deste padrinho já estão <strong>quitados</strong>.
-          </Mensagem>
-        )
+        ) : null
       ) : (
         <>
+          {/* So existe para as promessas de antes: hoje apadrinhar ja registra
+              o pagamento junto, e nao nasce promessa nova. */}
+          <Mensagem tipo="aviso">
+            Estes apadrinhamentos foram registrados antes de o pagamento entrar junto e
+            ainda estão sem pagamento. Registre o pagamento, ou desfaça na aba Crianças.
+          </Mensagem>
           {/* PRIMEIRO o que o dinheiro quita: e a decisao, e e dela que sai o
               valor. Perguntar data e forma antes seria pedir o detalhe de um
               pagamento que ainda nao existe. */}
@@ -332,7 +334,13 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
       )}
 
       {/* O que ja foi pago, com o comprovante de cada um. */}
-      <div className="pagamento__ja-pagos">
+      {/* O filete de cima separa esta lista do formulario. Sem formulario nem
+          aviso acima, ele vira uma linha solta no topo da aba. */}
+      <div
+        className={`pagamento__ja-pagos ${
+          aPagar.length === 0 && doColega === 0 ? "pagamento__ja-pagos--sozinho" : ""
+        }`}
+      >
         <div className="ficha__secao">Pagamentos deste padrinho</div>
 
         {pagamentos === null ? (
