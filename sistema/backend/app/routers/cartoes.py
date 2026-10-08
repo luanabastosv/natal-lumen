@@ -144,6 +144,7 @@ def _saida(db: Session, cartao: Cartao) -> CartaoOut:
         crianca_id=cartao.crianca_id,
         crianca_codigo=cartao.crianca.codigo,
         crianca_nome=cartao.crianca.nome,
+        crianca_desistiu_em=cartao.crianca.desistiu_em,
         instituicao=cartao.crianca.instituicao.nome,
         tipo=cartao.tipo,
         arquivo=cartao.arquivo,
@@ -367,6 +368,7 @@ async def lote_previa(
             item.codigo = crianca.codigo
             item.crianca_id = crianca.id
             item.crianca_nome = crianca.nome
+            item.crianca_desistiu_em = crianca.desistiu_em
             item.instituicao = crianca.instituicao.nome
             # As duas recusas dizem o QUE houve e o QUE FAZER. Antes diziam so
             # o que houve, e quem subia ficava olhando um arquivo barrado sem

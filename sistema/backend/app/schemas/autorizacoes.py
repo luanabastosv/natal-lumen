@@ -43,6 +43,9 @@ class AutorizacaoOut(BaseModel):
     crianca_id: int
     crianca_codigo: str
     crianca_nome: str
+    # Preenchido = a crianca desistiu de ir. A tela poe a etiqueta de
+    # desistente em todo lugar onde ela aparece.
+    crianca_desistiu_em: datetime | None = None
     instituicao: str
     criado_em: datetime
 

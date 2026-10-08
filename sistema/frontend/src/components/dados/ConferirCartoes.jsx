@@ -6,6 +6,7 @@ import Modal from "../feedback/Modal.jsx";
 import { urlDaImagemDoLote } from "../../services/cartoes.js";
 import RespostasAutorizacao from "./RespostasAutorizacao.jsx";
 import { respostasCompletas } from "./autorizacao.js";
+import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 /** Conferencia do lote, um cartao por vez.
  *
@@ -184,6 +185,7 @@ export default function ConferirCartoes({
         <span className="conferencia__codigo">{item.codigo ?? "sem código"}</span>
         <div className="conferencia__nome">
           {item.crianca_nome ?? <span className="celula--vazia">{item.arquivo}</span>}
+          {item.crianca_desistiu_em && <EtiquetaDesistente className="etiqueta--ao-lado" />}
           <span className="campo__dica" style={{ marginTop: 2, display: "block" }}>
             {item.instituicao ? `${item.instituicao} · ` : ""}
             {item.arquivo}

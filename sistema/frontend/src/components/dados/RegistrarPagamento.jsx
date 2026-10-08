@@ -13,6 +13,7 @@ import {
   subirComprovante,
 } from "../../services/padrinhos.js";
 import { dinheiro, formatarData } from "../../utils/dinheiro.js";
+import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 const FORMAS = ["Pix", "Dinheiro", "Transferência", "Cartão", "Boleto"];
 
@@ -268,6 +269,7 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
                   >
                     <span className="ficha__linha-codigo">{a.crianca_codigo}</span>
                     {a.crianca_nome}, {a.crianca_idade}
+                    {a.crianca_desistiu_em && <EtiquetaDesistente className="etiqueta--ao-lado" />}
                   </span>
                   <span className="etiqueta etiqueta--neutra">{a.tipo}</span>
                   <span className="pagamento__preco">{dinheiro(a.valor)}</span>

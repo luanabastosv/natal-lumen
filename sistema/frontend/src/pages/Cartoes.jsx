@@ -29,6 +29,7 @@ import {
   trocarImagemDoCartao,
 } from "../services/cartoes.js";
 import { formatarDataHora } from "../utils/dinheiro.js";
+import EtiquetaDesistente from "../components/core/EtiquetaDesistente.jsx";
 
 const AUTORIZACAO = "autorizacao";
 
@@ -616,6 +617,7 @@ export default function Cartoes() {
                 </span>
                 <span className="mural__codigo">{c.crianca_codigo}</span>
                 <span className="mural__nome">{c.crianca_nome}</span>
+                {c.crianca_desistiu_em && <EtiquetaDesistente />}
                 </button>
               </div>
             ))}
@@ -645,6 +647,7 @@ export default function Cartoes() {
                   <span className="cartoes-lista__codigo">{c.crianca_codigo}</span>
                   <span className="cartoes-lista__nome">{c.crianca_nome}</span>
                 </span>
+                {c.crianca_desistiu_em && <EtiquetaDesistente />}
                 <span className={`etiqueta etiqueta--${c.tipo}`}>{NOME_DO_TIPO[c.tipo]}</span>
               </button>
 
@@ -731,6 +734,11 @@ export default function Cartoes() {
           tamanho="largo"
           aoFechar={() => definirVendo(null)}
         >
+          {vendo.crianca_desistiu_em && (
+            <p className="ficha__desistente">
+              <EtiquetaDesistente /> Esta criança desistiu de ir ao evento.
+            </p>
+          )}
           <img
             className="cartao-imagem"
             src={imagemDe(vendo)}

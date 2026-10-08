@@ -7,6 +7,7 @@ import { detalharCrianca, marcarDesistencia } from "../../services/criancas.js";
 import EtiquetaDia from "../core/EtiquetaDia.jsx";
 import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { linkWhatsapp } from "../../utils/whatsapp.js";
+import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
 
@@ -73,6 +74,14 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
 
       {ficha && (
         <>
+          {/* Em cima de tudo: e a primeira coisa que muda o que se faz com ela. */}
+          {desistiu && (
+            <p className="ficha__desistente">
+              <EtiquetaDesistente /> Desistiu de ir ao evento em{" "}
+              {new Date(ficha.desistiu_em).toLocaleDateString("pt-BR")}.
+            </p>
+          )}
+
           {/* Uma ave-maria por vez que ela apareceu no convite de oracao do
               dia, somando todo mundo. Sem nenhuma, a etiqueta nem existe. */}
           {ficha.ave_marias > 0 && (

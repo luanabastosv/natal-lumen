@@ -9,6 +9,7 @@ import { Visto } from "../components/core/icones.jsx";
 import Estrelinhas from "../components/feedback/Estrelinhas.jsx";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
+import EtiquetaDesistente from "../components/core/EtiquetaDesistente.jsx";
 
 export default function Checkin() {
   const { usuario, vinculoAtivo, edicaoAtiva } = useSessao();
@@ -228,7 +229,7 @@ function CheckinPorLista() {
                     {variasInstituicoes && (
                       <span className="campo__dica">{l.instituicao}</span>
                     )}
-                    {l.desistiu_em && <span className="campo__dica">desistiu</span>}
+                    {l.desistiu_em && <EtiquetaDesistente className="etiqueta--ao-lado" />}
                     {avisosDaLinha.map((a) => (
                       <span key={a} className="checkin-lista__aviso">
                         {a}

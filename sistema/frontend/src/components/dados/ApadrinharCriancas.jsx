@@ -6,6 +6,7 @@ import { useSessao } from "../../contexts/useSessao.js";
 import { listarCriancas } from "../../services/criancas.js";
 import { criarApadrinhamento } from "../../services/padrinhos.js";
 import { nomeCurto } from "../../utils/nomes.js";
+import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 // Busca por codigo e o "escape" que alcanca qualquer instituicao das edicoes
 // do usuario, e cada uma fica registrada em log. Uma busca por codigo, uma
@@ -260,6 +261,7 @@ export default function ApadrinharCriancas({ padrinho, aoMudar, aoTerminar }) {
                 </span>
 
                 <span className="ficha__linha-etiquetas">
+                  {r.crianca?.desistiu_em && <EtiquetaDesistente />}
                   {/* Dois motivos diferentes para a mesma linha estar barrada,
                       e a pessoa precisa distinguir: "já apadrinhada" acabou, e
                       "reservada" e uma promessa de outro padrinho que ainda

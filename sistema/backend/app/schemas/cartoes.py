@@ -17,6 +17,7 @@ class ArquivoDoLote(BaseModel):
     codigo: str | None = None
     crianca_id: int | None = None
     crianca_nome: str | None = None
+    crianca_desistiu_em: datetime | None = None
     instituicao: str | None = None
     # Miniatura em base64, para conferir a foto certa antes de gravar.
     miniatura: str | None = None
@@ -53,6 +54,9 @@ class CartaoOut(BaseModel):
     # o nome escrito a mao por uma crianca de oito anos nem sempre se le.
     crianca_codigo: str
     crianca_nome: str
+    # Preenchido = a crianca desistiu de ir. A tela poe a etiqueta de
+    # desistente em todo lugar onde ela aparece.
+    crianca_desistiu_em: datetime | None = None
     instituicao: str
     tipo: str
     arquivo: str

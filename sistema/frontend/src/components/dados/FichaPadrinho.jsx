@@ -21,6 +21,7 @@ import {
 import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { primeiroNome } from "../../utils/nomes.js";
 import { linkWhatsapp, podeCompartilharArquivo } from "../../utils/whatsapp.js";
+import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
 
@@ -405,6 +406,9 @@ export default function FichaPadrinho({
                       >
                         <span className="ficha__linha-codigo">{a.crianca_codigo}</span>
                         {a.crianca_nome}, {a.crianca_idade}
+                        {/* O padrinho ja pagou por quem nao vai: e aqui que a
+                            coordenacao percebe e decide o que fazer com ele. */}
+                        {a.crianca_desistiu_em && <EtiquetaDesistente className="etiqueta--ao-lado" />}
                       </span>
                     </div>
 

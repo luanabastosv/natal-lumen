@@ -278,6 +278,8 @@ def main() -> None:
         de_ana_na_ficha = cruzado["apadrinhamentos"][0]
         verifica("o apadrinhamento traz o codigo da crianca",
                  bool(de_ana_na_ficha.get("crianca_codigo")), str(de_ana_na_ficha.get("crianca_codigo")))
+        verifica("e diz se a crianca desistiu, para a ficha marcar",
+                 "crianca_desistiu_em" in de_ana_na_ficha, str(sorted(de_ana_na_ficha)))
         verifica("e o nome completo, nao so o primeiro",
                  " " in (de_ana_na_ficha.get("crianca_nome") or ""), str(de_ana_na_ficha.get("crianca_nome")))
         verifica("o primeiro nome continua saindo, para o cartao",

@@ -40,6 +40,9 @@ class ApadrinhamentoResumo(BaseModel):
     crianca_codigo: str
     crianca_nome: str
     crianca_idade: int
+    # Preenchido = a crianca desistiu de ir. A tela poe a etiqueta de
+    # desistente em todo lugar onde ela aparece.
+    crianca_desistiu_em: datetime | None = None
     tipo: str
     valor: Decimal
     pago: bool

@@ -41,6 +41,7 @@ def _saida(a: Autorizacao) -> AutorizacaoOut:
         crianca_id=a.crianca_id,
         crianca_codigo=a.crianca.codigo,
         crianca_nome=a.crianca.nome,
+        crianca_desistiu_em=a.crianca.desistiu_em,
         instituicao=a.crianca.instituicao.nome,
         criado_em=a.criado_em,
         necessidade_especial=a.necessidade_especial,

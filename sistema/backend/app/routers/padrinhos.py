@@ -145,6 +145,7 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
                 crianca_codigo=a.crianca.codigo,
                 crianca_nome=a.crianca.nome,
                 crianca_idade=a.crianca.idade,
+                crianca_desistiu_em=a.crianca.desistiu_em,
                 tipo=a.tipo,
                 valor=a.valor,
                 pago=quitado,

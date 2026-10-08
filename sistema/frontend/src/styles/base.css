@@ -5161,3 +5161,19 @@ button.checkin-lista__botao:not(:disabled):active {
   font-weight: 700;
   color: var(--text-on-light-muted);
 }
+
+/* A etiqueta de desistente ao lado do nome da crianca, na mesma linha. */
+.etiqueta--ao-lado {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+/* O aviso de desistencia no topo de uma ficha ou janela. */
+.ficha__desistente {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  color: var(--text-on-light-secondary);
+  font-size: var(--size-body-sm);
+}
