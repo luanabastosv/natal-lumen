@@ -78,6 +78,7 @@ def _saida_kit(crianca: Crianca, kit: Kit | None) -> dict:
         "conferido_em": kit.conferido_em if kit else None,
         "conferido_por": kit.conferente.nome if kit and kit.conferente else None,
         "desistiu_em": crianca.desistiu_em,
+        "checkin_em": crianca.checkin_em,
         "observacoes": kit.observacoes if kit else None,
     }
 

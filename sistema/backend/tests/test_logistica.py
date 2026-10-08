@@ -209,6 +209,8 @@ def main() -> None:
                  str({k: item.get(k) for k in ("crianca_codigo", "idade", "sexo")}))
         verifica("e diz se a crianca desistiu",
                  "desistiu_em" in item, str(sorted(item)))
+        verifica("e se ela ja fez check-in no evento",
+                 "checkin_em" in item, str(sorted(item)))
 
         print("\nKits: quem montou e quem conferiu")
         verifica("a linha diz quem montou", item.get("montado_por") == estrutura.nome,

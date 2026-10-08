@@ -15,7 +15,7 @@ import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import { useSessao } from "../contexts/useSessao.js";
-import { formatarData } from "../utils/dinheiro.js";
+import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import {
   conferirKit,
@@ -494,6 +494,11 @@ export default function Kits() {
             { id: "montado_por", rotulo: "Montado por", valor: (k) => k.montado_por ?? "" },
             { id: "conferido_por", rotulo: "Conferido por", valor: (k) => k.conferido_por ?? "" },
             {
+              id: "checkin",
+              rotulo: "Check-in",
+              valor: (k) => (k.checkin_em ? `Sim, ${formatarDataHora(k.checkin_em)}` : ""),
+            },
+            {
               id: "situacao",
               rotulo: "Status",
               // Em maiuscula so a desistente: no papel e ela que precisa saltar
@@ -553,6 +558,7 @@ export default function Kits() {
               )}
               {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
               {!estreita && <col style={{ width: 116 }} />}
+              {!estreita && <col style={{ width: 96 }} />}
               {!estreita && <col style={{ width: 180 }} />}
               {!estreita && <col style={{ width: 190 }} />}
             </colgroup>
@@ -575,6 +581,9 @@ export default function Kits() {
                     palavra em todas as linhas — a aba ja diz qual escola e. */}
                 {!estreita && abaAtiva === TODAS && coluna("instituicao", "Instituição")}
                 {!estreita && <th>Status</th>}
+                {/* Se a crianca ja chegou ao evento: no dia, e o que diz se o
+                    kit montado saiu da pilha ou ainda espera alguem. */}
+                {!estreita && <th>Check-in</th>}
                 {/* Ordenar por "montado por" e ordenar por montado: os a
                     montar juntos, que e o grupo que a equipe procura. */}
                 {!estreita && coluna("montado", "Montado por")}
@@ -623,6 +632,12 @@ export default function Kits() {
                             <EtiquetaStatus desistiu />
                           </>
                         )}
+                        {k.checkin_em && (
+                          <>
+                            <br />
+                            <EtiquetaCheckin quando={k.checkin_em} />
+                          </>
+                        )}
                         {/* Sem colunas no celular: montagem e conferencia
                             descem para baixo do nome. */}
                         {!k.desistiu_em && (
@@ -654,6 +669,11 @@ export default function Kits() {
                   {!estreita && (
                     <td className="tabela__status">
                       <EtiquetaStatus desistiu={Boolean(k.desistiu_em)} />
+                    </td>
+                  )}
+                  {!estreita && (
+                    <td className="tabela__status">
+                      <EtiquetaCheckin quando={k.checkin_em} />
                     </td>
                   )}
                   {!estreita && <td className="tabela__status">{celulaMontado(k)}</td>}
@@ -707,5 +727,17 @@ function EtiquetaStatus({ desistiu }) {
     <EtiquetaDesistente />
   ) : (
     <span className="etiqueta etiqueta--ok">Confirmada</span>
+  );
+}
+
+/** Se a crianca ja chegou ao evento. A hora fica na dica do mouse: na coluna,
+ *  o que se procura e so "veio ou nao veio". */
+function EtiquetaCheckin({ quando }) {
+  return quando ? (
+    <span className="etiqueta etiqueta--ok" title={`Check-in em ${formatarDataHora(quando)}`}>
+      Chegou
+    </span>
+  ) : (
+    <span className="celula--vazia">—</span>
   );
 }

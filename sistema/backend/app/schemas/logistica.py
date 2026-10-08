@@ -33,6 +33,9 @@ class KitOut(BaseModel):
     # filtrado fora: some-lo faria a conta da equipe nao bater com a lista
     # impressa, e ninguem entenderia por que faltam tres caixas.
     desistiu_em: datetime | None
+    # Se a crianca ja chegou ao evento: depois do dia, e o que diz se o kit
+    # montado foi entregue ou ficou na pilha.
+    checkin_em: datetime | None = None
     observacoes: str | None
 
 
