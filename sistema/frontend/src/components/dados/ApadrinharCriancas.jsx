@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Button from "../core/Button.jsx";
 import { AreaTexto, Entrada, Selecao } from "../core/Campo.jsx";
 import BotaoIcone from "../core/BotaoIcone.jsx";
 import { Baixar, Enviar, Visto, Xis } from "../core/icones.jsx";
+import Carregando from "../feedback/Carregando.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
@@ -133,6 +134,49 @@ export default function ApadrinharCriancas({
   const soMinhaLista =
     !usuario.admin_geral &&
     usuario.vinculos.some((v) => v.so_criancas_atribuidas);
+
+  /* O comissario nao procura por codigo: ele ESCOLHE da propria lista. Ele
+     so pode apadrinhar as criancas atribuidas a ele, entao a lista inteira
+     cabe na tela, e digitar codigo era trabalho a toa — e porta para errar.
+     Quem coordena continua com a busca, porque alcanca a edicao inteira. */
+  const modoLista =
+    !usuario.admin_geral &&
+    Boolean(
+      usuario.vinculos.find((v) => v.edicao_id === padrinho.edicao_id)
+        ?.so_criancas_atribuidas,
+    );
+  const [carregandoLista, definirCarregandoLista] = useState(modoLista);
+
+  useEffect(() => {
+    if (!modoLista) return undefined;
+    let valido = true;
+    (async () => {
+      try {
+        // Pagina a pagina ate o fim: a lista de um comissario e curta, mas o
+        // servidor entrega no maximo 200 por vez.
+        const todas = [];
+        for (let pagina = 1; ; pagina += 1) {
+          const r = await listarCriancas({
+            edicao_id: padrinho.edicao_id,
+            pagina,
+            por_pagina: 200,
+          });
+          todas.push(...r.itens);
+          if (todas.length >= r.total || r.itens.length === 0) break;
+        }
+        if (!valido) return;
+        todas.sort((a, b) => a.codigo.localeCompare(b.codigo, "pt-BR", { numeric: true }));
+        definirResultados(todas.map((c) => ({ codigo: c.codigo, crianca: c })));
+      } catch (e) {
+        if (valido) definirErro(e.message);
+      } finally {
+        if (valido) definirCarregandoLista(false);
+      }
+    })();
+    return () => {
+      valido = false;
+    };
+  }, [modoLista, padrinho.edicao_id]);
 
   const achadas = resultados.filter((r) => r.crianca);
   const escolhas = achadas.flatMap((r) =>
@@ -479,6 +523,25 @@ export default function ApadrinharCriancas({
      nasceriam diferentes a cada render e os campos perderiam o foco. */
 
   function passoCriancas() {
+    if (modoLista) {
+      return (
+        <>
+          <p className="campo__dica" style={{ marginTop: 0 }}>
+            As crianças da sua lista. Marque cesta ou festa nas que este padrinho vai
+            apadrinhar.
+          </p>
+          {carregandoLista ? (
+            <Carregando>Buscando as suas crianças...</Carregando>
+          ) : resultados.length === 0 ? (
+            <p className="campo__dica">
+              Nenhuma criança atribuída a você nesta edição. Fale com a coordenação.
+            </p>
+          ) : (
+            listaDeCriancas()
+          )}
+        </>
+      );
+    }
     return (
       <>
         <p className="campo__dica" style={{ marginTop: 0 }}>
@@ -623,7 +686,9 @@ export default function ApadrinharCriancas({
   function listaDeCriancas() {
     return (
       <div className="ficha__lista" style={{ marginTop: "var(--space-4)" }}>
-        {achadas.length > 1 && (
+        {/* Na lista do comissario, "em todas" marcaria a lista inteira dele
+            para um padrinho so — nunca e o que se quer. */}
+        {achadas.length > 1 && !modoLista && (
           <div className="ficha__linha ficha__linha--cabecalho">
             <span className="ficha__linha-nome">{achadas.length} crianças</span>
             <span className="ficha__linha-acoes apadrinhar__escolhas">
@@ -644,8 +709,14 @@ export default function ApadrinharCriancas({
         {resultados.map((r) => {
           const c = r.crianca;
           const fora = c && foraDaMinhaLista(c);
+          // Cesta e festa ja tomadas: a crianca esta apadrinhada, e a linha
+          // fica a vista mas sem nada para tocar.
+          const completa = c && TIPOS.every((t) => bloqueio(c, t));
           return (
-            <div key={r.codigo} className="ficha__linha">
+            <div
+              key={r.codigo}
+              className={`ficha__linha ${completa ? "apadrinhar__linha--completa" : ""}`}
+            >
               <span
                 className="ficha__linha-nome"
                 title={c ? c.instituicao : undefined}
@@ -662,6 +733,9 @@ export default function ApadrinharCriancas({
 
               <span className="ficha__linha-etiquetas">
                 {c?.desistiu_em && <EtiquetaDesistente />}
+                {completa && !c.desistiu_em && (
+                  <span className="etiqueta etiqueta--ok">apadrinhada</span>
+                )}
                 {fora && (
                   <span
                     className="etiqueta etiqueta--parado"
@@ -696,6 +770,7 @@ export default function ApadrinharCriancas({
                         tomado aparece travado, com o motivo escrito. */}
                 {c &&
                   !barrada(c) &&
+                  !completa &&
                   TIPOS.map((t) => {
                     const motivo = bloqueio(c, t);
                     return (
@@ -715,13 +790,17 @@ export default function ApadrinharCriancas({
                       </label>
                     );
                   })}
-                <BotaoIcone
-                  titulo={`Tirar ${c ? c.nome : r.codigo} da lista`}
-                  tamanho={comoPagina ? "md" : "sm"}
-                  onClick={() => tirar(r.codigo, c)}
-                >
-                  <Xis t={14} />
-                </BotaoIcone>
+                {/* Tirar so faz sentido no que foi procurado: a lista do
+                    comissario e a lista dele, e nao uma busca. */}
+                {!modoLista && (
+                  <BotaoIcone
+                    titulo={`Tirar ${c ? c.nome : r.codigo} da lista`}
+                    tamanho={comoPagina ? "md" : "sm"}
+                    onClick={() => tirar(r.codigo, c)}
+                  >
+                    <Xis t={14} />
+                  </BotaoIcone>
+                )}
               </span>
             </div>
           );

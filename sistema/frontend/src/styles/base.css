@@ -5689,3 +5689,13 @@ button.checkin-lista__botao:not(:disabled):active {
   margin-left: 2px;
   color: #c0392b;
 }
+
+/* Crianca ja apadrinhada na lista do comissario: a vista, para ele saber que
+   ja foi, mas apagada e sem nada para tocar. */
+.apadrinhar__linha--completa {
+  opacity: 0.55;
+}
+
+.apadrinhar__linha--completa:hover {
+  background: none;
+}
