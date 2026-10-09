@@ -29,7 +29,7 @@ export default function BarraMobile({ aoAbrirMenu, menuAberto }) {
           paginas nao diriam. Trocar continua sendo la dentro. */}
       {edicao && (
         <span className="barra-mobile__edicao">
-          {edicao.cidade} {edicao.ano}
+          {edicao.nome}
         </span>
       )}
     </header>

@@ -76,14 +76,16 @@ export default function BarraLateral({ aoNavegar, recolhida = false, aoAlternar 
               ) : (
                 edicoes.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.cidade} {e.ano}
+                    {/* Pelo nome, e nao "cidade ano": uma cidade pode ter
+                        mais de uma edicao no mesmo ano. */}
+                    {e.nome}
                   </option>
                 ))
               )}
             </select>
           ) : (
             <span className="lateral__edicao-fixa">
-              {edicaoAtual ? `${edicaoAtual.cidade} ${edicaoAtual.ano}` : "Sem edição"}
+              {edicaoAtual ? edicaoAtual.nome : "Sem edição"}
             </span>
           )}
         </div>
@@ -94,7 +96,7 @@ export default function BarraLateral({ aoNavegar, recolhida = false, aoAlternar 
             aria-hidden="true"
             title={
               recolhida
-                ? `${nomeCurto(usuario?.nome)}${edicaoAtual ? ` · ${edicaoAtual.cidade} ${edicaoAtual.ano}` : ""}`
+                ? `${nomeCurto(usuario?.nome)}${edicaoAtual ? ` · ${edicaoAtual.nome}` : ""}`
                 : undefined
             }
           >

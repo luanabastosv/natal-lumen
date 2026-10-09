@@ -38,7 +38,12 @@ class Edicao(Base):
     """Uma cidade num ano. E a unidade de isolamento de dados do sistema."""
 
     __tablename__ = "edicoes"
-    __table_args__ = (UniqueConstraint("cidade_id", "ano", name="uq_edicoes_cidade_ano"),)
+    # Mais de uma edicao por cidade no mesmo ano e permitido (desde
+    # 09/10/2026); o que nao se repete e o NOME dentro da cidade e do ano —
+    # e por ele que as telas distinguem uma da outra.
+    __table_args__ = (
+        UniqueConstraint("cidade_id", "ano", "nome", name="uq_edicoes_cidade_ano_nome"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     cidade_id: Mapped[int] = mapped_column(

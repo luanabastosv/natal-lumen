@@ -93,7 +93,8 @@ def criar(dados: EdicaoIn, db: BD, ctx: Admin):
     except IntegrityError:
         db.rollback()
         raise HTTPException(
-            status.HTTP_409_CONFLICT, "Esta cidade ja tem uma edicao neste ano."
+            status.HTTP_409_CONFLICT,
+            "Esta cidade ja tem uma edicao com este nome neste ano. De outro nome a nova.",
         )
 
     herdados = coordenacao.povoar_edicao_nova(db, edicao)

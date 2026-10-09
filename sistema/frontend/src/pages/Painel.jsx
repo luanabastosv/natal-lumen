@@ -249,7 +249,7 @@ export default function Painel() {
               uma escolha do sistema inteiro, nao deste card. */}
             <span className="chip">
               {edicao
-                ? `${edicao.cidade} ${edicao.ano}`
+                ? edicao.nome
                 : usuario?.admin_geral
                   ? "Administração geral"
                   : "Sem edição vinculada"}

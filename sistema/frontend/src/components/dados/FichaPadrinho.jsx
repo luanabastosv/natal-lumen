@@ -260,7 +260,7 @@ export default function FichaPadrinho({
       <dl className="ficha ficha--duas">
         <dt>Edição</dt>
         <dd>
-          {padrinho.cidade} {padrinho.ano}
+          {padrinho.edicao}
         </dd>
         <dt>WhatsApp</dt>
         <dd>

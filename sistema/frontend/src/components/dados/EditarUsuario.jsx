@@ -104,7 +104,7 @@ function BlocoVinculo({
             onChange={(e) => mudar("edicao_id", e.target.value)}
           >
             {edicoesPossiveis.map((e) => (
-              <option key={e.id} value={e.id}>{e.cidade} {e.ano}</option>
+              <option key={e.id} value={e.id}>{e.nome}</option>
             ))}
           </Selecao>
         )}
@@ -267,7 +267,7 @@ export default function EditarUsuario({
 
   function nomeDaEdicao(edicaoId) {
     const edicao = edicoes.find((e) => String(e.id) === String(edicaoId));
-    return edicao ? `${edicao.cidade} ${edicao.ano}` : "Edição";
+    return edicao ? edicao.nome : "Edição";
   }
 
   /** As opcoes do seletor de tipo deste vinculo.

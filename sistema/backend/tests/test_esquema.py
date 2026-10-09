@@ -174,9 +174,9 @@ def main() -> None:
             )),
         )
         espera_erro(
-            db, "recusa segunda edicao da mesma cidade no mesmo ano",
+            db, "recusa segunda edicao com o mesmo nome na mesma cidade e ano",
             lambda: db.add(Edicao(
-                cidade_id=fortaleza.id, ano=2026, nome="Duplicada",
+                cidade_id=fortaleza.id, ano=2026, nome=f"{MARCA} Fortaleza 2026",
                 valor_cesta=120, valor_festa=60,
             )),
         )

@@ -147,10 +147,22 @@ def main() -> None:
         ed_for = r.json()
 
         r = ca.post("/edicoes", json={
-            "cidade_id": fortaleza["id"], "ano": 2026, "nome": "Outra",
+            "cidade_id": fortaleza["id"], "ano": 2026, "nome": f"{MARCA} Fortaleza 2026",
             "valor_cesta": "120.00", "valor_festa": "60.00",
         })
-        verifica("recusa duas edicoes da mesma cidade no mesmo ano", r.status_code == 409)
+        verifica("recusa outra edicao com o MESMO nome na mesma cidade e ano",
+                 r.status_code == 409, str(r.status_code))
+
+        # Mais de uma edicao por cidade no mesmo ano e permitido, com outro nome.
+        r = ca.post("/edicoes", json={
+            "cidade_id": fortaleza["id"], "ano": 2026, "nome": f"{MARCA} Fortaleza 2026 Pascoa",
+            "valor_cesta": "120.00", "valor_festa": "60.00",
+        })
+        verifica("aceita uma segunda edicao da mesma cidade no mesmo ano, com outro nome",
+                 r.status_code == 201, r.text[:110])
+        if r.status_code == 201:
+            r = ca.request("DELETE", f"/edicoes/{r.json()['id']}?confirmar=true", json={"senha": SENHA})
+            verifica("e a segunda edicao de prova sai", r.status_code == 204, str(r.status_code))
 
         r = ca.post("/edicoes", json={
             "cidade_id": caucaia["id"], "ano": 2026, "nome": f"{MARCA} Caucaia 2026",

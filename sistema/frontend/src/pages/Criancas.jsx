@@ -672,7 +672,7 @@ export default function Criancas() {
       {imprimindo && (
         <ImprimirLista
           titulo="Crianças"
-          subtitulo={edicao ? `${edicao.cidade} ${edicao.ano}` : undefined}
+          subtitulo={edicao ? edicao.nome : undefined}
           aoFechar={() => definirImprimindo(false)}
           buscarTudo={todasAsCriancas}
           /* As mesmas colunas da planilha, e so as que esta pessoa recebe: o

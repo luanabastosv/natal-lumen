@@ -359,7 +359,7 @@ export default function Usuarios() {
     return u.vinculos.map((v) => (
       <div key={v.id} className="vinculo-linha">
         <span className="vinculo-linha__titulo">
-          {v.cidade} {v.ano}
+          {v.edicao}
         </span>
       </div>
     ));
@@ -424,7 +424,7 @@ export default function Usuarios() {
       {formAberto && (
         <form className="painel" onSubmit={salvar}>
           <h2 className="painel__titulo">
-            Novo usuário{edicao && <> · {edicao.cidade} {edicao.ano}</>}
+            Novo usuário{edicao && <> · {edicao.nome}</>}
           </h2>
 
           <div className="linha-campos">
