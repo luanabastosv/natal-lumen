@@ -171,6 +171,7 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
         membro_ser_feliz=padrinho.membro_ser_feliz,
         interesse_mensal=padrinho.interesse_mensal,
         criado_em=padrinho.criado_em,
+        criado_por_id=padrinho.criado_por,
         apadrinhamentos=resumos,
         # Quantizados para o total sair sempre com duas casas: sem isto um
         # padrinho sem pagamento devolvia "0" e outro devolvia "240.00".
@@ -317,6 +318,17 @@ def detalhe_padrinho(padrinho_id: int, db: BD, ctx: Ver):
 @router.patch("/padrinhos/{padrinho_id}", response_model=PadrinhoOut)
 def editar_padrinho(padrinho_id: int, dados: PadrinhoEditar, db: BD, ctx: Editar):
     padrinho = _carregar(db, padrinho_id, ctx, "editar_padrinhos")
+
+    # O cadastro do padrinho e de quem o trouxe. O comissario de base apadrinha
+    # mais criancas para o padrinho do colega (isso e outra rota), mas mudar o
+    # nome, o contato ou as respostas dele e mexer no trabalho de outra pessoa.
+    # Quem coordena passa por cima, como em tudo o que e do time.
+    if ctx.so_proprias_criancas(padrinho.edicao_id) and padrinho.criado_por != ctx.usuario.id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Este padrinho foi cadastrado por outra pessoa do time. So quem o "
+            "cadastrou, ou a coordenacao, muda as informacoes dele.",
+        )
 
     mudancas = dados.model_dump(exclude_unset=True)
     for campo, valor in mudancas.items():

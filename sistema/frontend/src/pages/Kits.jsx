@@ -4,7 +4,7 @@ import { Selecao } from "../components/core/Campo.jsx";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import Button from "../components/core/Button.jsx";
-import { ChevronDireita } from "../components/core/icones.jsx";
+import { ChevronDireita, Imprimir } from "../components/core/icones.jsx";
 import ImprimirLista from "../components/dados/ImprimirLista.jsx";
 import {
   EstatisticasImpressas,
@@ -379,12 +379,29 @@ export default function Kits() {
 
   return (
     <div>
-      <div className="pagina__eyebrow">Estrutura</div>
-      <h1 className="pagina__titulo">Kits</h1>
-      <Rabisco className="pagina__onda" />
-      <p className="pagina__lede">
-        Uma criança, um kit. Cada marca vale na hora; riscada é quem desistiu.
-      </p>
+      {/* Imprimir no alto, ao lado do titulo, so o icone: o mesmo lugar e o
+          mesmo botao da lista de criancas, em toda tela que imprime. */}
+      <div className="pagina__cabecalho">
+        <div className="pagina__texto">
+          <div className="pagina__eyebrow">Estrutura</div>
+          <h1 className="pagina__titulo">Kits</h1>
+          <Rabisco className="pagina__onda" />
+          <p className="pagina__lede">
+            Uma criança, um kit. Cada marca vale na hora; riscada é quem desistiu.
+          </p>
+        </div>
+        <div className="pagina__acoes">
+          <Button
+            size="sm"
+            variant="ghost"
+            soIcone
+            titulo="Imprimir lista"
+            iconLeft={<Imprimir t={15} />}
+            onClick={() => definirImprimindo(true)}
+            disabled={!edicaoAtiva}
+          />
+        </div>
+      </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
 
@@ -452,9 +469,6 @@ export default function Kits() {
               Ver estatísticas
             </Button>
           )}
-          <Button size="sm" variant="secondary" onClick={() => definirImprimindo(true)}>
-            Imprimir lista
-          </Button>
         </div>
       </div>
 

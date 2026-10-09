@@ -82,6 +82,8 @@ class PadrinhoOut(BaseModel):
     membro_ser_feliz: bool | None
     interesse_mensal: bool | None
     criado_em: datetime
+    # Quem cadastrou: so essa pessoa (ou a coordenacao) muda as informacoes.
+    criado_por_id: int | None = None
     apadrinhamentos: list[ApadrinhamentoResumo]
     total_combinado: Decimal
     total_pago: Decimal

@@ -545,13 +545,15 @@ textarea.campo__controle {
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--text-on-light-muted);
-  padding: 0 var(--space-4) var(--space-3) 0;
+  /* 12px entre colunas, e nao 16: nas listas largas (kits, financeiro) os
+     4px por coluna somavam a largura de uma coluna inteira. */
+  padding: 0 var(--space-3) var(--space-3) 0;
   border-bottom: 2px solid var(--border-default);
   white-space: nowrap;
 }
 
 .tabela td {
-  padding: var(--space-4) var(--space-4) var(--space-4) 0;
+  padding: var(--space-4) var(--space-3) var(--space-4) 0;
   border-bottom: var(--stroke-hairline) solid var(--border-light);
   color: var(--text-on-light-secondary);
   vertical-align: top;
@@ -572,7 +574,7 @@ textarea.campo__controle {
    texto cheio — e o numero que se procura primeiro, nao um rotulo de coluna. */
 .tabela tfoot th,
 .tabela tfoot td {
-  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) 0;
   border-top: 2px solid var(--border-default);
   border-bottom: none;
   font-weight: 800;
@@ -598,6 +600,10 @@ textarea.campo__controle {
 .tabela__acoes {
   width: 1%;
   white-space: nowrap;
+  /* As acoes da linha fecham a linha: encostadas na borda direita, em toda
+     lista, e nao centradas numa coluna que sobrou. */
+  text-align: right;
+  padding-right: 0 !important;
 }
 
 /* ---------- Card de abertura ---------- */
@@ -1942,8 +1948,9 @@ textarea.campo__controle {
 /* A coluna das acoes e estreita de proposito: cabem o olho e o X, e mais nada.
    Escrever "Ver ficha · Apagar" em 1500 linhas seria ruido. */
 .planilha__acoes {
-  padding: 0 6px !important;
-  text-align: center;
+  padding: 0 0 0 6px !important;
+  /* Encostadas na borda direita, como em toda lista. */
+  text-align: right;
 }
 
 /* A mesma conta de altura das outras celulas, por cima de um botao de 40:
@@ -4303,29 +4310,6 @@ textarea.campo__controle {
   }
 }
 
-/* ---------- Abertura de dominio ------------------------------------------
-   A tela que abre uma area recebe a cena do dominio a direita do titulo.
-   Uma por pagina, e so na tela de entrada da area. */
-.abertura-dominio {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-}
-
-.abertura-dominio__cena {
-  flex: none;
-  width: 260px;
-  height: auto;
-}
-
-/* No celular a cena sai: o texto precisa da largura inteira. */
-@media (max-width: 860px) {
-  .abertura-dominio__cena {
-    display: none;
-  }
-}
-
 /* ==========================================================================
    PAINEL EM GRADE
    O painel era uma coluna de cinco blocos empilhados e so terminava depois de
@@ -5698,4 +5682,19 @@ button.checkin-lista__botao:not(:disabled):active {
 
 .apadrinhar__linha--completa:hover {
   background: none;
+}
+
+/* O CTA do banner do painel (comissarios). O banner e escuro: o botao vem
+   claro, com a tinta da marca, para ser a primeira coisa que se ve. */
+.abertura__cta {
+  margin-top: var(--space-4);
+}
+
+.abertura__cta .botao--primary {
+  background: var(--white);
+  color: var(--color-primary);
+}
+
+.abertura__cta .botao--primary:not(.botao--inativo):hover {
+  background: var(--navy-100);
 }

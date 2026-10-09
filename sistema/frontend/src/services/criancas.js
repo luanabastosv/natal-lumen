@@ -22,6 +22,9 @@ export const listarComissarios = (edicaoId) =>
 export const renumerar = (dados) => api.post("/criancas/renumerar", dados);
 export const detalharCrianca = (id) => api.get(`/criancas/${id}`);
 export const editarCrianca = (id, dados) => api.patch(`/criancas/${id}`, dados);
+/** O recado do comissario sobre a crianca (rota propria: ele nao edita crianca). */
+export const salvarObservacaoComissario = (id, texto) =>
+  api.patch(`/criancas/${id}/observacao-comissario`, { texto });
 /* Apagar crianca leva junto cartao, kit e apadrinhamento: a tela pede a conta
    primeiro, mostra no modal, e so entao apaga. */
 export const dependenciasDaCrianca = (id) => api.get(`/criancas/${id}/dependencias`);

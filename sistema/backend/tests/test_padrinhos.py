@@ -871,10 +871,20 @@ def main() -> None:
         })
         verifica("nem quita com um pagamento", r.status_code == 403, str(r.status_code))
 
-        # O cadastro do padrinho, sim: e compartilhado da edicao.
+        # O cadastro do padrinho e de quem o trouxe: o outro comissario
+        # apadrinha para ele, mas nao muda as informacoes dele.
         r = ck.patch(f"/padrinhos/{do_colega['id']}", json={"whatsapp": "85988887777"})
-        verifica("mas corrige o CADASTRO do padrinho, que e de todos",
-                 r.status_code == 200, r.text[:140])
+        verifica("o outro comissario NAO edita o cadastro do padrinho do colega",
+                 r.status_code == 403, r.text[:140])
+        verifica("o padrinho diz quem o cadastrou",
+                 do_colega.get("criado_por_id") == colega.id, str(do_colega.get("criado_por_id")))
+        r = ccol.patch(f"/padrinhos/{do_colega['id']}", json={"whatsapp": "85988887777"})
+        verifica("quem cadastrou edita", r.status_code == 200, r.text[:140])
+        r = ccap.patch(f"/padrinhos/{do_colega['id']}", json={"observacoes": "conferido"})
+        verifica("e a coordenacao da captacao tambem", r.status_code == 200, r.text[:140])
+        r = apadrinhar(ck, do_colega["id"], (ana.id, "cesta"))
+        verifica("mas o outro comissario ainda apadrinha para ele",
+                 r.status_code == 201, r.text[:140])
 
         # Quem coordena a captacao passa por cima dos dois.
         r = ccap.patch(f"/apadrinhamentos/{alheio}", json={"valor": "130.00"})
@@ -885,6 +895,23 @@ def main() -> None:
             "apadrinhamentos": [alheio],
         })
         verifica("e quita o apadrinhamento de qualquer um", r.status_code == 201, r.text[:140])
+
+        print("\nObservacao do comissario sobre a crianca")
+        r = ck.patch(f"/criancas/{ana.id}/observacao-comissario", json={"texto": "  Mae pediu tamanho 8  "})
+        verifica("o comissario escreve sobre a crianca dele",
+                 r.status_code == 200 and r.json()["observacao_comissario"] == "Mae pediu tamanho 8",
+                 r.text[:160])
+        r = ck.patch(f"/criancas/{duda.id}/observacao-comissario", json={"texto": "x"})
+        verifica("mas nao sobre a do colega", r.status_code == 404, str(r.status_code))
+        r = cm.patch(f"/criancas/{ana.id}/observacao-comissario", json={"texto": "x"})
+        verifica("o monitor nao escreve", r.status_code == 403, str(r.status_code))
+        r = ck.get("/criancas", params={"edicao_id": e1.id})
+        dela = next((c for c in r.json()["itens"] if c["id"] == ana.id), {})
+        verifica("e a observacao aparece na lista",
+                 dela.get("observacao_comissario") == "Mae pediu tamanho 8", str(dela)[:160])
+        r = ck.patch(f"/criancas/{ana.id}/observacao-comissario", json={"texto": "   "})
+        verifica("apagar o texto limpa a observacao",
+                 r.json()["observacao_comissario"] is None, r.text[:160])
 
         print("\nA coordenacao da captacao alcanca a edicao inteira")
         r = ccap.get("/criancas", params={"edicao_id": e1.id})

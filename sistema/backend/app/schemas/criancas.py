@@ -17,6 +17,10 @@ class CriancaIn(BaseModel):
     # Sem dia aqui: ele vem da instituicao (ver InstituicaoDia).
 
 
+class ObservacaoComissarioIn(BaseModel):
+    texto: str | None = Field(default=None, max_length=2000)
+
+
 class CriancaEditar(BaseModel):
     codigo: str | None = Field(default=None, min_length=1, max_length=40)
     nome: str | None = Field(default=None, min_length=3, max_length=180)
@@ -59,6 +63,9 @@ class CriancaOut(BaseModel):
     # coisa, e nenhuma delas e informacao sobre a crianca.
     comissario_id: int | None = None
     comissario: str | None = None
+    # O recado do comissario sobre a crianca. Nulo para quem nao tem
+    # `ver_padrinhos`, como o comissario responsavel.
+    observacao_comissario: str | None = None
     # O grupo dele na comunidade, do vinculo com ESTA edicao. Nulo quando nao
     # ha responsavel, ou quando ele ainda nao teve grupo nomeado.
     comissario_grupo: str | None = None

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Button from "../components/core/Button.jsx";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import Rabisco from "../components/core/Rabisco.jsx";
 import ArtePainel from "../components/layout/ArtePainel.jsx";
@@ -90,6 +92,12 @@ export default function Painel() {
   // o nome, quantas criancas e quanto ja esta feito — a pergunta que a secao
   // responde — e a quebra inteira vai para uma janela, a um toque.
   const estreita = useTelaEstreita();
+  const navegar = useNavigate();
+  // O comissario e a coordenacao da captacao entram no sistema para uma
+  // coisa: apadrinhar. O banner leva direto ao cadastro do padrinho, de onde
+  // o passo a passo segue sozinho.
+  const captacao =
+    Boolean(vinculoAtivo?.perfil?.startsWith("Comissarios")) && pode("editar_padrinhos");
   const [detalhe, definirDetalhe] = useState(null);
 
   const [relatorio, definirRelatorio] = useState(null);
@@ -189,6 +197,15 @@ export default function Painel() {
                   ? "Quantas crianças vêm em cada dia, de cada instituição e de cada idade."
                   : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
             </p>
+            {captacao && (
+              <div className="abertura__cta">
+                <Button
+                  onClick={() => navegar(estreita ? "/padrinhos/novo" : "/padrinhos?novo=1")}
+                >
+                  Realizar apadrinhamento
+                </Button>
+              </div>
+            )}
           </div>
           <div className="abertura__contexto">
           {/* Qual edicao esta sendo vista. Trocar de edicao e na lateral: e

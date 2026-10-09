@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
-import { Enviar } from "../components/core/icones.jsx";
+import { Enviar, Imprimir } from "../components/core/icones.jsx";
 import { Entrada } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import { AvisoParecidos, CamposPadrinho } from "../components/dados/CamposPadrinho.jsx";
@@ -15,6 +15,7 @@ import {
 } from "../components/dados/padrinho.js";
 import ApadrinharCriancas from "../components/dados/ApadrinharCriancas.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
+import ImprimirLista from "../components/dados/ImprimirLista.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import ConfirmarExclusao from "../components/feedback/ConfirmarExclusao.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
@@ -54,6 +55,7 @@ export default function Padrinhos() {
 
   const [padrinhos, definirPadrinhos] = useState({ itens: [], total: 0 });
   const [busca, definirBusca] = useState("");
+  const [imprimindo, definirImprimindo] = useState(false);
   const [pagina, definirPagina] = useState(1);
 
   const [carregando, definirCarregando] = useState(true);
@@ -90,6 +92,12 @@ export default function Padrinhos() {
   // Cadastrar ja leva a apadrinhar: ninguem cadastra padrinho a toa, e o
   // proximo passo da conversa e sempre escolher as criancas dele.
   const salvarEApadrinhar = podeEditar && podePagar;
+  // O cadastro do padrinho e de quem o trouxe: o comissario de base so muda
+  // as informacoes dos padrinhos que ele mesmo cadastrou. Apadrinhar mais uma
+  // crianca para o padrinho do colega continua liberado. Quem coordena muda
+  // qualquer um. O servidor confere de novo (PATCH /padrinhos).
+  const soMeusPadrinhos = Boolean(vinculoAtivo?.so_criancas_atribuidas) && !usuario?.admin_geral;
+  const podeMudar = (p) => podeEditar && (!soMeusPadrinhos || p.criado_por_id === usuario?.id);
   // Desfazer engano de captacao: apagar o cadastro, e desfazer apadrinhamento
   // JA PAGO. Coordenacao e administracao geral — quem capta corrige o que
   // acabou de digitar, mas nao desfaz o que ja virou numero e dinheiro.
@@ -188,6 +196,29 @@ export default function Padrinhos() {
     }
   }
 
+  // "?novo=1" chega do botao do painel: a tela abre ja no cadastro. O
+  // parametro sai do endereco na hora, senao recarregar a pagina abriria a
+  // janela de novo.
+  const [parametros, definirParametros] = useSearchParams();
+  useEffect(() => {
+    if (parametros.get("novo") !== "1" || !podeEditar) return;
+    definirParametros({}, { replace: true });
+    abrirNovo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parametros]);
+
+  /** O papel sai com a lista INTEIRA da busca, e nao com a pagina da tela.
+   *  O servidor entrega no maximo 200 por vez, entao pede pagina a pagina. */
+  async function todosOsPadrinhos() {
+    const todos = [];
+    for (let p = 1; ; p += 1) {
+      const r = await listarPadrinhos({ edicao_id: edicaoAtiva, busca, pagina: p, por_pagina: 200 });
+      todos.push(...r.itens);
+      if (todos.length >= r.total || r.itens.length === 0) break;
+    }
+    return todos;
+  }
+
   function abrirNovo() {
     // No celular o cadastro e uma pagina, como o passo a passo de apadrinhar.
     if (estreita) {
@@ -263,14 +294,72 @@ export default function Padrinhos() {
 
   return (
     <div className={estreita && podeEditar ? "pagina--com-base" : undefined}>
-      <div className="pagina__eyebrow">Captação</div>
-      <h1 className="pagina__titulo">Padrinhos</h1>
-      <Rabisco className="pagina__onda" />
-      <p className="pagina__lede">
-        {estreita
-          ? "Toque nos três pontos para abrir a ficha ou apadrinhar."
-          : "Clique na célula para editar; o menu abre a ficha com as crianças."}
-      </p>
+      <div className="pagina__cabecalho">
+        <div className="pagina__texto">
+          <div className="pagina__eyebrow">Captação</div>
+          <h1 className="pagina__titulo">Padrinhos</h1>
+          <Rabisco className="pagina__onda" />
+          <p className="pagina__lede">
+            {estreita
+              ? "Toque nos três pontos para abrir a ficha ou apadrinhar."
+              : "Clique na célula para editar; o menu abre a ficha com as crianças."}
+          </p>
+        </div>
+        {/* Imprimir no alto, ao lado do titulo, so o icone: o mesmo botao da
+            lista de criancas e da de kits. */}
+        <div className="pagina__acoes">
+          <Button
+            size="sm"
+            variant="ghost"
+            soIcone
+            titulo="Imprimir lista"
+            iconLeft={<Imprimir t={15} />}
+            onClick={() => definirImprimindo(true)}
+            disabled={!edicaoAtiva}
+          />
+        </div>
+      </div>
+
+      {imprimindo && (
+        <ImprimirLista
+          titulo="Padrinhos"
+          subtitulo={busca ? `Busca: ${busca}` : "Lista de padrinhos"}
+          aoFechar={() => definirImprimindo(false)}
+          buscarTudo={todosOsPadrinhos}
+          colunas={[
+            { id: "nome", rotulo: "Padrinho", valor: (p) => p.nome },
+            { id: "whatsapp", rotulo: "WhatsApp", valor: (p) => p.whatsapp ?? "" },
+            { id: "email", rotulo: "Email", valor: (p) => p.email ?? "" },
+            {
+              id: "criancas",
+              rotulo: "Crianças",
+              valor: (p) =>
+                [...new Set(p.apadrinhamentos.map((a) => a.crianca_codigo))].join(", "),
+            },
+            { id: "pago", rotulo: "Pago", valor: (p) => dinheiro(p.total_pago) },
+            {
+              id: "membro",
+              rotulo: "Ser Feliz",
+              valor: (p) => (p.membro_ser_feliz ? "Sim" : p.membro_ser_feliz === false ? "Não" : ""),
+            },
+            {
+              id: "mensal",
+              rotulo: "Mensal",
+              valor: (p) => (p.interesse_mensal ? "Sim" : p.interesse_mensal === false ? "Não" : ""),
+            },
+            { id: "observacoes", rotulo: "Observações", valor: (p) => p.observacoes ?? "" },
+          ]}
+          sugestao={{
+            colunas: ["nome", "whatsapp", "criancas", "pago"],
+            orientacao: "retrato",
+            ordenarPor: "nome",
+          }}
+          ordenacoes={[
+            { id: "nome", rotulo: "Nome", de: (p) => p.nome },
+            { id: "pago", rotulo: "Valor pago", de: (p) => String(Math.round(Number(p.total_pago) * 100)).padStart(10, "0") },
+          ]}
+        />
+      )}
 
       <Mensagem tipo="erro">{erro}</Mensagem>
 
@@ -504,7 +593,7 @@ export default function Padrinhos() {
                           teclado em quem so queria rolar a lista. Edicao e no
                           computador. */}
                       <td>
-                        {podeEditar && !estreita ? (
+                        {podeMudar(p) && !estreita ? (
                           <CelulaEditavel
                             valor={p.nome}
                             aoSalvar={(v) => salvarCampo(p, "nome", v)}
@@ -516,7 +605,7 @@ export default function Padrinhos() {
                       {!estreita && (
                         <>
                             <td>
-                              {podeEditar ? (
+                              {podeMudar(p) ? (
                                 <CelulaEditavel
                                   valor={p.whatsapp}
                                   aoSalvar={(v) => salvarCampo(p, "whatsapp", v)}
@@ -526,7 +615,7 @@ export default function Padrinhos() {
                               )}
                             </td>
                             <td>
-                              {podeEditar ? (
+                              {podeMudar(p) ? (
                                 <CelulaEditavel
                                   valor={p.email}
                                   aoSalvar={(v) => salvarCampo(p, "email", v)}
@@ -596,7 +685,7 @@ export default function Padrinhos() {
                           titulo={`Ações de ${p.nome}`}
                           itens={[
                             { rotulo: "Ver ficha", aoEscolher: () => abrirFicha(p.id) },
-                            podeEditar && {
+                            podeMudar(p) && {
                               rotulo: "Editar informações",
                               aoEscolher: () => abrirEdicao(p),
                             },

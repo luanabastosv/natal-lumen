@@ -39,6 +39,7 @@ from app.schemas.criancas import (
     ComissarioDoTime,
     CriancaEditar,
     DesistenciaIn,
+    ObservacaoComissarioIn,
     CriancaIn,
     CriancaDetalhe,
     CriancaOut,
@@ -158,6 +159,7 @@ def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) 
         comissario_id=crianca.comissario_id if padrinho else None,
         comissario=(crianca.comissario.nome if crianca.comissario else None) if padrinho else None,
         comissario_grupo=_grupo_do_comissario(crianca) if padrinho else None,
+        observacao_comissario=crianca.observacao_comissario if padrinho else None,
         tem_padrinho_cesta=extra.get("cesta", False) if padrinho else None,
         tem_padrinho_festa=extra.get("festa", False) if padrinho else None,
         promessa_cesta=extra.get("promessa_cesta", False) if padrinho else None,
@@ -925,6 +927,39 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: EditarOuAtribuir)
     )
     db.commit()
     return _saida(_buscar_para_editar(db, ctx, crianca_id, set(mudancas)), ctx)
+
+
+@router.patch("/{crianca_id}/observacao-comissario", response_model=CriancaOut)
+def observacao_do_comissario(
+    crianca_id: int,
+    dados: ObservacaoComissarioIn,
+    db: BD,
+    ctx: Annotated[ContextoAcesso, Depends(exige_permissao("editar_padrinhos"))],
+):
+    """O recado do comissario sobre a crianca.
+
+    Rota propria, e nao o PATCH comum: o comissario nao edita crianca (nome,
+    codigo, idade sao da coordenacao), mas escreve sobre as dele. O alcance e
+    o da captacao — o comissario so alcanca as criancas atribuidas a ele, e a
+    coordenacao a edicao inteira.
+    """
+    crianca = db.scalar(
+        select(Crianca)
+        .where(Crianca.id == crianca_id, ctx.filtro_criancas("editar_padrinhos"))
+        .options(*CARREGAR)
+    )
+    if crianca is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
+
+    texto = (dados.texto or "").strip()
+    crianca.observacao_comissario = texto or None
+    registrar(
+        db, "crianca_observacao_comissario", usuario_id=ctx.usuario.id,
+        tabela="criancas", registro_id=crianca.id,
+    )
+    db.commit()
+    db.refresh(crianca)
+    return _saida(crianca, ctx, _panorama(db, [crianca.id]).get(crianca.id))
 
 
 @router.patch("/{crianca_id}/desistencia", response_model=CriancaOut)

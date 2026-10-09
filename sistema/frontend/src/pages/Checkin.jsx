@@ -52,21 +52,16 @@ export default function Checkin() {
 
   return (
     <div>
-      {/* Abertura de dominio: a cena da area a direita do titulo. Uma por
-          pagina, e so na tela que abre a area — nao se repete la dentro. */}
-      <div className="abertura-dominio">
-        <div>
-          <div className="pagina__eyebrow">Dia do evento</div>
-          <h1 className="pagina__titulo">Check-in</h1>
-          <Rabisco className="pagina__onda" />
-          <p className="pagina__lede">
-            {porLista
-              ? "Toque para confirmar a presença. O check-in nunca é recusado, só avisa."
-              : "Leia o QR do crachá ou digite o código. O check-in nunca é recusado, só avisa."}
-          </p>
-        </div>
-        <img className="abertura-dominio__cena" src="/acesso/images/cena-onibus.png" alt="" />
-      </div>
+      {/* O mesmo cabecalho das outras telas, no mesmo lugar: sem a cena do
+          onibus, que empurrava o conteudo e so existia aqui. */}
+      <div className="pagina__eyebrow">Dia do evento</div>
+      <h1 className="pagina__titulo">Check-in</h1>
+      <Rabisco className="pagina__onda" />
+      <p className="pagina__lede">
+        {porLista
+          ? "Toque para confirmar a presença. O check-in nunca é recusado, só avisa."
+          : "Leia o QR do crachá ou digite o código. O check-in nunca é recusado, só avisa."}
+      </p>
 
       {conteudo}
     </div>

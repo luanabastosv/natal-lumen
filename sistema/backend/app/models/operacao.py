@@ -229,6 +229,11 @@ class Crianca(Base):
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
 
+    # O recado do comissario sobre a crianca ("a mae pediu tamanho 8", "irmao
+    # do EA12"). Separado de `observacoes`, que chega da lista da instituicao:
+    # o comissario escrever ali apagaria o que a escola mandou.
+    observacao_comissario: Mapped[str | None] = mapped_column(Text)
+
     # Desistiu de ir ao evento. Nao apaga a crianca: ela continua na lista,
     # riscada, porque o cartao, o kit e o padrinho dela ja existem e alguem
     # ainda vai ter de decidir o que fazer com cada um. Voltar atras e so

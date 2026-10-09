@@ -27,6 +27,7 @@ import {
   listarComissarios,
   listarCriancas,
   resumoInstituicoes,
+  salvarObservacaoComissario,
 } from "../services/criancas.js";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { tomDoDia } from "../utils/dias.js";
@@ -147,6 +148,13 @@ export default function Criancas() {
   // Por isso a coluna do responsavel nao olha `podeEditar` como as outras.
   const podeAtribuir = podeEditar || pode("atribuir_comissario");
   const veKit = pode("gerenciar_kits");
+  // Quem capta escreve o proprio recado sobre a crianca ("a mae pediu tamanho
+  // 8") — comissario e coordenacao. A observacao da instituicao continua sendo
+  // a da ficha, que chega na lista importada.
+  const escreveObservacao = pode("editar_padrinhos");
+  // A visao do comissario: capta, mas nao edita crianca. Para ele o check-in
+  // aparece sempre — e ele quem acompanha se as criancas dele chegaram.
+  const visaoComissario = escreveObservacao && !podeEditar;
 
   // No celular a planilha inteira nao cabe: ficam de pe as tres colunas que
   // fazem alguem reconhecer a crianca e saber o que falta nela — codigo, nome
@@ -161,7 +169,7 @@ export default function Criancas() {
   // planilha devolve a crianca atualizada, e a coluna tem de aparecer no
   // mesmo instante, sem esperar a proxima busca.
   const mostrarCheckin =
-    criancas.com_checkin > 0 || criancas.itens.some((c) => c.checkin_em);
+    visaoComissario || criancas.com_checkin > 0 || criancas.itens.some((c) => c.checkin_em);
 
   useEffect(() => {
     let vivo = true;
@@ -275,6 +283,14 @@ export default function Criancas() {
       itens: atual.itens.map((c) => (c.id === crianca.id ? atualizada : c)),
     }));
     if (campo === "dia_evento_id") recarregarAbas();
+  }
+
+  async function salvarObservacao(crianca, texto) {
+    const atualizada = await salvarObservacaoComissario(crianca.id, texto);
+    definirCriancas((atual) => ({
+      ...atual,
+      itens: atual.itens.map((c) => (c.id === crianca.id ? atualizada : c)),
+    }));
   }
 
   /** Quem alcanca esta instituicao, como opcoes do seletor da coluna. */
@@ -819,6 +835,7 @@ export default function Criancas() {
                 {veCaptacao && <col style={{ width: estreita ? 62 : 84 }} />}
                 {!estreita && <col style={{ width: 72 }} />}
                 {veKit && !estreita && <col style={{ width: 72 }} />}
+                {escreveObservacao && !estreita && <col style={{ width: 200 }} />}
                 {/* Condicional junto com o <th>: um <col> a mais que as celulas
                     nao some — vira uma coluna vazia no fim, e a planilha
                     parece nao alcancar a borda do container. */}
@@ -868,6 +885,11 @@ export default function Criancas() {
                     <th title="Autorização do responsável já digitalizada">Autorização</th>
                   )}
                   {veKit && !estreita && <th>Kit</th>}
+                  {escreveObservacao && !estreita && (
+                    <th title="O recado do comissário sobre a criança. Só quem capta vê e escreve.">
+                      Observação
+                    </th>
+                  )}
                   {mostrarCheckin && !estreita && <th>Check-in</th>}
                   <th className="planilha__acoes" />
                 </tr>
@@ -1081,6 +1103,14 @@ export default function Criancas() {
                             {(c.kit_status ?? "").slice(0, 4)}
                           </span>
                         </span>
+                      </td>
+                    )}
+                    {escreveObservacao && !estreita && (
+                      <td>
+                        <CelulaEditavel
+                          valor={c.observacao_comissario ?? ""}
+                          aoSalvar={(v) => salvarObservacao(c, v)}
+                        />
                       </td>
                     )}
                     {mostrarCheckin && !estreita && (
