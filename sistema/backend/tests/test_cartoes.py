@@ -519,6 +519,20 @@ def main() -> None:
         r = cm.delete(f"/cartoes/{cartao_festa['id']}")
         verifica("apagar de novo da 404, nao erro", r.status_code == 404, str(r.status_code))
 
+        print("\nCartao ja escaneado nao e recortado")
+        from app.servicos import scanner
+        # O cartao inteiro, estreito como o de verdade: moldura amarela e, por
+        # dentro, um quadro branco — o maior contorno de quatro lados.
+        escaneado = np.full((1200, 500, 3), (0, 190, 250), np.uint8)
+        cv2.rectangle(escaneado, (40, 120), (460, 1000), (255, 255, 255), -1)
+        saida, _ = scanner.digitalizar(escaneado)
+        verifica("a imagem que ja e o cartao passa intacta, com moldura e rodape",
+                 saida.shape == escaneado.shape, str(saida.shape))
+        torta = scanner.carregar_imagem(foto_de_cartao("TORTO"))
+        endireitada, aviso = scanner.digitalizar(torta)
+        verifica("e a foto torta sobre a mesa continua sendo endireitada",
+                 aviso is None and endireitada.shape[:2] != torta.shape[:2], str(endireitada.shape))
+
         print("\nAutorizacoes: sobem pelo mesmo lote, numa pilha propria")
         r = cm.post(
             "/cartoes/lote",

@@ -24,6 +24,14 @@ AVISO_SEM_BORDAS = "bordas nao detectadas"
 # Um contorno so e aceito como o cartao se ocupar ao menos esta fatia da foto.
 AREA_MINIMA_DO_CARTAO = 0.20
 
+# A partir de quao "comprida" a imagem ja e o proprio cartao, e nao uma foto
+# dele sobre a mesa. O cartao do Natal Lumen e estreito (uns 0,42 de largura
+# por altura); foto de celular e 0,75 (4:3) ou 0,56 (16:9). Imagem mais
+# estreita que isto chegou escaneada ou ja recortada — e nela o maior
+# contorno de quatro lados e o QUADRO BRANCO de dentro do cartao, nao a borda
+# dele: "endireitar" cortava a moldura, o nome e o codigo da crianca.
+PROPORCAO_DE_CARTAO_PRONTO = 0.52
+
 # ---------------------------------------------------------------- imagem
 
 def carregar_imagem(conteudo: bytes) -> np.ndarray:
@@ -89,7 +97,14 @@ def digitalizar(imagem: np.ndarray):
 
     Devolve (imagem, aviso). Sem os 4 cantos, devolve a foto original com o
     aviso — nunca levanta erro, porque uma foto torta ainda serve.
+
+    Imagem que ja e o cartao (escaneada, ou recortada antes de subir) passa
+    intacta: ver PROPORCAO_DE_CARTAO_PRONTO.
     """
+    altura, largura = imagem.shape[:2]
+    if min(altura, largura) / max(altura, largura) < PROPORCAO_DE_CARTAO_PRONTO:
+        return imagem, None
+
     cantos = _encontrar_cantos(imagem)
     if cantos is None:
         return imagem, AVISO_SEM_BORDAS
