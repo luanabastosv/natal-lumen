@@ -6018,3 +6018,131 @@ button.checkin-lista__botao:not(:disabled):active {
     font-size: 15px;
   }
 }
+
+/* ---------- Imagem com zoom (cartao e autorizacao) ----------
+   A moldura tem a altura que a imagem inteira ocupava (a mesma conta da
+   .cartao-imagem). Sem zoom a imagem cabe nela; com zoom ela cresce em altura
+   e a moldura rola nos dois sentidos. Os botoes ficam por cima, no canto. */
+.imagem-zoom {
+  position: relative;
+}
+
+.imagem-zoom__moldura {
+  height: calc(85vh - 265px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-md);
+  background: var(--cream-100);
+  text-align: center;
+}
+
+.imagem-zoom__img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  cursor: zoom-in;
+}
+
+.imagem-zoom--ampliada .imagem-zoom__img {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  cursor: grab;
+}
+
+.imagem-zoom__controles {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  border: var(--stroke-hairline) solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.imagem-zoom__controles button {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 var(--space-2);
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-primary);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.imagem-zoom__controles button:hover:not(:disabled) {
+  background: var(--navy-100);
+}
+
+.imagem-zoom__controles button:disabled {
+  color: var(--text-on-light-muted);
+  cursor: default;
+}
+
+.imagem-zoom__controles .imagem-zoom__nivel {
+  min-width: 56px;
+  font-size: var(--size-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Com zoom, a mao de arrastar: segura e move para andar pela imagem. */
+.imagem-zoom--ampliada .imagem-zoom__moldura {
+  cursor: grab;
+}
+
+.imagem-zoom--arrastando .imagem-zoom__moldura,
+.imagem-zoom--arrastando .imagem-zoom__img {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* O visualizador da pasta: a imagem no meio, as setas dos lados. */
+.visualizador {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.visualizador .imagem-zoom {
+  flex: 1;
+  min-width: 0;
+}
+
+.visualizador__posicao {
+  margin: var(--space-2) 0 0;
+  text-align: center;
+  font-size: var(--size-caption);
+  color: var(--text-on-light-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* No celular as setas ficam por cima da imagem, nas laterais, para ela ter a
+   largura toda. */
+@media (max-width: 560px) {
+  .visualizador {
+    position: relative;
+  }
+
+  .visualizador > .conferencia__seta {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    transform: translateY(-50%);
+  }
+
+  .visualizador > .conferencia__seta:first-child {
+    left: var(--space-1);
+  }
+
+  .visualizador > .conferencia__seta:last-child {
+    right: var(--space-1);
+  }
+}

@@ -4,13 +4,19 @@ import Button from "../components/core/Button.jsx";
 import ConferirCartoes from "../components/dados/ConferirCartoes.jsx";
 import { PERGUNTAS, RESPOSTAS_PADRAO } from "../components/dados/autorizacao.js";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
-import { ArquivoIcone, ListaIcone } from "../components/core/icones.jsx";
+import {
+  ArquivoIcone,
+  ChevronDireita,
+  ChevronEsquerda,
+  ListaIcone,
+} from "../components/core/icones.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Progresso from "../components/feedback/Progresso.jsx";
 import Modal from "../components/feedback/Modal.jsx";
+import ImagemComZoom from "../components/dados/ImagemComZoom.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 import {
@@ -80,6 +86,26 @@ export default function Cartoes() {
 
   // Qual cartao esta aberto para olhar.
   const [vendo, definirVendo] = useState(null);
+  // Onde o aberto esta na pasta, para as setas do visualizador.
+  const posicaoVendo = vendo
+    ? cartoes.itens.findIndex((c) => c.id === vendo.id && c.tipo === vendo.tipo)
+    : -1;
+
+  function irPara(passo) {
+    const proximo = cartoes.itens[posicaoVendo + passo];
+    if (proximo) definirVendo(proximo);
+  }
+
+  // As setas do teclado tambem andam, com a janela aberta.
+  useEffect(() => {
+    if (!vendo) return undefined;
+    const aoTeclar = (e) => {
+      if (e.key === "ArrowLeft") irPara(-1);
+      if (e.key === "ArrowRight") irPara(1);
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  });
 
 
   // A tela tem dois andares: as pastas (uma por instituicao) e o de dentro de
@@ -743,11 +769,42 @@ export default function Cartoes() {
               <EtiquetaDesistente /> Esta criança desistiu de ir ao evento.
             </p>
           )}
-          <img
-            className="cartao-imagem"
-            src={imagemDe(vendo)}
-            alt={`${NOME_DO_TIPO[vendo.tipo]} de ${vendo.crianca_nome}`}
-          />
+          {/* Com zoom: a autorizacao e escrita a mao, em letra pequena, e
+              inteira na janela nao se le. Vale para o cartao tambem. As setas
+              andam pela pasta aberta, na ordem da lista — conferir a pilha
+              inteira sem fechar e abrir a janela a cada cartao. */}
+          <div className="visualizador">
+            <button
+              type="button"
+              className="conferencia__seta"
+              onClick={() => irPara(-1)}
+              disabled={posicaoVendo <= 0}
+              aria-label="Anterior"
+              title="Anterior"
+            >
+              <ChevronEsquerda t={20} />
+            </button>
+            <ImagemComZoom
+              key={imagemDe(vendo)}
+              src={imagemDe(vendo)}
+              alt={`${NOME_DO_TIPO[vendo.tipo]} de ${vendo.crianca_nome}`}
+            />
+            <button
+              type="button"
+              className="conferencia__seta"
+              onClick={() => irPara(1)}
+              disabled={posicaoVendo < 0 || posicaoVendo >= cartoes.itens.length - 1}
+              aria-label="Próximo"
+              title="Próximo"
+            >
+              <ChevronDireita t={20} />
+            </button>
+          </div>
+          {posicaoVendo >= 0 && (
+            <p className="visualizador__posicao">
+              {posicaoVendo + 1} de {cartoes.itens.length}
+            </p>
+          )}
           {/* Esta tela e controle de PAPEL: quantos ha, de que tipo, quais ja
               sairam. Quem e o padrinho de cada crianca e assunto da tela de
               padrinhos — aqui a pergunta e sobre a pilha. */}
