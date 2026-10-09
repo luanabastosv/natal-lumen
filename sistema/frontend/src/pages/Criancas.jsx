@@ -814,37 +814,43 @@ export default function Criancas() {
               )}
               {/* As larguras ficam aqui, e nao no conteudo: trocar de aba nao
                   move nenhuma coluna de lugar. */}
+              {/* Um <col> para cada <th>, NA MESMA ORDEM e com a mesma
+                  condicao. Um a menos desloca todas as larguras seguintes:
+                  faltava o da Autorizacao, e o Kit herdava os 200px da
+                  Observacao enquanto o nome ficava espremido em 40.
+
+                  Larguras em px so no dado curto, e no minimo que o rotulo
+                  pede. A instituicao tem largura fixa e pequena (o nome dela
+                  se le na aba, e a celula corta com reticencias); o nome da
+                  crianca vai sem largura e fica com toda a sobra. */}
               <colgroup>
                 {podeEditar && !estreita && <col style={{ width: 34 }} />}
-                <col style={{ width: estreita ? 74 : 92 }} />
+                <col style={{ width: estreita ? 74 : 84 }} />
                 <col />
                 {!estreita && (
                   <>
-                    <col style={{ width: 64 }} />
-                    <col style={{ width: 58 }} />
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 190 }} />
+                    <col style={{ width: 50 }} />
+                    <col style={{ width: 46 }} />
+                    <col style={{ width: 88 }} />
+                    <col style={{ width: 130 }} />
                   </>
                 )}
                 {veCaptacao && !estreita && (
                   <>
-                    <col style={{ width: 150 }} />
-                    <col style={{ width: 120 }} />
+                    <col style={{ width: 132 }} />
+                    <col style={{ width: 90 }} />
                   </>
                 )}
-                {veCaptacao && <col style={{ width: estreita ? 62 : 84 }} />}
-                {!estreita && <col style={{ width: 72 }} />}
-                {veKit && !estreita && <col style={{ width: 72 }} />}
-                {escreveObservacao && !estreita && <col style={{ width: 200 }} />}
-                {/* Condicional junto com o <th>: um <col> a mais que as celulas
-                    nao some — vira uma coluna vazia no fim, e a planilha
-                    parece nao alcancar a borda do container. */}
-                {mostrarCheckin && !estreita && <col style={{ width: 82 }} />}
-                {/* Os mesmos 66 de antes, que agora levam dois botoes de 24px
-                    em vez de um de tres pontinhos. Sem o de apagar sobra a
-                    largura de um, e os 26px voltam para a coluna do nome.
-                    No celular e um olho so, mas de 40px: alvo de dedo, e nao
-                    de ponteiro. */}
+                {veCaptacao && <col style={{ width: estreita ? 62 : 80 }} />}
+                {!estreita && <col style={{ width: 64 }} />}
+                {/* "Aut.": o rotulo curto deixa a coluna do tamanho do
+                    marcador. O nome inteiro fica na dica do cabecalho. */}
+                {!estreita && <col style={{ width: 56 }} />}
+                {veKit && !estreita && <col style={{ width: 58 }} />}
+                {escreveObservacao && !estreita && <col style={{ width: 150 }} />}
+                {mostrarCheckin && !estreita && <col style={{ width: 66 }} />}
+                {/* Dois botoes de 24px (ficha e apagar); sem o de apagar, um.
+                    No celular e um olho so, mas de 40px: alvo de dedo. */}
                 <col style={{ width: estreita ? 48 : podeEditar ? 66 : 40 }} />
               </colgroup>
               <thead>
@@ -882,7 +888,7 @@ export default function Criancas() {
                   {veCaptacao && <th title="Padrinho de cesta e de festa">Padrinhos</th>}
                   {!estreita && <th title="Cartões digitalizados, de 2">Cartões</th>}
                   {!estreita && (
-                    <th title="Autorização do responsável já digitalizada">Autorização</th>
+                    <th title="Autorização do responsável já digitalizada">Aut.</th>
                   )}
                   {veKit && !estreita && <th>Kit</th>}
                   {escreveObservacao && !estreita && (

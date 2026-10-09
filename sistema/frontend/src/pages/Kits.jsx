@@ -572,7 +572,7 @@ export default function Kits() {
               )}
               {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
               {!estreita && <col style={{ width: 116 }} />}
-              {!estreita && <col style={{ width: 96 }} />}
+              {!estreita && <col style={{ width: 78 }} />}
               {!estreita && <col style={{ width: 180 }} />}
               {!estreita && <col style={{ width: 190 }} />}
             </colgroup>

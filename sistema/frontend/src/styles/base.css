@@ -1974,10 +1974,18 @@ textarea.campo__controle {
   font-size: 13px;
   color: var(--text-on-light-primary);
   text-align: left;
+  cursor: default;
+}
+
+/* So a celula que de fato vira campo (o <button> da CelulaEditavel) mostra
+   o cursor de texto e a borda no hover. As de leitura — quem ve e nao pode
+   editar, ou a coluna que nunca se edita ali — usam a mesma classe para
+   alinhar com as outras, e antes prometiam um clique que nao acontecia. */
+button.celula {
   cursor: text;
 }
 
-.celula:hover {
+button.celula:hover {
   border-color: var(--border-default);
 }
 
