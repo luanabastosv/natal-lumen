@@ -887,16 +887,15 @@ textarea.campo__controle {
    da etiqueta e a letra por cima dele, e o pontinho da aba, que nao carrega
    tipo nenhum e precisa de um passo a mais de cor para se enxergar a 7px.
    Definir os tres juntos mantem pontinho e etiqueta lendo como a mesma cor,
-   que e a coisa toda.
-
-   A letra do sabado e amarelo-900 (5,9:1 sobre o amarelo-100), e tinta
-   amarela em cima de tipo — o que a nota do DS em tokens.css desaconselha.
-   Aqui a escolha foi da edicao, sabendo disso: o par so le como par se cada
-   dia for de uma cor so. */
+   que e a coisa toda. */
+/* Sabado em laranja, e nao mais amarelo: o amarelo lia como "atencao", e o
+   verde como "concluido". Laranja e azul sao opostos, e continuam distintos
+   no daltonismo vermelho-verde. A tinta terracota passa no AA sobre o fundo
+   claro. */
 .dia--1 {
-  --dia-fundo: var(--amarelo-100);
-  --dia-tinta: var(--amarelo-900);
-  --dia-ponto: var(--amarelo-300);
+  --dia-fundo: #fde5d6;
+  --dia-tinta: #9a3a0e;
+  --dia-ponto: #eb6834;
 }
 
 .dia--2 {
