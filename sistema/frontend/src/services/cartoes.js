@@ -18,11 +18,17 @@ export function listarCartoes(filtros = {}) {
   return api.get(`/cartoes?${p}`);
 }
 
+/** A "versao" da imagem na URL: o caminho do arquivo, que muda quando a
+ *  imagem e trocada. Sem isto o navegador seguia mostrando a imagem antiga,
+ *  guardada no cache pela MESMA URL (/cartoes/12/miniatura) — a troca
+ *  funcionava no servidor e parecia nao ter funcionado na tela. */
+const comVersao = (versao) => (versao ? `?v=${encodeURIComponent(versao)}` : "");
+
 /** A mesma imagem, pequena. A visao de arquivo mostra dezenas de uma vez, e o
  *  original tem ~290 KB cada. Vai por <img src>, e nao por fetch: o cookie da
  *  sessao viaja junto por ser mesma origem, e o navegador cuida do cache.
  */
-export const urlDaMiniatura = (id) => `${API_URL}/cartoes/${id}/miniatura`;
+export const urlDaMiniatura = (id, versao) => `${API_URL}/cartoes/${id}/miniatura${comVersao(versao)}`;
 
 export const apagarCartao = (id) => api.delete(`/cartoes/${id}`);
 
@@ -100,7 +106,7 @@ export const confirmarLote = (id, respostas) =>
 export const marcarEnviados = (cartoes) => api.post("/cartoes/enviados", { cartoes });
 
 /** A imagem só sai por rota autenticada — nunca é servida como arquivo estático. */
-export const urlDaImagem = (id) => `${API_URL}/cartoes/${id}/imagem`;
+export const urlDaImagem = (id, versao) => `${API_URL}/cartoes/${id}/imagem${comVersao(versao)}`;
 
 /** A foto de uma previa ainda nao gravada. Mesma porta autenticada: a imagem
  *  esta na pasta temporaria do lote e so sai por aqui. */
@@ -114,9 +120,11 @@ export const urlDaImagemDoLote = (idLote, indice) =>
 export const listarAutorizacoes = ({ edicao_id, instituicao_id }) =>
   api.get(`/autorizacoes?edicao_id=${edicao_id}&instituicao_id=${instituicao_id}`);
 
-export const urlDaImagemDaAutorizacao = (id) => `${API_URL}/autorizacoes/${id}/imagem`;
+export const urlDaImagemDaAutorizacao = (id, versao) =>
+  `${API_URL}/autorizacoes/${id}/imagem${comVersao(versao)}`;
 
-export const urlDaMiniaturaDaAutorizacao = (id) => `${API_URL}/autorizacoes/${id}/miniatura`;
+export const urlDaMiniaturaDaAutorizacao = (id, versao) =>
+  `${API_URL}/autorizacoes/${id}/miniatura${comVersao(versao)}`;
 
 export const apagarAutorizacao = (id) => api.delete(`/autorizacoes/${id}`);
 

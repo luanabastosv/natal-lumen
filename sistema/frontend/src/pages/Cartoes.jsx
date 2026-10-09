@@ -41,9 +41,13 @@ const NOME_DO_TIPO = { cesta: "cesta", festa: "festa", autorizacao: "autorizaç�
    resto da tela trata as duas coisas igual. */
 const ehAutorizacao = (item) => item.tipo === AUTORIZACAO;
 const imagemDe = (item) =>
-  ehAutorizacao(item) ? urlDaImagemDaAutorizacao(item.id) : urlDaImagem(item.id);
+  ehAutorizacao(item)
+    ? urlDaImagemDaAutorizacao(item.id, item.arquivo)
+    : urlDaImagem(item.id, item.arquivo);
 const miniaturaDe = (item) =>
-  ehAutorizacao(item) ? urlDaMiniaturaDaAutorizacao(item.id) : urlDaMiniatura(item.id);
+  ehAutorizacao(item)
+    ? urlDaMiniaturaDaAutorizacao(item.id, item.arquivo)
+    : urlDaMiniatura(item.id, item.arquivo);
 
 /** "o cartão de Ana" / "a autorização de Ana", para as mensagens. */
 const doItem = (item) =>

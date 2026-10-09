@@ -48,6 +48,10 @@ class AutorizacaoOut(BaseModel):
     crianca_desistiu_em: datetime | None = None
     instituicao: str
     criado_em: datetime
+    # O caminho da imagem no disco. A tela o usa como "versao" na URL da
+    # imagem: ele muda quando a imagem e trocada, e o navegador deixa de
+    # mostrar a antiga guardada no cache.
+    arquivo: str | None = None
 
     # Nulos so nas que subiram antes de o formulario existir.
     necessidade_especial: bool | None = None
