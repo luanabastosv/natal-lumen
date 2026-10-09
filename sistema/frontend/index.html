@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/acesso/images/star-mascot-amarelo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Na tela de inicio do celular: o iPhone ignora o icone em SVG e usa o
+         apple-touch-icon (PNG de 180px, sem transparencia); o Android le o
+         manifesto. Os dois abrem o sistema sem a barra do navegador. -->
+    <link rel="apple-touch-icon" href="/acesso/icones/apple-touch-icon.png" />
+    <link rel="manifest" href="/acesso/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Natal Lumen" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#153377" />
     <meta name="robots" content="noindex, nofollow" />
     <title>Sistema Natal Lumen</title>
   </head>
