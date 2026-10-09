@@ -45,6 +45,25 @@ export const baixarComprovanteDoRecebimento = (id) =>
  * As de apadrinhamento nao existem em tabela nenhuma: o servidor as calcula a
  * partir do que o pagamento quita. Por isso a lista aqui e maior que a do
  * formulario — ver CATEGORIAS_QUE_SE_ESCOLHEM. */
+/** As categorias de saida, nesta ordem. Lista fechada: com texto livre a
+ *  mesma coisa virava "cesta", "Cestas" e "cesta basica", e a conta por
+ *  categoria se espalhava em tres. A ORDEM importa: e ela que da a cor de
+ *  cada uma no grafico (as sete primeiras tem cor propria; as outras se
+ *  juntam em "demais"). */
+export const CATEGORIAS_SAIDA = [
+  "Estrutura - cestas",
+  "Estrutura - festa",
+  "Monitoria",
+  "Comissários",
+  "Ser Feliz",
+  "Intercessão",
+  "Decoração",
+  "Peça",
+  "Música",
+  "Alimentação",
+  "Outros",
+];
+
 export const ROTULO_CATEGORIA = {
   apadrinhamento_cesta: "Apadrinhamento - cesta",
   apadrinhamento_festa: "Apadrinhamento - festa",

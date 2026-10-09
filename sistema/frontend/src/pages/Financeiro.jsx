@@ -16,6 +16,7 @@ import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import {
+  CATEGORIAS_SAIDA,
   ROTULO_CATEGORIA,
   apagarRecebimento,
   apagarSaida,
@@ -71,9 +72,76 @@ function EtiquetaOrigem({ linha }) {
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 const NOVA_SAIDA = {
-  descricao: "", categoria: "", quantidade: "1",
+  descricao: "", categoria: "",
   valor_total: "", fornecedor: "", data: hoje(),
 };
+
+/* As cores das saidas, presas a CATEGORIA (pela posicao dela na lista fixa),
+   e nunca ao valor: a ordem das fatias e a da lista, e a cor de "Monitoria" e
+   a mesma em qualquer edicao. Sao as sete primeiras da paleta categorica
+   validada (CVD deltaE >= 9 entre vizinhas, na ordem da lista). Da oitava
+   categoria em diante, e as de texto livre de antes da lista fechada, tudo
+   cai em "demais", num cinza neutro — uma nona cor gerada seria
+   indistinguivel. Amarelo, aqua e rosa ficam abaixo de 3:1 sobre o branco:
+   por isso nome e valor vao sempre escritos na legenda. */
+const CORES_SAIDA = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7"];
+const COR_DEMAIS = "#8a8984";
+
+/** Para onde foi o que saiu: o mesmo card do "De onde veio", do lado dos
+ *  numeros, em vez de um painel com uma pilula por categoria. */
+function DestinoDoGasto({ porCategoria, total }) {
+  if (total <= 0) return null;
+  const fatias = [];
+  const demais = [];
+  for (const [categoria, bruto] of Object.entries(porCategoria)) {
+    const valor = Number(bruto);
+    if (valor <= 0) continue;
+    const posicao = CATEGORIAS_SAIDA.indexOf(categoria);
+    if (posicao >= 0 && posicao < CORES_SAIDA.length) {
+      fatias.push({ chave: categoria, rotulo: categoria, valor, cor: CORES_SAIDA[posicao], posicao });
+    } else {
+      demais.push([categoria, valor]);
+    }
+  }
+  fatias.sort((a, b) => a.posicao - b.posicao);
+  if (demais.length) {
+    fatias.push({
+      chave: "demais",
+      rotulo: demais.length === 1 ? demais[0][0] : "Demais",
+      valor: demais.reduce((s, [, v]) => s + v, 0),
+      cor: COR_DEMAIS,
+      detalhe: demais.map(([c, v]) => `${c}: ${dinheiro(v)}`).join(", "),
+    });
+  }
+  if (fatias.length === 0) return null;
+
+  const dica = (f) =>
+    `${f.rotulo}: ${dinheiro(f.valor)} (${Math.round((f.valor / total) * 100)}% das saídas)` +
+    (f.detalhe && demais.length > 1 ? ` — ${f.detalhe}` : "");
+
+  return (
+    <div className="numero numero--largo">
+      <span className="numero__rotulo">Para onde foi</span>
+      <div className="origem__barra" role="img" aria-label={fatias.map(dica).join("; ")}>
+        {fatias.map((f) => (
+          <span
+            key={f.chave}
+            className="origem__fatia"
+            style={{ flexGrow: f.valor, "--cor-origem": f.cor }}
+            title={dica(f)}
+          />
+        ))}
+      </div>
+      <ul className="origem__legenda">
+        {fatias.map((f) => (
+          <li key={f.chave} style={{ "--cor-origem": f.cor }} title={dica(f)}>
+            {f.rotulo} <strong>{dinheiro(f.valor)}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 const SAIDAS = "saidas";
 const RECEBIMENTOS = "recebimentos";
@@ -241,8 +309,10 @@ export default function Financeiro() {
       await criarSaida({
         edicao_id: Number(edicaoAtiva),
         descricao: saida.descricao.trim(),
-        categoria: saida.categoria.trim() || null,
-        quantidade: Number(saida.quantidade),
+        categoria: saida.categoria || null,
+        // Sem campo de quantidade: a saida e o valor gasto, e o "quantas
+        // unidades" ia num campo que quase sempre era 1.
+        quantidade: 1,
         valor_total: saida.valor_total,
         fornecedor: saida.fornecedor.trim() || null,
         data: saida.data,
@@ -341,7 +411,6 @@ export default function Financeiro() {
       titulo: c.descricao,
       campos: [
         { rotulo: "Categoria", valor: c.categoria },
-        { rotulo: "Quantidade", valor: c.quantidade },
         { rotulo: "Valor", valor: dinheiro(c.valor_total) },
         { rotulo: "Fornecedor", valor: c.fornecedor },
         { rotulo: "Data", valor: formatarData(c.data) },
@@ -453,14 +522,15 @@ export default function Financeiro() {
           <form onSubmit={salvarSaida}>
             <Entrada rotulo="Descrição" value={saida.descricao}
               onChange={(e) => definirSaida({ ...saida, descricao: e.target.value })} required />
-            <Entrada rotulo="Categoria" value={saida.categoria}
-              onChange={(e) => definirSaida({ ...saida, categoria: e.target.value })}
-              dica="Ex.: cesta, presente, higiene, estrutura, transporte" />
             <div className="linha-campos">
-              <Entrada rotulo="Quantidade" tipo="number" min="1" value={saida.quantidade}
-                onChange={(e) => definirSaida({ ...saida, quantidade: e.target.value })}
-                dica="1 no gasto que não se conta por unidade." required />
-              <Entrada rotulo="Valor total" tipo="number" step="0.01" value={saida.valor_total}
+              <Selecao rotulo="Categoria" value={saida.categoria}
+                onChange={(e) => definirSaida({ ...saida, categoria: e.target.value })} required>
+                <option value="" disabled>Selecione</option>
+                {CATEGORIAS_SAIDA.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Selecao>
+              <Entrada rotulo="Valor" tipo="number" step="0.01" value={saida.valor_total}
                 onChange={(e) => definirSaida({ ...saida, valor_total: e.target.value })} required />
             </div>
             <div className="linha-campos">
@@ -524,6 +594,12 @@ export default function Financeiro() {
               <OrigemDoRecebido
                 porCategoria={recebimentos.por_categoria}
                 total={Number(recebimentos.total_recebido)}
+              />
+            )}
+            {aba === SAIDAS && (
+              <DestinoDoGasto
+                porCategoria={saidas.por_categoria}
+                total={Number(saidas.total_gasto)}
               />
             )}
           </div>
@@ -622,19 +698,6 @@ export default function Financeiro() {
           <div role="tabpanel" aria-label={aba === SAIDAS ? "Saídas" : "Recebimentos"}>
             {aba === SAIDAS ? (
               <>
-                {Object.keys(saidas.por_categoria).length > 0 && (
-                  <div className="painel">
-                    <h2 className="painel__titulo">Gasto por categoria</h2>
-                    <div className="marcaveis">
-                      {Object.entries(saidas.por_categoria).map(([categoria, valor]) => (
-                        <span key={categoria} className="marcavel">
-                          {categoria}: <strong>{dinheiro(valor)}</strong>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {saidas.itens.length === 0 ? (
                   <EmptyState
                     titulo="Nenhuma saída registrada"
@@ -648,7 +711,7 @@ export default function Financeiro() {
                           <th>Descrição</th>
                           {!estreita && (
                             <>
-                              <th>Categoria</th><th>Qtd</th>
+                              <th>Categoria</th>
                             </>
                           )}
                           <th>Valor</th>
@@ -670,7 +733,6 @@ export default function Financeiro() {
                             {!estreita && (
                               <>
                                 <td>{c.categoria ?? "—"}</td>
-                                <td>{c.quantidade}</td>
                               </>
                             )}
                             <td><span className="dinheiro">{dinheiro(c.valor_total)}</span></td>
