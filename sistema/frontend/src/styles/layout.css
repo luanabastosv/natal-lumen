@@ -19,6 +19,7 @@
   flex: none;
   background: var(--navy-700);
   color: var(--white);
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
 .lateral {
@@ -59,7 +60,9 @@
 }
 
 .menu__item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   padding: 10px var(--space-3);
   font-size: 14px;
   font-weight: 700;
@@ -278,10 +281,90 @@
   text-decoration: underline;
 }
 
+/* ---------- Recolher a lateral (computador) ----------
+   O botao no topo da lateral a encolhe para o trilho de 80px do DS: ficam os
+   icones dos destinos (o nome vira a dica do mouse), a estrela da marca e o
+   avatar. A lista da pagina ganha os 176px que o menu ocupava — e o que a
+   planilha de criancas mais precisa. A escolha e da pessoa e fica lembrada no
+   navegador; no celular nao vale, ali a lateral e uma gaveta. */
+.lateral__recolher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  color: var(--navy-200);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.lateral__recolher:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+}
+
+.lateral__recolher:focus-visible {
+  outline: 2px solid var(--focus-ring-dark);
+  outline-offset: 2px;
+}
+
+.menu__item svg {
+  flex: none;
+}
+
+@media (min-width: 961px) {
+  .layout--recolhida .layout__lateral {
+    width: var(--layout-sidebar-w-rail);
+  }
+
+  .layout--recolhida .lateral {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+
+  /* A marca vira so a estrela, e o botao de abrir desce para baixo dela:
+     lado a lado nao cabem em 56px. */
+  .layout--recolhida .lateral__marca {
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: 0;
+  }
+
+  .layout--recolhida .lateral__recolher {
+    margin-left: 0;
+  }
+
+  .layout--recolhida .lateral__nome,
+  .layout--recolhida .menu__rotulo,
+  .layout--recolhida .lateral__edicao-bloco,
+  .layout--recolhida .lateral__usuario-nome {
+    display: none;
+  }
+
+  .layout--recolhida .menu__item {
+    justify-content: center;
+    padding: 12px 0;
+  }
+
+  /* A base empilha: avatar em cima, as acoes da conta embaixo dele. */
+  .layout--recolhida .lateral__usuario {
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .layout--recolhida .lateral__acoes {
+    flex-direction: column;
+  }
+}
+
 /* ---------- Celular ---------- */
-/* O DS recolhe a sidebar para um trilho de 80px so com icones entre 960 e
-   1279px. Aqui ela segue inteira ate 960px: os 11 destinos sao so texto, e um
-   trilho exigiria um jogo de icones que este sistema ainda nao tem. */
+/* No celular a lateral vira gaveta, e o botao de recolher nao existe: a
+   gaveta ja some sozinha ao escolher um destino. */
 @media (max-width: 960px) {
   .barra-mobile {
     display: flex;
@@ -354,6 +437,10 @@
     background: var(--navy-800);
     border-radius: var(--radius-pill);
     white-space: nowrap;
+  }
+
+  .lateral__recolher {
+    display: none;
   }
 
   /* A lateral vira gaveta, por cima do conteudo. */

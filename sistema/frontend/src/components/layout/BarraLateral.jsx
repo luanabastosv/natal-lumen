@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Configuracoes } from "../core/icones.jsx";
+import { Configuracoes, MenuRecolher } from "../core/icones.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import MenuLateral from "./MenuLateral.jsx";
 import { ITEM_ADMIN } from "./menu.js";
@@ -15,7 +15,7 @@ function iniciais(nome) {
 /** A barra lateral e a casca inteira da navegacao: marca no topo, destinos no
  *  meio, quem esta logado na base. Nao ha cabecalho no topo da pagina — com 11
  *  destinos, o layout do DS e este. */
-export default function BarraLateral({ aoNavegar }) {
+export default function BarraLateral({ aoNavegar, recolhida = false, aoAlternar }) {
   const { usuario, edicoes, edicao: edicaoAtual, edicaoAtiva, escolherEdicao, sair } =
     useSessao();
 
@@ -32,9 +32,22 @@ export default function BarraLateral({ aoNavegar }) {
           className="lateral__mascote"
         />
         <span className="lateral__nome">Natal Lumen</span>
+        {/* Recolher a lateral: so no computador (no celular ela ja e uma
+            gaveta). Recolhida, ficam os icones dos destinos e a lista ganha a
+            largura que o menu ocupava. */}
+        <button
+          type="button"
+          className="lateral__recolher"
+          onClick={aoAlternar}
+          title={recolhida ? "Abrir o menu" : "Recolher o menu"}
+          aria-label={recolhida ? "Abrir o menu" : "Recolher o menu"}
+          aria-expanded={!recolhida}
+        >
+          <MenuRecolher t={18} aberto={!recolhida} />
+        </button>
       </div>
 
-      <MenuLateral aoNavegar={aoNavegar} />
+      <MenuLateral aoNavegar={aoNavegar} recolhida={recolhida} />
 
       <div className="lateral__base">
         {/* A edicao ativa vale para o sistema inteiro: escolhida uma vez aqui,
@@ -76,7 +89,15 @@ export default function BarraLateral({ aoNavegar }) {
         </div>
 
         <div className="lateral__usuario">
-          <span className="lateral__avatar" aria-hidden="true">
+          <span
+            className="lateral__avatar"
+            aria-hidden="true"
+            title={
+              recolhida
+                ? `${nomeCurto(usuario?.nome)}${edicaoAtual ? ` · ${edicaoAtual.cidade} ${edicaoAtual.ano}` : ""}`
+                : undefined
+            }
+          >
             {iniciais(usuario?.nome)}
           </span>
           <span className="lateral__usuario-nome" title={usuario?.email}>

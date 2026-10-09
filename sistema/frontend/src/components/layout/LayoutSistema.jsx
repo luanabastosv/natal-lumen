@@ -5,8 +5,34 @@ import BarraLateral from "./BarraLateral.jsx";
 import BarraMobile from "./BarraMobile.jsx";
 import RodapeSistema from "./RodapeSistema.jsx";
 
+// A preferencia de lateral recolhida e da pessoa, e nao da tela: lembrada
+// neste navegador, e so isso. Se o armazenamento falhar (janela anonima,
+// bloqueio), a lateral simplesmente abre aberta.
+const CHAVE_RECOLHIDA = "natal-lumen:lateral-recolhida";
+
+function lerRecolhida() {
+  try {
+    return localStorage.getItem(CHAVE_RECOLHIDA) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function LayoutSistema() {
   const [menuAberto, definirMenuAberto] = useState(false);
+  const [recolhida, definirRecolhida] = useState(lerRecolhida);
+
+  function alternarRecolhida() {
+    definirRecolhida((atual) => {
+      const nova = !atual;
+      try {
+        localStorage.setItem(CHAVE_RECOLHIDA, nova ? "1" : "0");
+      } catch {
+        // Sem armazenamento, vale so ate recarregar.
+      }
+      return nova;
+    });
+  }
   const local = useLocation();
 
   // Trocar de pagina fecha a gaveta no celular. Ajustado durante o render, e
@@ -29,7 +55,7 @@ export default function LayoutSistema() {
   }, [menuAberto]);
 
   return (
-    <div className="layout">
+    <div className={`layout ${recolhida ? "layout--recolhida" : ""}`}>
       {/* Fica aqui, e nao numa pagina: no primeiro acesso do dia a pessoa entra
           por onde o trabalho dela pede, e muita gente nunca passa pelo painel.
           Ele mesmo decide se aparece. */}
@@ -41,7 +67,11 @@ export default function LayoutSistema() {
       />
 
       <aside className={`layout__lateral ${menuAberto ? "layout__lateral--aberta" : ""}`}>
-        <BarraLateral aoNavegar={() => definirMenuAberto(false)} />
+        <BarraLateral
+          aoNavegar={() => definirMenuAberto(false)}
+          recolhida={recolhida}
+          aoAlternar={alternarRecolhida}
+        />
       </aside>
 
       {menuAberto && (

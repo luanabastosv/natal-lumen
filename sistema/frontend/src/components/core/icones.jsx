@@ -207,3 +207,118 @@ export function Configuracoes({ t }) {
     </Svg>
   );
 }
+
+/* ---------- Icones do menu lateral ----------
+   Um por destino. Existem para a lateral recolhida, onde so o icone aparece;
+   na aberta eles vao ao lado do nome, para a pessoa aprender o par. */
+
+/** Painel: a casa, a porta de entrada. */
+export function MenuPainel({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5 9v11h14V9" />
+      <path d="M10 20v-6h4v6" />
+    </Svg>
+  );
+}
+
+/** Criancas: duas cabecinhas, uma maior e uma menor. */
+export function MenuCriancas({ t }) {
+  return (
+    <Svg t={t}>
+      <circle cx="9" cy="7" r="3" />
+      <path d="M3 20v-1a6 6 0 0 1 12 0v1" />
+      <circle cx="17.5" cy="9.5" r="2.2" />
+      <path d="M16 20v-1.5a4.5 4.5 0 0 1 5-4.4" />
+    </Svg>
+  );
+}
+
+/** Padrinhos: o coracao de quem doa. */
+export function MenuPadrinhos({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M12 20s-7-4.4-9-9a4.6 4.6 0 0 1 8.2-4.1L12 8l.8-1.1A4.6 4.6 0 0 1 21 11c-2 4.6-9 9-9 9z" />
+    </Svg>
+  );
+}
+
+/** Cartoes e autorizacao: o envelope. */
+export function MenuCartoes({ t }) {
+  return (
+    <Svg t={t}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </Svg>
+  );
+}
+
+/** Kits: a caixa de presente. */
+export function MenuKits({ t }) {
+  return (
+    <Svg t={t}>
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M5 12v8h14v-8" />
+      <path d="M12 8v12" />
+      <path d="M12 8S10.5 3.5 8 4.5 9 8 12 8zM12 8s1.5-4.5 4-3.5S15 8 12 8z" />
+    </Svg>
+  );
+}
+
+/** Financeiro: a moeda. */
+export function MenuFinanceiro({ t }) {
+  return (
+    <Svg t={t}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2s1.3 1.7 3 2 3 .9 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5" />
+      <path d="M12 6.5v11" />
+    </Svg>
+  );
+}
+
+/** Check-in: a prancheta com o visto. */
+export function MenuCheckin({ t }) {
+  return (
+    <Svg t={t}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3h6v1" />
+      <path d="m9 13 2 2 4-4" />
+    </Svg>
+  );
+}
+
+/** Usuarios: o cracha de quem trabalha no sistema. */
+export function MenuUsuarios({ t }) {
+  return (
+    <Svg t={t}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6 16a3 3 0 0 1 6 0" />
+      <path d="M15 10h3M15 14h3" />
+    </Svg>
+  );
+}
+
+/** Instituicoes: o predio da escola. */
+export function MenuInstituicoes({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M3 21h18" />
+      <path d="M5 21V10l7-5 7 5v11" />
+      <path d="M10 21v-5h4v5" />
+      <path d="M9 11h.01M15 11h.01" />
+    </Svg>
+  );
+}
+
+/** Recolher/abrir a lateral: a barra com a seta. */
+export function MenuRecolher({ t, aberto = true }) {
+  return (
+    <Svg t={t}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      {aberto ? <path d="m16 10-2 2 2 2" /> : <path d="m14 10 2 2-2 2" />}
+    </Svg>
+  );
+}
