@@ -132,5 +132,6 @@ export const api = {
   post: (caminho, body) => pedir(caminho, { method: "POST", body }),
   put: (caminho, body) => pedir(caminho, { method: "PUT", body }),
   patch: (caminho, body) => pedir(caminho, { method: "PATCH", body }),
-  delete: (caminho) => pedir(caminho, { method: "DELETE" }),
+  // O corpo e opcional: so o apagar que pede a senha de novo manda um.
+  delete: (caminho, body) => pedir(caminho, { method: "DELETE", body }),
 };

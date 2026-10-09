@@ -568,14 +568,21 @@ def main() -> None:
             str(conta),
         )
 
-        r = cc.delete(f"/edicoes/{ed_for['id']}?confirmar=true")
+        r = cc.request("DELETE", f"/edicoes/{ed_for['id']}?confirmar=true", json={"senha": SENHA})
         verifica("coordenacao NAO apaga edicao", r.status_code == 403, str(r.status_code))
 
-        r = ca.delete(f"/edicoes/{ed_for['id']}")
+        r = ca.delete(f"/edicoes/{ed_for['id']}?confirmar=true")
+        verifica("sem a senha de novo, a edicao NAO e apagada", r.status_code == 403, str(r.status_code))
+        r = ca.request("DELETE", f"/edicoes/{ed_for['id']}?confirmar=true", json={"senha": "errada-123"})
+        verifica("com a senha errada tambem nao", r.status_code == 403, str(r.status_code))
+        db.expire_all()
+        verifica("e a edicao continua la", db.get(Edicao, ed_for["id"]) is not None)
+
+        r = ca.request("DELETE", f"/edicoes/{ed_for['id']}", json={"senha": SENHA})
         verifica("recusa apagar edicao com dados sem confirmar", r.status_code == 409)
 
-        r = ca.delete(f"/edicoes/{ed_for['id']}?confirmar=true")
-        verifica("apaga edicao confirmada", r.status_code == 204, r.text[:110])
+        r = ca.request("DELETE", f"/edicoes/{ed_for['id']}?confirmar=true", json={"senha": SENHA})
+        verifica("apaga edicao confirmada, com a senha", r.status_code == 204, r.text[:110])
 
         db.expire_all()
         verifica("a edicao saiu", db.get(Edicao, ed_for["id"]) is None)
@@ -588,7 +595,7 @@ def main() -> None:
         print("\nApagar cidade: leva as edicoes e as instituicoes dela")
         r = ca.post("/cidades", json={"nome": f"{MARCA} Sobral", "uf": "CE"})
         sobral = r.json()
-        r = ca.delete(f"/cidades/{sobral['id']}")
+        r = ca.request("DELETE", f"/cidades/{sobral['id']}", json={"senha": SENHA})
         verifica(
             "cidade sem nada ligado a ela nao precisa de confirmacao",
             r.status_code == 204,
@@ -600,10 +607,13 @@ def main() -> None:
         verifica("conta a edicao da cidade", conta.get("edicoes") == 1, str(conta))
         verifica("conta a instituicao da cidade", conta.get("instituicoes") == 1, str(conta))
 
-        r = ca.delete(f"/cidades/{caucaia['id']}")
+        r = ca.delete(f"/cidades/{caucaia['id']}?confirmar=true")
+        verifica("sem a senha, a cidade NAO e apagada", r.status_code == 403, str(r.status_code))
+
+        r = ca.request("DELETE", f"/cidades/{caucaia['id']}", json={"senha": SENHA})
         verifica("recusa apagar cidade com dados sem confirmar", r.status_code == 409)
 
-        r = ca.delete(f"/cidades/{caucaia['id']}?confirmar=true")
+        r = ca.request("DELETE", f"/cidades/{caucaia['id']}?confirmar=true", json={"senha": SENHA})
         verifica("apaga cidade confirmada", r.status_code == 204, r.text[:110])
 
         db.expire_all()

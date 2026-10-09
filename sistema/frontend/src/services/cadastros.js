@@ -10,14 +10,16 @@ export const editarCidade = (id, dados) => api.patch(`/cidades/${id}`, dados);
    no modal, e so entao apagar. O `confirmar=true` e o que a API exige para
    executar — sem ele, ela recusa e devolve a conta. */
 export const dependenciasDaCidade = (id) => api.get(`/cidades/${id}/dependencias`);
-export const apagarCidade = (id) => api.delete(`/cidades/${id}?confirmar=true`);
+/** Apaga a cidade com as edicoes dela. Pede a senha de quem apaga, de novo. */
+export const apagarCidade = (id, senha) => api.delete(`/cidades/${id}?confirmar=true`, { senha });
 
 // Edicoes
 export const listarEdicoes = () => api.get("/edicoes");
 export const criarEdicao = (dados) => api.post("/edicoes", dados);
 export const editarEdicao = (id, dados) => api.patch(`/edicoes/${id}`, dados);
 export const dependenciasDaEdicao = (id) => api.get(`/edicoes/${id}/dependencias`);
-export const apagarEdicao = (id) => api.delete(`/edicoes/${id}?confirmar=true`);
+/** Apaga a edicao com tudo dentro. Pede a senha de quem apaga, de novo. */
+export const apagarEdicao = (id, senha) => api.delete(`/edicoes/${id}?confirmar=true`, { senha });
 
 // Dias do evento
 export const listarDias = (edicaoId) => api.get(`/edicoes/${edicaoId}/dias`);

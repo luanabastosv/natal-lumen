@@ -10,7 +10,7 @@ ate a administracao geral recriar os vinculos um a um.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
@@ -30,6 +30,7 @@ from app.schemas.cadastros import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral, exige_permissao
 from app.servicos import coordenacao, dias, exclusao
+from app.seguranca.reconfirmar import exigir_senha
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/edicoes", tags=["cadastros"])
@@ -158,6 +159,8 @@ def apagar(
     db: BD,
     ctx: Admin,
     confirmar: Annotated[bool, Query()] = False,
+    # A senha de quem apaga, de novo: ver seguranca/reconfirmar.py.
+    senha: Annotated[str | None, Body(embed=True)] = None,
 ):
     """Apaga a edicao e o ano inteiro que esta dentro dela.
 
@@ -170,6 +173,7 @@ def apagar(
     quantos sao.
     """
     edicao = _buscar_edicao(db, ctx, edicao_id)
+    exigir_senha(db, ctx, senha, "apagar_edicao")
 
     # Lidos antes do DELETE: depois dele o objeto nao pode mais ser consultado.
     nome, ano, cidade_id = edicao.nome, edicao.ano, edicao.cidade_id

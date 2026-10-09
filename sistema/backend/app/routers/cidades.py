@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from app.schemas.cadastros import CidadeIn, CidadeOut, DependenciasOut
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral
 from app.servicos import exclusao
+from app.seguranca.reconfirmar import exigir_senha
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/cidades", tags=["cadastros"])
@@ -106,6 +107,8 @@ def apagar(
     db: BD,
     ctx: Admin,
     confirmar: Annotated[bool, Query()] = False,
+    # A senha de quem apaga, de novo: ver seguranca/reconfirmar.py.
+    senha: Annotated[str | None, Body(embed=True)] = None,
 ):
     """Apaga a cidade e, com ela, as edicoes e instituicoes que estao dentro.
 
@@ -115,6 +118,8 @@ def apagar(
     modal.
     """
     cidade = _buscar(db, cidade_id)
+    # Apagar a cidade leva as edicoes junto: a mesma senha de novo.
+    exigir_senha(db, ctx, senha, "apagar_cidade")
     # Lido antes do DELETE: depois dele o objeto nao pode mais ser consultado.
     nome, uf = cidade.nome, cidade.uf
 

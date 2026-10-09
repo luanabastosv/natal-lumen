@@ -314,13 +314,13 @@ export default function CidadesEdicoes() {
     }
   }
 
-  async function confirmarExclusao() {
+  async function confirmarExclusao(senha) {
     const { tipo, registro } = exclusao;
     definirExclusao((atual) => ({ ...atual, apagando: true, erro: "" }));
 
     try {
       if (tipo === "cidade") {
-        await apagarCidade(registro.id);
+        await apagarCidade(registro.id, senha);
         definirCidades((l) => l.filter((c) => c.id !== registro.id));
         // As edicoes da cidade foram junto, no servidor: a lista da tela
         // precisa perder as dela tambem, senao sobram linhas apontando para
@@ -328,7 +328,7 @@ export default function CidadesEdicoes() {
         definirEdicoes((l) => l.filter((e) => e.cidade_id !== registro.id));
         if (dias?.edicao.cidade_id === registro.id) definirDias(null);
       } else {
-        await apagarEdicao(registro.id);
+        await apagarEdicao(registro.id, senha);
         definirEdicoes((l) => l.filter((e) => e.id !== registro.id));
         if (dias?.edicao.id === registro.id) definirDias(null);
       }
@@ -723,6 +723,9 @@ export default function CidadesEdicoes() {
           nota={exclusao.tipo === "cidade" ? NOTA_CIDADE : NOTA_EDICAO}
           erro={exclusao.erro}
           apagando={exclusao.apagando}
+          /* Edicao e cidade levam um ano inteiro junto: a senha de quem
+             apaga, de novo, alem da janela (o servidor confere). */
+          pedirSenha
           aoConfirmar={confirmarExclusao}
           aoFechar={() => definirExclusao(null)}
         />

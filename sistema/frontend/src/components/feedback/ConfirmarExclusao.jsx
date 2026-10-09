@@ -1,4 +1,6 @@
+import { useState } from "react";
 import Button from "../core/Button.jsx";
+import { Entrada } from "../core/Campo.jsx";
 import Carregando from "./Carregando.jsx";
 import Mensagem from "./Mensagem.jsx";
 import Modal from "./Modal.jsx";
@@ -51,13 +53,18 @@ export default function ConfirmarExclusao({
   nota,
   erro,
   apagando = false,
+  // Pede a senha de quem apaga, de novo, antes de liberar o botao. Para o
+  // que nao tem volta e leva muito junto (edicao, cidade). `aoConfirmar`
+  // recebe a senha digitada.
+  pedirSenha = false,
   aoConfirmar,
   aoFechar,
 }) {
+  const [senha, definirSenha] = useState("");
   // Sem a conta em maos o botao nao libera: apagar sem ter visto o que vai
   // junto e exatamente o que esta janela existe para evitar. Se a conta falhou,
   // o que aparece e o erro — nao adianta seguir dizendo "conferindo".
-  const podeApagar = Boolean(dependencias);
+  const podeApagar = Boolean(dependencias) && (!pedirSenha || senha.length > 0);
   const conferindo = !dependencias && !erro;
   const itens = dependencias?.itens ?? [];
   const total = dependencias?.total ?? 0;
@@ -75,7 +82,7 @@ export default function ConfirmarExclusao({
         <div className="barra-acoes barra-acoes--fim" style={{ marginTop: 0 }}>
           <Button
             variant="perigo"
-            onClick={aoConfirmar}
+            onClick={() => aoConfirmar(senha)}
             carregando={apagando}
             disabled={!podeApagar}
           >
@@ -111,6 +118,24 @@ export default function ConfirmarExclusao({
       {nota && <p className="campo__dica">{nota}</p>}
 
       <Mensagem tipo="aviso">Não dá para voltar atrás depois de apagar.</Mensagem>
+
+      {pedirSenha && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (podeApagar && !apagando) aoConfirmar(senha);
+          }}
+        >
+          <Entrada
+            rotulo="Sua senha, para confirmar"
+            tipo="password"
+            autoComplete="current-password"
+            value={senha}
+            onChange={(e) => definirSenha(e.target.value)}
+            dica="A mesma senha com que você entra no sistema."
+          />
+        </form>
+      )}
     </Modal>
   );
 }
