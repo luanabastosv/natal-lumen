@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import { useSessao } from "../contexts/useSessao.js";
+import { eCoordenacaoGeral } from "../components/layout/menu.js";
 
 /** Exige sessao e, opcionalmente, permissao.
  *
@@ -16,9 +17,11 @@ export default function RotaProtegida({
   permissao,
   permissoes,
   apenasAdmin = false,
+  // So a coordenacao geral do evento (e a administracao geral).
+  soCoordenacaoGeral = false,
   children,
 }) {
-  const { autenticado, carregando, pode, usuario } = useSessao();
+  const { autenticado, carregando, pode, usuario, vinculoAtivo } = useSessao();
   const local = useLocation();
 
   if (carregando) {
@@ -35,6 +38,15 @@ export default function RotaProtegida({
       <EmptyState
         titulo="Seção da administração geral"
         corpo="Cidades e edições são criadas pela administração geral do projeto."
+      />
+    );
+  }
+
+  if (soCoordenacaoGeral && !eCoordenacaoGeral(usuario, vinculoAtivo)) {
+    return (
+      <EmptyState
+        titulo="Seção da coordenação geral"
+        corpo="Esta lista é da coordenação geral do evento."
       />
     );
   }

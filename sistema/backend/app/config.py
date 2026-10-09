@@ -76,6 +76,13 @@ class Config(BaseSettings):
     drive_pasta_id: str = ""
     drive_timeout_s: float = 60.0
 
+    # --- Check-in ---
+    # Liga o check-in em qualquer dia, para TODO perfil que faz check-in (o
+    # monitor incluido): e para ver e ajustar a tela antes do evento. Liga-se
+    # no .env de quem testa, e desliga-se apagando a linha. Na producao nao
+    # vale nunca — ver `checkin_liberado`.
+    checkin_sempre_aberto: bool = False
+
     # --- Publicacao ---
     ambiente: str = "desenvolvimento"
     root_path: str = "/acesso/api"
@@ -84,6 +91,12 @@ class Config(BaseSettings):
     def whatsapp_ligado(self) -> bool:
         """So envia se as duas credenciais estiverem preenchidas."""
         return bool(self.whatsapp_token and self.whatsapp_phone_number_id)
+
+    @property
+    def checkin_liberado(self) -> bool:
+        """O check-in aberto em qualquer dia, para todos. Nunca na producao:
+        la um toque fora do dia gravaria presenca de verdade."""
+        return self.checkin_sempre_aberto and self.ambiente != "producao"
 
     @property
     def drive_ligado(self) -> bool:

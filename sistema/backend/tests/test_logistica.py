@@ -102,6 +102,11 @@ def entrar(cliente: TestClient, email: str):
 
 
 def main() -> None:
+    # A trava do dia do evento e o que este teste prova: um .env de quem esta
+    # ajustando a tela com o check-in liberado nao pode muda-la.
+    from app.config import config as cfg
+    cfg.checkin_sempre_aberto = False
+
     db = SessionLocal()
     log_inicial = db.scalar(select(func.max(LogAtividade.id))) or 0
     limpar(db)
@@ -244,6 +249,45 @@ def main() -> None:
                  r.json()[0]["conferido_por"] is None and r.json()[0]["montado_por"] is None,
                  str(r.json()[0]))
         ce.post("/kits", json={"criancas": [ana.id], "status": "montado"})
+
+        print("\nKits: montagem e conferencia da instituicao, de uma vez")
+        alvo = {"edicao_id": edicao.id, "instituicao_id": inst.id}
+        r = ce.put("/kits/montagem", json={**alvo, "montado_por": "", "conferido_por": "Rita"})
+        verifica("conferir sem dizer quem montou e recusado", r.status_code == 422, str(r.status_code))
+
+        r = ce.put("/kits/montagem", json={**alvo, "montado_por": " Joana ", "conferido_por": ""})
+        verifica("grava quem montou", r.status_code == 200 and r.json()["montado_por"] == "Joana",
+                 r.text[:160])
+        itens = ce.get("/kits", params={"instituicao_id": inst.id}).json()["itens"]
+        verifica("e todos os kits da escola ficam montados por ela",
+                 all(i["status"] == "montado" and i["montado_por"] == "Joana"
+                     for i in itens if not i["desistiu_em"]), str([(i["status"], i["montado_por"]) for i in itens]))
+        verifica("ainda sem conferencia",
+                 all(i["conferido_por"] is None for i in itens), str([i["conferido_por"] for i in itens]))
+
+        r = ce.put("/kits/montagem", json={**alvo, "montado_por": "Joana", "conferido_por": "Rita"})
+        r = ce.get("/kits/montagem", params=alvo)
+        verifica("a janela reabre com os dois nomes",
+                 r.json()["montado_por"] == "Joana" and r.json()["conferido_por"] == "Rita"
+                 and r.json()["kits"] == 3, r.text[:160])
+        itens = ce.get("/kits", params={"instituicao_id": inst.id}).json()["itens"]
+        verifica("e todos conferidos por Rita",
+                 all(i["conferido_por"] == "Rita" for i in itens), str([i["conferido_por"] for i in itens]))
+
+        r = ce.put("/kits/montagem", json={**alvo, "montado_por": "Joana Silva", "conferido_por": "Rita"})
+        itens = ce.get("/kits", params={"instituicao_id": inst.id}).json()["itens"]
+        verifica("editar corrige o nome em todos",
+                 all(i["montado_por"] == "Joana Silva" for i in itens), str([i["montado_por"] for i in itens]))
+
+        r = ck.put("/kits/montagem", json={**alvo, "montado_por": "X"})
+        verifica("comissario NAO grava montagem", r.status_code == 403, str(r.status_code))
+
+        r = ce.put("/kits/montagem", json={**alvo, "montado_por": "", "conferido_por": ""})
+        itens = ce.get("/kits", params={"instituicao_id": inst.id}).json()["itens"]
+        verifica("apagar os nomes desfaz a montagem",
+                 all(i["status"] == "pendente" and i["montado_por"] is None for i in itens),
+                 str([(i["status"], i["montado_por"]) for i in itens]))
+        ce.post("/kits", json={"criancas": [ana.id, bruno.id], "status": "montado"})
 
         print("\nKits: duas pessoas marcando a mesma crianca")
         # A equipe de estrutura marca em paralelo na semana do evento. Antes,
@@ -664,6 +708,57 @@ def main() -> None:
 
         r = ck.get("/checkin/aberto", params={"edicao_id": edicao.id})
         verifica("comissario NAO pergunta pelo check-in", r.status_code == 403, str(r.status_code))
+
+        # A administracao geral entra em qualquer dia: e quem testa o sistema.
+        adm = Usuario(nome=f"{MARCA} Admin", email=f"{MARCA.lower()}.admin@exemplo.org",
+                      senha_hash=gerar_hash(SENHA), admin_geral=True)
+        db.add(adm); db.commit()
+        ca = TestClient(app); entrar(ca, adm.email)
+        r = ca.get("/checkin/aberto", params={"edicao_id": edicao.id})
+        verifica("fora do dia, a administracao geral ve o check-in aberto",
+                 r.json().get("aberto") is True and r.json().get("fora_do_dia") is True, r.text[:160])
+        r = cm.get("/checkin/aberto", params={"edicao_id": edicao.id})
+        verifica("e para o monitor continua fechado, sem aviso de fora do dia",
+                 r.json().get("aberto") is False and r.json().get("fora_do_dia") is False, r.text[:160])
+        r = ca.get("/checkin/lista", params={"edicao_id": edicao.id})
+        verifica("a administracao geral abre a lista", r.status_code == 200, str(r.status_code))
+        r = ca.post("/checkin", json={"codigo": "004", "edicao_id": edicao.id})
+        verifica("e confirma presenca fora do dia", r.status_code == 200, r.text[:160])
+
+        print("\nDesfazer o check-in")
+        r = ca.post("/checkin/desfazer", json={"crianca_id": davi.id, "edicao_id": edicao.id})
+        verifica("desfaz o check-in", r.status_code == 200 and r.json()["checkin_em"] is None, r.text[:160])
+        db.expire_all()
+        verifica("e a crianca volta a nao ter check-in", db.get(Crianca, davi.id).checkin_em is None)
+        r = cm.post("/checkin/desfazer", json={"crianca_id": davi.id, "edicao_id": edicao.id})
+        verifica("fora do dia, o monitor NAO desfaz", r.status_code == 403, str(r.status_code))
+        r = ck.post("/checkin/desfazer", json={"crianca_id": davi.id, "edicao_id": edicao.id})
+        verifica("comissario NAO desfaz check-in", r.status_code == 403, str(r.status_code))
+        hoje.data = date.today(); db.commit()
+        r = cm.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        ana_id = r.json().get("crianca_id")
+        r = cm.post("/checkin/desfazer", json={"crianca_id": ana_id, "edicao_id": edicao.id})
+        verifica("no dia, o monitor desfaz o da escola dele",
+                 r.status_code == 200 and r.json()["checkin_em"] is None, r.text[:160])
+
+        print("\nFaltou")
+        r = cm.post("/checkin/falta", json={"crianca_id": ana_id, "edicao_id": edicao.id})
+        verifica("o monitor marca que a crianca faltou",
+                 r.status_code == 200 and r.json()["falta_em"] is not None
+                 and r.json()["checkin_em"] is None, r.text[:160])
+        lista = {l["crianca_id"]: l for l in cm.get("/checkin/lista", params={"edicao_id": edicao.id}).json()}
+        verifica("e a lista mostra a falta", lista[ana_id]["falta_em"] is not None, str(lista[ana_id]))
+        r = cm.post("/checkin", json={"codigo": "001", "edicao_id": edicao.id})
+        db.expire_all()
+        verifica("chegar depois tira a falta",
+                 db.get(Crianca, ana_id).falta_em is None and db.get(Crianca, ana_id).checkin_em is not None)
+        r = cm.post("/checkin/falta", json={"crianca_id": ana_id, "edicao_id": edicao.id})
+        verifica("e faltar tira o check-in", r.json()["checkin_em"] is None, r.text[:160])
+        r = cm.post("/checkin/desfazer", json={"crianca_id": ana_id, "edicao_id": edicao.id})
+        verifica("desfazer limpa a falta",
+                 r.json()["falta_em"] is None and r.json()["checkin_em"] is None, r.text[:160])
+        r = ck.post("/checkin/falta", json={"crianca_id": ana_id, "edicao_id": edicao.id})
+        verifica("comissario NAO marca falta", r.status_code == 403, str(r.status_code))
 
     finally:
         limpar(db, log_inicial)

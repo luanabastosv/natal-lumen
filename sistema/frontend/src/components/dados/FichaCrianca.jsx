@@ -9,6 +9,7 @@ import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { linkWhatsapp } from "../../utils/whatsapp.js";
 import { useSessao } from "../../contexts/useSessao.js";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
+import { Cuidado, Visto, Xis } from "../core/icones.jsx";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
 
@@ -28,6 +29,13 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
   }, [criancaId]);
 
   const desistiu = Boolean(ficha?.desistiu_em);
+  // As tres perguntas da autorizacao que ja tem resposta, e se alguma e "Sim".
+  const cuidados = [
+    ["Necessidade especial", ficha?.necessidade_especial, ficha?.necessidade_especial_qual],
+    ["Alergia ou restrição", ficha?.restricao_alimentar, ficha?.restricao_alimentar_qual],
+    ["Obs. da autorização", ficha?.tem_observacao, ficha?.observacao_autorizacao],
+  ].filter(([, sim]) => sim !== null && sim !== undefined);
+  const algumCuidado = cuidados.some(([, sim]) => sim);
   // A coordenacao geral do evento (e a administracao geral): sao as unicas
   // que leem, na ficha, o recado que o comissario deixou sobre a crianca.
   const { usuario, vinculoAtivo } = useSessao();
@@ -147,22 +155,53 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                 : "ainda não chegou"}
             </dd>
             <dt>Check-in</dt>
-            <dd>{ficha.checkin_em ? formatarDataHora(ficha.checkin_em) : "não fez"}</dd>
-            {/* O que o monitor marcou ao conferir a autorizacao. So existe
-                depois que ela subiu; nas antigas, sem resposta, a linha some. */}
-            {ficha.autorizacao_em &&
-              [
-                ["Necessidade especial", ficha.necessidade_especial, ficha.necessidade_especial_qual],
-                ["Alergia ou restrição", ficha.restricao_alimentar, ficha.restricao_alimentar_qual],
-                ["Obs. da autorização", ficha.tem_observacao, ficha.observacao_autorizacao],
-              ]
-                .filter(([, sim]) => sim !== null)
-                .map(([rotulo, sim, qual]) => (
-                  <div key={rotulo} style={{ display: "contents" }}>
-                    <dt className="ficha__dt-largo">{rotulo}</dt>
-                    <dd className="ficha__dd-largo">{sim ? `Sim · ${qual}` : "Não"}</dd>
-                  </div>
-                ))}
+            {/* Tres estados: presente (visto verde e a hora), faltou (X
+                vermelho e a hora em que a falta foi marcada) e, sem
+                nenhum dos dois, "não fez" — ninguem conferiu ainda. */}
+            <dd>
+              {ficha.checkin_em ? (
+                <span className="ficha__checkin ficha__checkin--presente">
+                  <Visto t={16} /> {formatarDataHora(ficha.checkin_em)}
+                </span>
+              ) : ficha.falta_em ? (
+                <span className="ficha__checkin ficha__checkin--faltou">
+                  <Xis t={16} /> Faltou · {formatarDataHora(ficha.falta_em)}
+                </span>
+              ) : (
+                "não fez"
+              )}
+            </dd>
+            {/* O que o monitor marcou ao conferir a autorizacao, numa caixa
+                propria e no mesmo lugar de antes. Quando ha algum "Sim", a
+                caixa vem destacada: e o cuidado que quem recebe a crianca no
+                dia nao pode deixar passar. So existe depois que a autorizacao
+                subiu; nas antigas, sem resposta, a caixa some. */}
+            {ficha.autorizacao_em && cuidados.length > 0 && (
+              <div
+                className={`ficha__cuidados ${algumCuidado ? "ficha__cuidados--atencao" : ""}`}
+                role={algumCuidado ? "note" : undefined}
+              >
+                {/* O mesmo icone da lista: e por ele que se liga o sinal la
+                    ao que ele quer dizer aqui. */}
+                <div className="ficha__cuidados-titulo">
+                  {algumCuidado && <Cuidado t={14} />}
+                  {algumCuidado ? "Atenção: cuidados especiais" : "Cuidados da autorização"}
+                </div>
+                {/* Lado a lado, um bloco por pergunta (rotulo em cima,
+                    resposta embaixo): as tres numa faixa so, em vez de tres
+                    linhas empilhadas. */}
+                <dl className="ficha__cuidados-lista">
+                  {cuidados.map(([rotulo, sim, qual]) => (
+                    <div key={rotulo} className="ficha__cuidado">
+                      <dt>{rotulo}</dt>
+                      <dd className={sim ? "ficha__cuidado-sim" : undefined}>
+                        {sim ? `Sim · ${qual}` : "Não"}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
             {ficha.observacoes && (
               <>
                 <dt className="ficha__dt-largo">Observações</dt>
@@ -257,9 +296,10 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
                 <div key={c.id} style={{ display: "contents" }}>
                   <dt>{TIPOS[c.tipo] ?? c.tipo}</dt>
                   <dd>
-                    <span
-                      className={`etiqueta ${c.status === "enviado" ? "etiqueta--ok" : "etiqueta--espera"}`}
-                    >
+                    {/* Azul nos dois estados: cartao digitalizado ja e
+                        trabalho feito (esta aqui, no sistema). O amarelo
+                        dizia "falta algo", e nao falta. */}
+                    <span className="etiqueta etiqueta--ok">
                       {c.status}
                     </span>
                     {c.enviado_em && ` · ${formatarDataHora(c.enviado_em)}`}

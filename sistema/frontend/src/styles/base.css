@@ -5025,25 +5025,38 @@ button.celula:hover {
   white-space: nowrap;
 }
 
+/* O rotulo "Presenca" centrado sobre os botoes da coluna. Sem o seletor mais
+   forte, o `text-align: left` de `.tabela th` vencia e o rotulo ficava
+   encostado a esquerda, fora do eixo dos botoes. */
+.checkin-lista th.checkin-lista__coluna-acao {
+  text-align: center;
+}
+
+/* O botao de presenca e uma pilula com a palavra "Chegou", e nao um circulo
+   com visto: no celular, com a crianca na frente, a palavra se le de relance
+   e diz o que o toque faz. 44px de altura, o alvo de dedo do iOS e do
+   Android, e largura fixa para a coluna nao pular quando vira a hora. */
 .checkin-lista__botao {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--control-h);
-  height: var(--control-h);
-  padding: 0;
+  gap: 6px;
+  min-width: 84px;
+  height: 44px;
+  padding: 0 var(--space-4);
   border: 2px solid var(--color-primary);
-  border-radius: 50%;
-  background: transparent;
+  border-radius: var(--radius-pill);
+  background: var(--white);
   color: var(--color-primary);
+  font-family: var(--font-body);
+  font-size: var(--size-body-sm);
+  font-weight: 800;
   cursor: pointer;
   /* Sem o atraso de toque duplo e sem o zoom que ele dispara. */
   touch-action: manipulation;
   transition: background-color var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
 }
 
-/* So no mouse: no toque o :hover gruda no ultimo circulo tocado, e o
-   circulo seguinte (o da crianca que ja confirmou) nascia clarinho. */
 @media (hover: hover) {
   button.checkin-lista__botao:not(:disabled):hover {
     background: var(--navy-100);
@@ -5051,7 +5064,7 @@ button.celula:hover {
 }
 
 button.checkin-lista__botao:not(:disabled):active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 
 .checkin-lista__botao:focus-visible {
@@ -5063,12 +5076,44 @@ button.checkin-lista__botao:not(:disabled):active {
   cursor: progress;
 }
 
-/* Confirmada: o mesmo circulo, cheio. Nao e botao, entao nao recebe toque —
-   um segundo toque nao desfaria nada, e so geraria um aviso de repetido. */
+/* Confirmada: a mesma pilula, cheia, com o visto e a hora da chegada. Nao e
+   botao — desfazer e o link pequeno embaixo dela. */
 .checkin-lista__botao--feito {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
   cursor: default;
+}
+
+/* "Faltou", ainda por marcar: o mesmo tamanho do "Chegou", em tinta mais
+   apagada — e a resposta menos comum, e nao pode competir com a outra. */
+.checkin-lista__botao--falta {
+  border-color: var(--border-default);
+  color: var(--text-on-light-secondary);
+}
+
+@media (hover: hover) {
+  button.checkin-lista__botao--falta:not(:disabled):hover {
+    background: #fdecec;
+    border-color: #c0392b;
+    color: #8f2c2c;
+  }
+}
+
+/* Faltou, marcado: o vermelho claro das etiquetas de "parado", com tinta que
+   passa no AA. */
+.checkin-lista__botao--faltou {
+  background: #fdecec;
+  border-color: #fdecec;
+  color: #8f2c2c;
+  cursor: default;
+}
+
+/* As duas respostas lado a lado, com respiro entre elas para o dedo nao
+   acertar a errada. */
+.checkin-lista__escolha {
+  display: inline-flex;
+  gap: var(--space-2);
 }
 
 .checkin-lista .campo__dica,
@@ -5076,22 +5121,11 @@ button.checkin-lista__botao:not(:disabled):active {
   margin-top: 2px;
 }
 
-.checkin-lista__aviso {
-  display: block;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-destaque);
-  color: var(--navy-900);
-  font-size: var(--size-caption);
-}
-
 /* No celular a coluna de acao manda: o rotulo comprido do cabecalho encolhe
    para nao roubar largura do nome. */
 @media (max-width: 720px) {
   .checkin-lista th.checkin-lista__coluna-acao {
-    white-space: normal;
-    width: 72px;
+    width: 184px;
   }
 
   .checkin-lista__topo .campo {
@@ -5235,19 +5269,9 @@ button.checkin-lista__botao:not(:disabled):active {
   box-shadow: var(--shadow-focus);
 }
 
-/* A linha escolhida para uma acao em lote. */
-.tabela tr.tabela__linha--selecionada td {
-  background: var(--navy-100);
-}
-
 .link-conferir:disabled {
   color: var(--text-on-light-muted);
   cursor: default;
-}
-
-.lote__aviso {
-  font-size: var(--size-body-sm);
-  opacity: 0.85;
 }
 
 /* ---------- Passo a passo (apadrinhar) ----------
@@ -5471,10 +5495,17 @@ button.checkin-lista__botao:not(:disabled):active {
   padding: var(--space-4) var(--space-5);
 }
 
+.apadrinhar-pagina__topo {
+  /* Mais respiro em cima: o "voltar" nao fica rente ao topo da tela. */
+  padding-top: max(var(--space-6), calc(env(safe-area-inset-top) + var(--space-4)));
+}
+
 .apadrinhar-pagina__rodape {
   border-top: var(--stroke-hairline) solid var(--border-light);
-  /* A barra de gestos do iPhone fica por cima do pe da tela. */
-  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  padding-top: var(--space-4);
+  /* Os botoes nao ficam colados no pe da tela, onde mora a barra de gestos
+     do iPhone. */
+  padding-bottom: max(var(--space-6), calc(env(safe-area-inset-bottom) + var(--space-4)));
 }
 
 /* O que falta vai numa linha propria, em cima; embaixo, os dois botoes
@@ -5596,14 +5627,14 @@ button.checkin-lista__botao:not(:disabled):active {
   z-index: 55;
   display: flex;
   justify-content: flex-end;
-  padding: var(--space-3) var(--space-4);
-  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  padding: var(--space-4) var(--space-5);
+  padding-bottom: max(var(--space-6), calc(env(safe-area-inset-bottom) + var(--space-4)));
   background: var(--white);
   border-top: var(--stroke-hairline) solid var(--border-light);
 }
 
 .pagina--com-base {
-  padding-bottom: 88px;
+  padding-bottom: 112px;
 }
 
 /* O fim do passo a passo no celular: o "deu certo" e, logo abaixo, o
@@ -5704,4 +5735,286 @@ button.checkin-lista__botao:not(:disabled):active {
 
 .abertura__cta .botao--primary:not(.botao--inativo):hover {
   background: var(--navy-100);
+}
+
+/* A lista do monitor embaixo do codigo, na tela da administracao geral. */
+.checkin__titulo-lista {
+  margin-top: var(--space-8);
+}
+
+/* O visto da presenca com o "desfazer" embaixo, pequeno: o gesto raro fica
+   longe de onde o dedo bate para confirmar. */
+.checkin-lista__feito {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.checkin-lista__desfazer {
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--size-caption);
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.checkin-lista__desfazer:hover:not(:disabled) {
+  color: var(--color-primary);
+}
+
+/* O check-in na ficha da crianca: o icone diz o estado antes da leitura —
+   visto verde para presente, X vermelho para falta. A hora vem em texto, na
+   tinta normal, para o estado nunca ser so a cor. */
+.ficha__checkin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ficha__checkin--presente svg {
+  color: #12895f;
+}
+
+.ficha__checkin--faltou svg {
+  color: #c0392b;
+}
+
+/* "faltou" na coluna de check-in da lista de criancas. */
+.marcador--faltou {
+  background: #fdecec;
+  color: #8f2c2c;
+}
+
+/* ---------- Cuidados da autorizacao, na ficha da crianca ----------
+   Uma faixa propria, na largura toda da ficha, no lugar onde as respostas ja
+   ficavam: as tres perguntas lado a lado, rotulo em cima e resposta embaixo,
+   para nao comer altura. Sem nenhum "Sim", neutra; com algum, em laranja claro
+   com borda, titulo e o icone de cuidado — o mesmo laranja do icone na
+   lista, para os dois se lerem como a mesma coisa. */
+.ficha__cuidados {
+  grid-column: 1 / -1;
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--stroke-hairline) solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--cream-100);
+}
+
+.ficha__cuidados--atencao {
+  background: #fff4ec;
+  border-color: #f7d2b8;
+}
+
+.ficha__cuidados-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-1);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-on-light-muted);
+}
+
+.ficha__cuidados--atencao .ficha__cuidados-titulo {
+  color: #9a3a0e;
+}
+
+/* O icone da lista, na cor dele, no titulo da caixa. */
+.ficha__cuidados-titulo svg {
+  color: #e8590c;
+}
+
+.ficha__cuidados-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.ficha__cuidado {
+  min-width: 0;
+}
+
+.ficha__cuidado dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}
+
+.ficha__cuidado dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-on-light-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ficha__cuidado-sim {
+  font-weight: 700;
+  color: var(--text-on-light-primary) !important;
+}
+
+/* ---------- Aviso de cuidados especiais na lista ----------
+   O triangulo na frente do nome da crianca cuja autorizacao avisa
+   necessidade especial, alergia ou observacao. Vermelho-vinho, o mesmo tom
+   do titulo da caixa de cuidados na ficha. */
+.celula-com-aviso {
+  position: relative;
+  display: block;
+  min-width: 0;
+  /* O icone sai um pouco para fora da celula, para cima e para a esquerda:
+     sem isto o `overflow: hidden` das celulas da planilha o cortava. Quem
+     corta o nome comprido e a propria .celula de dentro. */
+  overflow: visible !important;
+}
+
+/* Por cima do canto de cima, a esquerda da celula — no vao do padding dela —,
+   e nao ao lado do nome: o texto fica exatamente onde estava, alinhado com
+   todas as outras linhas. */
+.aviso-cuidados {
+  position: absolute;
+  top: 1px;
+  left: -7px;
+  z-index: 1;
+  display: inline-flex;
+  color: #e8590c;
+  cursor: help;
+  line-height: 0;
+}
+
+/* Na lista do check-in o aviso vai escrito embaixo do nome: no celular nao ha
+   dica de mouse, e o monitor precisa ler o que e na hora de receber. */
+.checkin-lista__cuidados {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: var(--size-caption);
+  font-weight: 700;
+  color: #9a3a0e;
+  white-space: normal;
+}
+
+.checkin-lista__cuidados svg {
+  color: #e8590c;
+  flex: none;
+  margin-top: 1px;
+}
+
+/* ---------- Cuidados especiais (coordenacao) ---------- */
+/* O nome abre a ficha: com cara de link, e com o asterisco na frente, o
+   mesmo que marca a crianca nas outras listas. */
+.cuidados__nome {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cuidados__nome svg {
+  flex: none;
+  color: #e8590c;
+}
+
+.cuidados__nome:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* A resposta "Sim" de cada pergunta: o texto do monitor, em tinta cheia. */
+.cuidados__resposta {
+  color: var(--text-on-light-primary);
+  font-weight: 600;
+  white-space: normal;
+}
+
+/* Na lista de cuidados as respostas sao frases: quebram linha dentro da
+   coluna fixa, em vez de sumir nas reticencias da tabela ancorada. */
+.tabela--ancorada td:has(> .cuidados__resposta) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* O cartao de cuidados especiais no painel: na largura toda, com a conta por
+   dia. */
+.cartao--cuidados {
+  margin-bottom: var(--space-5);
+}
+
+.cartao__numero {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+/* ---------- Financeiro: os numeros no cabecalho ----------
+   Recebido, saidas e saldo na altura do titulo, encostados a direita. O
+   grafico de origem/destino desce para a largura toda, logo abaixo. */
+.financeiro__cabecalho {
+  align-items: flex-end;
+}
+
+.financeiro__totais {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(150px, auto);
+  gap: var(--space-3);
+}
+
+.financeiro__totais .numero {
+  padding: var(--space-3) var(--space-4);
+}
+
+.financeiro__totais .numero__rotulo {
+  margin-bottom: 2px;
+}
+
+.financeiro__totais .numero__valor {
+  font-size: 18px;
+}
+
+/* O grafico sozinho na faixa: a largura toda, e nao o dobro de um card. */
+.financeiro__grafico {
+  grid-template-columns: 1fr;
+}
+
+.financeiro__grafico .numero--largo {
+  grid-column: auto;
+}
+
+/* No celular os numeros descem para baixo do titulo, os tres lado a lado. */
+@media (max-width: 720px) {
+  .financeiro__cabecalho {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .financeiro__totais {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .financeiro__totais .numero {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .financeiro__totais .numero__valor {
+    font-size: 15px;
+  }
 }

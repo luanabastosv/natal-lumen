@@ -144,6 +144,13 @@ class Kit(Base):
     conferido_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
+    # Os NOMES de quem montou e de quem conferiu, como a equipe escreve na
+    # "Montagem + Conferencia" da instituicao. Texto, e nao usuario: quem
+    # monta e confere as caixas e voluntario do dia, e quase nunca tem conta
+    # no sistema. `montado_por`/`conferido_por` continuam guardando QUEM
+    # registrou, para o rastro.
+    montado_por_nome: Mapped[str | None] = mapped_column(String(120))
+    conferido_por_nome: Mapped[str | None] = mapped_column(String(120))
     observacoes: Mapped[str | None] = mapped_column(Text)
 
     crianca: Mapped["Crianca"] = relationship(back_populates="kit")  # noqa: F821

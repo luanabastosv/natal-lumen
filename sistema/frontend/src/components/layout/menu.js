@@ -2,6 +2,7 @@ import {
   MenuCartoes,
   MenuCheckin,
   MenuCriancas,
+  MenuCuidados,
   MenuFinanceiro,
   MenuInstituicoes,
   MenuKits,
@@ -45,6 +46,15 @@ export const ITENS_MENU = [
     Icone: MenuFinanceiro,
   },
   { para: "/checkin", rotulo: "Check-in", permissao: "fazer_checkin", Icone: MenuCheckin },
+  // So a coordenacao geral do evento e a administracao geral: e dado de
+  // saude de crianca, junto numa lista so. Pelo PERFIL, e nao por permissao —
+  // a coordenacao da captacao tem quase as mesmas. O backend confere de novo.
+  {
+    para: "/cuidados",
+    rotulo: "Cuidados especiais",
+    soCoordenacaoGeral: true,
+    Icone: MenuCuidados,
+  },
   { para: "/usuarios", rotulo: "Usuários", permissao: "gerenciar_usuarios", Icone: MenuUsuarios },
   {
     para: "/instituicoes",
@@ -76,11 +86,18 @@ export const ROTAS = [...ITENS_MENU, ITEM_ADMIN];
  * junta assuntos de donos diferentes — basta UMA da lista, e a propria tela se
  * encarrega de mostrar so a parte que a pessoa alcanca.
  */
-export function alcanca(item, pode) {
+/** A coordenacao geral do evento: o perfil "Coordenacao" na edicao ativa, ou
+ *  a administracao geral. */
+export function eCoordenacaoGeral(usuario, vinculoAtivo) {
+  return Boolean(usuario?.admin_geral) || vinculoAtivo?.perfil === "Coordenacao";
+}
+
+export function alcanca(item, pode, sessao = {}) {
+  if (item.soCoordenacaoGeral) return eCoordenacaoGeral(sessao.usuario, sessao.vinculoAtivo);
   if (item.permissoes) return item.permissoes.some((p) => pode(p));
   return !item.permissao || pode(item.permissao);
 }
 
-export function itensVisiveis(pode) {
-  return ITENS_MENU.filter((item) => alcanca(item, pode));
+export function itensVisiveis(pode, sessao) {
+  return ITENS_MENU.filter((item) => alcanca(item, pode, sessao));
 }

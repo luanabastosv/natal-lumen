@@ -16,9 +16,11 @@ from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import config
 from app.database import get_db
 from app.models import (
     Apadrinhamento,
+    Autorizacao,
     Cartao,
     Crianca,
     DiaEvento,
@@ -29,6 +31,7 @@ from app.models import (
 from app.models.tipos import StatusKit
 from app.schemas.logistica import (
     CheckinAberto,
+    CheckinDesfazer,
     CheckinIn,
     CheckinLinha,
     CheckinOut,
@@ -36,12 +39,15 @@ from app.schemas.logistica import (
     InstituicaoKits,
     KitConferir,
     KitMudar,
+    MontagemIn,
+    MontagemOut,
     KitOut,
     PaginaKits,
     PerfilKits,
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
+from app.servicos import cuidados
 from app.servicos.log import registrar
 from app.servicos.oracao import FUSO
 
@@ -74,11 +80,20 @@ def _saida_kit(crianca: Crianca, kit: Kit | None) -> dict:
         "dia_evento_descricao": crianca.dia_evento.descricao if crianca.dia_evento else None,
         "status": kit.status if kit else StatusKit.PENDENTE.value,
         "montado_em": kit.montado_em if kit else None,
-        "montado_por": kit.montador.nome if kit and kit.montador else None,
+        # O nome escrito na montagem da instituicao; sem ele, o de quem marcou
+        # no sistema (kits marcados antes da "Montagem + Conferencia").
+        "montado_por": (kit.montado_por_nome or (kit.montador.nome if kit.montador else None))
+        if kit
+        else None,
         "conferido_em": kit.conferido_em if kit else None,
-        "conferido_por": kit.conferente.nome if kit and kit.conferente else None,
+        "conferido_por": (
+            kit.conferido_por_nome or (kit.conferente.nome if kit.conferente else None)
+        )
+        if kit
+        else None,
         "desistiu_em": crianca.desistiu_em,
         "checkin_em": crianca.checkin_em,
+        "falta_em": crianca.falta_em,
         "observacoes": kit.observacoes if kit else None,
     }
 
@@ -346,8 +361,10 @@ def mudar_kits(dados: KitMudar, db: BD, ctx: Kits):
             # que foi desfeita, e a remontada precisa ser conferida de novo.
             kit.montado_em = None
             kit.montado_por = None
+            kit.montado_por_nome = None
             kit.conferido_em = None
             kit.conferido_por = None
+            kit.conferido_por_nome = None
 
         db.flush()
         # Recarrega para o nome de quem montou vir certo: trocar o id nao
@@ -402,6 +419,114 @@ def conferir_kit(crianca_id: int, db: BD, ctx: Kits):
         db.refresh(kit)
 
     return KitOut(**_saida_kit(crianca, kit))
+
+
+def _criancas_da_montagem(db: Session, ctx: ContextoAcesso, edicao_id: int, instituicao_id: int):
+    """As criancas da instituicao cujo kit se monta: sem as desistentes."""
+    return db.scalars(
+        select(Crianca).where(
+            ctx.filtro_criancas("gerenciar_kits"),
+            Crianca.edicao_id == edicao_id,
+            Crianca.instituicao_id == instituicao_id,
+            Crianca.desistiu_em.is_(None),
+        )
+    ).all()
+
+
+@router.get("/kits/montagem", response_model=MontagemOut)
+def montagem_da_instituicao(db: BD, ctx: Kits, edicao_id: int, instituicao_id: int):
+    """Os nomes da montagem e da conferencia de uma instituicao, para a janela.
+
+    Os nomes moram em cada kit; aqui volta o que esta escrito neles. Se
+    kits diferentes tiverem nomes diferentes (marcados um a um, antes), vale
+    o mais frequente.
+    """
+    criancas = _criancas_da_montagem(db, ctx, edicao_id, instituicao_id)
+    kits = db.scalars(select(Kit).where(Kit.crianca_id.in_([c.id for c in criancas]))).all()
+
+    def mais_comum(valores):
+        contagem: dict[str, int] = defaultdict(int)
+        for v in valores:
+            if v:
+                contagem[v] += 1
+        return max(contagem, key=contagem.get) if contagem else None
+
+    return MontagemOut(
+        montado_por=mais_comum(k.montado_por_nome for k in kits),
+        conferido_por=mais_comum(k.conferido_por_nome for k in kits),
+        kits=len(criancas),
+    )
+
+
+@router.put("/kits/montagem", response_model=MontagemOut)
+def salvar_montagem(dados: MontagemIn, db: BD, ctx: Kits):
+    """Grava quem montou e quem conferiu os kits da instituicao — todos de uma vez.
+
+    A montagem acontece por escola: a equipe separa a pilha de uma
+    instituicao, monta tudo e outra pessoa confere tudo. Marcar caixa por
+    caixa no sistema era trabalho a toa. Aqui os dois nomes valem para todos
+    os kits da instituicao, sem as desistentes (o kit delas nao se monta):
+
+        montado_por preenchido   todos montados, com esse nome
+        montado_por vazio        todos voltam a "a montar" (e sem conferencia)
+        conferido_por preenchido todos conferidos — exige o montado_por
+        conferido_por vazio      a conferencia sai, a montagem fica
+
+    Salvar de novo com outros nomes corrige os nomes e mantem a hora da
+    primeira montagem.
+    """
+    montado = (dados.montado_por or "").strip() or None
+    conferido = (dados.conferido_por or "").strip() or None
+    if conferido and not montado:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Diga quem montou antes de dizer quem conferiu.",
+        )
+
+    criancas = _criancas_da_montagem(db, ctx, dados.edicao_id, dados.instituicao_id)
+    agora = datetime.now(UTC)
+    for crianca in criancas:
+        # O mesmo INSERT ... ON CONFLICT do marcar um a um: duas pessoas
+        # salvando ao mesmo tempo nao estouram a unicidade.
+        db.execute(
+            pg_insert(Kit)
+            .values(crianca_id=crianca.id, status=StatusKit.PENDENTE.value)
+            .on_conflict_do_nothing(index_elements=["crianca_id"])
+        )
+        kit = db.scalar(select(Kit).where(Kit.crianca_id == crianca.id))
+
+        if montado:
+            if kit.status != StatusKit.MONTADO.value or kit.montado_em is None:
+                kit.montado_em = agora
+            kit.status = StatusKit.MONTADO.value
+            kit.montado_por = ctx.usuario.id
+            kit.montado_por_nome = montado
+        else:
+            kit.status = StatusKit.PENDENTE.value
+            kit.montado_em = None
+            kit.montado_por = None
+            kit.montado_por_nome = None
+
+        if conferido:
+            if kit.conferido_em is None:
+                kit.conferido_em = agora
+            kit.conferido_por = ctx.usuario.id
+            kit.conferido_por_nome = conferido
+        else:
+            kit.conferido_em = None
+            kit.conferido_por = None
+            kit.conferido_por_nome = None
+
+    registrar(
+        db, "kits_montagem", usuario_id=ctx.usuario.id,
+        tabela="kits",
+        detalhes={
+            "instituicao_id": dados.instituicao_id, "kits": len(criancas),
+            "montado_por": montado, "conferido_por": conferido,
+        },
+    )
+    db.commit()
+    return MontagemOut(montado_por=montado, conferido_por=conferido, kits=len(criancas))
 
 
 @router.post("/kits/conferir", response_model=list[KitOut])
@@ -471,13 +596,19 @@ def _dias_da_edicao(db: Session, edicao_id: int) -> list[DiaEvento]:
     )
 
 
-def _exige_dia_do_evento(db: Session, edicao_id: int) -> None:
+def _exige_dia_do_evento(db: Session, edicao_id: int, ctx: ContextoAcesso) -> None:
     """Recusa o check-in fora dos dias do evento da edicao.
 
     Fica no backend, e nao so na tela: e aqui que a regra vale de verdade. Sem
     isso, um toque perdido na lista uma semana antes marcaria a crianca como
     presente — e no dia ela apareceria como "ja tinha feito check-in".
+
+    A administracao geral passa em qualquer dia: e quem testa e acompanha o
+    sistema, e precisa ver a tela funcionando antes do evento. Para todos os
+    outros perfis a trava continua.
     """
+    if ctx.admin_geral or config.checkin_liberado:
+        return
     if not any(d.data == _hoje() for d in _dias_da_edicao(db, edicao_id)):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -492,11 +623,50 @@ def checkin_aberto(db: BD, ctx: Checkin, edicao_id: int):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
     hoje = _hoje()
     dias = _dias_da_edicao(db, edicao_id)
+    no_dia = any(d.data == hoje for d in dias)
+    liberado = ctx.admin_geral or config.checkin_liberado
     return CheckinAberto(
-        aberto=any(d.data == hoje for d in dias),
+        aberto=no_dia or liberado,
         hoje=hoje,
         dias=[DiaCheckin(data=d.data, descricao=d.descricao) for d in dias],
+        fora_do_dia=liberado and not no_dia,
     )
+
+
+def _cuidados(db: Session, ids: list[int]) -> dict[int, str]:
+    """Os cuidados que a autorizacao avisa, por crianca, numa frase."""
+    autorizacoes = db.scalars(select(Autorizacao).where(Autorizacao.crianca_id.in_(ids))).all()
+    return {a.crianca_id: texto for a in autorizacoes if (texto := cuidados.resumo(a))}
+
+
+def _linha_checkin(c: Crianca, aviso: str | None = None) -> CheckinLinha:
+    return CheckinLinha(
+        crianca_id=c.id,
+        codigo=c.codigo,
+        nome=c.nome,
+        instituicao_id=c.instituicao_id,
+        instituicao=c.instituicao.nome,
+        checkin_em=c.checkin_em,
+        falta_em=c.falta_em,
+        cuidados=aviso,
+        desistiu_em=c.desistiu_em,
+    )
+
+
+def _crianca_do_checkin(db: Session, ctx: ContextoAcesso, crianca_id: int, edicao_id: int):
+    """A crianca, se quem pede faz check-in nela; senao, 404."""
+    crianca = db.scalar(
+        select(Crianca)
+        .where(
+            Crianca.id == crianca_id,
+            Crianca.edicao_id == edicao_id,
+            ctx.filtro_criancas("fazer_checkin"),
+        )
+        .options(joinedload(Crianca.instituicao))
+    )
+    if crianca is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
+    return crianca
 
 
 @router.get("/checkin/lista", response_model=list[CheckinLinha])
@@ -508,7 +678,7 @@ def lista_do_checkin(db: BD, ctx: Checkin, edicao_id: int):
     digitar codigo por codigo. Passa pelo mesmo filtro do check-in, entao cada
     um ve so as instituicoes dele.
     """
-    _exige_dia_do_evento(db, edicao_id)
+    _exige_dia_do_evento(db, edicao_id, ctx)
     criancas = db.scalars(
         select(Crianca)
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
@@ -517,18 +687,66 @@ def lista_do_checkin(db: BD, ctx: Checkin, edicao_id: int):
         .order_by(Instituicao.nome, Crianca.codigo)
     ).all()
 
-    return [
-        CheckinLinha(
-            crianca_id=c.id,
-            codigo=c.codigo,
-            nome=c.nome,
-            instituicao_id=c.instituicao_id,
-            instituicao=c.instituicao.nome,
-            checkin_em=c.checkin_em,
-            desistiu_em=c.desistiu_em,
+    avisos = _cuidados(db, [c.id for c in criancas])
+    return [_linha_checkin(c, avisos.get(c.id)) for c in criancas]
+
+
+@router.post("/checkin/falta", response_model=CheckinLinha)
+def marcar_falta(dados: CheckinDesfazer, db: BD, ctx: Checkin):
+    """Marca que a crianca NAO foi ao evento.
+
+    O monitor fecha a lista da turma dele com as duas respostas: quem chegou
+    e quem faltou. Sem isso, "sem check-in" misturava quem faltou com quem so
+    ainda nao tinha sido conferido. Faltar tira o check-in, se houver: a
+    crianca chegou OU faltou. Mesmas regras do check-in.
+    """
+    _exige_dia_do_evento(db, dados.edicao_id, ctx)
+    crianca = _crianca_do_checkin(db, ctx, dados.crianca_id, dados.edicao_id)
+
+    if crianca.falta_em is None:
+        crianca.falta_em = datetime.now(UTC)
+        crianca.falta_por = ctx.usuario.id
+        crianca.checkin_em = None
+        crianca.checkin_por = None
+        registrar(
+            db, "checkin_falta", usuario_id=ctx.usuario.id,
+            tabela="criancas", registro_id=crianca.id,
         )
-        for c in criancas
-    ]
+        db.commit()
+    return _linha_checkin(crianca, _cuidados(db, [crianca.id]).get(crianca.id))
+
+
+@router.post("/checkin/desfazer", response_model=CheckinLinha)
+def desfazer_checkin(dados: CheckinDesfazer, db: BD, ctx: Checkin):
+    """Tira o check-in de uma crianca — o toque errado na lista, o codigo
+    trocado na porta.
+
+    Mesmas regras do check-in: so quem faz check-in, so nas criancas que
+    alcanca, e so no dia do evento (a administracao geral, em qualquer dia).
+    Fica no log quem desfez e a hora que estava gravada, para nada sumir sem
+    rastro.
+    """
+    _exige_dia_do_evento(db, dados.edicao_id, ctx)
+    crianca = _crianca_do_checkin(db, ctx, dados.crianca_id, dados.edicao_id)
+
+    # Desfaz o que estiver marcado: a chegada ou a falta. A crianca volta a
+    # "sem marcacao".
+    if crianca.checkin_em is not None or crianca.falta_em is not None:
+        registrar(
+            db, "checkin_desfeito", usuario_id=ctx.usuario.id,
+            tabela="criancas", registro_id=crianca.id,
+            detalhes={
+                "checkin_em": crianca.checkin_em.isoformat() if crianca.checkin_em else None,
+                "falta_em": crianca.falta_em.isoformat() if crianca.falta_em else None,
+            },
+        )
+        crianca.checkin_em = None
+        crianca.checkin_por = None
+        crianca.falta_em = None
+        crianca.falta_por = None
+        db.commit()
+
+    return _linha_checkin(crianca, _cuidados(db, [crianca.id]).get(crianca.id))
 
 
 @router.post("/checkin", response_model=CheckinOut)
@@ -539,7 +757,7 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     estiver estranho — dia errado, sem padrinho, kit nao montado — volta como
     aviso na tela.
     """
-    _exige_dia_do_evento(db, dados.edicao_id)
+    _exige_dia_do_evento(db, dados.edicao_id, ctx)
     crianca = db.scalar(
         select(Crianca)
         .where(
@@ -600,6 +818,10 @@ def fazer_checkin(dados: CheckinIn, db: BD, ctx: Checkin):
     if not ja_tinha:
         crianca.checkin_em = datetime.now(UTC)
         crianca.checkin_por = ctx.usuario.id
+    # Chegou: se estava marcada como falta (o monitor se adiantou), deixa de
+    # estar.
+    crianca.falta_em = None
+    crianca.falta_por = None
 
     registrar(
         db, "checkin", usuario_id=ctx.usuario.id,

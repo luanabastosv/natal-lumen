@@ -4,7 +4,7 @@ import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
-import { Importar, Imprimir, Olho, Xis } from "../components/core/icones.jsx";
+import { Cuidado, Importar, Imprimir, Olho, Xis } from "../components/core/icones.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
 import ImprimirLista from "../components/dados/ImprimirLista.jsx";
@@ -949,16 +949,32 @@ export default function Criancas() {
                       )}
                     </td>
                     <td>
-                      {podeEditar && !estreita ? (
-                        <CelulaEditavel
-                          valor={c.nome}
-                          aoSalvar={(v) => salvarCampo(c, "nome", v)}
-                        />
-                      ) : (
-                        <span className="celula celula--fixa" title={c.nome}>
-                          {c.nome}
-                        </span>
-                      )}
+                      {/* O coracaozinho no canto de cima, a esquerda do nome,
+                          sem empurrar o texto: a autorizacao avisa
+                          necessidade especial, alergia ou observacao. O que
+                          e, na dica do mouse; o detalhe inteiro, na ficha. */}
+                      <span className="celula-com-aviso">
+                        {c.cuidados && (
+                          <span
+                            className="aviso-cuidados"
+                            title={c.cuidados}
+                            role="img"
+                            aria-label={`Cuidados especiais: ${c.cuidados}`}
+                          >
+                            <Cuidado t={11} />
+                          </span>
+                        )}
+                        {podeEditar && !estreita ? (
+                          <CelulaEditavel
+                            valor={c.nome}
+                            aoSalvar={(v) => salvarCampo(c, "nome", v)}
+                          />
+                        ) : (
+                          <span className="celula celula--fixa" title={c.nome}>
+                            {c.nome}
+                          </span>
+                        )}
+                      </span>
                     </td>
                     {!estreita && (
                       <>
@@ -1123,8 +1139,12 @@ export default function Criancas() {
                     {mostrarCheckin && !estreita && (
                       <td>
                         <span className="celula" style={{ cursor: "default" }}>
-                          <span className={`marcador ${c.checkin_em ? "marcador--feito" : ""}`}>
-                            {c.checkin_em ? "sim" : "não"}
+                          <span
+                            className={`marcador ${
+                              c.checkin_em ? "marcador--feito" : c.falta_em ? "marcador--faltou" : ""
+                            }`}
+                          >
+                            {c.checkin_em ? "sim" : c.falta_em ? "faltou" : "não"}
                           </span>
                         </span>
                       </td>

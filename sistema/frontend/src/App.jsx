@@ -15,6 +15,7 @@ import EnvioCartoes from "./pages/EnvioCartoes.jsx";
 import Financeiro from "./pages/Financeiro.jsx";
 import Kits from "./pages/Kits.jsx";
 import Criancas from "./pages/Criancas.jsx";
+import Cuidados from "./pages/Cuidados.jsx";
 import NovoPadrinho from "./pages/NovoPadrinho.jsx";
 import Padrinhos from "./pages/Padrinhos.jsx";
 import CidadesEdicoes from "./pages/CidadesEdicoes.jsx";
@@ -30,6 +31,7 @@ const PRONTAS = {
   "/kits": <Kits />,
   "/financeiro": <Financeiro />,
   "/checkin": <Checkin />,
+  "/cuidados": <Cuidados />,
   "/padrinhos": <Padrinhos />,
   "/usuarios": <Usuarios />,
   "/instituicoes": <Instituicoes />,
@@ -71,6 +73,7 @@ export default function App() {
                       permissao={item.permissao}
                       permissoes={item.permissoes}
                       apenasAdmin={item.apenasAdmin}
+                      soCoordenacaoGeral={item.soCoordenacaoGeral}
                     >
                       {PRONTAS[item.para] ?? <EmBreve />}
                     </RotaProtegida>

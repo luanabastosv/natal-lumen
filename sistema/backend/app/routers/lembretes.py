@@ -35,7 +35,6 @@ from app.database import get_db
 from app.models import Apadrinhamento, Cartao, Crianca, DiaEvento
 from app.schemas.lembretes import CartaoDoLembrete, DiaLembretes, LembretePadrinho
 from app.seguranca.contexto import ContextoAcesso
-from app.seeds.perfis_permissoes import PERFIL_COORDENACAO
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import whatsapp
 from app.servicos.apadrinhamento import CONFIRMADO
@@ -58,9 +57,7 @@ def _e_coordenacao_geral(ctx: ContextoAcesso, edicao_id: int) -> bool:
     o padrinho aparece sempre com todas as criancas dele — e nunca "pronto"
     com metade dos cartoes, como pareceria a um comissario.
     """
-    if ctx.admin_geral:
-        return True
-    return any(v.edicao_id == edicao_id and v.perfil == PERFIL_COORDENACAO for v in ctx.vinculos)
+    return ctx.e_coordenacao_geral(edicao_id)
 
 
 def _situacao(faltam: int, whatsapp_valido: bool) -> str:

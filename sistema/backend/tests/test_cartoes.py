@@ -579,6 +579,24 @@ def main() -> None:
         verifica("a ficha da crianca diz quando a autorizacao subiu",
                  bool(r.json().get("autorizacao_em")), r.text[:160])
 
+        print("\nCuidados especiais")
+        r = cc.get("/cuidados", params={"edicao_id": edicao.id})
+        verifica("a coordenacao geral ve a lista de cuidados", r.status_code == 200, r.text[:160])
+        dela = next((c for c in r.json() if c["crianca_id"] == ana.id), {}) if r.status_code == 200 else {}
+        verifica("com a restricao que o monitor escreveu, e sem o que foi Nao",
+                 dela.get("restricao_alimentar") == "Lactose" and dela.get("necessidade_especial") is None,
+                 str(dela))
+        verifica("so as criancas com algum cuidado",
+                 all(c["crianca_id"] != joao.id for c in r.json()), str(r.json())[:160])
+        r = cm.get("/cuidados", params={"edicao_id": edicao.id})
+        verifica("o monitor NAO ve a lista inteira", r.status_code == 403, str(r.status_code))
+        r = ck.get("/cuidados", params={"edicao_id": edicao.id})
+        verifica("nem o comissario", r.status_code == 403, str(r.status_code))
+        r = cc.get("/criancas", params={"edicao_id": edicao.id})
+        lista = {c["id"]: c for c in r.json()["itens"]}
+        verifica("e a lista de criancas avisa o cuidado da Ana",
+                 "Lactose" in (lista.get(ana.id, {}).get("cuidados") or ""), str(lista.get(ana.id))[:160])
+
         verifica("a imagem sai pela rota autenticada",
                  cm.get(f"/autorizacoes/{autorizacao.get('id')}/imagem").status_code == 200)
         verifica("e a miniatura tambem",

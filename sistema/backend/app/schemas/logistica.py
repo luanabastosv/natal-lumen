@@ -36,6 +36,8 @@ class KitOut(BaseModel):
     # Se a crianca ja chegou ao evento: depois do dia, e o que diz se o kit
     # montado foi entregue ou ficou na pilha.
     checkin_em: datetime | None = None
+    # Ou entao faltou: o kit dela fica na pilha.
+    falta_em: datetime | None = None
     observacoes: str | None
 
 
@@ -83,6 +85,24 @@ class KitMudar(BaseModel):
     observacoes: str | None = None
 
 
+class MontagemOut(BaseModel):
+    """Quem montou e quem conferiu os kits de uma instituicao."""
+
+    montado_por: str | None = None
+    conferido_por: str | None = None
+    # Quantas caixas a escola tem (sem as desistentes): e o que o "salvar"
+    # vai marcar, e a janela diz antes.
+    kits: int
+
+
+class MontagemIn(BaseModel):
+    edicao_id: int
+    instituicao_id: int
+    # Vazio = ainda nao montado / nao conferido.
+    montado_por: str | None = Field(default=None, max_length=120)
+    conferido_por: str | None = Field(default=None, max_length=120)
+
+
 class KitConferir(BaseModel):
     criancas: list[int] = Field(min_length=1)
 
@@ -98,6 +118,11 @@ class DiaCheckin(BaseModel):
     descricao: str | None = None
 
 
+class CheckinDesfazer(BaseModel):
+    crianca_id: int
+    edicao_id: int
+
+
 class CheckinAberto(BaseModel):
     """Se o check-in desta edicao esta aberto hoje, e quando ele abre."""
 
@@ -106,6 +131,9 @@ class CheckinAberto(BaseModel):
     hoje: date
     # Os dias do evento da edicao, para a tela dizer quando o check-in abre.
     dias: list[DiaCheckin]
+    # Aberto so porque quem pergunta e a administracao geral, que entra em
+    # qualquer dia (para testar e acompanhar). A tela avisa que e fora do dia.
+    fora_do_dia: bool = False
 
 
 class CheckinLinha(BaseModel):
@@ -121,6 +149,11 @@ class CheckinLinha(BaseModel):
     instituicao_id: int
     instituicao: str
     checkin_em: datetime | None
+    # Marcada como "faltou": nao foi ao evento.
+    falta_em: datetime | None = None
+    # Os cuidados que a autorizacao avisa, numa frase (nulo = nada). O monitor
+    # e quem recebe a crianca no dia: e para ele que o aviso mais importa.
+    cuidados: str | None = None
     # Quem desistiu continua na lista, riscado, como nas outras telas: some-la
     # faria a conta do monitor nao bater com a lista de papel.
     desistiu_em: datetime | None

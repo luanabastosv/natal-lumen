@@ -3,8 +3,8 @@ import { useSessao } from "../../contexts/useSessao.js";
 import { itensVisiveis } from "./menu.js";
 
 export default function MenuLateral({ aoNavegar, recolhida = false }) {
-  const { pode } = useSessao();
-  const itens = itensVisiveis(pode);
+  const { pode, usuario, vinculoAtivo } = useSessao();
+  const itens = itensVisiveis(pode, { usuario, vinculoAtivo });
 
   return (
     <nav className="menu" aria-label="Menu principal">

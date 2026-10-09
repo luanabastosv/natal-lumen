@@ -374,8 +374,10 @@
     top: 0;
     right: 0;
     left: 0;
-    height: 56px;
-    padding: 0 var(--space-4);
+    /* 64px, e nao 56: no celular a barra ficava rente ao topo da tela e o
+       botao do menu, colado na borda de cima, era dificil de acertar. */
+    height: 64px;
+    padding: 0 var(--space-5);
     background: var(--navy-700);
     color: var(--white);
     z-index: 60;
@@ -443,6 +445,13 @@
     display: none;
   }
 
+  /* A gaveta com mais respiro em cima e embaixo: a marca e quem esta logado
+     nao ficam colados nas pontas da tela, onde moram os gestos do sistema. */
+  .lateral {
+    padding-top: var(--space-8);
+    padding-bottom: max(var(--space-8), calc(env(safe-area-inset-bottom) + var(--space-5)));
+  }
+
   /* A lateral vira gaveta, por cima do conteudo. */
   .layout__lateral {
     position: fixed;
@@ -472,7 +481,7 @@
 
   .layout__conteudo {
     /* Desce abaixo da barra fixa. */
-    padding: calc(56px + var(--space-6)) var(--space-4) var(--space-9);
+    padding: calc(64px + var(--space-6)) var(--space-4) var(--space-9);
   }
 
   .rodape {

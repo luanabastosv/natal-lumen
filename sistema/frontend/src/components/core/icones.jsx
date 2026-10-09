@@ -312,6 +312,17 @@ export function MenuInstituicoes({ t }) {
   );
 }
 
+/** Cuidados especiais: o asterisco, o mesmo que marca a crianca na lista. */
+export function MenuCuidados({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M12 4v16" />
+      <path d="m5.1 8 13.8 8" />
+      <path d="m18.9 8-13.8 8" />
+    </Svg>
+  );
+}
+
 /** Recolher/abrir a lateral: a barra com a seta. */
 export function MenuRecolher({ t, aberto = true }) {
   return (
@@ -319,6 +330,19 @@ export function MenuRecolher({ t, aberto = true }) {
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <path d="M9 4v16" />
       {aberto ? <path d="m16 10-2 2 2 2" /> : <path d="m14 10 2 2-2 2" />}
+    </Svg>
+  );
+}
+
+/** Cuidado: um asterisco, no mesmo traco dos outros icones — como a nota
+ *  de rodape que diz "tem algo a saber". Marca a crianca cuja autorizacao
+ *  avisa necessidade especial ou alergia, na lista e na caixa da ficha. */
+export function Cuidado({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M12 4v16" />
+      <path d="m5.1 8 13.8 8" />
+      <path d="m18.9 8-13.8 8" />
     </Svg>
   );
 }

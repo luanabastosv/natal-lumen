@@ -62,7 +62,7 @@ from app.seguranca.contexto import ContextoAcesso
 from app.servicos.oracao import ave_marias_da_crianca
 from app.seguranca.dependencias import Contexto, exige_permissao, exige_qualquer
 from app.servicos.apadrinhamento import CONFIRMADO, confirmado
-from app.servicos import codigos, dias, exclusao, importador
+from app.servicos import codigos, cuidados, dias, exclusao, importador
 from app.servicos.nomes import nome_proprio
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
@@ -155,6 +155,7 @@ def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) 
         dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
+        falta_em=crianca.falta_em,
         desistiu_em=crianca.desistiu_em,
         comissario_id=crianca.comissario_id if padrinho else None,
         comissario=(crianca.comissario.nome if crianca.comissario else None) if padrinho else None,
@@ -168,6 +169,7 @@ def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) 
         valor_festa=crianca.edicao.valor_festa if padrinho else None,
         cartoes=extra.get("cartoes", 0),
         autorizacao=extra.get("autorizacao", False),
+        cuidados=extra.get("cuidados"),
         kit_status=extra.get("kit", "pendente") if kit else None,
     )
 
@@ -204,10 +206,10 @@ def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
     ).all():
         dados[crianca_id]["cartoes"] = quantos
 
-    for crianca_id in db.scalars(
-        select(Autorizacao.crianca_id).where(Autorizacao.crianca_id.in_(ids))
-    ).all():
-        dados[crianca_id]["autorizacao"] = True
+    for a in db.scalars(select(Autorizacao).where(Autorizacao.crianca_id.in_(ids))).all():
+        dados[a.crianca_id]["autorizacao"] = True
+        # O que a autorizacao avisa, numa frase, para a dica da lista.
+        dados[a.crianca_id]["cuidados"] = cuidados.resumo(a)
 
     for crianca_id, estado in db.execute(
         select(Kit.crianca_id, Kit.status).where(Kit.crianca_id.in_(ids))
@@ -455,7 +457,7 @@ def listar(
         db.scalar(
             select(func.count())
             .select_from(Crianca)
-            .where(condicao, Crianca.checkin_em.is_not(None))
+            .where(condicao, Crianca.checkin_em.is_not(None) | Crianca.falta_em.is_not(None))
         )
         or 0
     )
@@ -833,6 +835,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
         dia_evento_descricao=crianca.dia_evento.descricao if crianca.dia_evento else None,
         observacoes=crianca.observacoes,
         checkin_em=crianca.checkin_em,
+        falta_em=crianca.falta_em,
         desistiu_em=crianca.desistiu_em,
         comissario_id=crianca.comissario_id if pode_contato else None,
         comissario=(

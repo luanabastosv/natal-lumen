@@ -15,6 +15,9 @@ import { useSessao } from "../contexts/useSessao.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import FichaSimples from "../components/dados/FichaSimples.jsx";
 import { buscarRelatorio } from "../services/painel.js";
+import { listarCuidados } from "../services/cuidados.js";
+import { eCoordenacaoGeral } from "../components/layout/menu.js";
+import { rotuloDia } from "../utils/dinheiro.js";
 
 function primeiroNome(nome) {
   return nome?.trim().split(" ")[0] ?? "";
@@ -93,6 +96,40 @@ export default function Painel() {
   // responde — e a quebra inteira vai para uma janela, a um toque.
   const estreita = useTelaEstreita();
   const navegar = useNavigate();
+  // Cuidados especiais por dia: so a coordenacao geral e a administracao,
+  // as mesmas que abrem a lista inteira na pagina de cuidados.
+  const veCuidados = eCoordenacaoGeral(usuario, vinculoAtivo);
+  const [cuidados, definirCuidados] = useState(null);
+  useEffect(() => {
+    if (!veCuidados || !edicaoAtiva) return undefined;
+    let vivo = true;
+    listarCuidados(edicaoAtiva)
+      .then((r) => vivo && definirCuidados(r))
+      // O cartao e um resumo: se a consulta falhar, ele so nao aparece.
+      .catch(() => vivo && definirCuidados(null));
+    return () => {
+      vivo = false;
+    };
+  }, [veCuidados, edicaoAtiva]);
+
+  /* Quantas criancas com necessidade especial e com alergia ou restricao, em
+     cada dia. Sem as desistentes: e a conta de quem vai estar la. */
+  const cuidadosPorDia = (() => {
+    const porDia = new Map();
+    for (const c of cuidados ?? []) {
+      if (c.desistiu_em) continue;
+      const chave = c.dia_evento_id ?? "sem-dia";
+      if (!porDia.has(chave)) {
+        porDia.set(chave, { chave, data: c.dia_evento, descricao: c.dia_evento_descricao, necessidade: 0, restricao: 0 });
+      }
+      const d = porDia.get(chave);
+      if (c.necessidade_especial) d.necessidade += 1;
+      if (c.restricao_alimentar) d.restricao += 1;
+    }
+    return [...porDia.values()]
+      .filter((d) => d.necessidade || d.restricao)
+      .sort((a, b) => (!a.data ? 1 : !b.data ? -1 : a.data.localeCompare(b.data)));
+  })();
   // O comissario e a coordenacao da captacao entram no sistema para uma
   // coisa: apadrinhar. O banner leva direto ao cadastro do padrinho, de onde
   // o passo a passo segue sozinho.
@@ -382,6 +419,57 @@ export default function Painel() {
                   </section>
                 )}
               </div>
+
+              {/* Cuidados especiais por dia: a conta que a coordenacao leva para
+                  quem acompanha e para a cozinha. O detalhe, na pagina. */}
+              {veCuidados && cuidados !== null && (
+                <section className="cartao cartao--cuidados">
+                  <div className="cartao__topo">
+                    <h3 className="cartao__titulo">Cuidados especiais</h3>
+                    <button
+                      type="button"
+                      className="link-conferir"
+                      onClick={() => navegar("/cuidados")}
+                    >
+                      Ver lista
+                    </button>
+                  </div>
+                  {cuidadosPorDia.length === 0 ? (
+                    <p className="cartao__lede">
+                      Nenhuma autorização avisou necessidade especial ou alergia ainda.
+                    </p>
+                  ) : (
+                    <table className="tabela tabela--densa">
+                      <thead>
+                        <tr>
+                          <th>Dia</th>
+                          <th>Necessidade especial</th>
+                          <th>Alergia / restrição</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cuidadosPorDia.map((d) => (
+                          <tr key={d.chave}>
+                            <td>
+                              {d.data ? (
+                                <EtiquetaDia data={d.data} descricao={d.descricao} />
+                              ) : (
+                                <span className="dia-vazio">sem dia</span>
+                              )}
+                            </td>
+                            <td className="cartao__numero" title={d.data ? rotuloDia(d.data, d.descricao) : undefined}>
+                              {plural(d.necessidade, "criança", "crianças")}
+                            </td>
+                            <td className="cartao__numero">
+                              {plural(d.restricao, "criança", "crianças")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+              )}
 
               <div className="painel__grade painel__grade--meio">
                 {relatorio.por_instituicao.length > 0 && (

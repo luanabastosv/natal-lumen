@@ -50,6 +50,8 @@ class CriancaOut(BaseModel):
     dia_evento_descricao: str | None = None
     observacoes: str | None
     checkin_em: datetime | None
+    # Marcada como "faltou" no check-in do dia.
+    falta_em: datetime | None = None
     # Preenchido = desistiu de ir. Aparece riscada na planilha, mas continua nela.
     desistiu_em: datetime | None = None
 
@@ -92,6 +94,10 @@ class CriancaOut(BaseModel):
     # A autorizacao do responsavel ja subiu. Como os cartoes, vale para todo
     # mundo que ve a crianca.
     autorizacao: bool = False
+    # Os cuidados que a autorizacao avisa (necessidade especial, alergia,
+    # observacao), numa frase. Nulo = nada a avisar. A lista mostra um icone
+    # de atencao na crianca, e a frase na dica.
+    cuidados: str | None = None
     # Nulo = sem `gerenciar_kits`.
     kit_status: str | None = None
 
@@ -223,6 +229,7 @@ class CriancaDetalhe(BaseModel):
     dia_evento_descricao: str | None = None
     observacoes: str | None
     checkin_em: datetime | None
+    falta_em: datetime | None = None
     desistiu_em: datetime | None = None
 
     comissario_id: int | None = None

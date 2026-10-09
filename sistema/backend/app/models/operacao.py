@@ -228,6 +228,13 @@ class Crianca(Base):
     checkin_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
+    # Faltou ao evento: marcado no check-in, no dia. Exclui o check-in — a
+    # crianca chegou OU faltou —, e e diferente de desistir, que e o aviso de
+    # antes. Sem nenhum dos dois, ela ainda nao foi marcada.
+    falta_em: Mapped[MomentoOpcional]
+    falta_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
 
     # O recado do comissario sobre a crianca ("a mae pediu tamanho 8", "irmao
     # do EA12"). Separado de `observacoes`, que chega da lista da instituicao:

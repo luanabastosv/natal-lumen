@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from app.models import Crianca, Perfil, Usuario, UsuarioEdicao
 from app.seeds.perfis_permissoes import (
+    PERFIL_COORDENACAO,
     PERFIS_FILTRADOS_POR_CRIANCA,
     PERFIS_FILTRADOS_POR_INSTITUICAO,
 )
@@ -136,6 +137,19 @@ class ContextoAcesso:
         return any(
             v.edicao_id == edicao_id and permissao in v.permissoes for v in self.vinculos
         )
+
+    def e_coordenacao_geral(self, edicao_id: int) -> bool:
+        """Se, nesta edicao, o usuario e a coordenacao geral do evento (ou a
+        administracao geral).
+
+        Pelo NOME do perfil, e nao por permissao: a coordenacao da captacao
+        tem quase as mesmas permissoes, e ha telas (o lembrete aos padrinhos,
+        a lista de cuidados especiais) que sao so de quem responde pelo evento
+        inteiro.
+        """
+        if self.admin_geral:
+            return True
+        return any(v.edicao_id == edicao_id and v.perfil == PERFIL_COORDENACAO for v in self.vinculos)
 
     def so_proprias_criancas(self, edicao_id: int) -> bool:
         """Se, nesta edicao, o usuario so alcanca as criancas atribuidas a ele.

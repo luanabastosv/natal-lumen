@@ -22,7 +22,6 @@ import {
   apagarSaida,
   baixarComprovanteDoRecebimento,
   criarSaida,
-  editarRecebimento,
   listarRecebimentos,
   listarSaidas,
   subirComprovanteDoRecebimento,
@@ -30,7 +29,6 @@ import {
 import {
   apagarPagamento,
   baixarComprovante,
-  editarPagamento,
   subirComprovante,
 } from "../services/padrinhos.js";
 import { dinheiro, formatarData } from "../utils/dinheiro.js";
@@ -76,48 +74,52 @@ const NOVA_SAIDA = {
   valor_total: "", fornecedor: "", data: hoje(),
 };
 
-/* As cores das saidas, presas a CATEGORIA (pela posicao dela na lista fixa),
-   e nunca ao valor: a ordem das fatias e a da lista, e a cor de "Monitoria" e
-   a mesma em qualquer edicao. Sao as sete primeiras da paleta categorica
-   validada (CVD deltaE >= 9 entre vizinhas, na ordem da lista). Da oitava
-   categoria em diante, e as de texto livre de antes da lista fechada, tudo
-   cai em "demais", num cinza neutro — uma nona cor gerada seria
-   indistinguivel. Amarelo, aqua e rosa ficam abaixo de 3:1 sobre o branco:
-   por isso nome e valor vao sempre escritos na legenda. */
-const CORES_SAIDA = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7"];
-const COR_DEMAIS = "#8a8984";
+/* A cor de cada categoria de saida, presa a CATEGORIA e nunca ao valor: a
+   cor de "Alimentação" e a mesma em qualquer edicao. Sao as oito da paleta
+   categorica validada (CVD deltaE >= 8 entre vizinhas NESTA ordem), e as
+   fatias saem nesta ordem para as vizinhas serem sempre as validadas.
 
-/** Para onde foi o que saiu: o mesmo card do "De onde veio", do lado dos
- *  numeros, em vez de um painel com uma pilula por categoria. */
+   Onze categorias e oito cores: uma nona cor gerada seria indistinguivel. As
+   tres que sobram (as de menos gasto esperado) e as de texto livre de antes
+   da lista fechada ficam num cinza neutro — mas cada uma com a PROPRIA fatia
+   e o proprio nome na legenda, e nunca juntas num "demais". Amarelo, aqua e
+   rosa ficam abaixo de 3:1 sobre o branco: por isso nome e valor vao sempre
+   escritos na legenda. */
+const COR_SAIDA = [
+  ["Estrutura - cestas", "#2a78d6"],
+  ["Estrutura - festa", "#eb6834"],
+  ["Alimentação", "#1baf7a"],
+  ["Decoração", "#eda100"],
+  ["Monitoria", "#e87ba4"],
+  ["Comissários", "#008300"],
+  ["Ser Feliz", "#4a3aa7"],
+  ["Intercessão", "#e34948"],
+];
+const COR_NEUTRA = "#8a8984";
+
+/** Para onde foi o que saiu: o mesmo card do "De onde veio", com uma fatia
+ *  e um nome na legenda para cada categoria. */
 function DestinoDoGasto({ porCategoria, total }) {
   if (total <= 0) return null;
-  const fatias = [];
-  const demais = [];
-  for (const [categoria, bruto] of Object.entries(porCategoria)) {
-    const valor = Number(bruto);
-    if (valor <= 0) continue;
-    const posicao = CATEGORIAS_SAIDA.indexOf(categoria);
-    if (posicao >= 0 && posicao < CORES_SAIDA.length) {
-      fatias.push({ chave: categoria, rotulo: categoria, valor, cor: CORES_SAIDA[posicao], posicao });
-    } else {
-      demais.push([categoria, valor]);
-    }
-  }
-  fatias.sort((a, b) => a.posicao - b.posicao);
-  if (demais.length) {
-    fatias.push({
-      chave: "demais",
-      rotulo: demais.length === 1 ? demais[0][0] : "Demais",
-      valor: demais.reduce((s, [, v]) => s + v, 0),
-      cor: COR_DEMAIS,
-      detalhe: demais.map(([c, v]) => `${c}: ${dinheiro(v)}`).join(", "),
-    });
-  }
+  const ordem = (categoria) => {
+    const i = COR_SAIDA.findIndex(([c]) => c === categoria);
+    if (i >= 0) return i;
+    const j = CATEGORIAS_SAIDA.indexOf(categoria);
+    return COR_SAIDA.length + (j >= 0 ? j : CATEGORIAS_SAIDA.length);
+  };
+  const fatias = Object.entries(porCategoria)
+    .map(([categoria, bruto]) => ({ categoria, valor: Number(bruto) }))
+    .filter((f) => f.valor > 0)
+    .map((f) => ({
+      ...f,
+      cor: COR_SAIDA.find(([c]) => c === f.categoria)?.[1] ?? COR_NEUTRA,
+      posicao: ordem(f.categoria),
+    }))
+    .sort((a, b) => a.posicao - b.posicao);
   if (fatias.length === 0) return null;
 
   const dica = (f) =>
-    `${f.rotulo}: ${dinheiro(f.valor)} (${Math.round((f.valor / total) * 100)}% das saídas)` +
-    (f.detalhe && demais.length > 1 ? ` — ${f.detalhe}` : "");
+    `${f.categoria}: ${dinheiro(f.valor)} (${Math.round((f.valor / total) * 100)}% das saídas)`;
 
   return (
     <div className="numero numero--largo">
@@ -125,7 +127,7 @@ function DestinoDoGasto({ porCategoria, total }) {
       <div className="origem__barra" role="img" aria-label={fatias.map(dica).join("; ")}>
         {fatias.map((f) => (
           <span
-            key={f.chave}
+            key={f.categoria}
             className="origem__fatia"
             style={{ flexGrow: f.valor, "--cor-origem": f.cor }}
             title={dica(f)}
@@ -134,8 +136,8 @@ function DestinoDoGasto({ porCategoria, total }) {
       </div>
       <ul className="origem__legenda">
         {fatias.map((f) => (
-          <li key={f.chave} style={{ "--cor-origem": f.cor }} title={dica(f)}>
-            {f.rotulo} <strong>{dinheiro(f.valor)}</strong>
+          <li key={f.categoria} style={{ "--cor-origem": f.cor }} title={dica(f)}>
+            {f.categoria} <strong>{dinheiro(f.valor)}</strong>
           </li>
         ))}
       </ul>
@@ -152,7 +154,7 @@ const SEM_RECEBIMENTOS = {
   apadrinhamento: "0.00", pagamentos: 0, a_conferir: "0.00", sem_comprovante: 0,
 };
 
-const SEM_FILTRO = { categoria: "", conferido: "", comprovante: "" };
+const SEM_FILTRO = { categoria: "", comprovante: "" };
 
 /** De onde veio o que entrou: uma barra so, partida por categoria.
  *
@@ -226,6 +228,7 @@ export default function Financeiro() {
   const [saidas, definirSaidas] = useState(SEM_SAIDAS);
   const [recebimentos, definirRecebimentos] = useState(SEM_RECEBIMENTOS);
   const [filtros, definirFiltros] = useState(SEM_FILTRO);
+  const [categoriaSaida, definirCategoriaSaida] = useState("");
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
@@ -287,6 +290,18 @@ export default function Financeiro() {
   }
 
   const saldo = Number(recebimentos.total_recebido) - Number(saidas.total_gasto);
+  // As categorias do filtro de saidas: as da lista fechada, e as de texto
+  // livre que vieram de antes dela (para essas saidas tambem poderem ser
+  // achadas).
+  const categoriasDasSaidas = [
+    ...CATEGORIAS_SAIDA,
+    ...Object.keys(saidas.por_categoria).filter(
+      (c) => !CATEGORIAS_SAIDA.includes(c) && c !== "sem categoria",
+    ),
+  ];
+  const saidasVisiveis = categoriaSaida
+    ? saidas.itens.filter((c) => c.categoria === categoriaSaida)
+    : saidas.itens;
   const filtrando = Object.values(filtros).some(Boolean);
 
   /** Onde cada acao da linha bate. A linha de apadrinhamento e um pagamento;
@@ -294,7 +309,6 @@ export default function Financeiro() {
   function rotas(linha) {
     const dePagamento = linha.fonte === "pagamento";
     return {
-      conferir: dePagamento ? editarPagamento : editarRecebimento,
       baixar: dePagamento ? baixarComprovante : baixarComprovanteDoRecebimento,
       subir: dePagamento ? subirComprovante : subirComprovanteDoRecebimento,
       apagar: dePagamento ? apagarPagamento : apagarRecebimento,
@@ -332,16 +346,6 @@ export default function Financeiro() {
     definirErro("");
     try {
       await apagarSaida(item.id);
-      buscar();
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
-  async function alternarConferido(linha) {
-    definirErro("");
-    try {
-      await rotas(linha).conferir(linha.id, { conferido: !linha.conferido });
       buscar();
     } catch (e) {
       definirErro(e.message);
@@ -454,14 +458,6 @@ export default function Financeiro() {
             <span className="etiqueta etiqueta--espera">Falta</span>
           ),
         },
-        {
-          rotulo: "Situação",
-          valor: (
-            <span className={`etiqueta ${l.conferido ? "etiqueta--ok" : "etiqueta--espera"}`}>
-              {l.conferido ? "Conferido" : "A conferir"}
-            </span>
-          ),
-        },
         { rotulo: "Por", valor: l.responsavel },
         { rotulo: "Observações", valor: l.observacoes, largo: true },
       ],
@@ -470,12 +466,26 @@ export default function Financeiro() {
 
   return (
     <div>
-      <div className="pagina__cabecalho">
+      {/* Os tres numeros da edicao na altura do titulo, a direita: sao a
+          resposta que a coordenacao vem buscar aqui, e nao custam uma linha
+          de altura. Nao mudam quando se troca de aba. */}
+      <div className="pagina__cabecalho financeiro__cabecalho">
         <div className="pagina__texto">
           <div className="pagina__eyebrow">Edição</div>
           <h1 className="pagina__titulo">Financeiro</h1>
           <Rabisco className="pagina__onda" />
         </div>
+        {!carregando && (
+          <div className="financeiro__totais">
+            {podeRecebimentos && (
+              <Numero rotulo="Recebido" valor={dinheiro(recebimentos.total_recebido)} moeda />
+            )}
+            {podeSaidas && <Numero rotulo="Saídas" valor={dinheiro(saidas.total_gasto)} moeda />}
+            {podeSaidas && podeRecebimentos && (
+              <Numero rotulo="Saldo" valor={dinheiro(saldo)} moeda negativo={saldo < 0} />
+            )}
+          </div>
+        )}
       </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -563,31 +573,10 @@ export default function Financeiro() {
         <Carregando tela>Somando o caixa da edição...</Carregando>
       ) : (
         <>
-          {/* A conta da edicao, antes das abas: e a resposta que a coordenacao
-              vem buscar aqui, e ela nao muda quando se troca de aba. */}
-          <div className="numeros numeros--compactos">
-            {podeRecebimentos && (
-              <Numero
-                rotulo="Recebido"
-                valor={dinheiro(recebimentos.total_recebido)}
-                moeda
-              />
-            )}
-            {podeSaidas && (
-              <Numero
-                rotulo="Saídas"
-                valor={dinheiro(saidas.total_gasto)}
-                moeda
-              />
-            )}
-            {podeSaidas && podeRecebimentos && (
-              <Numero
-                rotulo="Saldo"
-                valor={dinheiro(saldo)}
-                moeda
-                negativo={saldo < 0}
-              />
-            )}
+          {/* De onde veio / para onde foi, na largura toda embaixo do
+              cabecalho: a legenda cresce com as categorias, e espremida ao
+              lado dos numeros ela quebrava em varias linhas. */}
+          <div className="numeros numeros--compactos financeiro__grafico">
             {/* So na aba de recebimentos: e o detalhe dela, e com as saidas
                 abertas seria um grafico falando de outra lista. */}
             {aba === RECEBIMENTOS && (
@@ -638,6 +627,20 @@ export default function Financeiro() {
             )}
 
             <div className="faixa-abas-filtros__filtros">
+              {/* Nas saidas o filtro e so de categoria, e corta a lista na
+                  tela: os totais e o grafico continuam da edicao inteira. */}
+              {aba === SAIDAS && (
+                <Selecao
+                  aria-label="Filtrar saídas por categoria"
+                  value={categoriaSaida}
+                  onChange={(e) => definirCategoriaSaida(e.target.value)}
+                >
+                  <option value="">Todas as categorias</option>
+                  {categoriasDasSaidas.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Selecao>
+              )}
               {aba === RECEBIMENTOS && (
                 <>
                   <Selecao
@@ -652,15 +655,6 @@ export default function Financeiro() {
                     {Object.entries(ROTULO_CATEGORIA).map(([valor, rotulo]) => (
                       <option key={valor} value={valor}>{rotulo}</option>
                     ))}
-                  </Selecao>
-                  <Selecao
-                    aria-label="Filtrar por conferência"
-                    value={filtros.conferido}
-                    onChange={(e) => definirFiltros({ ...filtros, conferido: e.target.value })}
-                  >
-                    <option value="">Conferidos e não conferidos</option>
-                    <option value="false">A conferir</option>
-                    <option value="true">Conferidos</option>
                   </Selecao>
                   <Selecao
                     aria-label="Filtrar por comprovante"
@@ -698,10 +692,14 @@ export default function Financeiro() {
           <div role="tabpanel" aria-label={aba === SAIDAS ? "Saídas" : "Recebimentos"}>
             {aba === SAIDAS ? (
               <>
-                {saidas.itens.length === 0 ? (
+                {saidasVisiveis.length === 0 ? (
                   <EmptyState
-                    titulo="Nenhuma saída registrada"
-                    corpo="Registre aqui o que a edição gasta: cestas, presentes, estrutura, transporte."
+                    titulo={categoriaSaida ? "Nenhuma saída nesta categoria" : "Nenhuma saída registrada"}
+                    corpo={
+                      categoriaSaida
+                        ? "Escolha outra categoria, ou Todas as categorias."
+                        : "Registre aqui o que a edição gasta: cestas, presentes, estrutura, transporte."
+                    }
                   />
                 ) : (
                   <div className="tabela-rolagem">
@@ -724,7 +722,7 @@ export default function Financeiro() {
                         </tr>
                       </thead>
                       <tbody>
-                        {saidas.itens.map((c) => (
+                        {saidasVisiveis.map((c) => (
                           <tr
                             key={c.id}
                             onClick={estreita ? () => definirDetalhe(detalheDaSaida(c)) : undefined}
@@ -786,7 +784,7 @@ export default function Financeiro() {
                       )}
                       <thead>
                         <tr>
-                          <th>O que entrou</th>
+                          <th>Categoria</th>
                           {!estreita && <th>De quem</th>}
                           <th>Valor</th>
                           {!estreita && (
@@ -794,12 +792,6 @@ export default function Financeiro() {
                               <th>Forma</th>
                               <th>Data</th>
                               <th>Comprovante</th>
-                              {/* Fora da linha estreita: com ela, a coluna do
-                                  valor ficava tao apertada que "R$ 1.500,00"
-                                  quebrava em tres linhas — e a 320px a lista
-                                  ainda voltava a rolar de lado. O conferido
-                                  continua na janela da linha. */}
-                              <th>Situação</th>
                               <th>Por</th>
                             </>
                           )}
@@ -860,13 +852,6 @@ export default function Financeiro() {
                                     </span>
                                   )}
                                 </td>
-                                <td>
-                                  <span
-                                    className={`etiqueta ${l.conferido ? "etiqueta--ok" : "etiqueta--espera"}`}
-                                  >
-                                    {l.conferido ? "Conferido" : "A conferir"}
-                                  </span>
-                                </td>
                                 {/* Quem lancou. A linha de apadrinhamento traz
                                     quem registrou o pagamento — pode ter sido
                                     pela ficha do padrinho, e nao por esta tela. */}
@@ -887,10 +872,6 @@ export default function Financeiro() {
                                       : "Subir comprovante",
                                     disabled: subindo === chave(l),
                                     aoEscolher: () => pedirArquivo(l),
-                                  },
-                                  {
-                                    rotulo: l.conferido ? "Desmarcar" : "Conferir",
-                                    aoEscolher: () => alternarConferido(l),
                                   },
                                   {
                                     rotulo: "Remover",

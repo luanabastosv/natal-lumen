@@ -22,11 +22,27 @@ export const perfilDosKits = (edicaoId) =>
 export const conferirKit = (criancaId) => api.post(`/kits/${criancaId}/conferir`);
 /** Confere varios de uma vez; o que nao estiver montado e pulado. */
 export const conferirKits = (criancas) => api.post("/kits/conferir", { criancas });
+/** Quem montou e quem conferiu os kits de uma instituicao (a janela). */
+export const montagemDaInstituicao = (edicaoId, instituicaoId) =>
+  comFiltros("/kits/montagem", { edicao_id: edicaoId, instituicao_id: instituicaoId });
+
+/** Grava os dois nomes para TODOS os kits da instituicao (sem as desistentes):
+ *  preencher marca montado/conferido, apagar desfaz. */
+export const salvarMontagemDaInstituicao = (dados) => api.put("/kits/montagem", dados);
+
 export const mudarKits = (criancas, status, observacoes = null) =>
   api.post("/kits", { criancas, status, observacoes });
 
 export const fazerCheckin = (codigo, edicaoId) =>
   api.post("/checkin", { codigo, edicao_id: edicaoId });
+
+/** Marca que a crianca faltou ao evento. Devolve a linha da lista. */
+export const marcarFalta = (criancaId, edicaoId) =>
+  api.post("/checkin/falta", { crianca_id: criancaId, edicao_id: edicaoId });
+
+/** Tira o check-in (ou a falta) de uma crianca — o toque errado. */
+export const desfazerCheckin = (criancaId, edicaoId) =>
+  api.post("/checkin/desfazer", { crianca_id: criancaId, edicao_id: edicaoId });
 
 /** Se hoje e dia do evento da edicao — o check-in so abre nesses dias. */
 export const checkinAberto = (edicaoId) =>
