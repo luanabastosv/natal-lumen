@@ -99,7 +99,7 @@ const SEXOS = [
 
 export default function Criancas() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
-  const { pode, edicaoAtiva, edicao } = useSessao();
+  const { pode, edicaoAtiva, edicao, vinculoAtivo } = useSessao();
 
   const [instituicoes, definirInstituicoes] = useState([]);
   const [abas, definirAbas] = useState([]);
@@ -148,13 +148,14 @@ export default function Criancas() {
   // Por isso a coluna do responsavel nao olha `podeEditar` como as outras.
   const podeAtribuir = podeEditar || pode("atribuir_comissario");
   const veKit = pode("gerenciar_kits");
-  // Quem capta escreve o proprio recado sobre a crianca ("a mae pediu tamanho
-  // 8") — comissario e coordenacao. A observacao da instituicao continua sendo
-  // a da ficha, que chega na lista importada.
-  const escreveObservacao = pode("editar_padrinhos");
-  // A visao do comissario: capta, mas nao edita crianca. Para ele o check-in
-  // aparece sempre — e ele quem acompanha se as criancas dele chegaram.
-  const visaoComissario = escreveObservacao && !podeEditar;
+  // A visao do comissario (o de base e a coordenacao da captacao): e so para
+  // ele que a coluna de observacao existe — ele escreve ali o proprio recado
+  // sobre a crianca ("a mae pediu tamanho 8"). A coordenacao geral le o
+  // recado na ficha da crianca; os outros perfis nao o veem. Para ele o
+  // check-in tambem aparece sempre: e quem acompanha se as criancas chegaram.
+  const visaoComissario =
+    Boolean(vinculoAtivo?.perfil?.startsWith("Comissarios")) && pode("editar_padrinhos");
+  const escreveObservacao = visaoComissario;
 
   // No celular a planilha inteira nao cabe: ficam de pe as tres colunas que
   // fazem alguem reconhecer a crianca e saber o que falta nela — codigo, nome

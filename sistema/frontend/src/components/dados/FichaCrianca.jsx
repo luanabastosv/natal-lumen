@@ -7,6 +7,7 @@ import { detalharCrianca, marcarDesistencia } from "../../services/criancas.js";
 import EtiquetaDia from "../core/EtiquetaDia.jsx";
 import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { linkWhatsapp } from "../../utils/whatsapp.js";
+import { useSessao } from "../../contexts/useSessao.js";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
@@ -27,6 +28,10 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
   }, [criancaId]);
 
   const desistiu = Boolean(ficha?.desistiu_em);
+  // A coordenacao geral do evento (e a administracao geral): sao as unicas
+  // que leem, na ficha, o recado que o comissario deixou sobre a crianca.
+  const { usuario, vinculoAtivo } = useSessao();
+  const coordenacaoGeral = Boolean(usuario?.admin_geral) || vinculoAtivo?.perfil === "Coordenacao";
 
   /** Vai e volta: quem desistiu pode mudar de ideia ate a vespera. */
   async function alternarDesistencia() {
@@ -162,6 +167,14 @@ export default function FichaCrianca({ criancaId, aoFechar, podeEditar = false, 
               <>
                 <dt className="ficha__dt-largo">Observações</dt>
                 <dd className="ficha__dd-largo">{ficha.observacoes}</dd>
+              </>
+            )}
+            {/* O recado do comissario: so a coordenacao geral le aqui. O
+                comissario o escreve e le na coluna da lista dele. */}
+            {coordenacaoGeral && ficha.observacao_comissario && (
+              <>
+                <dt className="ficha__dt-largo">Observação do comissário</dt>
+                <dd className="ficha__dd-largo">{ficha.observacao_comissario}</dd>
               </>
             )}
           </dl>

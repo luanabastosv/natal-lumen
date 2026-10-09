@@ -228,6 +228,8 @@ class CriancaDetalhe(BaseModel):
     comissario_id: int | None = None
     comissario: str | None = None
     comissario_grupo: str | None = None
+    # O recado do comissario. A tela so o mostra a coordenacao geral, na ficha.
+    observacao_comissario: str | None = None
 
     # Vazia para quem nao tem `ver_padrinhos`: nem os nomes, nem os valores,
     # nem QUANTOS sao. A tela mostra no lugar uma linha dizendo que esta parte

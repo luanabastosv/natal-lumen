@@ -839,6 +839,7 @@ def detalhe(crianca_id: int, db: BD, ctx: Ver):
             (crianca.comissario.nome if crianca.comissario else None) if pode_contato else None
         ),
         comissario_grupo=_grupo_do_comissario(crianca) if pode_contato else None,
+        observacao_comissario=crianca.observacao_comissario if pode_contato else None,
         padrinhos=padrinhos,
         cartoes=[
             CartaoDaCrianca(
