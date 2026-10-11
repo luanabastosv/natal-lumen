@@ -18,7 +18,8 @@
 #      limites por IP sobem para aguentar uma sala cheia no mesmo Wi-Fi;
 #   3. certificado HTTPS cobrindo os dois nomes;
 #   4. teste.natallumen.com redireciona para acesso.natallumen.com;
-#   5. AMBIENTE=producao e 2 workers;
+#   5. AMBIENTE=producao, 2 workers e, com PASTA_DRIVE=<id>, a pasta do
+#      Drive de producao no lugar da de teste;
 #   6. copia do banco de hora em hora;
 #   7. confere tudo de fora.
 #
@@ -106,12 +107,19 @@ fi
 nginx -t
 systemctl reload nginx
 
-echo "==> 5. AMBIENTE=producao, 2 workers"
+echo "==> 5. AMBIENTE=producao, 2 workers, pasta do Drive"
 sed -i \
   -e 's/^AMBIENTE=homologacao/AMBIENTE=producao/' \
   -e 's/^UVICORN_WORKERS=1$/UVICORN_WORKERS=2/' \
   "$ENV"
-grep -E '^(AMBIENTE|UVICORN_WORKERS)=' "$ENV" | sed 's/^/    /'
+# A pasta do Drive: a de teste ("Comprovantes - Teste") ate aqui. Passe o id
+# da pasta de producao, ja compartilhada com a conta de servico, em
+#   sudo PASTA_DRIVE=<id> ./virar-producao.sh
+# Sem PASTA_DRIVE, a pasta nao muda.
+if [ -n "${PASTA_DRIVE:-}" ]; then
+  sed -i "s/^DRIVE_PASTA_ID=.*/DRIVE_PASTA_ID=$PASTA_DRIVE/" "$ENV"
+fi
+grep -E '^(AMBIENTE|UVICORN_WORKERS|DRIVE_PASTA_ID)=' "$ENV" | sed 's/^/    /'
 systemctl restart natal-lumen-api
 
 echo "==> 6. Copia do banco de hora em hora"
