@@ -132,7 +132,12 @@ systemctl start natal-lumen-backup-hora.service
 ls -1 /var/lib/natal-lumen/backups/hora | tail -1 | sed 's/^/    primeira copia: /'
 
 echo "==> 7. Conferindo de fora"
-sleep 5
+# Ate 60s: com 2 workers a API demora mais que 5s para voltar, e a primeira
+# execucao deste script acusou 502 numa virada que tinha dado certo.
+for _ in $(seq 1 60); do
+  curl -fsS "https://$NOVO/acesso/api/saude" > /dev/null 2>&1 && break
+  sleep 1
+done
 SAUDE="$(curl -fsS "https://$NOVO/acesso/api/saude" || true)"
 echo "    $NOVO -> $SAUDE"
 REDIR="$(curl -fsSI "https://$ANTIGO/acesso/" 2>/dev/null | awk 'tolower($1)=="location:" {print $2}' | tr -d '\r')"
