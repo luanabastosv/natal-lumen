@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Traz uma copia do banco de producao para o seu computador, com os nomes
-# trocados por nomes falsos.
+# Traz uma copia exata do banco de producao para o seu computador.
 #
 #   cd sistema/backend && ./trazer_producao.sh
 #
@@ -11,11 +10,12 @@
 # O que faz:
 #   1. guarda o seu banco local atual em ../backups/local-antes-de-trazer_*.dump;
 #   2. baixa a producao (pg_dump pelo ssh) para ../backups/producao_*.dump;
-#   3. troca o banco local por ela;
-#   4. roda o anonimizar: nomes, contatos, senhas e links do Drive trocados.
+#   3. troca o banco local por ela.
 #
-# Depois disso as senhas de producao nao valem aqui. Crie o seu acesso local:
-#   ./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
+# Copia exata: nomes, contatos e senhas de verdade — entra-se aqui com a mesma
+# senha da producao. O que impede um teste daqui de mandar mensagem ou subir
+# arquivo de verdade e o .env local nao ter credencial de WhatsApp nem de
+# Drive; mantenha assim.
 #
 # Os arquivos (fotos de cartao, comprovantes) NAO vem: so o banco. As telas
 # mostram "nao encontrado" para as imagens, que e o esperado.
@@ -71,11 +71,7 @@ echo "==> 3. Trocando o banco local pela copia"
 (eval "$(pecas)" && pg_restore --clean --if-exists --no-owner -d "$PGDATABASE" "$PASTA/producao_$QUANDO.dump")
 ./.venv/bin/alembic upgrade head
 
-echo "==> 4. Trocando os nomes por nomes falsos"
-./.venv/bin/python -m app.seeds.anonimizar --sim
-
 echo
-echo "Pronto. Crie o seu acesso local:"
-echo "   ./.venv/bin/python -m app.seeds.criar_admin \"Seu Nome\" \"voce@exemplo.org\""
+echo "Pronto. Entre com o mesmo email e senha da producao."
 echo "Para voltar ao banco local de antes:"
 echo "   pg_restore --clean --if-exists --no-owner -d <banco> $PASTA/local-antes-de-trazer_$QUANDO.dump"

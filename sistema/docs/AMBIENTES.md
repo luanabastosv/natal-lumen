@@ -68,14 +68,15 @@ Um valor escrito errado (`prod`, `produção`) faz a API recusar a subir.
 ```bash
 cd sistema/backend
 ./trazer_producao.sh
-./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
 ```
 
-O script guarda o seu banco local, baixa a produção pelo `ssh`, troca o banco
-local por ela e roda o `anonimizar`: nomes de crianças, padrinhos e usuários
-viram nomes falsos estáveis; contatos, senhas e links do Drive são apagados.
-Códigos, idades, valores, datas e todas as ligações ficam — que é o que as
-telas e as migrations exercitam.
+O script guarda o seu banco local, baixa a produção pelo `ssh` e troca o banco
+local por ela — uma cópia **exata**, com nomes, contatos e senhas de verdade.
+Entra-se com o mesmo email e senha da produção.
+
+O `.env` local **não tem** credencial de WhatsApp nem de Drive, e é isso que
+impede um teste daqui de mandar mensagem a um padrinho ou subir arquivo na
+pasta de verdade. Mantenha assim.
 
 Use antes de publicar **qualquer migration**. As fotos e os comprovantes não
 vêm junto (só o banco): as imagens aparecem como "não encontrado", e está certo.
