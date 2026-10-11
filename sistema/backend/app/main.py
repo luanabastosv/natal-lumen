@@ -8,8 +8,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.config import config
+from app.database import engine
 from app.routers import (
     auth,
     autorizacoes,
@@ -81,5 +84,20 @@ for router in (
 
 @app.get("/saude", tags=["infra"])
 def saude():
-    """Usada para conferir que a API esta de pe."""
+    """Usada para conferir que o sistema esta de pe — a API E o banco.
+
+    E o endereco que o monitor externo (UptimeRobot) visita a cada 5 minutos,
+    e que o publicar.sh confere depois de reiniciar. So a API respondendo nao
+    basta: com o Postgres parado a API sobe, responde aqui, e toda tela da
+    erro. Por isso a consulta ao banco, e o 503 quando ela falha — e o 503 que
+    dispara o aviso.
+    """
+    try:
+        with engine.connect() as conexao:
+            conexao.execute(text("select 1"))
+    except Exception:
+        return JSONResponse(
+            {"ok": False, "ambiente": config.ambiente, "banco": "sem resposta"},
+            status_code=503,
+        )
     return {"ok": True, "ambiente": config.ambiente}
