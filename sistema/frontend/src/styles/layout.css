@@ -110,6 +110,40 @@
   color: var(--white);
 }
 
+/* Titulo de grupo (Criancas, Configuracoes): o mesmo desenho de um destino,
+   com a seta que diz que abre. */
+.menu__grupo-titulo {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.menu__seta {
+  display: inline-flex;
+  margin-left: auto;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.menu__seta--aberta {
+  transform: rotate(90deg);
+}
+
+.menu__subitens {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 4px;
+}
+
+/* Subitem recuado ate o rotulo do grupo, menor e sem icone. */
+.menu__item--sub {
+  padding: 8px var(--space-3) 8px calc(var(--space-3) + 18px + var(--space-3));
+  font-size: 13px;
+}
+
 .menu__item:focus-visible {
   outline: 2px solid var(--focus-ring-dark);
   outline-offset: -2px;
@@ -373,6 +407,10 @@
   .layout--recolhida .menu__item {
     justify-content: center;
     padding: 12px 0;
+  }
+
+  .layout--recolhida .menu__seta {
+    display: none;
   }
 
   /* A base empilha: avatar em cima, as acoes da conta embaixo dele. */

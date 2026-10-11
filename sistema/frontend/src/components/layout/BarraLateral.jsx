@@ -1,8 +1,7 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { Configuracoes, MenuRecolher } from "../core/icones.jsx";
+import { useNavigate } from "react-router-dom";
+import { MenuRecolher } from "../core/icones.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import MenuLateral from "./MenuLateral.jsx";
-import { ITEM_ADMIN } from "./menu.js";
 import { nomeCurto } from "../../utils/nomes.js";
 
 function iniciais(nome) {
@@ -123,23 +122,6 @@ export default function BarraLateral({ aoNavegar, recolhida = false, aoAlternar 
           </span>
 
           <span className="lateral__acoes">
-            {/* Cadastrar cidades e edicoes mora aqui, junto de quem esta
-                logado, e nao no menu: e o unico destino que trabalha ACIMA da
-                edicao escolhida, e so a administracao geral o enxerga. */}
-            {usuario?.admin_geral && (
-              <NavLink
-                to={ITEM_ADMIN.para}
-                onClick={aoNavegar}
-                className={({ isActive }) =>
-                  `lateral__acao ${isActive ? "lateral__acao--ativo" : ""}`
-                }
-                title={ITEM_ADMIN.rotulo}
-                aria-label={ITEM_ADMIN.rotulo}
-              >
-                <Configuracoes t={18} />
-              </NavLink>
-            )}
-
             {/* Sair e a acao menos importante daqui: icone, sem amarelo — o
                 amarelo e do CTA da pagina. */}
             <button

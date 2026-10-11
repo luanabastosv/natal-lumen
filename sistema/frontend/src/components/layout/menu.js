@@ -1,4 +1,5 @@
 import {
+  Configuracoes,
   MenuCartoes,
   MenuCheckin,
   MenuCriancas,
@@ -23,11 +24,18 @@ export const ITENS_MENU = [
   // ver_painel encontra os numeros da edicao ali; quem nao tem, so os
   // atalhos para o que alcanca.
   { para: "/painel", rotulo: "Painel", Icone: MenuPainel },
-  { para: "/criancas", rotulo: "Crianças", permissao: "ver_criancas", Icone: MenuCriancas },
+  {
+    para: "/criancas",
+    rotulo: "Crianças",
+    rotuloMenu: "Lista geral",
+    permissao: "ver_criancas",
+    Icone: MenuCriancas,
+  },
   { para: "/padrinhos", rotulo: "Padrinhos", permissao: "ver_padrinhos", Icone: MenuPadrinhos },
   {
     para: "/cartoes",
     rotulo: "Cartões e Autorização",
+    rotuloMenu: "Cartões e autorizações",
     permissao: "subir_cartoes",
     Icone: MenuCartoes,
   },
@@ -64,18 +72,37 @@ export const ITENS_MENU = [
   },
 ];
 
-/** Fora do menu, de proposito.
- *
- * Todos os destinos acima trabalham DENTRO da edicao escolhida na lateral.
- * Cidades e edicoes e o contrario: e onde essa escolha passa a existir, e so a
- * administracao geral entra. Por isso ele mora na base da lateral, junto de
- * quem esta logado, e nao no meio dos destinos do dia a dia.
- */
+/** Cidades e edicoes: so a administracao geral. Mora no grupo Configuracoes,
+ *  junto de usuarios e instituicoes. */
 export const ITEM_ADMIN = {
   para: "/cidades-edicoes",
-  rotulo: "Cadastrar cidades e edições",
+  rotulo: "Cidades e edições",
   apenasAdmin: true,
+  Icone: Configuracoes,
 };
+
+/** Como a lateral se organiza: destinos soltos e grupos.
+ *
+ *  Um grupo junta destinos do mesmo assunto — tudo o que e da crianca, tudo o
+ *  que e cadastro — e so aparece se a pessoa alcanca ao menos um deles. Quem
+ *  alcanca so um destino do grupo continua vendo o grupo: o menu tem a mesma
+ *  forma para todo mundo, e so o que tem dentro muda. */
+export const ESTRUTURA_MENU = [
+  { para: "/painel" },
+  {
+    grupo: "Crianças",
+    Icone: MenuCriancas,
+    itens: ["/criancas", "/cartoes", "/checkin", "/cuidados"],
+  },
+  { para: "/padrinhos" },
+  { para: "/kits" },
+  { para: "/financeiro" },
+  {
+    grupo: "Configurações",
+    Icone: Configuracoes,
+    itens: ["/usuarios", "/instituicoes", "/cidades-edicoes"],
+  },
+];
 
 /** Tudo o que tem rota, menu ou nao — e disto que o App monta as rotas. */
 export const ROTAS = [...ITENS_MENU, ITEM_ADMIN];
@@ -93,6 +120,7 @@ export function eCoordenacaoGeral(usuario, vinculoAtivo) {
 }
 
 export function alcanca(item, pode, sessao = {}) {
+  if (item.apenasAdmin) return Boolean(sessao.usuario?.admin_geral);
   if (item.soCoordenacaoGeral) return eCoordenacaoGeral(sessao.usuario, sessao.vinculoAtivo);
   if (item.permissoes) return item.permissoes.some((p) => pode(p));
   return !item.permissao || pode(item.permissao);
@@ -100,4 +128,17 @@ export function alcanca(item, pode, sessao = {}) {
 
 export function itensVisiveis(pode, sessao) {
   return ITENS_MENU.filter((item) => alcanca(item, pode, sessao));
+}
+
+/** A estrutura do menu com so o que esta pessoa alcanca: grupos vazios somem. */
+export function menuVisivel(pode, sessao) {
+  const porCaminho = Object.fromEntries(ROTAS.map((i) => [i.para, i]));
+  return ESTRUTURA_MENU.map((entrada) => {
+    if (entrada.para) {
+      const item = porCaminho[entrada.para];
+      return alcanca(item, pode, sessao) ? item : null;
+    }
+    const itens = entrada.itens.map((p) => porCaminho[p]).filter((i) => alcanca(i, pode, sessao));
+    return itens.length ? { ...entrada, itens } : null;
+  }).filter(Boolean);
 }
