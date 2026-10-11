@@ -8,8 +8,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Cidade, Crianca, DiaEvento, Edicao, Instituicao, InstituicaoDia
+from app.models import (
+    Cidade,
+    Crianca,
+    DiaEvento,
+    Edicao,
+    Instituicao,
+    InstituicaoDia,
+    Perfil,
+    Usuario,
+    UsuarioEdicao,
+    UsuarioInstituicao,
+)
 from app.schemas.cadastros import (
+    FichaInstituicao,
+    PessoaDaInstituicao,
     DependenciasOut,
     InstituicaoEditar,
     InstituicaoIn,
@@ -24,6 +37,7 @@ router = APIRouter(prefix="/instituicoes", tags=["cadastros"])
 
 BD = Annotated[Session, Depends(get_db)]
 Cadastros = Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_cadastros"))]
+VerCriancas = Annotated[ContextoAcesso, Depends(exige_permissao("ver_criancas"))]
 
 
 def _saida(inst: Instituicao, extra: dict | None = None) -> InstituicaoOut:
@@ -347,3 +361,62 @@ def apagar(
     )
     db.commit()
     exclusao.remover_arquivos(orfaos)
+
+
+@router.get("/{instituicao_id}/ficha", response_model=FichaInstituicao)
+def ficha(instituicao_id: int, edicao_id: int, db: BD, ctx: VerCriancas):
+    """A instituicao inteira numa janela: cadastro, dia, nucleo, quantas
+    criancas, e quem da equipe responde por ela — com o contato de cada um.
+
+    Aberta da lista de criancas, por quem alcanca a instituicao nesta edicao.
+    """
+    if not ctx.alcanca_edicao(edicao_id, "ver_criancas") or not ctx.alcanca_instituicao(
+        edicao_id, instituicao_id
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+    inst = db.get(Instituicao, instituicao_id)
+    if inst is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+
+    dia = db.scalar(
+        select(InstituicaoDia).where(
+            InstituicaoDia.edicao_id == edicao_id, InstituicaoDia.instituicao_id == instituicao_id
+        ).options(joinedload(InstituicaoDia.dia_evento))
+    )
+    da_edicao = (Crianca.edicao_id == edicao_id) & (Crianca.instituicao_id == instituicao_id)
+    criancas = db.scalar(select(func.count()).where(da_edicao, Crianca.desistiu_em.is_(None))) or 0
+    desistentes = db.scalar(select(func.count()).where(da_edicao, Crianca.desistiu_em.is_not(None))) or 0
+
+    equipe = db.execute(
+        select(Usuario, Perfil.nome)
+        .join(UsuarioEdicao, UsuarioEdicao.usuario_id == Usuario.id)
+        .join(Perfil, Perfil.id == UsuarioEdicao.perfil_id)
+        .join(UsuarioInstituicao, UsuarioInstituicao.usuario_edicao_id == UsuarioEdicao.id)
+        .where(
+            UsuarioEdicao.edicao_id == edicao_id,
+            UsuarioEdicao.ativo.is_(True),
+            Usuario.ativo.is_(True),
+            UsuarioInstituicao.instituicao_id == instituicao_id,
+        )
+        .order_by(Usuario.nome)
+    ).all()
+    pessoa = lambda u: PessoaDaInstituicao(nome=u.nome, whatsapp=u.whatsapp, email=u.email)  # noqa: E731
+
+    return FichaInstituicao(
+        id=inst.id,
+        nome=inst.nome,
+        sigla=inst.sigla,
+        responsavel=inst.responsavel,
+        telefone=inst.telefone,
+        endereco=inst.endereco,
+        dia_evento=dia.dia_evento.data if dia else None,
+        dia_evento_descricao=dia.dia_evento.descricao if dia else None,
+        onibus=dia.onibus if dia else 0,
+        nucleo=dia.nucleo if dia else None,
+        cor_bata_nome=dia.cor_bata_nome if dia else None,
+        cor_bata_hex=dia.cor_bata_hex if dia else None,
+        criancas=criancas,
+        desistentes=desistentes,
+        monitores=[pessoa(u) for u, perfil in equipe if perfil.startswith("Monitoria")],
+        comissarios=[pessoa(u) for u, perfil in equipe if perfil.startswith("Comissarios")],
+    )

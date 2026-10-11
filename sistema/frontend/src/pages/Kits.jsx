@@ -4,7 +4,8 @@ import { Entrada } from "../components/core/Campo.jsx";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import Button from "../components/core/Button.jsx";
-import { Imprimir } from "../components/core/icones.jsx";
+import BotaoIcone from "../components/core/BotaoIcone.jsx";
+import { Imprimir, Olho } from "../components/core/icones.jsx";
 import ImprimirLista from "../components/dados/ImprimirLista.jsx";
 import {
   EstatisticasImpressas,
@@ -46,6 +47,9 @@ export default function Kits() {
   // A conta de idade e sexo da instituicao da aba, que e a que vai para a
   // compra dos presentes. null = janela fechada.
   const [estatisticas, definirEstatisticas] = useState(null);
+  // No celular, o kit aberto pelo olho: quem montou, quem conferiu, status e
+  // check-in moram na janela, e a linha fica so com o que se le na pilha.
+  const [vendoKit, definirVendoKit] = useState(null);
   /* A ordem e do servidor, e nao do navegador: ordenar so o que ja veio
      ordenaria a PAGINA, e nao a lista. Comeca por codigo porque e assim que a
      lista de papel da instituicao chega, e conferir uma contra a outra e o que
@@ -326,7 +330,7 @@ export default function Kits() {
           <EtiquetaDia data={abaDaVez.dia_evento} descricao={abaDaVez.dia_evento_descricao} />
         )}
 
-        <div className="barra-acoes__ponta">
+        <div className="barra-acoes__ponta barra-acoes__ponta--cheia-no-celular">
           {/* So dentro de uma instituicao: a conta e da compra de UMA escola. */}
           {abaAtiva !== TODAS && (
             <>
@@ -335,7 +339,7 @@ export default function Kits() {
               </Button>
               {/* A montagem e por escola: so dentro da aba de uma
                   instituicao, nunca na aba Todas. */}
-              <Button size="sm" variant="secondary" onClick={abrirMontagem}>
+              <Button size="sm" onClick={abrirMontagem}>
                 Montagem + Conferência
               </Button>
             </>
@@ -386,6 +390,47 @@ export default function Kits() {
               </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {vendoKit && (
+        <Modal
+          rotulo="Kit de"
+          titulo={vendoKit.crianca_nome}
+          aoFechar={() => definirVendoKit(null)}
+        >
+          <dl className="ficha">
+            <dt>Código</dt>
+            <dd>{vendoKit.crianca_codigo}</dd>
+            <dt>Idade</dt>
+            <dd>{vendoKit.idade} anos</dd>
+            <dt>Sexo</dt>
+            <dd>{vendoKit.sexo}</dd>
+            <dt>Instituição</dt>
+            <dd>{vendoKit.instituicao}</dd>
+            <dt>Status</dt>
+            <dd>
+              <EtiquetaStatus desistiu={Boolean(vendoKit.desistiu_em)} />
+            </dd>
+            <dt>Check-in</dt>
+            <dd>
+              <EtiquetaCheckin
+                quando={vendoKit.checkin_em}
+                faltou={Boolean(vendoKit.falta_em)}
+              />
+            </dd>
+            <dt>Montado por</dt>
+            <dd>
+              {vendoKit.montado_por ?? (montado(vendoKit) ? "montado" : "ainda não montado")}
+              {vendoKit.montado_em && ` · ${formatarDataHora(vendoKit.montado_em)}`}
+            </dd>
+            <dt>Conferido por</dt>
+            <dd>
+              {vendoKit.conferido_por ??
+                (conferido(vendoKit) ? "conferido" : "ainda não conferido")}
+              {vendoKit.conferido_em && ` · ${formatarDataHora(vendoKit.conferido_em)}`}
+            </dd>
+          </dl>
         </Modal>
       )}
 
@@ -491,6 +536,7 @@ export default function Kits() {
               {!estreita && <col style={{ width: 78 }} />}
               {!estreita && <col style={{ width: 160 }} />}
               {!estreita && <col style={{ width: 160 }} />}
+              {estreita && <col style={{ width: 48 }} />}
             </colgroup>
             <thead>
               <tr>
@@ -509,6 +555,7 @@ export default function Kits() {
                     montar juntos, que e o grupo que a equipe procura. */}
                 {!estreita && coluna("montado", "Montado por")}
                 {!estreita && <th>Conferido por</th>}
+                {estreita && <th aria-label="Detalhes" />}
               </tr>
             </thead>
             <tbody>
@@ -524,39 +571,14 @@ export default function Kits() {
                     {estreita && (
                       <>
                         <br />
+                        {/* No celular a linha fica so com o que se le na
+                            pilha: idade e sexo. Montagem, conferencia, status
+                            e check-in ficam na janela do olho — etiquetas na
+                            linha a faziam quebrar em tres. */}
                         <span className="campo__dica">
                           {k.idade} anos · {k.sexo}
                           {abaAtiva === TODAS && ` · ${k.instituicao}`}
                         </span>
-                        {/* No celular nao ha coluna de status: "Confirmada"
-                            repetida em toda linha so empurraria o nome. Fica
-                            a excecao, que e o que muda o trabalho. */}
-                        {k.desistiu_em && (
-                          <>
-                            <br />
-                            <EtiquetaStatus desistiu />
-                          </>
-                        )}
-                        {(k.checkin_em || k.falta_em) && (
-                          <>
-                            <br />
-                            <EtiquetaCheckin quando={k.checkin_em} faltou={Boolean(k.falta_em)} />
-                          </>
-                        )}
-                        {/* Sem colunas no celular: montagem e conferencia
-                            descem para baixo do nome. */}
-                        {k.montado_por && (
-                          <>
-                            <br />
-                            <span className="campo__dica">Montado por {k.montado_por}</span>
-                          </>
-                        )}
-                        {k.conferido_por && (
-                          <>
-                            <br />
-                            <span className="campo__dica">Conferido por {k.conferido_por}</span>
-                          </>
-                        )}
                       </>
                     )}
                   </td>
@@ -575,6 +597,16 @@ export default function Kits() {
                   )}
                   {!estreita && <td>{celulaNome(k.montado_por)}</td>}
                   {!estreita && <td>{celulaNome(k.conferido_por)}</td>}
+                  {estreita && (
+                    <td className="tabela__acoes">
+                      <BotaoIcone
+                        titulo={`Ver o kit de ${k.crianca_nome}`}
+                        onClick={() => definirVendoKit(k)}
+                      >
+                        <Olho t={20} />
+                      </BotaoIcone>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -585,6 +617,11 @@ export default function Kits() {
     </div>
   );
 }
+
+/** Se o kit tem montagem ou conferencia registrada: o nome de quem fez ou a
+ *  hora em que fez — qualquer um dos dois basta para dizer que aconteceu. */
+const montado = (k) => Boolean(k.montado_por || k.montado_em);
+const conferido = (k) => Boolean(k.conferido_por || k.conferido_em);
 
 /** Confirmada ou desistente: se o kit desta crianca ainda deve ser montado. */
 function EtiquetaStatus({ desistiu }) {

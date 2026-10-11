@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Configuracoes, MenuRecolher } from "../core/icones.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import MenuLateral from "./MenuLateral.jsx";
@@ -21,17 +21,33 @@ export default function BarraLateral({ aoNavegar, recolhida = false, aoAlternar 
 
   // A administracao geral escolhe; quem tem vinculo em mais de uma edicao
   // tambem. Os demais so leem.
+  const navegar = useNavigate();
+
   const podeTrocar = Boolean(usuario?.admin_geral) || edicoes.length > 1;
 
   return (
     <div className="lateral">
       <div className="lateral__marca">
-        <img
-          src="/acesso/images/star-mascot-amarelo.svg"
-          alt=""
-          className="lateral__mascote"
-        />
-        <span className="lateral__nome">Natal Lumen</span>
+        {/* A marca leva ao painel, como o logo de qualquer site leva ao inicio.
+            Botao, e nao link: um <a> faz o navegador mostrar o endereco no
+            canto da tela ao passar o mouse, e a marca nao deve reagir ao
+            hover — so ao clique. */}
+        <button
+          type="button"
+          className="marca-link"
+          onClick={() => {
+            navegar("/painel");
+            aoNavegar?.();
+          }}
+          aria-label="Natal Lumen, ir para o painel"
+        >
+          <img
+            src="/acesso/images/star-mascot-amarelo.svg"
+            alt=""
+            className="lateral__mascote"
+          />
+          <span className="lateral__nome">Natal Lumen</span>
+        </button>
         {/* Recolher a lateral: so no computador (no celular ela ja e uma
             gaveta). Recolhida, ficam os icones dos destinos e a lista ganha a
             largura que o menu ocupava. */}

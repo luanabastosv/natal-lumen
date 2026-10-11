@@ -11,7 +11,8 @@ contas, mas so as quebras por dia, por idade e por instituicao — o que orienta
 a compra e a montagem dos kits. O resto e a cobranca da captacao, e sai vazio.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -27,6 +28,7 @@ from app.models import (
     Grupo,
     Instituicao,
     InstituicaoDia,
+    LogAtividade,
     Perfil,
     Usuario,
     UsuarioEdicao,
@@ -34,14 +36,18 @@ from app.models import (
 from app.models.tipos import Sexo, TipoApadrinhamento
 from app.schemas.painel import (
     FaixaIdade,
+    ItemAtividade,
     LinhaComissario,
+    LinhaDoTempo,
     LinhaDia,
     LinhaInstituicao,
+    PessoaAtividade,
     Relatorio,
     ResumoEdicao,
 )
 from app.seeds.perfis_permissoes import PERFIL_COMISSARIO
 from app.seguranca.contexto import ContextoAcesso
+from app.servicos import atividade
 from app.servicos.apadrinhamento import CONFIRMADO, PROMETIDO
 from app.seguranca.dependencias import exige_qualquer
 
@@ -399,3 +405,130 @@ def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
         )
 
     return linhas
+
+
+# ------------------------------------------------------------------ atividade
+#
+# "Ver atividade", no painel da coordenacao: quem da equipe da edicao esta
+# trabalhando e o que fez. So a coordenacao geral do evento e a administracao
+# geral — e o trabalho de cada pessoa, nominalmente, e nao numero da edicao.
+
+FUSO = ZoneInfo("America/Fortaleza")
+POR_PAGINA = 50
+
+
+def _so_coordenacao(ctx: ContextoAcesso, edicao_id: int) -> None:
+    if not ctx.e_coordenacao_geral(edicao_id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A atividade da equipe e da coordenacao geral do evento.",
+        )
+
+
+def _equipe(db: Session, edicao_id: int):
+    """Quem tem vinculo ativo nesta edicao, com o perfil de cada um."""
+    return db.execute(
+        select(Usuario, Perfil.nome)
+        .join(UsuarioEdicao, UsuarioEdicao.usuario_id == Usuario.id)
+        .join(Perfil, Perfil.id == UsuarioEdicao.perfil_id)
+        .where(
+            UsuarioEdicao.edicao_id == edicao_id,
+            UsuarioEdicao.ativo.is_(True),
+            Usuario.ativo.is_(True),
+        )
+    ).all()
+
+
+TRABALHO = LogAtividade.acao.not_in(atividade.IGNORADAS)
+
+
+@router.get("/{edicao_id}/atividade", response_model=list[PessoaAtividade])
+def atividade_da_equipe(edicao_id: int, db: BD, ctx: Painel):
+    _so_coordenacao(ctx, edicao_id)
+
+    equipe = _equipe(db, edicao_id)
+    ids = [u.id for u, _ in equipe]
+    if not ids:
+        return []
+
+    agora = datetime.now(UTC)
+    inicio_de_hoje = datetime.combine(agora.astimezone(FUSO).date(), time.min, FUSO)
+    sete_dias = agora - timedelta(days=7)
+
+    contas = {
+        uid: (hoje, semana)
+        for uid, hoje, semana in db.execute(
+            select(
+                LogAtividade.usuario_id,
+                func.count(case((LogAtividade.criado_em >= inicio_de_hoje, 1))),
+                func.count(),
+            )
+            .where(LogAtividade.usuario_id.in_(ids), TRABALHO, LogAtividade.criado_em >= sete_dias)
+            .group_by(LogAtividade.usuario_id)
+        ).all()
+    }
+
+    # A ultima acao de trabalho de cada um, de qualquer data: a mais recente
+    # pela hora, uma por pessoa (DISTINCT ON do Postgres).
+    ultimos = db.scalars(
+        select(LogAtividade)
+        .where(LogAtividade.usuario_id.in_(ids), TRABALHO)
+        .distinct(LogAtividade.usuario_id)
+        .order_by(LogAtividade.usuario_id, LogAtividade.criado_em.desc(), LogAtividade.id.desc())
+    ).all()
+    textos = dict(zip((log.usuario_id for log in ultimos), atividade.descrever_varios(db, ultimos)))
+    ultimo_em = {log.usuario_id: log.criado_em for log in ultimos}
+
+    pessoas = [
+        PessoaAtividade(
+            usuario_id=u.id,
+            nome=u.nome,
+            perfil=perfil,
+            sem_senha=u.senha_hash is None,
+            ultimo_acesso=u.ultimo_login,
+            ultima_acao=textos.get(u.id),
+            ultima_acao_em=ultimo_em.get(u.id),
+            hoje=contas.get(u.id, (0, 0))[0],
+            semana=contas.get(u.id, (0, 0))[1],
+        )
+        for u, perfil in equipe
+    ]
+
+    # Quem trabalhou por ultimo no topo; quem nunca fez nada, no fim, por nome.
+    pessoas.sort(key=lambda p: (
+        p.ultima_acao_em is None,
+        -p.ultima_acao_em.timestamp() if p.ultima_acao_em else 0,
+        p.nome.lower(),
+    ))
+    return pessoas
+
+
+@router.get("/{edicao_id}/atividade/{usuario_id}", response_model=LinhaDoTempo)
+def atividade_da_pessoa(
+    edicao_id: int, usuario_id: int, db: BD, ctx: Painel, antes: int | None = None
+):
+    _so_coordenacao(ctx, edicao_id)
+
+    pessoa = next((u for u, _ in _equipe(db, edicao_id) if u.id == usuario_id), None)
+    if pessoa is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Esta pessoa nao esta na equipe desta edicao.")
+
+    condicao = (LogAtividade.usuario_id == usuario_id) & TRABALHO
+    if antes is not None:
+        condicao = condicao & (LogAtividade.id < antes)
+
+    logs = db.scalars(
+        select(LogAtividade).where(condicao).order_by(LogAtividade.id.desc()).limit(POR_PAGINA + 1)
+    ).all()
+    mais = len(logs) > POR_PAGINA
+    logs = logs[:POR_PAGINA]
+
+    return LinhaDoTempo(
+        usuario_id=pessoa.id,
+        nome=pessoa.nome,
+        itens=[
+            ItemAtividade(id=log.id, quando=log.criado_em, texto=texto)
+            for log, texto in zip(logs, atividade.descrever_varios(db, logs))
+        ],
+        mais=mais,
+    )

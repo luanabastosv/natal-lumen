@@ -19,6 +19,7 @@ import Modal from "../components/feedback/Modal.jsx";
 import ImagemComZoom from "../components/dados/ImagemComZoom.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
+import useNoComputador from "../hooks/useNoComputador.js";
 import {
   confirmarLote,
   listarAutorizacoes,
@@ -125,6 +126,8 @@ export default function Cartoes() {
   // ocupava meia tela o tempo todo para uma acao que se faz de vez em quando, e
   // empurrava para baixo a lista, que e o que se vem ver aqui.
   const [subindoAberto, definirSubindoAberto] = useState(false);
+  // Subir e substituir imagem so no computador: ver o hook.
+  const noComputador = useNoComputador();
   /* Lista ou arquivo. Sao duas perguntas diferentes sobre a mesma pasta: a
      lista responde "quem ja entregou o cartao", varrendo nomes de cima a
      baixo; o arquivo responde "e este cartao aqui, de quem e", que e o que se
@@ -213,7 +216,9 @@ export default function Cartoes() {
    *  duas visoes: lista e mural oferecem exatamente o mesmo. */
   function acoesDoCartao(c) {
     return [
-      { rotulo: "Substituir imagem", aoEscolher: () => pedirTroca(c) },
+      ...(noComputador
+        ? [{ rotulo: "Substituir imagem", aoEscolher: () => pedirTroca(c) }]
+        : []),
       { rotulo: "Apagar imagem", perigo: true, aoEscolher: () => definirApagandoDe(c) },
     ];
   }
@@ -482,11 +487,14 @@ export default function Cartoes() {
               </button>
             </div>
 
-            {pode("subir_cartoes") && (
-              <Button size="sm" onClick={() => definirSubindoAberto(true)}>
-                {abaTipo === AUTORIZACAO ? "Subir autorizações" : "Subir cartões"}
-              </Button>
-            )}
+            {pode("subir_cartoes") &&
+              (noComputador ? (
+                <Button size="sm" onClick={() => definirSubindoAberto(true)}>
+                  {abaTipo === AUTORIZACAO ? "Subir autorizações" : "Subir cartões"}
+                </Button>
+              ) : (
+                <span className="so-no-computador">Para subir, use o computador</span>
+              ))}
           </div>
         </div>
       )}
@@ -497,7 +505,7 @@ export default function Cartoes() {
       {/* Depois de ler os arquivos esta janela da lugar a conferencia, e nao
           fica aberta atras dela: duas janelas de conferencia empilhadas
           diziam a mesma coisa duas vezes. */}
-      {pasta && pode("subir_cartoes") && subindoAberto && !previa && (
+      {pasta && pode("subir_cartoes") && noComputador && subindoAberto && !previa && (
         <Modal
           rotulo={`${pasta.instituicao} · ${NOME_DO_TIPO[abaTipo]}`}
           titulo={

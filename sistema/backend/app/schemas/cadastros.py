@@ -168,3 +168,32 @@ class PerfilOut(BaseModel):
     id: int
     nome: str
     descricao: str | None
+
+
+class PessoaDaInstituicao(BaseModel):
+    nome: str
+    whatsapp: str | None
+    email: str
+
+
+class FichaInstituicao(BaseModel):
+    """Tudo o que esta ligado a instituicao numa edicao, numa janela so."""
+
+    id: int
+    nome: str
+    sigla: str | None
+    responsavel: str | None
+    telefone: str | None
+    endereco: str | None
+    dia_evento: date | None
+    dia_evento_descricao: str | None
+    onibus: int
+    nucleo: str | None
+    cor_bata_nome: str | None
+    cor_bata_hex: str | None
+    criancas: int
+    desistentes: int
+    # Quem da equipe responde pela instituicao nesta edicao: os monitores
+    # (normalmente dois ou tres) e os comissarios do time dela.
+    monitores: list[PessoaDaInstituicao]
+    comissarios: list[PessoaDaInstituicao]

@@ -47,6 +47,10 @@ export const listarInstituicoes = (filtros = {}) => {
   const consulta = p.toString();
   return api.get(`/instituicoes${consulta ? `?${consulta}` : ""}`);
 };
+/** A instituicao inteira numa edicao: cadastro, dia, nucleo, contagem e quem
+ *  da equipe responde por ela, com o contato. */
+export const fichaDaInstituicao = (id, edicaoId) =>
+  api.get(`/instituicoes/${id}/ficha?edicao_id=${edicaoId}`);
 export const criarInstituicao = (dados) => api.post("/instituicoes", dados);
 export const editarInstituicao = (id, dados) => api.patch(`/instituicoes/${id}`, dados);
 export const dependenciasDaInstituicao = (id) =>

@@ -26,6 +26,8 @@ const abertas = [];
  *   mais uma crianca, desfazer outra). A moldura fica FIXA e quem rola e o
  *   corpo: se a altura acompanhasse, a janela pularia embaixo do ponteiro a
  *   cada acao.
+ * - `amplo` — mesa de trabalho: a altura da `grande` e largura para varias
+ *   colunas lado a lado (os nucleos da monitoria).
  * - `largo` — visualizador. Largura de ficha, altura do conteudo. E o caso do
  *   cartao aberto para olhar: nada ali muda enquanto a janela esta aberta,
  *   entao travar a altura so deixaria um vao embaixo da imagem.

@@ -442,6 +442,41 @@ def main() -> None:
         r = cc.get(f"/painel/{outra.id}")
         verifica("edicao sem vinculo devolve 404", r.status_code == 404, str(r.status_code))
 
+        print("\nAtividade da equipe")
+        # O comissario faz uma acao de trabalho; entrar e buscar nao contam.
+        cm = TestClient(app); entrar(cm, com_a.email)
+        r = cm.post("/padrinhos", json={"edicao_id": edicao.id, "nome": "Rosa Atividade"})
+        verifica("o comissario cadastra um padrinho", r.status_code == 201, r.text[:120])
+
+        r = cc.get(f"/painel/{edicao.id}/atividade")
+        verifica("a coordenacao abre a atividade", r.status_code == 200, r.text[:140])
+        equipe = {p["nome"]: p for p in r.json()} if r.status_code == 200 else {}
+        verifica("a lista traz a equipe inteira da edicao", len(equipe) == 5, str(list(equipe)))
+        dele = equipe.get(f"{MARCA} ComA", {})
+        verifica("conta a acao de hoje do comissario",
+                 dele.get("hoje") == 1 and dele.get("semana") == 1, str(dele))
+        verifica("e a descreve em portugues",
+                 dele.get("ultima_acao") == "Cadastrou o padrinho Rosa Atividade",
+                 str(dele.get("ultima_acao")))
+        verifica("quem trabalhou por ultimo vem primeiro",
+                 r.json()[0]["nome"] == f"{MARCA} ComA", r.json()[0]["nome"])
+        verifica("entrar no sistema nao conta como trabalho",
+                 equipe.get(f"{MARCA} Coord", {}).get("semana") == 0,
+                 str(equipe.get(f"{MARCA} Coord")))
+
+        r = cc.get(f"/painel/{edicao.id}/atividade/{com_a.id}")
+        verifica("a linha do tempo da pessoa abre",
+                 r.status_code == 200 and r.json()["itens"][0]["texto"] == "Cadastrou o padrinho Rosa Atividade",
+                 r.text[:160])
+
+        r = cm.get(f"/painel/{edicao.id}/atividade")
+        verifica("o comissario nao ve a atividade da equipe", r.status_code == 403, str(r.status_code))
+        ce = TestClient(app); entrar(ce, estrutura.email)
+        r = ce.get(f"/painel/{edicao.id}/atividade/{com_a.id}")
+        verifica("nem a estrutura", r.status_code == 403, str(r.status_code))
+        r = cc.get(f"/painel/{edicao.id}/atividade/999999")
+        verifica("pessoa de fora da equipe devolve 404", r.status_code == 404, str(r.status_code))
+
     finally:
         limpar(db, log_inicial)
         db.close()

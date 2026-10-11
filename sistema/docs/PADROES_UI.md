@@ -111,14 +111,19 @@ de fundo obriga texto escuro por cima, e texto azul sobre amarelo são duas core
 saturadas brigando na mesma pílula. O amarelo vale mais marcando estado na
 planilha do que pintando botão.
 
-A hierarquia agora é **cheio vs. contorno**, e a regra é de escopo: um botão
-cheio por escopo. A página tem o seu; o modal que ela abre tem o dele.
+A hierarquia é **cheio, suave e contorno** — primário, secundário e terciário,
+como a equipe chama. No código os nomes são outros: o cheio é `primary` ou
+`secondary` (os dois são o mesmo navy, ver abaixo), o secundário é `suave`, e o
+terciário é `ghost`. A regra é de escopo: um botão cheio por escopo. A página tem o seu; o modal que ela abre tem o dele.
 
 | Papel | Variante | Quando |
 | --- | --- | --- |
 | CTA da página | `primary` (padrão) | A ação principal. **Um por tela.** Navy cheio. |
 | Confirmar dentro de painel/modal | `secondary` | `Salvar`, `Criar`, `Confirmar…` Navy cheio, mas dentro da janela. |
-| Tudo o mais | `ghost` | Filtrar, paginar, cancelar, editar, ativar/desativar. Contorno navy. |
+| Ação de apoio, entre o cheio e o contorno | `suave` | Mais que filtrar, menos que um CTA: a ação de apoio que precisa se destacar dos `ghost` em volta sem competir com o botão cheio. Fundo azul claro (`--navy-100`) com borda fina azul-escura (`--navy-700`). |
+| Tudo o mais | `ghost` | Filtrar, paginar, cancelar, editar, ativar/desativar. Linha fina azul clara (`--navy-300`), sem fundo. |
+
+Os botões com contorno usam borda de **1px**, e não o hairline de 1,5px do resto do sistema.
 
 `primary` e `secondary` têm hoje o **mesmo visual**. Isso é intencional e não é
 duplicação a limpar: os nomes marcam escopos que nunca aparecem juntos (o modal
@@ -755,3 +760,20 @@ que recebe os campos que sumiram da linha, em vez de nascer uma segunda.
 A conferência da importação (`ImportarLista`) — e de propósito: as sete colunas
 são o trabalho daquela tela, e o botão que a abre não existe no celular. Não há
 lista rolando onde alguém possa chegar com o telefone.
+
+## Cesta e festa: sempre dizer se é apadrinhamento ou cartão
+
+"Cesta" e "festa" querem dizer duas coisas no sistema: o **apadrinhamento**
+(um padrinho que pagou a cesta ou a festa de uma criança) e o **cartão** (o
+papel que a criança escreve para esse padrinho). Os números de um e de outro
+andam separados — uma criança pode ter cartão de cesta sem padrinho de cesta.
+
+Em painel, nenhum número aparece só como "Cesta" ou "Festa". O rótulo diz qual
+dos dois:
+
+| Onde | Apadrinhamento | Cartão |
+| --- | --- | --- |
+| Número grande (`Metrica`) | `Apadrinhamento · cesta` | `Cartões de cesta` |
+| Barra (`Progresso`) | `Apadr. cesta` | `Cartão cesta` |
+| Legenda | `apadrinhamento de cesta` | `cartão de cesta` |
+| Coluna de tabela | `Apadr. cesta` | `Cartão cesta` |

@@ -14,8 +14,12 @@ import Progresso from "../components/feedback/Progresso.jsx";
 import { useSessao } from "../contexts/useSessao.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import FichaSimples from "../components/dados/FichaSimples.jsx";
+import AtividadeEquipe from "../components/dados/AtividadeEquipe.jsx";
+import PainelMonitoria from "../components/dados/PainelMonitoria.jsx";
 import { buscarRelatorio } from "../services/painel.js";
 import { listarCuidados } from "../services/cuidados.js";
+import { buscarPainelMonitoria } from "../services/monitoria.js";
+import NucleosDoEvento from "../components/dados/NucleosDoEvento.jsx";
 import { eCoordenacaoGeral } from "../components/layout/menu.js";
 import { rotuloDia } from "../utils/dinheiro.js";
 
@@ -112,6 +116,20 @@ export default function Painel() {
     };
   }, [veCuidados, edicaoAtiva]);
 
+  // A divisao em nucleos que a coordenacao da monitoria fez: a coordenacao
+  // geral acompanha daqui, so leitura. Falha aqui nao derruba o painel.
+  const [nucleos, definirNucleos] = useState(null);
+  useEffect(() => {
+    if (!veCuidados || !edicaoAtiva) return undefined;
+    let vivo = true;
+    buscarPainelMonitoria(edicaoAtiva)
+      .then((r) => vivo && definirNucleos(r.por_instituicao))
+      .catch(() => vivo && definirNucleos(null));
+    return () => {
+      vivo = false;
+    };
+  }, [veCuidados, edicaoAtiva]);
+
   /* Quantas criancas com necessidade especial e com alergia ou restricao, em
      cada dia. Sem as desistentes: e a conta de quem vai estar la. */
   const cuidadosPorDia = (() => {
@@ -136,6 +154,9 @@ export default function Painel() {
   const captacao =
     Boolean(vinculoAtivo?.perfil?.startsWith("Comissarios")) && pode("editar_padrinhos");
   const [detalhe, definirDetalhe] = useState(null);
+  // "Ver atividade": so a coordenacao geral e a administracao geral, como os
+  // cuidados especiais.
+  const [vendoAtividade, definirVendoAtividade] = useState(false);
 
   const [relatorio, definirRelatorio] = useState(null);
   const [carregando, definirCarregando] = useState(false);
@@ -144,6 +165,9 @@ export default function Painel() {
   // A estrutura tem um painel proprio, mais estreito: quem decide o que vem
   // nele e o backend (`so_logistica`), e a tela so esconde o que veio vazio.
   const podeVerNumeros = pode("ver_painel") || pode("ver_painel_logistica");
+  // A coordenacao da monitoria tem o painel dela: o papel, os cuidados e os
+  // nucleos de cada dia. Ver components/dados/PainelMonitoria.jsx.
+  const coordMonitoria = vinculoAtivo?.perfil === "Monitoria - coordenacao";
   const faltamDias = diasParaAFesta(relatorio?.por_dia);
   const maxPorDia = Math.max(1, ...(relatorio?.por_dia ?? []).map((d) => d.criancas));
   const maxPorIdade = Math.max(
@@ -232,7 +256,9 @@ export default function Painel() {
                 ? ledeDoComissario(r)
                 : soLogistica
                   ? "Quantas crianças vêm em cada dia, de cada instituição e de cada idade."
-                  : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
+                  : coordMonitoria
+                    ? "Os cartões e as autorizações de cada instituição, os cuidados especiais e os núcleos de cada dia."
+                    : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
             </p>
             {captacao && (
               <div className="abertura__cta">
@@ -281,7 +307,14 @@ export default function Painel() {
 
           {podeVerNumeros && r && (
             <>
-              <h2 className="painel__titulo">{soMinhas ? "Suas crianças" : r.edicao}</h2>
+              <div className="painel__cabeca">
+                <h2 className="painel__titulo">{soMinhas ? "Suas crianças" : r.edicao}</h2>
+                {veCuidados && edicaoAtiva && (
+                  <Button size="sm" variant="ghost" onClick={() => definirVendoAtividade(true)}>
+                    Ver atividade
+                  </Button>
+                )}
+              </div>
 
               {semCriancas && (
                 <EmptyState
@@ -307,14 +340,14 @@ export default function Painel() {
                     }
                   />
                   <Metrica
-                    rotulo="Cesta"
+                    rotulo="Apadrinhamento · cesta"
                     valor={r.cesta_feitos}
                     de={r.criancas}
                     tom="cesta"
                     nota={`faltam ${r.criancas - r.cesta_feitos}`}
                   />
                   <Metrica
-                    rotulo="Festa"
+                    rotulo="Apadrinhamento · festa"
                     valor={r.festa_feitos}
                     de={r.criancas}
                     tom="festa"
@@ -471,14 +504,16 @@ export default function Painel() {
                 </section>
               )}
 
+              {veCuidados && nucleos && <NucleosDoEvento instituicoes={nucleos} />}
+
               <div className="painel__grade painel__grade--meio">
                 {relatorio.por_instituicao.length > 0 && (
                   <section className="cartao">
                     <div className="cartao__topo">
                       <h3 className="cartao__titulo">Por instituição</h3>
                       <span className="legenda">
-                        <span className="legenda__item legenda__item--cesta">cesta</span>
-                        <span className="legenda__item legenda__item--festa">festa</span>
+                        <span className="legenda__item legenda__item--cesta">apadrinhamento de cesta</span>
+                        <span className="legenda__item legenda__item--festa">apadrinhamento de festa</span>
                       </span>
                     </div>
                     <div className="lista-progresso lista-progresso--densa">
@@ -508,8 +543,8 @@ export default function Painel() {
                               )}
                             </span>
                           </div>
-                          <Progresso rotulo="Cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
-                          <Progresso rotulo="Festa" valor={l.festa} de={l.criancas} tom="festa" />
+                          <Progresso rotulo="Apadr. cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
+                          <Progresso rotulo="Apadr. festa" valor={l.festa} de={l.criancas} tom="festa" />
                           {/* O transporte fecha a linha. A etiqueta do dia saiu
                               daqui: o dia de cada instituicao ja e a leitura do
                               cartao ao lado, e repetido aqui ele competia com o
@@ -606,8 +641,8 @@ export default function Painel() {
                           <th>Crianças</th>
                           {!estreita && (
                             <>
-                              <th>Cesta</th>
-                              <th>Festa</th>
+                              <th>Apadr. cesta</th>
+                              <th>Apadr. festa</th>
                               <th>Completas</th>
                               <th>Faltam</th>
                             </>
@@ -690,13 +725,23 @@ export default function Painel() {
           {/* Sem ver_painel nao ha o que mostrar aqui, e a pagina ficaria so
               com a saudacao. O caminho e o menu — que ja lista o que o perfil
               alcanca — entao o que falta dizer e so isso. */}
-          {!podeVerNumeros && (
+          {!podeVerNumeros && coordMonitoria && edicaoAtiva && (
+            <PainelMonitoria edicaoId={edicaoAtiva} />
+          )}
+
+          {!podeVerNumeros && !coordMonitoria && (
             <EmptyState
               titulo="Escolha por onde começar"
               corpo="Seu perfil não acompanha os números da edição. Use o menu ao lado: ele mostra tudo o que você alcança."
             />
           )}
         </>
+      )}
+      {vendoAtividade && (
+        <AtividadeEquipe
+          edicaoId={edicaoAtiva}
+          aoFechar={() => definirVendoAtividade(false)}
+        />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
 import { Cuidado, Importar, Imprimir, Olho, Xis } from "../components/core/icones.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
+import FichaInstituicao from "../components/dados/FichaInstituicao.jsx";
 import ImprimirLista from "../components/dados/ImprimirLista.jsx";
 import { rotuloDoPerfil } from "../components/dados/perfis.js";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -78,6 +79,9 @@ const POR_PAGINA = 100;
 const POR_PAGINA_MAXIMO = 200;
 const TODAS = "todas";
 const SEM_RESPONSAVEL = "sem";
+// O minimo que a coluna do nome guarda antes de a lista passar a rolar.
+const LARGURA_MINIMA_DO_NOME = 200;
+
 const NOVA = { instituicao_id: "", codigo: "", nome: "", idade: "", sexo: "F" };
 
 /** Cesta ou festa no papel: o mesmo tres-estados do Marcador, em palavra. */
@@ -104,11 +108,24 @@ export default function Criancas() {
   const [instituicoes, definirInstituicoes] = useState([]);
   const [abas, definirAbas] = useState([]);
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
+  // A ficha da instituicao da aba aberta: cadastro, dia, nucleo e equipe.
+  const [vendoInstituicao, definirVendoInstituicao] = useState(false);
 
   const [criancas, definirCriancas] = useState({ itens: [], total: 0 });
+  // Um campo so, por nome ou por codigo (o servidor procura nos dois). A
+  // lista acompanha a digitacao, sem botao: `termo` e o que ja foi enviado,
+  // um instante depois de a pessoa parar de digitar.
   const [busca, definirBusca] = useState("");
-  const [codigo, definirCodigo] = useState("");
+  const [termo, definirTermo] = useState("");
   const [pagina, definirPagina] = useState(1);
+  // A busca vai ao servidor um instante depois de a pessoa parar de digitar.
+  useEffect(() => {
+    const espera = setTimeout(() => {
+      definirTermo(busca.trim());
+      definirPagina(1);
+    }, 350);
+    return () => clearTimeout(espera);
+  }, [busca]);
 
   const [carregando, definirCarregando] = useState(true);
   const [erro, definirErro] = useState("");
@@ -228,8 +245,7 @@ export default function Criancas() {
           instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
           comissario_id: filtroComissario === SEM_RESPONSAVEL ? "" : filtroComissario,
           sem_comissario: filtroComissario === SEM_RESPONSAVEL ? true : "",
-          busca,
-          codigo,
+          busca: termo,
           pagina,
           por_pagina: POR_PAGINA,
         }),
@@ -239,7 +255,7 @@ export default function Criancas() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoAtiva, abaAtiva, filtroComissario, busca, codigo, pagina]);
+  }, [edicaoAtiva, abaAtiva, filtroComissario, termo, pagina]);
 
   useEffect(() => {
     // Buscar no servidor e justamente o que este efeito existe para fazer: a
@@ -250,14 +266,35 @@ export default function Criancas() {
 
   /** A lista inteira do filtro atual, para o papel. A tela mostra uma pagina;
    *  aqui se busca uma atras da outra ate acabar. */
+  /* Uma largura para cada <th>, NA MESMA ORDEM e com a mesma condicao: um
+     a menos desloca todas as seguintes. Em px so no dado curto, e no minimo
+     que o rotulo pede; o nome da crianca vai sem largura (null) e fica com
+     toda a sobra. */
+  const larguras = [
+    ...(podeEditar && !estreita ? [34] : []),
+    estreita ? 74 : 84,
+    null,
+    ...(!estreita ? [50, 46, 88, 130] : []),
+    ...(veCaptacao && !estreita ? [132, 90] : []),
+    ...(veCaptacao ? [estreita ? 62 : 80] : []),
+    ...(!estreita ? [64] : []),
+    // "Aut.": o rotulo curto deixa a coluna do tamanho do marcador.
+    ...(!estreita ? [56] : []),
+    ...(veKit && !estreita ? [58] : []),
+    ...(escreveObservacao && !estreita ? [150] : []),
+    ...(mostrarCheckin && !estreita ? [66] : []),
+    // Dois botoes de 24px (ficha e apagar); sem o de apagar, um. No celular
+    // e um olho so, mas de 40px: alvo de dedo.
+    estreita ? 48 : podeEditar ? 66 : 40,
+  ];
+
   async function todasAsCriancas() {
     const filtros = {
       edicao_id: edicaoAtiva,
       instituicao_id: abaAtiva === TODAS ? "" : abaAtiva,
       comissario_id: filtroComissario === SEM_RESPONSAVEL ? "" : filtroComissario,
       sem_comissario: filtroComissario === SEM_RESPONSAVEL ? true : "",
-      busca,
-      codigo,
+      busca: termo,
       por_pagina: POR_PAGINA_MAXIMO,
     };
     const tudo = [];
@@ -546,90 +583,84 @@ export default function Criancas() {
         </FaixaDeAbas>
       )}
 
-      <form
-        className="barra-acoes"
-        onSubmit={(e) => {
-          e.preventDefault();
-          definirPagina(1);
-          buscar();
-        }}
-      >
-        {/* O campo do nome e o unico que sobrevive ao celular: e a busca que
-            se faz de pe, com a lista da instituicao na mao. Sozinho num
-            formulario, ele ainda submete no Enter — o teclado do celular mostra
-            "Buscar" na tecla, e nenhum botao precisa ocupar a linha. */}
+      {vendoInstituicao && abaAtiva !== TODAS && (
+        <FichaInstituicao
+          instituicaoId={abaAtiva}
+          edicaoId={edicaoAtiva}
+          aoFechar={() => definirVendoInstituicao(false)}
+        />
+      )}
+
+      {/* Os filtros numa linha so: um campo por nome ou codigo e o
+          responsavel. Sem botao de buscar — a lista acompanha o que se
+          digita. Na ponta, a ficha da instituicao da aba e o cadastro. */}
+      <form className="barra-acoes barra-acoes--filtros" onSubmit={(e) => e.preventDefault()}>
         <Entrada
           value={busca}
           onChange={(e) => definirBusca(e.target.value)}
-          placeholder="Buscar por nome"
+          placeholder="Buscar por nome ou código"
+          aria-label="Buscar por nome ou código"
         />
 
-        {/* Busca por código exato, filtro de responsável, contagem e o CTA de
-            cadastrar sao trabalho de mesa: no celular a barra inteira nao cabe
-            numa linha, e empilhada empurrava a lista para fora da primeira
-            tela. Quem cadastra e filtra faz isso no computador. */}
-        {!estreita && (
-          <>
-            <Entrada
-              value={codigo}
-              onChange={(e) => definirCodigo(e.target.value)}
-              placeholder="Código exato"
-            />
-            {comissarios.length > 0 && (
-              <Selecao
-                value={filtroComissario}
-                onChange={(e) => {
-                  definirFiltroComissario(e.target.value);
-                  definirPagina(1);
-                  definirMarcadas([]);
-                }}
-                aria-label="Filtrar por responsável"
-              >
-                <option value="">Todos os responsáveis</option>
-                <option value={SEM_RESPONSAVEL}>Sem responsável</option>
-                {comissarios.map((c) => (
-                  <option key={c.id} value={c.id}>{comoAparece(c)}</option>
-                ))}
-              </Selecao>
-            )}
-            <Button type="submit" size="sm" variant="ghost">Buscar</Button>
-            {(busca || codigo) && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  definirBusca("");
-                  definirCodigo("");
-                  definirFiltroComissario("");
-                  definirPagina(1);
-                }}
-              >
-                Limpar
+        {/* O filtro de responsavel, a contagem e o cadastro sao trabalho de
+            mesa: no celular a barra nao cabe numa linha, e empilhada empurrava
+            a lista para fora da primeira tela. */}
+        {!estreita && comissarios.length > 0 && (
+          <Selecao
+            value={filtroComissario}
+            onChange={(e) => {
+              definirFiltroComissario(e.target.value);
+              definirPagina(1);
+              definirMarcadas([]);
+            }}
+            aria-label="Filtrar por responsável"
+          >
+            <option value="">Todos os responsáveis</option>
+            <option value={SEM_RESPONSAVEL}>Sem responsável</option>
+            {comissarios.map((c) => (
+              <option key={c.id} value={c.id}>{comoAparece(c)}</option>
+            ))}
+          </Selecao>
+        )}
+        {!estreita && (busca || filtroComissario) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              definirBusca("");
+              definirFiltroComissario("");
+              definirPagina(1);
+            }}
+          >
+            Limpar
+          </Button>
+        )}
+        {!estreita && <span className="campo__dica">{criancas.total} nesta aba</span>}
+
+        {(abaAtiva !== TODAS || (podeEditar && !estreita)) && (
+          <div className="barra-acoes__ponta">
+            {abaAtiva !== TODAS && edicaoAtiva && (
+              <Button size="sm" variant="ghost" onClick={() => definirVendoInstituicao(true)}>
+                {estreita ? "Instituição" : "Ver instituição"}
               </Button>
             )}
-            <span className="campo__dica">{criancas.total} nesta aba</span>
-
-            {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos
-                de busca, sem roubar uma linha so para ele. */}
-            {podeEditar && (
-              <div className="barra-acoes__ponta">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    definirCampos({
-                      ...NOVA,
-                      instituicao_id:
-                        abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
-                    });
-                    definirFormAberto(true);
-                  }}
-                  disabled={instituicoesDaCidade.length === 0}
-                >
-                  Nova criança
-                </Button>
-              </div>
+            {podeEditar && !estreita && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  definirCampos({
+                    ...NOVA,
+                    instituicao_id:
+                      abaAtiva !== TODAS ? abaAtiva : (instituicoesDaCidade[0]?.id ?? ""),
+                  });
+                  definirFormAberto(true);
+                }}
+                disabled={instituicoesDaCidade.length === 0}
+              >
+                Nova criança
+              </Button>
             )}
-          </>
+          </div>
         )}
       </form>
 
@@ -792,7 +823,7 @@ export default function Criancas() {
         <EmptyState
           titulo="Nenhuma criança aqui"
           corpo={
-            busca || codigo
+            termo
               ? "Nenhum resultado para esta busca."
               : "Importe a lista que a instituição enviou."
           }
@@ -804,6 +835,11 @@ export default function Criancas() {
               className={`planilha planilha--criancas ${
                 estreita ? "planilha--compacta" : ""
               }`}
+              // Sem piso de largura a coluna do nome — a unica sem largura
+              // fixa — ficava com zero quando as outras somavam mais que a
+              // tela, e o nome vazava por cima da idade. Com o piso, a lista
+              // rola para o lado, como a dica acima promete.
+              style={{ minWidth: larguras.reduce((s, w) => s + (w ?? LARGURA_MINIMA_DO_NOME), 0) }}
             >
               {/* So faz sentido onde a lista de fato rola. Na versao estreita
                   as colunas cabem todas na tela, e prometer arraste ali seria
@@ -825,34 +861,9 @@ export default function Criancas() {
                   se le na aba, e a celula corta com reticencias); o nome da
                   crianca vai sem largura e fica com toda a sobra. */}
               <colgroup>
-                {podeEditar && !estreita && <col style={{ width: 34 }} />}
-                <col style={{ width: estreita ? 74 : 84 }} />
-                <col />
-                {!estreita && (
-                  <>
-                    <col style={{ width: 50 }} />
-                    <col style={{ width: 46 }} />
-                    <col style={{ width: 88 }} />
-                    <col style={{ width: 130 }} />
-                  </>
-                )}
-                {veCaptacao && !estreita && (
-                  <>
-                    <col style={{ width: 132 }} />
-                    <col style={{ width: 90 }} />
-                  </>
-                )}
-                {veCaptacao && <col style={{ width: estreita ? 62 : 80 }} />}
-                {!estreita && <col style={{ width: 64 }} />}
-                {/* "Aut.": o rotulo curto deixa a coluna do tamanho do
-                    marcador. O nome inteiro fica na dica do cabecalho. */}
-                {!estreita && <col style={{ width: 56 }} />}
-                {veKit && !estreita && <col style={{ width: 58 }} />}
-                {escreveObservacao && !estreita && <col style={{ width: 150 }} />}
-                {mostrarCheckin && !estreita && <col style={{ width: 66 }} />}
-                {/* Dois botoes de 24px (ficha e apagar); sem o de apagar, um.
-                    No celular e um olho so, mas de 40px: alvo de dedo. */}
-                <col style={{ width: estreita ? 48 : podeEditar ? 66 : 40 }} />
+                {larguras.map((w, i) => (
+                  <col key={i} style={w ? { width: w } : undefined} />
+                ))}
               </colgroup>
               <thead>
                 <tr>

@@ -35,7 +35,9 @@ body {
   letter-spacing: var(--tracking-button);
   line-height: 1;
   white-space: nowrap;
-  border: var(--stroke-hairline) solid transparent;
+  /* 1px, e nao o hairline de 1,5px do resto: nos botoes de contorno a linha
+     mais grossa pesava mais que o texto dentro dela. */
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   cursor: pointer;
   text-decoration: none;
@@ -113,15 +115,36 @@ body {
   background: var(--color-cta-active);
 }
 
-/* Tudo o mais: filtrar, paginar, cancelar. */
+/* Terciario — tudo o mais: filtrar, paginar, cancelar. Linha azul clara e
+   fina: e o botao que mais aparece na tela, e com a borda azul-escura ele
+   pesava tanto quanto a acao que importava. */
 .botao--ghost {
   background: transparent;
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--navy-300);
+  color: var(--navy-700);
 }
 
 .botao--ghost:not(.botao--inativo):hover {
+  background: var(--navy-50);
+  border-color: var(--navy-400);
+}
+
+/* Secundario — o meio-termo entre o terciario e o cheio: fundo azul claro com
+   a borda azul-escura. Para a acao que importa mais que filtrar ou cancelar,
+   mas nao e a principal da tela — o "Montagem + Conferencia" dos kits.
+   Navy-700 sobre navy-100 da 10:1. */
+.botao--suave {
   background: var(--navy-100);
+  border-color: var(--navy-700);
+  color: var(--navy-700);
+}
+
+.botao--suave:not(.botao--inativo):hover {
+  background: var(--navy-200);
+}
+
+.botao--suave:not(.botao--inativo):active {
+  background: var(--navy-300);
 }
 
 /* Apagar de vez. Vermelho SOLIDO, e so no botao que confirma dentro do modal
@@ -827,6 +850,20 @@ textarea.campo__controle {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* No celular os botoes da ponta nao cabem ao lado das etiquetas e descem —
+   encostados a direita, ficavam soltos, com um vao torto a esquerda. Aqui
+   cada um ganha a largura toda, um embaixo do outro: lado a lado, "Montagem +
+   Conferencia" encostava nas bordas e nao caberia num celular de 360px. */
+@media (max-width: 560px) {
+  .barra-acoes__ponta--cheia-no-celular {
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    margin-left: 0;
+  }
 }
 
 /* Duas colunas que viram uma no celular. */
@@ -1595,10 +1632,15 @@ textarea.campo__controle {
   border-color: var(--color-primary);
 }
 
-.aba--ativa {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--white);
+/* A aba escolhida tem a cara do botao secundario: fundo azul claro e borda
+   azul-escura. Navy cheio, como era, competia com o botao primario da pagina
+   — eram os dois blocos mais escuros da tela, e o olho nao sabia qual era a
+   acao. Aba diz onde se esta; quem pede o clique e o botao. */
+.aba--ativa,
+.aba--ativa:hover {
+  background: var(--navy-100);
+  border-color: var(--navy-700);
+  color: var(--navy-700);
 }
 
 .aba__contagem {
@@ -1614,7 +1656,7 @@ textarea.campo__controle {
 }
 
 .aba--ativa .aba__contagem {
-  color: var(--cream-500);
+  color: var(--text-on-light-secondary);
 }
 
 /* ---------- Abas dentro da janela da ficha ----------
@@ -2451,12 +2493,17 @@ button.celula:hover {
    nos 48px do painel: quebravam em duas linhas. Aqui a coluna do rotulo cresce
    ate caber, igual nas tres linhas para as barras comecarem no mesmo ponto, e
    quem encolhe e a barra. */
-.pasta__barras .progresso {
+.pasta__barras .progresso,
+.lista-progresso .progresso {
   grid-template-columns: 7.5em minmax(32px, 1fr) auto;
   gap: var(--space-2);
 }
 
-.pasta__barras .progresso__rotulo {
+/* Nos paineis o rotulo sempre diz DO QUE e a barra — "Apadr. cesta" ou
+   "Cartão cesta" — e nao so "Cesta": o mesmo numero de cesta quer dizer
+   padrinho num painel e papel no outro. Ver docs/PADROES_UI.md. */
+.pasta__barras .progresso__rotulo,
+.lista-progresso .progresso__rotulo {
   white-space: nowrap;
   /* 700 e o mais leve que a Typold Condensed tem: um 600 cairia nele mesmo. */
   font-weight: 700;
@@ -2886,6 +2933,14 @@ button.celula:hover {
 .modal--grande {
   max-width: 720px;
   height: min(86vh, 820px);
+  max-height: none;
+}
+
+/* Mesa de trabalho: a altura da `grande`, com largura para cinco colunas
+   lado a lado (os nucleos e os "sem nucleo"). */
+.modal--amplo {
+  max-width: 1240px;
+  height: min(90vh, 900px);
   max-height: none;
 }
 
@@ -3507,6 +3562,20 @@ button.celula:hover {
 @media (max-width: 560px) {
   .ficha--duas {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  /* No celular o rotulo longo (as perguntas da autorizacao) vai numa linha
+     propria, com a resposta embaixo. Ao lado, o rotulo sem quebra alargava a
+     primeira coluna ate a resposta ficar com tres letras de largura, quebrada
+     letra a letra. */
+  .ficha--duas .ficha__dt-largo {
+    grid-column: 1 / -1;
+    margin-top: var(--space-2);
+    white-space: normal;
+  }
+
+  .ficha--duas .ficha__dd-largo {
+    grid-column: 1 / -1;
   }
 }
 
@@ -4445,6 +4514,7 @@ button.celula:hover {
 .legenda__item--falta::before { background: var(--navy-200); }
 .legenda__item--cesta::before { background: var(--navy-500); }
 .legenda__item--festa::before { background: var(--amarelo-600); }
+.legenda__item--autorizacao::before { background: var(--navy-900); }
 .legenda__item--meninos::before { background: var(--navy-600); }
 .legenda__item--meninas::before { background: var(--navy-300); }
 
@@ -5186,14 +5256,14 @@ button.checkin-lista__botao:not(:disabled):active {
   align-items: center;
 }
 
-/* Na aba ativa o fundo e navy: o pontinho clareia para continuar visivel. */
+/* Na aba ativa o fundo e azul claro: o menu acompanha o texto dela. */
 .aba-com-menu__menu--ativa .botao-icone {
-  color: var(--cream-500);
+  color: var(--navy-700);
 }
 
 .aba-com-menu__menu--ativa .botao-icone:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--white);
+  background: var(--navy-200);
+  color: var(--navy-900);
 }
 
 /* pre-line: as quebras do texto sao as do WhatsApp, e tem de aparecer aqui. */
@@ -6170,4 +6240,558 @@ button.checkin-lista__botao:not(:disabled):active {
   .visualizador > .conferencia__seta:last-child {
     right: var(--space-1);
   }
+}
+
+/* No lugar do botao de subir cartoes, no celular: diz por que ele nao esta
+   ali, em vez de a pessoa procurar. */
+.so-no-computador {
+  font-size: var(--size-caption);
+  color: var(--text-on-light-muted);
+  white-space: nowrap;
+}
+
+/* ---------- Atividade da equipe (painel da coordenacao) ---------- */
+.painel__cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.painel__cabeca .painel__titulo {
+  margin: 0;
+}
+
+.atividade__nota {
+  margin: 0 0 var(--space-4);
+  font-size: var(--size-caption);
+  color: var(--text-on-light-muted);
+}
+
+.atividade__tabela .tabela__numero {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.atividade__linha {
+  cursor: pointer;
+}
+
+.atividade__linha:hover {
+  background: var(--navy-50);
+}
+
+.atividade__linha .campo__dica {
+  margin-top: 2px;
+}
+
+.atividade__linha .etiqueta {
+  margin-top: 4px;
+}
+
+/* O nome e o alvo do teclado; a linha inteira e o alvo do mouse. */
+.atividade__link {
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--navy-700);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.atividade__cartoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.atividade__cartao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  text-align: left;
+  color: var(--text-on-light-primary);
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.atividade__cartao .campo__dica {
+  margin: 0;
+}
+
+.atividade__nome {
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+.atividade__ultima {
+  font-size: 13px;
+}
+
+.atividade__voltar {
+  margin-bottom: var(--space-4);
+}
+
+.atividade__dia + .atividade__dia {
+  margin-top: var(--space-5);
+}
+
+.atividade__dia-titulo {
+  margin: 0 0 var(--space-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--navy-500);
+}
+
+.atividade__itens {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.atividade__item {
+  display: flex;
+  gap: var(--space-3);
+  padding: 6px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.atividade__hora {
+  flex: none;
+  width: 44px;
+  color: var(--text-on-light-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ---------- Painel da monitoria e nucleos ---------- */
+.painel__nota-cartao {
+  margin: var(--space-3) 0 var(--space-5);
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+}
+
+/* A bata da instituicao: um circulo com a cor. Borda fina para o branco e o
+   bege aparecerem sobre o fundo claro. */
+.amostra-bata {
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+.amostra-bata--vazia {
+  background: repeating-linear-gradient(45deg, var(--white) 0 3px, var(--navy-100) 3px 6px);
+}
+
+.monitoria-dia + .monitoria-dia {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+}
+
+.monitoria-dia__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+.monitoria-dia__nucleos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.monitoria-nucleo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--navy-50);
+  border-radius: var(--radius-sm);
+}
+
+.monitoria-nucleo__letra {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--navy-500);
+}
+
+.monitoria-nucleo__conta {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+.monitoria-nucleo__batas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.monitoria-nucleo__batas .amostra-bata {
+  margin: 0;
+}
+
+.monitoria-cuidados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.monitoria-cuidados__item {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2) 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy-700);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  text-align: left;
+}
+
+.monitoria-cuidados__conta {
+  font-weight: 450;
+  color: var(--text-on-light-secondary);
+}
+
+.monitoria-cuidados-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.monitoria-cuidados-lista li {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Janela "Organizar nucleos": os quatro nucleos lado a lado. */
+.nucleos__dias {
+  margin-bottom: var(--space-4);
+}
+
+.nucleos__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.nucleos__nota {
+  margin: 0;
+  flex: 1 1 300px;
+  font-size: var(--size-caption);
+  color: var(--text-on-light-secondary);
+}
+
+.nucleos__grade {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+@media (max-width: 1100px) {
+  .nucleos__grade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .nucleos__grade {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nucleo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--navy-50);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+/* O que falta distribuir: uma lista corrida embaixo dos quatro nucleos. */
+.nucleos__sem {
+  margin-bottom: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+}
+
+.nucleos__sem-titulo {
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+.nucleos__sem-titulo .nucleo__conta {
+  font-weight: 450;
+}
+
+.nucleos__sem-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-2);
+}
+
+.nucleo__topo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nucleo__titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+.nucleo__conta {
+  font-size: 12px;
+  color: var(--text-on-light-secondary);
+}
+
+/* A barra vai ate 150% do ideal; o risco marca o ideal. */
+.nucleo__trilho {
+  position: relative;
+  height: 6px;
+  background: var(--white);
+  border-radius: 3px;
+}
+
+.nucleo__parte {
+  height: 100%;
+  background: var(--navy-500);
+  border-radius: 3px;
+}
+
+.nucleo__parte--fora {
+  background: var(--amarelo-600);
+}
+
+.nucleo__ideal {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--navy-900);
+}
+
+.nucleo__desvio {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a6100;
+}
+
+.nucleo__vazio {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-on-light-muted);
+}
+
+.nucleo-inst {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2);
+  background: var(--white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.nucleo-inst--conflito {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 1px #c0392b;
+}
+
+.nucleo-inst__topo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.nucleo-inst__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.nucleo-inst__criancas {
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+.nucleo-inst__controles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nucleo-inst__controles .campo__controle {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.nucleo-inst__outra {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.nucleo-inst__outra input[type="color"] {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: none;
+}
+
+/* Nucleos no painel da coordenacao geral: so leitura. */
+.nucleos-evento__dia + .nucleos-evento__dia {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+}
+
+.nucleos-evento__falta {
+  color: #8a6100;
+  font-weight: 700;
+}
+
+.nucleos-evento__grade {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .nucleos-evento__grade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.nucleos-evento__nucleo {
+  padding: var(--space-2) var(--space-3);
+  background: var(--navy-50);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.nucleos-evento__cabeca {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-1);
+}
+
+.nucleos-evento__insts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.nucleos-evento__insts li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.nucleos-evento__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.nucleos-evento__criancas {
+  color: var(--text-on-light-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ficha da instituicao: uma pessoa por linha, nome e contato. */
+.ficha-inst__pessoas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.ficha-inst__pessoas li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ficha-inst__pessoas a {
+  color: var(--navy-700);
+  overflow-wrap: anywhere;
+}
+
+
+/* Lista de criancas: busca, responsavel e as acoes numa linha so. Os dois
+   campos tem teto de largura — soltos, o seletor de responsavel crescia ate o
+   nome mais comprido e empurrava os botoes para uma segunda linha. */
+.barra-acoes--filtros > .campo {
+  flex: 1 1 180px;
+  max-width: 260px;
+}
+
+.barra-acoes--filtros > .campo:only-child {
+  max-width: none;
+}
+
+.barra-acoes--filtros > .campo + .campo {
+  flex: 0 1 220px;
 }

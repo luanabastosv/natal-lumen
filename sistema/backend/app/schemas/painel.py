@@ -13,7 +13,7 @@ a tela divide. Mandar a conta pronta ao lado das parcelas so abriria caminho
 para as duas discordarem num arredondamento.
 """
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -138,3 +138,37 @@ class Relatorio(BaseModel):
     # Vazia enquanto a edicao nao tem dias cadastrados — uma so linha de "sem
     # dia" nao seria uma quebra, seria o total repetido.
     por_dia: list[LinhaDia]
+
+
+# ------------------------------------------------------------------ atividade
+# A janela "Ver atividade" do painel da coordenacao: quem da equipe esta
+# trabalhando, e o que cada um fez. Ver servicos/atividade.py.
+
+
+class PessoaAtividade(BaseModel):
+    usuario_id: int
+    nome: str
+    perfil: str
+    # Nunca definiu a senha: o convite foi mandado e nao foi aceito.
+    sem_senha: bool
+    ultimo_acesso: datetime | None
+    ultima_acao: str | None
+    ultima_acao_em: datetime | None
+    # Acoes de trabalho (sem entrar, sair e buscar), no dia de hoje em
+    # Fortaleza e nos ultimos 7 dias.
+    hoje: int
+    semana: int
+
+
+class ItemAtividade(BaseModel):
+    id: int
+    quando: datetime
+    texto: str
+
+
+class LinhaDoTempo(BaseModel):
+    usuario_id: int
+    nome: str
+    itens: list[ItemAtividade]
+    # Ha mais antigas: a tela pede a proxima pagina com `antes` = o ultimo id.
+    mais: bool

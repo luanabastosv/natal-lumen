@@ -161,6 +161,7 @@ class InstituicaoDia(Base):
     __table_args__ = (
         UniqueConstraint("edicao_id", "instituicao_id", name="uq_instituicao_dia"),
         CheckConstraint("onibus >= 0", name="ck_instituicao_dia_onibus"),
+        CheckConstraint("nucleo IN ('A', 'B', 'C', 'D')", name="ck_instituicao_dia_nucleo"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -181,6 +182,19 @@ class InstituicaoDia(Base):
     onibus: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
     )
+
+    # O nucleo de rodizio da instituicao no dia dela: A, B, C ou D. Perto do
+    # evento a coordenacao da monitoria divide as instituicoes de cada dia em
+    # quatro nucleos com quantidades parecidas de criancas. Nulo = ainda nao
+    # dividido.
+    nucleo: Mapped[str | None] = mapped_column(String(1))
+
+    # A cor da bata que as criancas desta instituicao vestem no dia. Nome para
+    # a equipe falar ("verde-limao") e hex para a tela comparar: duas cores
+    # parecidas no mesmo nucleo confundem quem conduz as criancas, e o aviso
+    # disso depende de medir a distancia entre as cores, nao entre os nomes.
+    cor_bata_nome: Mapped[str | None] = mapped_column(String(40))
+    cor_bata_hex: Mapped[str | None] = mapped_column(String(7))
 
     edicao: Mapped["Edicao"] = relationship()
     instituicao: Mapped["Instituicao"] = relationship()

@@ -29,6 +29,7 @@ Escolha pelas pastas tocadas, e rode **sempre** `test_seguranca`:
 | Mudou em | Rode |
 | --- | --- |
 | `routers/painel.py`, `schemas/painel.py` | `test_painel` |
+| `routers/monitoria.py`, `schemas/monitoria.py` | `test_monitoria` |
 | `routers/criancas.py` | `test_criancas` |
 | `routers/padrinhos.py` | `test_padrinhos` |
 | `routers/cartoes.py` | `test_cartoes` |

@@ -47,6 +47,30 @@
   height: 26px;
 }
 
+/* A estrela e o nome viram um botao para o painel, sem mudar de cara e sem
+   reagir ao mouse: herda o arranjo, a cor e a letra de quem o contem. */
+.marca-link {
+  display: flex;
+  flex-direction: inherit;
+  align-items: center;
+  gap: inherit;
+  flex: none;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.marca-link:focus-visible {
+  outline: 2px solid var(--amarelo-500);
+  outline-offset: 4px;
+}
+
 /* ---------- Menu ---------- */
 /* A nav ocupa o meio e rola sozinha se a lista crescer; assim a base fica
    colada embaixo sem depender da altura da lista. */
@@ -430,7 +454,12 @@
     letter-spacing: var(--tracking-titulo);
   }
 
+  /* Num celular estreito quem encolhe e a etiqueta da edicao, com
+     reticencias — e nao o nome "Natal Lumen", que quebrava em duas linhas. */
   .barra-mobile__edicao {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     margin-left: auto;
     padding: 4px 10px;
     font-size: 12px;
