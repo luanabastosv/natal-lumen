@@ -18,12 +18,16 @@ AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==> Pasta dos backups"
 install -d -o natal-lumen -g natal-lumen -m 750 /var/lib/natal-lumen/backups
+install -d -o natal-lumen -g natal-lumen -m 750 /var/lib/natal-lumen/backups/hora
 
 echo "==> Unidades do systemd"
 install -m 644 "$AQUI/natal-lumen-backup.service" /etc/systemd/system/
 install -m 644 "$AQUI/natal-lumen-backup.timer"   /etc/systemd/system/
+install -m 644 "$AQUI/natal-lumen-backup-hora.service" /etc/systemd/system/
+install -m 644 "$AQUI/natal-lumen-backup-hora.timer"   /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now natal-lumen-backup.timer
+systemctl enable --now natal-lumen-backup-hora.timer
 
 echo "==> Testando agora (o primeiro backup ja vai para o Drive)"
 systemctl start natal-lumen-backup.service
@@ -32,4 +36,4 @@ journalctl -u natal-lumen-backup.service -n 20 --no-pager
 
 echo
 echo "Proxima execucao:"
-systemctl list-timers natal-lumen-backup.timer --no-pager | head -3
+systemctl list-timers 'natal-lumen-backup*' --no-pager | head -4

@@ -42,6 +42,20 @@ PGPASSWORD="$SENHA" pg_dump \
   --format=custom \
   --file="$DESTINO/natal-lumen_$QUANDO.dump"
 
+# ------------------------------------------------------------- so o banco
+# A copia de hora em hora (natal-lumen-backup-hora.timer) para aqui: so o banco,
+# no disco. Protege do erro humano do meio do dia — a planilha apagada as 15h
+# volta com o que havia as 14h, em vez de voltar a meia-noite e levar o dia
+# inteiro de trabalho junto. A copia para fora da maquina continua sendo a da
+# madrugada, completa.
+if [ "${SO_BANCO:-}" = "1" ]; then
+  GUARDAR="${GUARDAR:-48}"
+  # shellcheck disable=SC2086
+  ls -1t $DESTINO/natal-lumen_*.dump 2>/dev/null | tail -n +$((GUARDAR + 1)) | xargs -r rm -f
+  echo "Guardado: $DESTINO/natal-lumen_$QUANDO.dump"
+  exit 0
+fi
+
 ARQUIVOS="$(grep -E '^ARQUIVOS_DIR=' "$AQUI/.env" | head -1 | cut -d= -f2-)"
 ARQUIVOS="${ARQUIVOS:-../arquivos}"
 case "$ARQUIVOS" in

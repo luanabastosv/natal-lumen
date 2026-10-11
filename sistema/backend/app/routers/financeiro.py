@@ -457,16 +457,18 @@ def apagar_recebimento(recebimento_id: int, db: BD, ctx: Entradas):
         tabela="recebimentos", registro_id=recebimento.id,
         detalhes={"descricao": recebimento.descricao, "valor": str(recebimento.valor)},
     )
-    # Sem a linha ninguem mais alcanca o arquivo: ele sai do disco junto.
-    comprovantes.apagar_arquivo(recebimento)
+    # Sem a linha ninguem mais alcanca o arquivo: ele sai do disco junto,
+    # depois do commit.
+    arquivo = recebimento.comprovante_arquivo
     db.delete(recebimento)
     db.commit()
+    comprovantes.apagar_arquivo(arquivo)
 
 
 # ------------------------------------------- comprovante do recebimento
 
 @router.post("/recebimentos/{recebimento_id}/comprovante", response_model=RecebimentoOut)
-async def subir_comprovante_do_recebimento(
+def subir_comprovante_do_recebimento(
     recebimento_id: int,
     db: BD,
     ctx: Entradas,
@@ -484,7 +486,7 @@ async def subir_comprovante_do_recebimento(
     recebimento = _carregar_recebimento(db, recebimento_id, ctx)
     edicao = _edicao_do_recebimento(db, recebimento.edicao_id)
 
-    await comprovantes.guardar(
+    anterior = comprovantes.guardar(
         db, recebimento, arquivo,
         cidade=edicao.cidade.nome,
         ano=edicao.ano,
@@ -497,6 +499,7 @@ async def subir_comprovante_do_recebimento(
     )
 
     db.commit()
+    comprovantes.apagar_arquivo(anterior)
     db.refresh(recebimento)
     nomes = _nomes(db, {recebimento.registrado_por})
     return _saida_recebimento(recebimento, nomes.get(recebimento.registrado_por))

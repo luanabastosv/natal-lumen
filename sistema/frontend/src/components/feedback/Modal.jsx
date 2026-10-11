@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import Button from "../core/Button.jsx";
 
 /* Quem esta por cima. Uma janela pode abrir outra — a conferencia dos cartoes
    abre por cima do envio —, e o Esc tem de fechar SO a de cima. Com um ouvinte
@@ -7,6 +8,12 @@ import { useEffect, useRef } from "react";
 const abertas = [];
 
 /** Janela sobre a tela. Esc e o fundo fecham.
+ *
+ * Com um formulario ja comecado, Esc e clique no fundo PERGUNTAM antes de
+ * fechar: os dois acontecem sem querer (o clique que errou o campo, o Esc de
+ * quem queria so sair do campo), e fechavam a janela levando junto tudo o que
+ * tinha sido digitado. O X e o Cancelar continuam fechando direto — esses sao
+ * de proposito.
  *
  * Nao e um modal de pagina inteira: serve para olhar um detalhe sem perder o
  * lugar na planilha.
@@ -45,6 +52,25 @@ export default function Modal({
   // MESMA janela do inicio ao fim, e e por ela que o Esc sabe quem esta na
   // frente.
   const eu = useRef({});
+
+  // Alguem ja digitou num formulario desta janela? Ref, e nao estado: nao muda
+  // nada na tela, so a resposta ao Esc e ao fundo.
+  const comecado = useRef(false);
+  const [pedindoFechar, definirPedindoFechar] = useState(false);
+
+  function aoDigitar(e) {
+    // So campo de formulario conta. Busca nao e trabalho a perder, e a ficha
+    // salva cada celula na hora — nos dois casos fechar nao perde nada.
+    if (e.target.closest?.("form") && e.target.type !== "search") {
+      comecado.current = true;
+    }
+  }
+
+  // O fechar que pode ter sido sem querer.
+  function fecharSemQuerer() {
+    if (comecado.current) definirPedindoFechar(true);
+    else aoFechar();
+  }
 
   // O foco vai UMA vez, ao abrir. Sem esta separacao o efeito dependia de
   // aoFechar — que chega como funcao nova a cada render — e roubava o foco a
@@ -87,7 +113,8 @@ export default function Modal({
       // So a janela de cima responde: as de baixo estao cobertas, e fechar o
       // que esta atras do que se esta olhando e perder trabalho sem aviso.
       if (e.key === "Escape" && abertas[abertas.length - 1] === eu.current) {
-        aoFechar();
+        if (comecado.current) definirPedindoFechar(true);
+        else aoFechar();
       }
     };
     window.addEventListener("keydown", aoTeclar);
@@ -95,7 +122,10 @@ export default function Modal({
   }, [aoFechar]);
 
   return (
-    <div className="modal-fundo" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
+    <div
+      className="modal-fundo"
+      onMouseDown={(e) => e.target === e.currentTarget && fecharSemQuerer()}
+    >
       <div
         ref={caixa}
         className={`modal ${tamanho === "padrao" ? "" : `modal--${tamanho}`}`}
@@ -103,6 +133,7 @@ export default function Modal({
         aria-modal="true"
         aria-label={titulo}
         tabIndex={-1}
+        onInput={aoDigitar}
       >
         {cabecalho && (
           <div className="modal__topo">
@@ -123,6 +154,20 @@ export default function Modal({
         )}
 
         <div className="modal__corpo">{children}</div>
+
+        {pedindoFechar && (
+          <div className="modal__fechar-aviso" role="alertdialog" aria-label="Fechar sem salvar?">
+            <p>Fechar sem salvar? O que você digitou aqui vai se perder.</p>
+            <div className="modal__fechar-aviso-acoes">
+              <Button variant="ghost" size="sm" onClick={aoFechar}>
+                Fechar mesmo assim
+              </Button>
+              <Button size="sm" onClick={() => definirPedindoFechar(false)}>
+                Continuar editando
+              </Button>
+            </div>
+          </div>
+        )}
 
         {rodape && <div className="modal__rodape">{rodape}</div>}
       </div>

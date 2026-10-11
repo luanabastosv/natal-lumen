@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from "react";
  *
  * Enter salva e desce para a celula de baixo; Esc desfaz. E o comportamento
  * que quem vem do Excel espera.
+ *
+ * Se salvar falha, o que foi digitado FICA na celula, marcado em vermelho ate
+ * a pessoa tentar de novo (clicar e Enter) ou desistir (Esc). Antes a celula
+ * piscava e voltava ao valor antigo — e quem ja estava na linha de baixo nem
+ * via que tinha perdido o que digitou, coisa comum com internet ruim.
  */
 export default function CelulaEditavel({
   valor,
@@ -16,7 +21,9 @@ export default function CelulaEditavel({
   const [editando, definirEditando] = useState(false);
   const [rascunho, definirRascunho] = useState(valor ?? "");
   const [salvando, definirSalvando] = useState(false);
-  const [erro, definirErro] = useState(false);
+  // A mensagem da ultima falha, ou null. Enquanto houver, o rascunho e o que
+  // a celula mostra: e o que a pessoa quis gravar e ainda nao esta gravado.
+  const [falha, definirFalha] = useState(null);
   const campo = useRef(null);
 
   // Quando o valor vem de fora mudado (a linha foi recarregada), o rascunho
@@ -25,7 +32,9 @@ export default function CelulaEditavel({
   const [valorAnterior, definirValorAnterior] = useState(valor);
   if (valor !== valorAnterior) {
     definirValorAnterior(valor);
-    definirRascunho(valor ?? "");
+    // Com uma falha pendente o rascunho e a unica copia do que foi digitado:
+    // recarregar a linha nao pode apaga-lo.
+    if (!falha) definirRascunho(valor ?? "");
   }
 
   useEffect(() => {
@@ -36,16 +45,17 @@ export default function CelulaEditavel({
     definirEditando(false);
 
     const limpo = typeof rascunho === "string" ? rascunho.trim() : rascunho;
-    if (String(limpo) === String(valor ?? "")) return;
+    if (String(limpo) === String(valor ?? "")) {
+      definirFalha(null);
+      return;
+    }
 
     definirSalvando(true);
-    definirErro(false);
     try {
       await aoSalvar(limpo);
-    } catch {
-      definirErro(true);
-      definirRascunho(valor ?? "");
-      setTimeout(() => definirErro(false), 2500);
+      definirFalha(null);
+    } catch (e) {
+      definirFalha(e?.message || "Não foi possível salvar.");
     } finally {
       definirSalvando(false);
     }
@@ -64,6 +74,7 @@ export default function CelulaEditavel({
     }
     if (evento.key === "Escape") {
       definirRascunho(valor ?? "");
+      definirFalha(null);
       definirEditando(false);
     }
   }
@@ -72,8 +83,8 @@ export default function CelulaEditavel({
     "celula",
     editando && "celula--editando",
     salvando && "celula--salvando",
-    erro && "celula--erro",
-    !editando && (valor === null || valor === "") && "celula--vazia",
+    falha && "celula--erro",
+    !editando && !falha && (valor === null || valor === "") && "celula--vazia",
   ]
     .filter(Boolean)
     .join(" ");
@@ -113,11 +124,12 @@ export default function CelulaEditavel({
     );
   }
 
+  const atual = falha ? rascunho : valor;
   const mostrado = opcoes
-    ? (opcoes.find((o) => String(o.valor ?? "") === String(valor ?? ""))?.rotulo ?? vazio)
-    : (valor ?? "") === ""
+    ? (opcoes.find((o) => String(o.valor ?? "") === String(atual ?? ""))?.rotulo ?? vazio)
+    : (atual ?? "") === ""
       ? vazio
-      : valor;
+      : atual;
 
   return (
     <button
@@ -126,7 +138,11 @@ export default function CelulaEditavel({
       onClick={() => definirEditando(true)}
       onFocus={() => definirEditando(true)}
       style={{ width: largura }}
-      title="Clique para editar"
+      title={
+        falha
+          ? `Não salvou: ${falha} Clique e aperte Enter para tentar de novo, ou Esc para desfazer.`
+          : "Clique para editar"
+      }
     >
       {salvando ? "..." : mostrado}
     </button>

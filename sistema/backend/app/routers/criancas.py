@@ -1073,7 +1073,7 @@ def _numerar(db: Session, linhas: list, edicao_id: int) -> None:
 
 
 @router.post("/importar", response_model=PreviaImportacao)
-async def importar_previa(
+def importar_previa(
     db: BD,
     ctx: Importar,
     arquivo: UploadFile = File(...),
@@ -1088,7 +1088,7 @@ async def importar_previa(
     if edicao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
-    conteudo = await ler_limitado(arquivo)
+    conteudo = ler_limitado(arquivo)
 
     try:
         leitura = importador.ler_planilha(conteudo, arquivo.filename or "lista.xlsx")

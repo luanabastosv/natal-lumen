@@ -7,10 +7,12 @@ mesmos passos, na mesma ordem e pelos mesmos motivos:
     1. tipo do arquivo conferido antes de ler qualquer byte;
     2. leitura com teto de tamanho (servicos/upload.py);
     3. gravacao no disco, que e o ORIGINAL;
-    4. remocao do arquivo anterior, se havia — trocar o comprovante duas vezes
-       deixaria dois arquivos orfaos que ninguem mais alcanca;
-    5. copia no Drive, que e ESPELHO: falha aqui nao derruba a requisicao,
-       porque o comprovante ja esta gravado e vale do mesmo jeito.
+    4. copia no Drive, que e ESPELHO: falha aqui nao derruba a requisicao,
+       porque o comprovante ja esta gravado e vale do mesmo jeito;
+    5. remocao do arquivo anterior, se havia — trocar o comprovante duas vezes
+       deixaria dois arquivos orfaos que ninguem mais alcanca. So DEPOIS do
+       commit, por quem chama: apagado antes, um commit que falhasse deixaria
+       o banco apontando para um arquivo que ja nao existe.
 
 Quem chama continua sendo dono da autorizacao e do commit: este modulo nao sabe
 quem pode subir comprovante de quem, e nao fecha transacao.
@@ -41,7 +43,7 @@ NAO_ENCONTRADO = HTTPException(
 )
 
 
-async def guardar(
+def guardar(
     db: Session,
     dono,
     arquivo: UploadFile,
@@ -52,11 +54,14 @@ async def guardar(
     data: date,
     tabela: str,
     usuario_id: int,
-) -> None:
+) -> str | None:
     """Guarda o comprovante em `dono` (um Pagamento ou um Recebimento).
 
     `titular` e o nome que vai no arquivo — o padrinho, ou quem doou. `tabela`
     entra no log, para o historico dizer de qual das duas origens era a linha.
+
+    Devolve o caminho do comprovante ANTERIOR, se havia. Quem chama apaga com
+    `apagar_arquivo` depois do commit.
     """
     extensao = EXTENSOES.get(arquivo.content_type or "")
     if extensao is None:
@@ -65,7 +70,7 @@ async def guardar(
             "O comprovante precisa ser uma imagem (JPG ou PNG) ou um PDF.",
         )
 
-    conteudo = await ler_limitado(arquivo)
+    conteudo = ler_limitado(arquivo)
 
     pasta = arquivos.pasta_dos_comprovantes(cidade, ano)
     pasta.mkdir(parents=True, exist_ok=True)
@@ -76,12 +81,6 @@ async def guardar(
 
     antigo = dono.comprovante_arquivo
     dono.comprovante_arquivo = str(destino.relative_to(config.caminho_arquivos))
-
-    if antigo:
-        try:
-            arquivos.dentro_da_pasta(antigo).unlink(missing_ok=True)
-        except ValueError:
-            pass
 
     registrar(
         db, "comprovante_subido", usuario_id=usuario_id,
@@ -96,7 +95,7 @@ async def guardar(
     dono.comprovante_drive_link = None
 
     if not drive.configurado():
-        return
+        return antigo
 
     try:
         enviado = drive.enviar(
@@ -120,6 +119,8 @@ async def guardar(
             detalhes={"erro": erro.mensagem, "detalhe": erro.detalhe[:200]},
         )
 
+    return antigo
+
 
 def entregar(dono) -> FileResponse:
     """Devolve o arquivo do comprovante. Unica porta para ele, sempre autenticada."""
@@ -137,11 +138,15 @@ def entregar(dono) -> FileResponse:
     return FileResponse(caminho, filename=caminho.name)
 
 
-def apagar_arquivo(dono) -> None:
-    """Tira o arquivo do disco. Usado quando a linha inteira e apagada."""
-    if not dono.comprovante_arquivo:
+def apagar_arquivo(caminho: str | None) -> None:
+    """Tira um comprovante do disco: o trocado, ou o da linha apagada.
+
+    Chamado sempre DEPOIS do commit. Se o commit falha, o arquivo continua la,
+    e o banco segue apontando para algo que existe.
+    """
+    if not caminho:
         return
     try:
-        arquivos.dentro_da_pasta(dono.comprovante_arquivo).unlink(missing_ok=True)
+        arquivos.dentro_da_pasta(caminho).unlink(missing_ok=True)
     except ValueError:
         pass

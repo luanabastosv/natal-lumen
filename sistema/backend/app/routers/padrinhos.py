@@ -1029,9 +1029,9 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Auditar):
     for a in list(pagamento.apadrinhamentos):
         db.delete(a)
 
-    # O comprovante sai do disco junto: sem a linha, ninguem mais alcanca o
-    # arquivo, e ele ficaria ocupando lugar para sempre.
-    comprovantes.apagar_arquivo(pagamento)
+    # O comprovante sai do disco junto, depois do commit: sem a linha, ninguem
+    # mais alcanca o arquivo, e ele ficaria ocupando lugar para sempre.
+    arquivo = pagamento.comprovante_arquivo
 
     registrar(
         db, "pagamento_apagado", usuario_id=ctx.usuario.id,
@@ -1040,6 +1040,7 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Auditar):
     )
     db.delete(pagamento)
     db.commit()
+    comprovantes.apagar_arquivo(arquivo)
 
 
 # ------------------------------------------------------------- comprovantes
@@ -1051,7 +1052,7 @@ def apagar_pagamento(pagamento_id: int, db: BD, ctx: Auditar):
 
 
 @router.post("/pagamentos/{pagamento_id}/comprovante", response_model=PagamentoOut)
-async def subir_comprovante(
+def subir_comprovante(
     pagamento_id: int,
     db: BD,
     ctx: Pagar,
@@ -1071,7 +1072,7 @@ async def subir_comprovante(
 
     padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
 
-    await comprovantes.guardar(
+    anterior = comprovantes.guardar(
         db, pagamento, arquivo,
         cidade=padrinho.edicao.cidade.nome,
         ano=padrinho.edicao.ano,
@@ -1082,6 +1083,7 @@ async def subir_comprovante(
     )
 
     db.commit()
+    comprovantes.apagar_arquivo(anterior)
     db.refresh(pagamento)
     return _saida_pagamento(pagamento)
 

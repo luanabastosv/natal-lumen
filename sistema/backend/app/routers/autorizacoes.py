@@ -111,7 +111,7 @@ def apagar(autorizacao_id: int, db: BD, ctx: Subir):
 
 
 @router.post("/{autorizacao_id}/trocar", response_model=AutorizacaoOut)
-async def trocar_imagem(
+def trocar_imagem(
     autorizacao_id: int,
     db: BD,
     ctx: Subir,
@@ -123,7 +123,7 @@ async def trocar_imagem(
 
     imagens.conferir_nome_da_troca(db, arquivo.filename, autorizacao.crianca)
 
-    conteudo = await ler_limitado(arquivo)
+    conteudo = ler_limitado(arquivo)
     endireitada, _aviso = scanner.digitalizar(scanner.carregar_imagem(conteudo))
 
     crianca = autorizacao.crianca

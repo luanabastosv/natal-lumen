@@ -8,6 +8,13 @@
 
 set -euo pipefail
 
+# Tudo dentro de { ... }: o bash le um script AOS POUCOS, enquanto executa, e
+# este aqui se atualiza no meio do caminho (o git pull logo abaixo). Sem as
+# chaves, uma versao nova com linhas a mais seria lida a partir do ponto em
+# que a velha estava, e o bash executaria pedacos misturados das duas. Com as
+# chaves ele le o bloco inteiro antes de comecar.
+{
+
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$RAIZ"
 
@@ -46,6 +53,32 @@ SERVICO="${SERVICO:-natal-lumen-api}"
 # minutos, e nesse intervalo o codigo VELHO conversava com o banco NOVO: depois
 # de uma migracao que renomeia coluna, era erro em toda consulta daquela tabela.
 # Ninguem notava em homologacao; no dia do evento, notaria.
+# Copia do banco IMEDIATAMENTE antes da migracao. Com um servidor so, e esta
+# copia que torna toda publicacao reversivel: uma migracao que estraga dado
+# volta com um pg_restore, sem perder o que foi digitado desde o backup da
+# madrugada. Falhou a copia, nao publica.
+echo "==> Copia do banco antes de publicar"
+ANTES="$RAIZ/sistema/backups/antes-de-publicar"
+mkdir -p "$ANTES"
+(
+  cd sistema/backend
+  eval "$(./.venv/bin/python - <<'PY'
+from sqlalchemy.engine import make_url
+from app.config import config
+u = make_url(config.database_url)
+import shlex
+for k, v in {"PGHOST": u.host or "localhost", "PGPORT": u.port or 5432,
+             "PGUSER": u.username, "PGPASSWORD": u.password or "",
+             "PGDATABASE": u.database}.items():
+    print(f"export {k}={shlex.quote(str(v))}")
+PY
+)"
+  pg_dump --format=custom --file="$ANTES/natal-lumen_$(date +%Y-%m-%d_%H%M).dump"
+)
+# Guarda as 10 ultimas: cada uma tem poucos MB.
+ls -1t "$ANTES"/natal-lumen_*.dump | tail -n +11 | xargs -r rm -f
+echo "    guardada em $ANTES"
+
 echo "==> Backend: migrations"
 (cd sistema/backend && ./.venv/bin/alembic upgrade head)
 
@@ -106,3 +139,6 @@ if [ -n "${DOMINIO:-}" ]; then
 else
   echo "(defina DOMINIO=seu.dominio para conferir tambem pelo HTTPS)"
 fi
+
+exit
+}

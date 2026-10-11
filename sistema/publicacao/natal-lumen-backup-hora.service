@@ -1,0 +1,24 @@
+# Copia do banco de hora em hora, so no disco. Ver o bloco SO_BANCO no
+# backup.sh. Mesmo usuario e mesmas travas do backup da madrugada.
+#
+# Instalar:  ver instalar-backup.sh nesta mesma pasta.
+
+[Unit]
+Description=Copia do banco do Natal Lumen (de hora em hora)
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=natal-lumen
+Group=natal-lumen
+WorkingDirectory=/var/www/natal-lumen/sistema/backend
+# Pasta propria, separada da madrugada: as 48 copias de hora em hora nao
+# empurram para fora os 14 dias do backup completo.
+Environment=SO_BANCO=1
+ExecStart=/var/www/natal-lumen/sistema/backend/backup.sh /var/lib/natal-lumen/backups/hora
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/natal-lumen/backups

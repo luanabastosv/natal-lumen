@@ -296,7 +296,7 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
 
 
 @router.post("/lote", response_model=PreviaLote)
-async def lote_previa(
+def lote_previa(
     db: BD,
     ctx: Subir,
     arquivos_enviados: list[UploadFile] = File(..., alias="arquivos"),
@@ -390,7 +390,7 @@ async def lote_previa(
                 )
 
         try:
-            conteudo = await ler_limitado(enviado)
+            conteudo = ler_limitado(enviado)
             imagem = scanner.carregar_imagem(conteudo)
         except HTTPException as erro:
             item.erros.append(str(erro.detail))
@@ -611,7 +611,7 @@ def apagar_cartao(cartao_id: int, db: BD, ctx: Subir):
 
 
 @router.post("/{cartao_id}/trocar", response_model=CartaoOut)
-async def trocar_imagem(
+def trocar_imagem(
     cartao_id: int,
     db: BD,
     ctx: Subir,
@@ -639,7 +639,7 @@ async def trocar_imagem(
 
     imagens.conferir_nome_da_troca(db, arquivo.filename, cartao.crianca)
 
-    conteudo = await ler_limitado(arquivo)
+    conteudo = ler_limitado(arquivo)
     imagem = scanner.carregar_imagem(conteudo)
     endireitada, _aviso = scanner.digitalizar(imagem)
 

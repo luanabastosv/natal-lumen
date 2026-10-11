@@ -1,0 +1,10 @@
+[Unit]
+Description=Copia do banco do Natal Lumen, de hora em hora
+
+[Timer]
+# No minuto 40, longe do backup completo das 03:10.
+OnCalendar=*-*-* *:40:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

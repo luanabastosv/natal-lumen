@@ -2,13 +2,80 @@ const API_URL = import.meta.env.VITE_API_URL ?? "/acesso/api";
 
 const METODOS_QUE_ALTERAM = ["POST", "PUT", "PATCH", "DELETE"];
 
-/** Erro vindo da API, com o status para quem chamou decidir o que fazer. */
+/** Erro vindo da API, com o status para quem chamou decidir o que fazer.
+ *
+ * `status` 0 quer dizer que a resposta nunca chegou: sem internet, ou o pedido
+ * passou do tempo. Nesse caso `incerto` diz se o pedido ALTERAVA dados — e ai
+ * nao da para saber se o servidor gravou antes de a conexao cair.
+ */
 export class ErroApi extends Error {
-  constructor(mensagem, status) {
+  constructor(mensagem, status, { incerto = false } = {}) {
     super(mensagem);
     this.name = "ErroApi";
     this.status = status;
+    this.incerto = incerto;
   }
+}
+
+// Quanto esperar antes de desistir. Sem limite, num celular com sinal ruim o
+// botao ficava em "Salvando..." por minutos, e a pessoa fechava a aba sem saber
+// se tinha gravado. Arquivo e download ganham mais tempo: a foto do cartao e o
+// ZIP de agradecimentos demoram de verdade numa conexao lenta.
+const ESPERA_MS = 60_000;
+const ESPERA_ARQUIVO_MS = 180_000;
+
+const SEM_CONEXAO =
+  "Sem conexão com o servidor. Confira a internet e tente de novo.";
+const SEM_CONEXAO_AO_SALVAR =
+  "A conexão caiu antes da resposta. Recarregue a página e confira antes de tentar de novo.";
+
+/** fetch com tempo limite, e falha de rede traduzida.
+ *
+ * O navegador avisa falta de internet com um TypeError em ingles ("Failed to
+ * fetch", "Load failed" no iPhone), que aparecia cru na tela. Aqui ele vira
+ * ErroApi com status 0 e uma frase que diz o que fazer.
+ */
+async function buscar(url, opcoes, esperaMs) {
+  const controle = new AbortController();
+  const relogio = setTimeout(() => controle.abort(), esperaMs);
+  try {
+    return await fetch(url, { ...opcoes, signal: controle.signal });
+  } catch {
+    const altera = METODOS_QUE_ALTERAM.includes(opcoes.method ?? "GET");
+    throw new ErroApi(altera ? SEM_CONEXAO_AO_SALVAR : SEM_CONEXAO, 0, {
+      incerto: altera,
+    });
+  } finally {
+    clearTimeout(relogio);
+  }
+}
+
+/** A frase para um erro que nao veio da aplicacao, e sim do caminho ate ela. */
+function mensagemPorStatus(status, metodo, padrao) {
+  if (status === 429) {
+    return "Muitos pedidos ao mesmo tempo. Espere alguns segundos e tente de novo.";
+  }
+  // 502/503/504 sao do nginx: a API esta reiniciando (numa publicacao) ou caiu.
+  // No 504 o pedido pode ter chegado e estar gravando quando o nginx desistiu.
+  if (status === 504 && METODOS_QUE_ALTERAM.includes(metodo)) {
+    return SEM_CONEXAO_AO_SALVAR;
+  }
+  if (status === 502 || status === 503 || status === 504) {
+    return "O servidor está fora do ar por um instante. Tente de novo em um minuto.";
+  }
+  return padrao;
+}
+
+/** Erro de uma resposta que chegou, com a frase do servidor quando ha. */
+function erroDaResposta(resposta, corpo, metodo, padrao) {
+  // O FastAPI responde {detail: "..."}; o nginx (429, 502...) responde HTML,
+  // e ai corpo e null.
+  const detalhe = typeof corpo?.detail === "string" ? corpo.detail : null;
+  return new ErroApi(
+    detalhe ?? mensagemPorStatus(resposta.status, metodo, padrao),
+    resposta.status,
+    { incerto: resposta.status === 504 && METODOS_QUE_ALTERAM.includes(metodo) },
+  );
 }
 
 function lerCookie(nome) {
@@ -32,23 +99,26 @@ async function pedir(caminho, { method = "GET", body, ...resto } = {}) {
     if (csrf) cabecalhos["X-CSRF-Token"] = csrf;
   }
 
-  const resposta = await fetch(`${API_URL}${caminho}`, {
-    ...resto,
-    method,
-    headers: cabecalhos,
-    // Sem isto o cookie da sessao nao viaja.
-    credentials: "include",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const resposta = await buscar(
+    `${API_URL}${caminho}`,
+    {
+      ...resto,
+      method,
+      headers: cabecalhos,
+      // Sem isto o cookie da sessao nao viaja.
+      credentials: "include",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    ESPERA_MS,
+  );
 
   if (resposta.status === 204) return null;
 
   const corpo = await resposta.json().catch(() => null);
 
   if (!resposta.ok) {
-    throw new ErroApi(
-      corpo?.detail ?? `Erro ${resposta.status} ao falar com o servidor.`,
-      resposta.status,
+    throw erroDaResposta(
+      resposta, corpo, method, `Erro ${resposta.status} ao falar com o servidor.`,
     );
   }
 
@@ -62,14 +132,15 @@ async function pedir(caminho, { method = "GET", body, ...resto } = {}) {
  * dentro). Assim o erro chega como ErroApi, igual ao resto do sistema.
  */
 async function pegarBlob(caminho) {
-  const resposta = await fetch(`${API_URL}${caminho}`, { credentials: "include" });
+  const resposta = await buscar(
+    `${API_URL}${caminho}`,
+    { credentials: "include" },
+    ESPERA_ARQUIVO_MS,
+  );
 
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => null);
-    throw new ErroApi(
-      corpo?.detail ?? `Erro ${resposta.status} ao baixar o arquivo.`,
-      resposta.status,
-    );
+    throw erroDaResposta(resposta, corpo, "GET", `Erro ${resposta.status} ao baixar o arquivo.`);
   }
 
   const disposicao = resposta.headers.get("Content-Disposition") ?? "";
@@ -95,24 +166,28 @@ export function salvarBlob(blob, nomeArquivo) {
  *
  * Nao da para reusar `pedir`: ele forca Content-Type JSON, e num FormData
  * quem tem de escrever o cabecalho e o navegador — so ele sabe a fronteira
- * (boundary) que separa as partes.
+ * (boundary) que separa as partes. `padrao` e a frase para quando o servidor
+ * nao manda uma.
  */
-async function enviarArquivo(caminho, formData) {
+async function enviarArquivo(caminho, formData, padrao) {
   const csrf = lerCookie("nl_csrf");
 
-  const resposta = await fetch(`${API_URL}${caminho}`, {
-    method: "POST",
-    credentials: "include",
-    headers: csrf ? { "X-CSRF-Token": csrf } : {},
-    body: formData,
-  });
+  const resposta = await buscar(
+    `${API_URL}${caminho}`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: csrf ? { "X-CSRF-Token": csrf } : {},
+      body: formData,
+    },
+    ESPERA_ARQUIVO_MS,
+  );
 
   const corpo = await resposta.json().catch(() => null);
 
   if (!resposta.ok) {
-    throw new ErroApi(
-      corpo?.detail ?? `Erro ${resposta.status} ao enviar o arquivo.`,
-      resposta.status,
+    throw erroDaResposta(
+      resposta, corpo, "POST", padrao ?? `Erro ${resposta.status} ao enviar o arquivo.`,
     );
   }
 

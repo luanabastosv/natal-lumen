@@ -15,14 +15,25 @@ from app.config import config
 PEDACO = 1024 * 1024
 
 
-async def ler_limitado(arquivo: UploadFile, limite: int | None = None) -> bytes:
-    """Le o arquivo ate o limite. Passou do teto, recusa na hora."""
+def ler_limitado(arquivo: UploadFile, limite: int | None = None) -> bytes:
+    """Le o arquivo ate o limite. Passou do teto, recusa na hora.
+
+    Sincrono de proposito, e por isso as rotas de upload sao `def`, nao
+    `async def`. Numa rota async, tudo o que nao e `await` — a consulta ao
+    banco, o Pillow, o envio ao Drive — roda dentro do laco de eventos e PARA o
+    servidor inteiro enquanto dura: com um worker so, um comprovante subindo
+    para o Drive (ate 60s) congelava o sistema para todo mundo. Rota `def` vai
+    para uma thread, e os outros pedidos seguem sendo atendidos.
+
+    `arquivo.file` ja esta inteiro no disco (ou na memoria) quando a rota
+    comeca: o Starlette recebe o corpo antes. Ler daqui nao espera a rede.
+    """
     teto = limite if limite is not None else config.max_upload_bytes
 
     pedacos: list[bytes] = []
     total = 0
 
-    while pedaco := await arquivo.read(PEDACO):
+    while pedaco := arquivo.file.read(PEDACO):
         total += len(pedaco)
         if total > teto:
             raise HTTPException(
