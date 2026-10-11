@@ -15,6 +15,8 @@ class PadrinhoIn(BaseModel):
     # Nulo nao e "nao": e "ninguem perguntou". Ver o modelo.
     membro_ser_feliz: bool | None = None
     interesse_mensal: bool | None = None
+    # Uma por tentativa de registrar, gerada pela tela. Ver o modelo.
+    chave_envio: str | None = Field(default=None, max_length=64)
 
 
 class PadrinhoEditar(BaseModel):
@@ -123,6 +125,8 @@ class ApadrinharComPagamento(BaseModel):
     data: date
     forma: str | None = Field(default=None, max_length=40)
     observacoes: str | None = None
+    # Uma por tentativa de registrar, gerada pela tela. Ver o modelo.
+    chave_envio: str | None = Field(default=None, max_length=64)
 
 
 class ApadrinhamentoEditar(BaseModel):
@@ -138,6 +142,8 @@ class PagamentoIn(BaseModel):
     observacoes: str | None = None
     # Apadrinhamentos que este pagamento quita.
     apadrinhamentos: list[int] = Field(default_factory=list)
+    # Uma por tentativa de registrar, gerada pela tela. Ver o modelo.
+    chave_envio: str | None = Field(default=None, max_length=64)
 
 
 class PagamentoEditar(BaseModel):

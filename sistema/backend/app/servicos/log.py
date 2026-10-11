@@ -1,5 +1,8 @@
 """Registro de acoes sensiveis em log_atividades (LGPD)."""
 
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -33,3 +36,26 @@ def registrar(
             detalhes=detalhes,
         )
     )
+
+
+def _para_json(valor: Any) -> Any:
+    if valor is None or isinstance(valor, (bool, int, float, str)):
+        return valor
+    if isinstance(valor, Enum):
+        return valor.value
+    if isinstance(valor, (date, datetime)):
+        return valor.isoformat()
+    if isinstance(valor, Decimal):
+        return str(valor)
+    return str(valor)
+
+
+def valores(registro: Any, campos) -> dict[str, Any]:
+    """Os valores de `campos` em `registro`, prontos para o JSON do log.
+
+    Chamado duas vezes numa edicao — antes e depois de aplicar a mudanca — para
+    o log guardar o "antes" e o "depois". So o nome do campo, que era o que se
+    guardava, dizia que alguem mudou a idade; nao dizia de quanto para quanto, e
+    desfazer um engano exigia voltar o backup da madrugada inteiro.
+    """
+    return {campo: _para_json(getattr(registro, campo, None)) for campo in sorted(campos)}

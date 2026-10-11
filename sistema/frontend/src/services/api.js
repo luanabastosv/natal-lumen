@@ -199,12 +199,48 @@ async function baixar(caminho) {
   salvarBlob(blob, nomeArquivo);
 }
 
+/* ---------- Pedido que nao pode gravar duas vezes ----------
+ *
+ * A conexao cai DEPOIS de o servidor gravar e ANTES de a resposta chegar: a
+ * tela mostra erro, a pessoa clica de novo, e o mesmo padrinho (ou o mesmo
+ * pagamento) chegava duas vezes. Cada envio leva uma `chave_envio`; o servidor
+ * reconhece a chave repetida e devolve o que ja gravou.
+ *
+ * A chave pertence ao CONTEUDO do envio: repetir o mesmo formulario reaproveita
+ * a mesma chave, e so um envio que deu certo a descarta. Assim nenhuma tela
+ * precisa guardar chave nenhuma — basta chamar `api.postUmaVez`. Cadastrar de
+ * proposito outro padrinho igual depois de um sucesso gera chave nova.
+ */
+const chavesEmAberto = new Map();
+
+function novaChave() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function postUmaVez(caminho, body) {
+  const assinatura = `${caminho} ${JSON.stringify(body)}`;
+  let chave = chavesEmAberto.get(assinatura);
+  if (!chave) {
+    chave = novaChave();
+    chavesEmAberto.set(assinatura, chave);
+  }
+  const resposta = await pedir(caminho, {
+    method: "POST",
+    body: { ...body, chave_envio: chave },
+  });
+  chavesEmAberto.delete(assinatura);
+  return resposta;
+}
+
 export const api = {
   get: (caminho) => pedir(caminho),
   baixar,
   blob: pegarBlob,
   enviarArquivo,
   post: (caminho, body) => pedir(caminho, { method: "POST", body }),
+  postUmaVez,
   put: (caminho, body) => pedir(caminho, { method: "PUT", body }),
   patch: (caminho, body) => pedir(caminho, { method: "PATCH", body }),
   // O corpo e opcional: so o apagar que pede a senha de novo manda um.

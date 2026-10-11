@@ -933,6 +933,41 @@ def main() -> None:
         verifica("o comissario de base nao redistribui a lista",
                  r.status_code == 403, str(r.status_code))
 
+        print("\nO mesmo envio chegando duas vezes (a conexao caiu e a pessoa clicou de novo)")
+        fabio = Crianca(edicao_id=e1.id, instituicao_id=i1.id, codigo="005", nome="Fabio Melo",
+                        idade=6, sexo="M")
+        db.add(fabio); db.commit()
+
+        corpo = {"edicao_id": e1.id, "nome": "Gilda Repetida", "chave_envio": "ZZ-padrinho-1"}
+        r1 = cc.post("/padrinhos", json=corpo)
+        r2 = cc.post("/padrinhos", json=corpo)
+        verifica("o padrinho repetido devolve o mesmo cadastro",
+                 r1.status_code == 201 and r2.status_code == 201
+                 and r1.json()["id"] == r2.json()["id"], f"{r1.text[:80]} | {r2.text[:80]}")
+        gilda = r1.json()["id"] if r1.status_code == 201 else None
+        verifica("e nao cria um segundo",
+                 db.scalar(select(func.count()).select_from(Padrinho)
+                           .where(Padrinho.nome == "Gilda Repetida")) == 1)
+
+        corpo = {"criancas": [{"crianca_id": fabio.id, "tipo": "cesta"}],
+                 "data": "2026-11-09", "forma": "pix", "chave_envio": "ZZ-apadrinhar-1"}
+        r1 = cc.post(f"/padrinhos/{gilda}/apadrinhar", json=corpo)
+        r2 = cc.post(f"/padrinhos/{gilda}/apadrinhar", json=corpo)
+        verifica("o apadrinhar repetido responde como da primeira vez, e nao 'ja tem padrinho'",
+                 r1.status_code == 201 and r2.status_code == 201
+                 and r1.json()["ultimo_pagamento_id"] == r2.json()["ultimo_pagamento_id"],
+                 f"{r1.text[:80]} | {r2.text[:80]}")
+        verifica("e o dinheiro entra uma vez so",
+                 db.scalar(select(func.count()).select_from(Pagamento)
+                           .where(Pagamento.padrinho_id == gilda)) == 1)
+        outro = cc.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Hugo Outro"}).json()["id"]
+        r = cc.post(f"/padrinhos/{outro}/apadrinhar", json=corpo)
+        verifica("a mesma chave para outro padrinho e recusada", r.status_code == 409, str(r.status_code))
+
+        r = cc.delete(f"/criancas/{fabio.id}")
+        verifica("crianca apadrinhada e paga nao pode ser apagada",
+                 r.status_code == 409 and "desistencia" in r.text, r.text[:160])
+
     finally:
         limpar(db, log_inicial)
         db.close()

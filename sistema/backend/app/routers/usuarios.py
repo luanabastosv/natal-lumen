@@ -46,7 +46,7 @@ from app.seeds.perfis_permissoes import (
 )
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import coordenacao, exclusao, grupos, tokens_acesso
-from app.servicos.log import registrar
+from app.servicos.log import registrar, valores
 from app.servicos.nomes import nome_proprio
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
@@ -406,13 +406,18 @@ def editar(usuario_id: int, dados: UsuarioEditar, db: BD, ctx: Gestor):
     _conferir_alcance(ctx, usuario)
 
     mudancas = dados.model_dump(exclude_unset=True)
+    antes = valores(usuario, mudancas)
     for campo, valor in mudancas.items():
         setattr(usuario, campo, nome_proprio(valor) if campo == "nome" and valor else valor)
 
     registrar(
         db, "usuario_editado", usuario_id=ctx.usuario.id,
         tabela="usuarios", registro_id=usuario.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(usuario, mudancas),
+        },
     )
     db.commit()
     return _saida(db, _carregar(db, usuario_id))

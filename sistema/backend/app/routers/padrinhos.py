@@ -49,7 +49,7 @@ from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import agradecimento, comprovantes, exclusao, whatsapp
 from app.servicos.arquivos import limpar_texto
-from app.servicos.log import registrar
+from app.servicos.log import registrar, valores
 from app.servicos.nomes import nome_proprio, parecenca
 
 router = APIRouter(tags=["padrinhos"])
@@ -180,6 +180,36 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
     )
 
 
+def _ja_enviado(db: Session, modelo, chave: str | None):
+    """O registro que este mesmo pedido ja criou, se ele esta chegando de novo.
+
+    A tela gera uma chave por tentativa. Quando a conexao cai depois de o
+    servidor gravar, a pessoa clica outra vez e o pedido repete — e a resposta
+    certa e o que ja foi gravado, nao um segundo registro.
+    """
+    if not chave:
+        return None
+    return db.scalar(select(modelo).where(modelo.chave_envio == chave))
+
+
+def _gravar_com_chave(db: Session, modelo, chave: str | None):
+    """flush que entende o pedido repetido chegando AO MESMO TEMPO que o primeiro.
+
+    `_ja_enviado` cobre o caso comum, a repeticao depois de um erro. Este cobre
+    os dois pedidos em voo juntos: o segundo bate na unicidade da chave, e
+    devolve o registro do primeiro. Devolve None quando gravou normalmente.
+    """
+    try:
+        db.flush()
+        return None
+    except IntegrityError:
+        db.rollback()
+        ja = _ja_enviado(db, modelo, chave)
+        if ja is None:
+            raise
+        return ja
+
+
 def _carregar(db: Session, padrinho_id: int, ctx: ContextoAcesso, permissao: str) -> Padrinho:
     padrinho = db.scalar(
         select(Padrinho)
@@ -288,6 +318,10 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
     if not ctx.alcanca_edicao(dados.edicao_id, "editar_padrinhos"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Voce nao capta padrinhos nesta edicao.")
 
+    ja = _ja_enviado(db, Padrinho, dados.chave_envio)
+    if ja is not None:
+        return _saida(_carregar(db, ja.id, ctx, "editar_padrinhos"))
+
     padrinho = Padrinho(
         edicao_id=dados.edicao_id,
         nome=nome_proprio(dados.nome),
@@ -296,10 +330,13 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
         observacoes=dados.observacoes,
         membro_ser_feliz=dados.membro_ser_feliz,
         interesse_mensal=dados.interesse_mensal,
+        chave_envio=dados.chave_envio,
         criado_por=ctx.usuario.id,
     )
     db.add(padrinho)
-    db.flush()
+    ja = _gravar_com_chave(db, Padrinho, dados.chave_envio)
+    if ja is not None:
+        return _saida(_carregar(db, ja.id, ctx, "editar_padrinhos"))
 
     registrar(
         db, "padrinho_criado", usuario_id=ctx.usuario.id,
@@ -331,13 +368,18 @@ def editar_padrinho(padrinho_id: int, dados: PadrinhoEditar, db: BD, ctx: Editar
         )
 
     mudancas = dados.model_dump(exclude_unset=True)
+    antes = valores(padrinho, mudancas)
     for campo, valor in mudancas.items():
         setattr(padrinho, campo, nome_proprio(valor) if campo == "nome" and valor else valor)
 
     registrar(
         db, "padrinho_editado", usuario_id=ctx.usuario.id,
         tabela="padrinhos", registro_id=padrinho.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(padrinho, mudancas),
+        },
     )
     db.commit()
     return _saida(_carregar(db, padrinho_id, ctx, "editar_padrinhos"))
@@ -438,6 +480,10 @@ def apadrinhar_com_pagamento(
             "Apadrinhar registra o pagamento junto, e voce nao registra pagamentos.",
         )
 
+    ja = _ja_enviado(db, Pagamento, dados.chave_envio)
+    if ja is not None:
+        return _repeticao_do_apadrinhar(db, ctx, padrinho, ja)
+
     pares = [(c.crianca_id, c.tipo) for c in dados.criancas]
     if len(set(pares)) != len(pares):
         raise HTTPException(
@@ -453,9 +499,12 @@ def apadrinhar_com_pagamento(
         forma=dados.forma,
         observacoes=dados.observacoes,
         registrado_por=ctx.usuario.id,
+        chave_envio=dados.chave_envio,
     )
     db.add(pagamento)
-    db.flush()
+    ja = _gravar_com_chave(db, Pagamento, dados.chave_envio)
+    if ja is not None:
+        return _repeticao_do_apadrinhar(db, ctx, padrinho, ja)
 
     total = Decimal("0")
     criados = []
@@ -508,6 +557,15 @@ def apadrinhar_com_pagamento(
     )
     db.commit()
     db.expire_all()
+    saida = _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
+    saida.ultimo_pagamento_id = pagamento.id
+    return saida
+
+
+def _repeticao_do_apadrinhar(db: Session, ctx: ContextoAcesso, padrinho: Padrinho, pagamento):
+    """A resposta do apadrinhar que ja foi gravado: a mesma da primeira vez."""
+    if pagamento.padrinho_id != padrinho.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Este envio ja foi usado para outro padrinho.")
     saida = _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
     saida.ultimo_pagamento_id = pagamento.id
     return saida
@@ -746,13 +804,18 @@ def editar_apadrinhamento(
         raise HTTPException(status.HTTP_403_FORBIDDEN, DO_COLEGA)
 
     mudancas = dados.model_dump(exclude_unset=True)
+    antes = valores(apadrinhamento, mudancas)
     for campo, valor in mudancas.items():
         setattr(apadrinhamento, campo, valor)
 
     registrar(
         db, "apadrinhamento_editado", usuario_id=ctx.usuario.id,
         tabela="apadrinhamentos", registro_id=apadrinhamento.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(apadrinhamento, mudancas),
+        },
     )
     db.commit()
     return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
@@ -945,16 +1008,25 @@ def listar_pagamentos(
 def criar_pagamento(dados: PagamentoIn, db: BD, ctx: Pagar):
     padrinho = _carregar(db, dados.padrinho_id, ctx, "registrar_pagamentos_padrinho")
 
-    pagamento = Pagamento(
-        padrinho_id=padrinho.id,
-        valor=dados.valor,
-        data=dados.data,
-        forma=dados.forma,
-        observacoes=dados.observacoes,
-        registrado_por=ctx.usuario.id,
-    )
-    db.add(pagamento)
-    db.flush()
+    ja = _ja_enviado(db, Pagamento, dados.chave_envio)
+    if ja is None:
+        pagamento = Pagamento(
+            padrinho_id=padrinho.id,
+            valor=dados.valor,
+            data=dados.data,
+            forma=dados.forma,
+            observacoes=dados.observacoes,
+            registrado_por=ctx.usuario.id,
+            chave_envio=dados.chave_envio,
+        )
+        db.add(pagamento)
+        ja = _gravar_com_chave(db, Pagamento, dados.chave_envio)
+    if ja is not None:
+        if ja.padrinho_id != padrinho.id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "Este envio ja foi usado para outro padrinho."
+            )
+        return _saida_pagamento(ja)
 
     _ligar_apadrinhamentos(db, pagamento, dados.apadrinhamentos, padrinho, ctx)
 
@@ -993,6 +1065,7 @@ def editar_pagamento(pagamento_id: int, dados: PagamentoEditar, db: BD, ctx: Pag
             "cuida do financeiro da edicao.",
         )
 
+    antes = valores(pagamento, mudancas)
     for campo, valor in mudancas.items():
         setattr(pagamento, campo, valor)
 
@@ -1002,7 +1075,11 @@ def editar_pagamento(pagamento_id: int, dados: PagamentoEditar, db: BD, ctx: Pag
     registrar(
         db, "pagamento_editado", usuario_id=ctx.usuario.id,
         tabela="pagamentos", registro_id=pagamento.id,
-        detalhes={"campos": sorted(dados.model_dump(exclude_unset=True))},
+        detalhes={
+            "campos": sorted(dados.model_dump(exclude_unset=True)),
+            "antes": antes,
+            "depois": valores(pagamento, mudancas),
+        },
     )
     db.commit()
     db.refresh(pagamento)

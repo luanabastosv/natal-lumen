@@ -53,7 +53,7 @@ from app.schemas.financeiro import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
 from app.servicos import comprovantes
-from app.servicos.log import registrar
+from app.servicos.log import registrar, valores
 
 router = APIRouter(tags=["financeiro"])
 
@@ -173,13 +173,18 @@ def editar_compra(compra_id: int, dados: CompraEditar, db: BD, ctx: Saidas):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Saida nao encontrada.")
 
     mudancas = dados.model_dump(exclude_unset=True)
+    antes = valores(compra, mudancas)
     for campo, valor in mudancas.items():
         setattr(compra, campo, valor)
 
     registrar(
         db, "compra_editada", usuario_id=ctx.usuario.id,
         tabela="compras", registro_id=compra.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(compra, mudancas),
+        },
     )
     db.commit()
     db.refresh(compra)
@@ -430,6 +435,7 @@ def editar_recebimento(
     recebimento = _carregar_recebimento(db, recebimento_id, ctx)
 
     mudancas = dados.model_dump(exclude_unset=True)
+    antes = valores(recebimento, mudancas)
     for campo, valor in mudancas.items():
         setattr(
             recebimento,
@@ -440,7 +446,11 @@ def editar_recebimento(
     registrar(
         db, "recebimento_editado", usuario_id=ctx.usuario.id,
         tabela="recebimentos", registro_id=recebimento.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(recebimento, mudancas),
+        },
     )
     db.commit()
     db.refresh(recebimento)

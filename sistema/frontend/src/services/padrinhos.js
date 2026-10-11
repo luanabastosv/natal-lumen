@@ -10,7 +10,7 @@ function comFiltros(caminho, filtros = {}) {
 
 export const listarPadrinhos = (filtros) => comFiltros("/padrinhos", filtros);
 export const detalharPadrinho = (id) => api.get(`/padrinhos/${id}`);
-export const criarPadrinho = (dados) => api.post("/padrinhos", dados);
+export const criarPadrinho = (dados) => api.postUmaVez("/padrinhos", dados);
 
 /** Padrinhos da edicao com nome parecido com `nome` (no maximo tres): o aviso
  *  de cadastro repetido. */
@@ -25,7 +25,7 @@ export const dependenciasDoPadrinho = (id) => api.get(`/padrinhos/${id}/dependen
  *  { criancas: [{ crianca_id, tipo }], data, forma, observacoes }. Devolve o
  *  padrinho atualizado, com `ultimo_pagamento_id` para o comprovante. */
 export const apadrinharComPagamento = (padrinhoId, dados) =>
-  api.post(`/padrinhos/${padrinhoId}/apadrinhar`, dados);
+  api.postUmaVez(`/padrinhos/${padrinhoId}/apadrinhar`, dados);
 export const editarApadrinhamento = (id, dados) => api.patch(`/apadrinhamentos/${id}`, dados);
 export const apagarApadrinhamento = (id) => api.delete(`/apadrinhamentos/${id}`);
 
@@ -60,6 +60,6 @@ export function subirComprovante(id, arquivo) {
 }
 
 export const baixarComprovante = (id) => api.baixar(`/pagamentos/${id}/comprovante`);
-export const criarPagamento = (dados) => api.post("/pagamentos", dados);
+export const criarPagamento = (dados) => api.postUmaVez("/pagamentos", dados);
 export const editarPagamento = (id, dados) => api.patch(`/pagamentos/${id}`, dados);
 export const apagarPagamento = (id) => api.delete(`/pagamentos/${id}`);

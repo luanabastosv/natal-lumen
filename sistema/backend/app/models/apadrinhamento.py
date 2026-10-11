@@ -47,6 +47,9 @@ class Padrinho(Base):
     membro_ser_feliz: Mapped[bool | None] = mapped_column(Boolean)
     interesse_mensal: Mapped[bool | None] = mapped_column(Boolean)
 
+    # Ver `chave_envio` em Pagamento.
+    chave_envio: Mapped[str | None] = mapped_column(String(64), unique=True)
+
     criado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
@@ -92,6 +95,13 @@ class Pagamento(Base):
     conferido: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+
+    # Gerada pela tela, uma por tentativa de registrar. Se a internet cai depois
+    # que o servidor gravou e antes de a resposta chegar, a pessoa clica de novo
+    # — e o mesmo pedido chega duas vezes. Com a chave, o segundo devolve o que
+    # o primeiro gravou em vez de registrar o dinheiro em dobro (ou, no
+    # apadrinhar, responder "ja tem padrinho" para quem acabou de apadrinhar).
+    chave_envio: Mapped[str | None] = mapped_column(String(64), unique=True)
 
     padrinho: Mapped[Padrinho] = relationship(back_populates="pagamentos")
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(

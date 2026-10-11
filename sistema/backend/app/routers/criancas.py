@@ -65,7 +65,7 @@ from app.servicos.apadrinhamento import CONFIRMADO, confirmado
 from app.servicos import codigos, cuidados, dias, exclusao, importador
 from app.servicos.nomes import nome_proprio
 from app.servicos.upload import ler_limitado
-from app.servicos.log import registrar
+from app.servicos.log import registrar, valores
 
 router = APIRouter(prefix="/criancas", tags=["criancas"])
 
@@ -913,6 +913,7 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: EditarOuAtribuir)
     if mudancas.get("comissario_id") is not None:
         _conferir_comissario(db, mudancas["comissario_id"], [crianca])
 
+    antes = valores(crianca, mudancas)
     for campo, valor in mudancas.items():
         setattr(crianca, campo, nome_proprio(valor) if campo == "nome" and valor else valor)
 
@@ -927,7 +928,11 @@ def editar(crianca_id: int, dados: CriancaEditar, db: BD, ctx: EditarOuAtribuir)
     registrar(
         db, "crianca_editada", usuario_id=ctx.usuario.id,
         tabela="criancas", registro_id=crianca.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(crianca, mudancas),
+        },
     )
     db.commit()
     return _saida(_buscar_para_editar(db, ctx, crianca_id, set(mudancas)), ctx)
@@ -1018,6 +1023,25 @@ def dependencias(crianca_id: int, db: BD, ctx: Editar):
 @router.delete("/{crianca_id}", status_code=status.HTTP_204_NO_CONTENT)
 def apagar(crianca_id: int, db: BD, ctx: Editar):
     crianca = _buscar(db, ctx, crianca_id, "editar_criancas")
+
+    # Crianca com apadrinhamento PAGO nao sai por aqui. O apadrinhamento cairia
+    # junto (cascata), mas o pagamento ficaria: dinheiro registrado quitando
+    # nada, e o total do padrinho batendo errado com o que ele pagou. Quem
+    # precisa tira-la da lista marca a desistencia; quem precisa apagar desfaz
+    # antes o pagamento, na ficha do padrinho — e ai o dinheiro sai junto.
+    pago = db.scalar(
+        select(func.count()).select_from(Apadrinhamento).where(
+            Apadrinhamento.crianca_id == crianca.id,
+            Apadrinhamento.pagamento_id.is_not(None),
+        )
+    )
+    if pago:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{crianca.codigo or crianca.nome} ja foi apadrinhada e paga. Para tira-la "
+            "da lista, marque a desistencia. Para apagar, desfaca antes o "
+            "pagamento na ficha do padrinho.",
+        )
 
     registrar(
         db, "crianca_apagada", usuario_id=ctx.usuario.id,

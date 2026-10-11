@@ -18,7 +18,7 @@ from app.schemas.cadastros import (
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_permissao
 from app.servicos import codigos, exclusao
-from app.servicos.log import registrar
+from app.servicos.log import registrar, valores
 
 router = APIRouter(prefix="/instituicoes", tags=["cadastros"])
 
@@ -241,6 +241,7 @@ def editar(instituicao_id: int, dados: InstituicaoEditar, db: BD, ctx: Cadastros
     sigla_antiga = inst.sigla
 
     mudancas = dados.model_dump(exclude_unset=True)
+    antes = valores(inst, mudancas)
     for campo, valor in mudancas.items():
         if campo == "nome" and valor:
             valor = valor.strip()
@@ -266,7 +267,11 @@ def editar(instituicao_id: int, dados: InstituicaoEditar, db: BD, ctx: Cadastros
     registrar(
         db, "instituicao_editada", usuario_id=ctx.usuario.id,
         tabela="instituicoes", registro_id=inst.id,
-        detalhes={"campos": sorted(mudancas)},
+        detalhes={
+            "campos": sorted(mudancas),
+            "antes": antes,
+            "depois": valores(inst, mudancas),
+        },
     )
     if trocados:
         registrar(
