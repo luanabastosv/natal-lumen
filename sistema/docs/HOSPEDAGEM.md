@@ -720,13 +720,17 @@ Isso roda o backup **todo dia às 3h da manhã**. Salve com `Ctrl+O`, Enter,
 `Ctrl+X`.
 
 > **E o mais importante:** backup que nunca foi restaurado não é backup, é
-> esperança. Uma vez por mês, restaure o backup da produção **no servidor de
-> teste** — está descrito no [DOIS_AMBIENTES.md](DOIS_AMBIENTES.md), seção 4.
-> Você testa o backup e atualiza os dados de teste no mesmo gesto.
+> esperança. Uma vez por mês, restaure o backup da produção **no seu
+> computador** com o `trazer_producao.sh` — ver o [AMBIENTES.md](AMBIENTES.md),
+> seção 3. Você testa o backup e atualiza os dados locais no mesmo gesto.
 
 ---
 
 # PARTE 14 — Repetir para produção
+
+> **Desde 11/10/2026 não há segundo servidor**: o de teste virou o de
+> produção (ver [AMBIENTES.md](AMBIENTES.md)). Esta parte fica para o dia em
+> que for preciso montar uma máquina nova do zero.
 
 Refaça as Partes 2 a 13. **Tudo igual, menos o que está na tabela abaixo** —
 inclusive a permissão `640` do `.env`, a regra de `sudo` sem senha e a

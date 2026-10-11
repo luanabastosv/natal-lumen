@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Liga o backup diario com envio ao Drive. Roda UMA vez, e pede a senha do sudo.
 #
-#   ssh teste.natallumen.com
+#   ssh acesso.natallumen.com
 #   sudo /var/www/natal-lumen/sistema/publicacao/instalar-backup.sh
 #
 # Depois disso o backup roda sozinho todo dia as 03:10, como o usuario

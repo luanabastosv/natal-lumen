@@ -8,7 +8,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 - Padrões de UI: [docs/PADROES_UI.md](docs/PADROES_UI.md)
 - Agradecimento: [docs/AGRADECIMENTO.md](docs/AGRADECIMENTO.md)
 - Comprovante no Google Drive: [docs/COMPROVANTE_NO_DRIVE.md](docs/COMPROVANTE_NO_DRIVE.md)
-- Homologação e produção: [docs/DOIS_AMBIENTES.md](docs/DOIS_AMBIENTES.md)
+- Servidor único e testes locais: [docs/AMBIENTES.md](docs/AMBIENTES.md)
 
 ## Estado
 
@@ -868,7 +868,7 @@ cd backend
 natallumen.com                      → Shopify: loja e site público
 acesso.natallumen.com/acesso        → sistema   sistema/frontend/dist
 acesso.natallumen.com/acesso/api    → API       uvicorn em 127.0.0.1:8000
-teste.natallumen.com                → homologação, mesma coisa noutra máquina
+teste.natallumen.com                → redireciona para acesso (ver docs/AMBIENTES.md)
 ```
 
 O site público **não é servido por este servidor**: ele vive no Shopify, no

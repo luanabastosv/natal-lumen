@@ -1,220 +1,147 @@
-# Homologação e produção
+# Um servidor, e o teste no seu computador
 
-Duas máquinas, dois bancos, dois domínios. O que entra em produção passou antes
-por homologação.
+Desde 11/10/2026 o sistema tem **um** servidor, o de produção. Não existe mais
+servidor de teste: o que antes ia para homologação agora é testado no
+computador de quem programa, com uma cópia dos dados de verdade.
 
 ```
-teste.natallumen.com    VPS   AMBIENTE=homologacao   segue o main
-acesso.natallumen.com   VPS   AMBIENTE=producao      só o que tem tag
+acesso.natallumen.com   VPS (Vultr Miami)   AMBIENTE=producao   só o que tem tag
+teste.natallumen.com    o mesmo servidor    redireciona para acesso.natallumen.com
+seu computador          localhost:5173      AMBIENTE=desenvolvimento
 ```
 
-O domínio raiz, `natallumen.com`, não é de nenhum dos dois: é o Shopify, onde
-fica a loja e o site público.
-
-> **Para montar qualquer um dos dois servidores do zero**, siga o
-> [HOSPEDAGEM.md](HOSPEDAGEM.md) — passo a passo, do contratar a VPS ao
-> cadeado do HTTPS. Este documento aqui explica *por que* são dois e o que
-> muda entre eles.
+O domínio raiz, `natallumen.com`, é o Shopify: a loja e o site público.
 
 ---
 
-## 1. Por que duas máquinas, e não duas pastas na mesma
+## 1. Por que um servidor só
 
-> **Esta seção mudou.** A justificativa original era memória: o EasyOCR comia
-> ~1 GB de RAM por worker, produção ficava em ~2,5 GB, e um teste de leitura de
-> cartão em homologação podia acionar o OOM killer do Linux — que escolhe a
-> vítima pelo tamanho, e a maior seria a produção.
->
-> **O EasyOCR saiu.** A identificação do cartão passou a ser pelo código no
-> nome do arquivo, e a aplicação inteira cabe em **152 MB** (medido). O
-> argumento de memória evaporou junto, e com ele a necessidade de 4 GB.
+Havia dois: homologação para poder quebrar, produção para valer. A decisão de
+juntar foi tomada às vésperas do lançamento (13/10/2026), por três motivos:
 
-O que **continua** valendo é isolamento, que nunca foi sobre RAM: homologação
-existe para você poder quebrar coisas. Se ela mora na mesma máquina que a
-produção, um `systemctl` errado, um disco cheio ou uma migration travando o
-Postgres derrubam as duas ao mesmo tempo.
+- **Uma pessoa mexe no código.** Homologação serve para muita gente conferir o
+  trabalho de muita gente. Aqui ela só repetia o que já tinha sido visto no
+  computador.
+- **O sistema é pequeno.** Cabe com folga numa máquina de 2 GB (cerca de 900 MB
+  em uso, com 2 workers), e o banco tem dezenas de MB.
+- **Dois servidores custam cuidado.** O de teste ficava desatualizado, cada
+  publicação era feita duas vezes, e um servidor esquecido é um servidor sem
+  atualização de segurança.
 
-Duas máquinas de 2 GB custam praticamente o mesmo que uma de 4 GB, e uma delas
-pode cair sem levar a outra junto.
+O que o servidor de teste pegava, e o computador sozinho não pega, agora é
+coberto assim:
 
-### As contas agora
+| O risco | Como fica coberto |
+| --- | --- |
+| Migration que estraga dado de verdade | testar antes com `trazer_producao.sh` (seção 3) **e** cópia automática do banco antes de cada publicação (seção 4) |
+| Publicar algo que ninguém viu rodando | só sobe o que tem tag, e a tag aponta para um commit testado |
+| Versão nova com defeito | `REF=<tag anterior>` volta em um comando |
+| Build de produção diferente do `npm run dev` | `npm run build && npm run preview` no computador antes da tag |
 
-```
-aplicação, por worker .........   152 MB
-produção, 2 workers ...........   ~300 MB
-Postgres ......................   ~300 MB
-nginx + sistema ...............   ~300 MB
-                                 ────────
-total em produção .............   ~900 MB   em 2 GB, com folga
-```
+O que **não** fica coberto, e foi aceito: não há onde testar com HTTPS e o
+nginx de verdade antes de publicar. Mudança no `nginx.conf`, no `.service` ou
+no cookie de sessão pede publicação fora do horário de uso, com alguém olhando.
 
 ---
 
-## 2. Os três ambientes, e o que muda em cada um
+## 2. Os três valores de `AMBIENTE`
 
-`AMBIENTE` no `.env` aceita exatamente três valores:
+`AMBIENTE` no `.env` continua aceitando três valores, embora só dois sejam
+usados agora:
 
 | | `desenvolvimento` | `homologacao` | `producao` |
 | --- | --- | --- | --- |
-| Cookie `Secure` | não (HTTP local) | **sim** | **sim** |
+| Onde | seu computador | (não usado) | o servidor |
+| Cookie `Secure` | não | sim | sim |
 | CORS para o Vite | sim | não | não |
-| `/docs` | aberta | **aberta** | fechada |
-| Link de definir senha na resposta | sim | **não** | não |
+| `/docs` | aberta | aberta | fechada |
+| Link de definir senha na resposta | sim | não | não |
+| `anonimizar` roda | sim | sim | **recusa** |
+| `CHECKIN_SEMPRE_ABERTO` | vale | vale | **ignorado** |
 
-Duas escolhas que valem explicação:
-
-**`/docs` fica aberta em homologação.** É um servidor de teste com dados
-falsos; poder abrir a documentação da API e disparar uma chamada à mão economiza
-tempo. Em produção some.
-
-**O link de definir senha NÃO volta na resposta em homologação.** Em
-desenvolvimento ele volta porque não há servidor de email e você está sozinho
-no localhost. Homologação tem domínio público — quem soubesse um email entraria
-na conta. Lá o acesso se cria pelo seed, que imprime o link no terminal.
-
-> **Valor desconhecido derruba o arranque.** `AMBIENTE=prod` ou
-> `AMBIENTE=produção` (com cedilha) fazem a aplicação **recusar a subir**. Antes
-> isso passava em silêncio e caía no modo mais frouxo: cookie sem HTTPS e
-> `/docs` aberta num servidor de produção, parecendo tudo bem.
+Um valor escrito errado (`prod`, `produção`) faz a API recusar a subir.
 
 ---
 
-## 3. Como o código anda
-
-```
-você trabalha  ──▶  main  ──▶  homologação  ──(tag)──▶  produção
-```
-
-**Homologação segue o `main`.** Todo commit que entra no main pode ir para lá:
+## 3. Testar com os dados de verdade, no seu computador
 
 ```bash
-ssh lumen@teste.natallumen.com
-cd /var/www/natal-lumen
-SERVICO=natal-lumen-api ./sistema/publicacao/publicar.sh
+cd sistema/backend
+./trazer_producao.sh
+./.venv/bin/python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
 ```
 
-**Produção só recebe o que foi marcado.** Depois de ver funcionando em
-homologação, você marca:
+O script guarda o seu banco local, baixa a produção pelo `ssh`, troca o banco
+local por ela e roda o `anonimizar`: nomes de crianças, padrinhos e usuários
+viram nomes falsos estáveis; contatos, senhas e links do Drive são apagados.
+Códigos, idades, valores, datas e todas as ligações ficam — que é o que as
+telas e as migrations exercitam.
 
-```bash
-git tag -a v2026.1 -m "Ficha do padrinho com abas e pagamento"
-git push origin v2026.1
-```
-
-E publica exatamente aquela marca:
-
-```bash
-ssh lumen@acesso.natallumen.com
-cd /var/www/natal-lumen
-REF=v2026.1 DOMINIO=acesso.natallumen.com ./sistema/publicacao/publicar.sh
-```
-
-A tag é o portão. Sem ela, "publicar em produção" seria pegar o que estivesse
-no main naquele segundo — inclusive um commit de dez minutos atrás que ninguém
-viu rodando.
-
-`REF` também serve para **voltar atrás**: se a v2026.1 deu problema,
-`REF=v2026.0 ./publicar.sh` devolve a versão anterior em um comando. Migration
-já aplicada não volta sozinha — por isso migration que apaga coluna merece uma
-janela de duas versões.
+Use antes de publicar **qualquer migration**. As fotos e os comprovantes não
+vêm junto (só o banco): as imagens aparecem como "não encontrado", e está certo.
 
 ---
 
-## 4. Os dados de homologação
+## 4. Como o código chega ao servidor
 
-Homologação precisa do **volume e dos formatos** da produção — o padrinho com
-vinte crianças, a planilha de cem linhas, a paginação de verdade. Não precisa
-dos nomes das crianças.
-
-```bash
-# na produção
-pg_dump -Fc natal_lumen > producao.dump
-
-# leve para o servidor de teste, e lá:
-pg_restore -c -d natal_lumen producao.dump
-python -m app.seeds.anonimizar --sim
-python -m app.seeds.criar_admin "Seu Nome" "voce@exemplo.org"
+```
+seu computador  ──▶  main no GitHub  ──(tag)──▶  produção
 ```
 
-| Muda | Fica |
-| --- | --- |
-| nomes de crianças, padrinhos e usuários | códigos, idades, sexo |
-| WhatsApp e email | valores, datas, formas de pagamento |
-| observações | todas as ligações entre as tabelas |
-| senhas (zeradas) e tokens (apagados) | caminhos dos arquivos em disco |
-| links do Drive | |
+1. Testes e build no computador (`/subir` faz isso).
+2. Commit e push para o `main`.
+3. Uma tag com a data: `v2026.10.12-1`, `v2026.10.12-2`...
+4. Publicação daquela tag:
 
-O nome falso é **estável**: a mesma linha dá sempre o mesmo nome, porque vem de
-um hash do id e não de sorteio. Sem isso, comparar um print de ontem com a tela
-de hoje viraria adivinhação.
+```bash
+ssh acesso.natallumen.com "cd /var/www/natal-lumen && REF=v2026.10.12-1 DOMINIO=acesso.natallumen.com ./sistema/publicacao/publicar.sh"
+```
 
-**Duas travas no comando:**
+O `publicar.sh` faz uma cópia do banco **antes** da migration (guarda as 10
+últimas em `sistema/backups/antes-de-publicar/`). Se a cópia falhar, nada é
+publicado.
 
-1. Recusa rodar com `AMBIENTE=producao`. Ele apaga dado pessoal sem volta.
-2. Sem `--sim`, só explica o que faria e sai.
+**Voltar atrás:** publique a tag anterior com o mesmo comando. O código volta;
+o banco, não — migration aplicada não se desfaz sozinha. Se a migration
+estragou dado, restaure a cópia feita antes de publicar:
 
-As imagens dos cartões e os comprovantes **não são copiados** — só as linhas do
-banco. As rotas de download respondem 404 para arquivo que não existe, que é o
-comportamento certo. Os links do Drive são zerados para homologação não apontar
-para o arquivo real na pasta da produção.
+```bash
+cd /var/www/natal-lumen/sistema/backend
+sudo systemctl stop natal-lumen-api
+# PGPASSWORD etc.: ver o backup.sh
+pg_restore --clean --if-exists -d natal_lumen ../backups/antes-de-publicar/<o mais recente>.dump
+sudo systemctl start natal-lumen-api
+```
+
+Publique fora do horário de uso: a API fica 3 a 5 segundos fora do ar no
+reinício.
 
 ---
 
-## 5. O que muda em cada `.env`
+## 5. As cópias do banco
 
-Igual nos dois: `DATABASE_URL` (bancos diferentes), `ARQUIVOS_DIR`,
-`JWT_SECRET` (**gere um para cada** — não repita).
+| Quando | Onde | Quantas | O que |
+| --- | --- | --- | --- |
+| Antes de cada publicação | `sistema/backups/antes-de-publicar/` | 10 | banco |
+| De hora em hora (minuto 40) | `/var/lib/natal-lumen/backups/hora/` | 48 | banco |
+| Toda madrugada (00h10 de Brasília) | `/var/lib/natal-lumen/backups/` **e Drive** | 14 | banco + arquivos + planilha |
+| Automática | painel da Vultr (Automatic Backups) | a da Vultr | a máquina inteira |
 
-Diferente:
-
-```bash
-# homologação
-AMBIENTE=homologacao
-UVICORN_PORTA=8000
-UVICORN_WORKERS=1
-# WhatsApp e Drive vazios: teste não manda mensagem para padrinho de verdade
-```
-
-```bash
-# produção
-AMBIENTE=producao
-UVICORN_PORTA=8000
-UVICORN_WORKERS=2
-```
-
-> **Deixe WhatsApp e Drive desligados em homologação.** Com as credenciais de
-> produção preenchidas, um teste de "reenviar cartão" mandaria mensagem de
-> verdade para o WhatsApp de um padrinho — e os nomes já estariam anonimizados,
-> então a mensagem sairia errada além de indesejada.
+As de hora em hora protegem do erro humano do meio do dia. A da madrugada é a
+única que sai da máquina: se o disco morrer, é dela que se volta.
 
 ---
 
-## 6. O que homologação pega, e o que não pega
+## 6. Como o servidor de teste virou o de produção
 
-**Pega** — e é por isso que ela existe: migration rodando sobre dados que já
-existem; caminho do nginx (`/acesso`, `/acesso/api`); cookie `Secure` +
-`SameSite` sob HTTPS de verdade; o build de produção do frontend (que não é o
-mesmo do `npm run dev`); o systemd subindo; variável de ambiente faltando.
+Feito uma vez, em outubro de 2026, pelo
+[`publicacao/virar-producao.sh`](../publicacao/virar-producao.sh): backup,
+nome novo no nginx, certificado para os dois nomes, redirecionamento do nome
+antigo, `AMBIENTE=producao`, 2 workers e as cópias de hora em hora. O que tinha
+sido lançado só para testar (padrinhos, pagamentos, cartões, compras, kits) saiu
+pelo `app.seeds.limpar_operacao`.
 
-**Não pega:** envio real de WhatsApp e upload real para o Drive — os dois ficam
-desligados lá de propósito. Continuam sendo verificados no seu computador e
-pelos testes automatizados.
-
----
-
-## 7. Instalar o servidor de homologação
-
-Igual ao de produção, no [README § Publicação](../README.md) — com quatro
-diferenças:
-
-1. `AMBIENTE=homologacao` e `UVICORN_WORKERS=1`.
-2. O `server_name` do nginx é `teste.natallumen.com`, e o certbot roda para ele.
-3. Depois de instalar, restaure o dump e rode o `anonimizar`.
-4. **Não coloque credencial de WhatsApp nem de Drive.**
-
-E um pedido: ponha `noindex` no servidor de teste, para ele não aparecer em
-busca. Uma linha no bloco do nginx:
-
-```nginx
-add_header X-Robots-Tag "noindex, nofollow" always;
-```
+A máquina continua em **Miami**. São Paulo responderia mais rápido para quem
+usa do Nordeste, mas a diferença (cerca de 0,1 s por pedido) não justificava
+mudar de servidor às vésperas do lançamento. Se um dia mudar, siga o
+[HOSPEDAGEM.md](HOSPEDAGEM.md) e restaure o backup da madrugada na máquina nova.
