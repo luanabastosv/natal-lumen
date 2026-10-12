@@ -107,6 +107,9 @@ export default function Padrinhos() {
   // novo, pelo mesmo perfil: ver routers/lembretes.py.
   const podeEnviarCartoes =
     Boolean(usuario?.admin_geral) || vinculoAtivo?.perfil === PERFIL_COORDENACAO;
+  // Desligado por enquanto, a pedido da coordenacao (12/10/2026): o botao
+  // aparece apagado. Para religar, troque para true.
+  const envioDeCartoesLigado = false;
 
   // A exclusao em curso: { registro, dependencias, erro, apagando }. Fora dela,
   // null. Igual ao das outras telas que apagam cadastro — ver Instituicoes.
@@ -418,7 +421,8 @@ export default function Padrinhos() {
                 variant="ghost"
                 iconLeft={<Enviar t={14} />}
                 onClick={() => navegar("/padrinhos/envio-de-cartoes")}
-                disabled={!edicaoAtiva}
+                disabled={!edicaoAtiva || !envioDeCartoesLigado}
+                titulo={envioDeCartoesLigado ? undefined : "Desativado por enquanto"}
               >
                 Ir para envio de cartões
               </Button>
@@ -444,8 +448,24 @@ export default function Padrinhos() {
               definirCampos={definirCampos}
               avisoNome={
                 !emEdicao && (
+                  <AvisoParecidos valor={campos.nome} edicaoId={edicaoAtiva} aoEscolher={usarExistente} />
+                )
+              }
+              avisoWhatsapp={
+                !emEdicao && (
                   <AvisoParecidos
-                    nome={campos.nome}
+                    campo="whatsapp"
+                    valor={campos.whatsapp}
+                    edicaoId={edicaoAtiva}
+                    aoEscolher={usarExistente}
+                  />
+                )
+              }
+              avisoEmail={
+                !emEdicao && (
+                  <AvisoParecidos
+                    campo="email"
+                    valor={campos.email}
                     edicaoId={edicaoAtiva}
                     aoEscolher={usarExistente}
                   />

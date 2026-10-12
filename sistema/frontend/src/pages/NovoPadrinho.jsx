@@ -83,7 +83,23 @@ export default function NovoPadrinho() {
           definirCampos={definirCampos}
           avisoNome={
             <AvisoParecidos
-              nome={campos.nome}
+              valor={campos.nome}
+              edicaoId={edicaoAtiva}
+              aoEscolher={(p) => apadrinharPor(p.id)}
+            />
+          }
+          avisoWhatsapp={
+            <AvisoParecidos
+              campo="whatsapp"
+              valor={campos.whatsapp}
+              edicaoId={edicaoAtiva}
+              aoEscolher={(p) => apadrinharPor(p.id)}
+            />
+          }
+          avisoEmail={
+            <AvisoParecidos
+              campo="email"
+              valor={campos.email}
               edicaoId={edicaoAtiva}
               aoEscolher={(p) => apadrinharPor(p.id)}
             />

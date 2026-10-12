@@ -202,6 +202,30 @@ def main() -> None:
         r = cm.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Jose Doador"})
         verifica("monitor NAO consulta padrinhos", r.status_code == 403, str(r.status_code))
 
+        print("\nWhatsApp ou email de um padrinho ja cadastrado")
+        ck.patch(f"/padrinhos/{jose['id']}", json={"email": "Jose.Doador@Exemplo.org"})
+        r = ck.get("/padrinhos/parecidos",
+                   params={"edicao_id": e1.id, "whatsapp": "(85) 99999-0000"})
+        verifica("acha o mesmo WhatsApp escrito de outro jeito",
+                 r.status_code == 200 and [(p["id"], p["motivo"]) for p in r.json()]
+                 == [(jose["id"], "whatsapp")], r.text[:160])
+        r = ck.get("/padrinhos/parecidos",
+                   params={"edicao_id": e1.id, "whatsapp": "+55 85 99999-0000"})
+        verifica("e com o 55 do pais na frente", [p["id"] for p in r.json()] == [jose["id"]],
+                 r.text[:160])
+        r = ck.get("/padrinhos/parecidos",
+                   params={"edicao_id": e1.id, "email": " jose.doador@exemplo.ORG "})
+        verifica("acha o mesmo email, sem ligar para maiuscula e espaco",
+                 [(p["id"], p["motivo"]) for p in r.json()] == [(jose["id"], "email")],
+                 r.text[:160])
+        r = ck.get("/padrinhos/parecidos",
+                   params={"edicao_id": e1.id, "whatsapp": "85988887777", "email": "outro@x.org"})
+        verifica("contato diferente nao acha ninguem", r.json() == [], r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "whatsapp": "8599"})
+        verifica("numero incompleto nao compara", r.json() == [], r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id})
+        verifica("sem pista nenhuma e recusado", r.status_code == 422, str(r.status_code))
+
         print("\nAs duas perguntas da captacao")
         # Nulo nao e "nao": e "ninguem perguntou". Quem cadastra as vezes so tem
         # o nome e o zap na mao, e um `false` ali afirmaria que a pessoa NAO e
@@ -636,13 +660,15 @@ def main() -> None:
 
         # Promessa nao e apadrinhamento: o cartao AGRADECE, e nao ha o que
         # agradecer antes do dinheiro. A do Elias ficou sem pagamento quando o
-        # bloco acima apagou o pagamento que a quitava.
+        # bloco acima apagou o pagamento que a quitava. A promessa e da
+        # coordenacao (o comissario nao mexe no que nao e dele), entao quem
+        # pede e ela.
         promessa = ids_cesta[1]
-        r = ck.get(f"/apadrinhamentos/{promessa}/agradecimento")
+        r = cc.get(f"/apadrinhamentos/{promessa}/agradecimento")
         verifica("promessa sem pagamento nao gera cartao", r.status_code == 409, str(r.status_code))
         verifica("e a recusa explica o que falta",
                  "pagamento" in r.text.lower(), r.text[:140])
-        r = ck.post(f"/apadrinhamentos/{promessa}/agradecimento/enviar")
+        r = cc.post(f"/apadrinhamentos/{promessa}/agradecimento/enviar")
         verifica("nem envia pelo WhatsApp", r.status_code == 409, str(r.status_code))
 
         # Registrado o pagamento, a mesma promessa passa a valer.
@@ -652,8 +678,11 @@ def main() -> None:
         })
         verifica("a coordenacao registra o pagamento da promessa",
                  r.status_code == 201, r.text[:140])
-        r = ck.get(f"/apadrinhamentos/{promessa}/agradecimento")
+        r = cc.get(f"/apadrinhamentos/{promessa}/agradecimento")
         verifica("e a promessa paga passa a gerar o cartao", r.status_code == 200, str(r.status_code))
+        r = ck.get(f"/apadrinhamentos/{promessa}/agradecimento")
+        verifica("mas o comissario nao baixa o agradecimento de apadrinhamento que nao e dele",
+                 r.status_code == 403, str(r.status_code))
 
         r = ck.get(f"/apadrinhamentos/{de_ana['id']}/agradecimento")
         verifica("gera o cartao", r.status_code == 200, r.text[:110])
@@ -695,8 +724,9 @@ def main() -> None:
                      disposicao)
             nomes_zip = zipfile.ZipFile(BytesIO(r.content)).namelist()
             pagos = {a["crianca_codigo"] for a in
-                     ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"] if a["pago"]}
-            verifica("um cartao por crianca paga, e so as pagas",
+                     ck.get(f"/padrinhos/{jose['id']}").json()["apadrinhamentos"]
+                     if a["pago"] and a["comissario_id"] == comissario.id}
+            verifica("um cartao por crianca paga, so as pagas e so as do comissario",
                      sorted(n.split("_")[0] for n in nomes_zip) == sorted(pagos),
                      f"{nomes_zip} x {pagos}")
 
@@ -888,6 +918,57 @@ def main() -> None:
         r = apadrinhar(ck, do_colega["id"], (ana.id, "cesta"))
         verifica("mas o outro comissario ainda apadrinha para ele",
                  r.status_code == 201, r.text[:140])
+
+        # O que e do colega no mesmo padrinho: agradecimento, WhatsApp e
+        # comprovante sao de quem registrou (e da coordenacao).
+        ficha = ccol.get(f"/padrinhos/{do_colega['id']}").json()
+        festa_colega = next(a for a in ficha["apadrinhamentos"]
+                            if a["crianca_id"] == duda.id and a["tipo"] == "festa")
+        cesta_minha = next(a for a in ficha["apadrinhamentos"] if a["crianca_id"] == ana.id)
+        r = ck.get(f"/apadrinhamentos/{festa_colega['id']}/agradecimento")
+        verifica("o outro comissario NAO baixa o agradecimento do colega",
+                 r.status_code == 403, str(r.status_code))
+        r = ck.post(f"/apadrinhamentos/{festa_colega['id']}/agradecimento/enviar")
+        verifica("nem manda pelo WhatsApp", r.status_code == 403, str(r.status_code))
+        r = ck.get(f"/apadrinhamentos/{cesta_minha['id']}/agradecimento")
+        verifica("mas baixa o do apadrinhamento dele, no mesmo padrinho",
+                 r.status_code == 200, str(r.status_code))
+        r = ccol.get(f"/apadrinhamentos/{festa_colega['id']}/agradecimento")
+        verifica("o colega baixa o dele", r.status_code == 200, str(r.status_code))
+        r = ccap.get(f"/apadrinhamentos/{festa_colega['id']}/agradecimento")
+        verifica("e a coordenacao da captacao baixa qualquer um",
+                 r.status_code == 200, str(r.status_code))
+        r = ck.get(f"/padrinhos/{do_colega['id']}/agradecimentos")
+        import zipfile as _zip
+        from io import BytesIO as _B
+        no_zip = (sorted(n.split("_")[0] for n in _zip.ZipFile(_B(r.content)).namelist())
+                  if r.status_code == 200 else [])
+        verifica("no ZIP do comissario so entram os agradecimentos dele",
+                 no_zip == [ana.codigo], str(no_zip))
+
+        pag_colega = db.get(Apadrinhamento, festa_colega["id"]).pagamento_id
+        r = ck.post(f"/pagamentos/{pag_colega}/comprovante",
+                    files={"arquivo": ("c.pdf", b"%PDF-1.4 teste", "application/pdf")})
+        verifica("o outro comissario NAO troca o comprovante do colega",
+                 r.status_code == 403, str(r.status_code))
+        r = ck.get(f"/pagamentos/{pag_colega}/comprovante")
+        verifica("nem baixa", r.status_code == 403, str(r.status_code))
+        r = ck.patch(f"/pagamentos/{pag_colega}", json={"observacoes": "x"})
+        verifica("nem edita o pagamento", r.status_code == 403, str(r.status_code))
+        r = ck.get("/pagamentos", params={"padrinho_id": do_colega["id"]})
+        por_id = {p["id"]: p for p in r.json()["itens"]} if r.status_code == 200 else {}
+        verifica("mas ve na lista que o colega registrou o pagamento, sem poder mexer",
+                 pag_colega in por_id and por_id[pag_colega]["meu"] is False
+                 and por_id[pag_colega]["registrado_por"] == colega.nome
+                 and por_id[pag_colega]["comprovante_drive_link"] is None,
+                 str(por_id.get(pag_colega))[:200])
+        verifica("e o pagamento dele vem como dele",
+                 any(p["meu"] for p in por_id.values() if p["id"] != pag_colega),
+                 str(list(por_id.values()))[:200])
+        r = ccap.get("/pagamentos", params={"padrinho_id": do_colega["id"]})
+        verifica("a coordenacao da captacao ve todos",
+                 r.status_code == 200 and pag_colega in [p["id"] for p in r.json()["itens"]],
+                 r.text[:140])
 
         # Quem coordena a captacao passa por cima dos dois.
         r = ccap.patch(f"/apadrinhamentos/{alheio}", json={"valor": "130.00"})

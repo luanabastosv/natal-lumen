@@ -53,7 +53,10 @@ export default function FichaPadrinho({
 
   // O comissario de base so mexe no apadrinhamento que ele mesmo registrou —
   // um padrinho recebe criancas de varios, e desfazer o do colega mudaria o
-  // trabalho de outra pessoa sem ela saber. Quem coordena passa por cima.
+  // trabalho de outra pessoa sem ela saber. Vale tambem para baixar e mandar
+  // o agradecimento: quem fala com o padrinho sobre aquela crianca e quem a
+  // captou. Apadrinhar MAIS criancas para o padrinho do colega continua
+  // livre. Quem coordena passa por cima. O servidor confere de novo.
   const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
   const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
 
@@ -118,7 +121,7 @@ export default function FichaPadrinho({
   // mesma crianca sao o mesmo agradecimento. E a mesma conta que o servidor
   // faz no ZIP.
   const agradecimentosProntos = new Set(
-    padrinho.apadrinhamentos.filter((a) => a.pago).map((a) => a.crianca_id),
+    padrinho.apadrinhamentos.filter((a) => a.pago && meu(a)).map((a) => a.crianca_id),
   ).size;
 
   // A contagem vive no rotulo da aba: e o que diz se vale a pena entrar nela.
@@ -190,7 +193,7 @@ export default function FichaPadrinho({
       } else {
         const porCrianca = new Map();
         for (const a of padrinho.apadrinhamentos) {
-          if (a.pago && !porCrianca.has(a.crianca_id)) porCrianca.set(a.crianca_id, a);
+          if (a.pago && meu(a) && !porCrianca.has(a.crianca_id)) porCrianca.set(a.crianca_id, a);
         }
         for (const a of porCrianca.values()) {
           await baixarAgradecimento(a.id);
@@ -411,7 +414,7 @@ export default function FichaPadrinho({
                           que agradecer, e o servidor recusa (409). Sem o botao,
                           ninguem clica para receber um erro. O envio pelo
                           WhatsApp segue a mesma regra, pelo mesmo motivo. */}
-                      {a.pago && (
+                      {a.pago && meu(a) && (
                         <>
                           <BotaoIcone
                             titulo={`Baixar o agradecimento de ${a.crianca_primeiro_nome}`}

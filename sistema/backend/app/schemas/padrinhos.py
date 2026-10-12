@@ -107,13 +107,16 @@ class PaginaPadrinhos(BaseModel):
 
 
 class PadrinhoParecido(BaseModel):
-    """Um padrinho ja cadastrado com nome parecido com o que se esta digitando."""
+    """Um padrinho ja cadastrado parecido com o que se esta digitando: nome
+    parecido, ou o mesmo WhatsApp, ou o mesmo email."""
 
     id: int
     nome: str
     whatsapp: str | None
     # Quantas criancas ele ja tem: ajuda a reconhecer se e a mesma pessoa.
     criancas: int
+    # Por que ele apareceu: o nome parecido, ou o mesmo WhatsApp ou email.
+    motivo: str = "nome"
 
 
 class CriancaApadrinhada(BaseModel):
@@ -173,6 +176,10 @@ class PagamentoOut(BaseModel):
     # Vazio = nao foi para o Drive (desligado, ou o envio falhou).
     comprovante_drive_link: str | None = None
     apadrinhamentos: list[int]
+    # Quem registrou, e se quem pergunta pode mexer no comprovante: o
+    # comissario ve o pagamento do colega, mas nao abre nem troca o arquivo.
+    registrado_por: str | None = None
+    meu: bool = True
 
 
 class PaginaPagamentos(BaseModel):

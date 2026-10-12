@@ -369,27 +369,37 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
                   {p.observacoes && (
                     <span className="vinculo-linha__detalhe">{p.observacoes}</span>
                   )}
+                  {/* O pagamento de outro comissario aparece, para quem olha
+                      entender por que a crianca ja esta paga, mas o
+                      comprovante e de quem registrou: sem baixar nem trocar. */}
+                  {p.meu === false && (
+                    <span className="vinculo-linha__detalhe">
+                      Registrado por {p.registrado_por ?? "outra pessoa do time"}
+                    </span>
+                  )}
                 </div>
 
-                <span className="ficha__linha-acoes">
-                  {p.comprovante_arquivo && (
-                    <BotaoIcone
-                      titulo={`Baixar o comprovante de ${dinheiro(p.valor)}`}
-                      onClick={() => baixar(p)}
-                      carregando={baixando === p.id}
+                {p.meu !== false && (
+                  <span className="ficha__linha-acoes">
+                    {p.comprovante_arquivo && (
+                      <BotaoIcone
+                        titulo={`Baixar o comprovante de ${dinheiro(p.valor)}`}
+                        onClick={() => baixar(p)}
+                        carregando={baixando === p.id}
+                      >
+                        <Baixar t={16} />
+                      </BotaoIcone>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => pedirArquivo(p)}
+                      carregando={subindo === p.id}
                     >
-                      <Baixar t={16} />
-                    </BotaoIcone>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => pedirArquivo(p)}
-                    carregando={subindo === p.id}
-                  >
-                    {p.comprovante_arquivo ? "Trocar" : "Subir"}
-                  </Button>
-                </span>
+                      {p.comprovante_arquivo ? "Trocar" : "Subir"}
+                    </Button>
+                  </span>
+                )}
               </div>
             ))}
           </div>

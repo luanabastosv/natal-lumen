@@ -14,8 +14,10 @@ export const criarPadrinho = (dados) => api.postUmaVez("/padrinhos", dados);
 
 /** Padrinhos da edicao com nome parecido com `nome` (no maximo tres): o aviso
  *  de cadastro repetido. */
-export const padrinhosParecidos = (edicaoId, nome) =>
-  comFiltros("/padrinhos/parecidos", { edicao_id: edicaoId, nome });
+/** Padrinhos que parecem ser o que se esta cadastrando. `pista` e um so de
+ *  { nome }, { whatsapp } ou { email }. */
+export const padrinhosParecidos = (edicaoId, pista) =>
+  comFiltros("/padrinhos/parecidos", { edicao_id: edicaoId, ...pista });
 export const editarPadrinho = (id, dados) => api.patch(`/padrinhos/${id}`, dados);
 
 export const apagarPadrinho = (id) => api.delete(`/padrinhos/${id}`);

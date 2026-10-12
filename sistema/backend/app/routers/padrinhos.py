@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.database import get_db
-from app.models import Apadrinhamento, Crianca, Edicao, EnvioCartao, Padrinho, Pagamento
+from app.models import Apadrinhamento, Crianca, Edicao, EnvioCartao, Padrinho, Pagamento, Usuario
 from app.models.tipos import TipoApadrinhamento
 from app.schemas.cadastros import DependenciasOut
 from app.schemas.padrinhos import (
@@ -123,6 +123,25 @@ DO_COLEGA = (
     "Este apadrinhamento foi registrado por outra pessoa do time. "
     "Peca a quem coordena a captacao."
 )
+
+PAGAMENTO_DO_COLEGA = (
+    "Este pagamento foi registrado por outra pessoa do time. So quem o "
+    "registrou, ou a coordenacao, mexe no comprovante dele."
+)
+
+
+def _pagamento_e_meu(ctx: ContextoAcesso, pagamento: Pagamento, padrinho: Padrinho) -> bool:
+    """O mesmo `_e_meu`, do lado do dinheiro: o comissario de base so troca ou
+    baixa o comprovante do pagamento que ele registrou. Pagamento antigo, sem
+    quem registrou, e de quem registrou os apadrinhamentos que ele quita."""
+    if not ctx.so_proprias_criancas(padrinho.edicao_id):
+        return True
+    if pagamento.registrado_por is not None:
+        return pagamento.registrado_por == ctx.usuario.id
+    return bool(pagamento.apadrinhamentos) and all(
+        a.comissario_id == ctx.usuario.id for a in pagamento.apadrinhamentos
+    )
+
 
 
 def _saida(padrinho: Padrinho) -> PadrinhoOut:
@@ -277,40 +296,74 @@ def listar_padrinhos(
 PARECIDO = 0.85
 
 
+def _so_digitos(telefone: str | None) -> str:
+    """O telefone para comparar: so os digitos, sem o 55 do pais. "(85)
+    99999-0000", "85999990000" e "+55 85 99999-0000" sao o mesmo numero."""
+    d = "".join(c for c in (telefone or "") if c.isdigit())
+    if len(d) > 11 and d.startswith("55"):
+        d = d[2:]
+    return d
+
+
 @router.get("/padrinhos/parecidos", response_model=list[PadrinhoParecido])
-def padrinhos_parecidos(db: BD, ctx: Ver, edicao_id: int, nome: str = Query(min_length=1)):
-    """Padrinhos da edicao com nome parecido com `nome` — no maximo tres.
+def padrinhos_parecidos(
+    db: BD,
+    ctx: Ver,
+    edicao_id: int,
+    nome: str | None = None,
+    whatsapp: str | None = None,
+    email: str | None = None,
+):
+    """Padrinhos da edicao que parecem ser o que se esta cadastrando — no
+    maximo tres.
 
     E o aviso do cadastro: o mesmo doador volta semanas depois, outro
     comissario o cadastra de novo, e ele vira dois padrinhos, com dois
     pagamentos e dois agradecimentos. Antes de salvar, a tela pergunta isto e
     oferece apadrinhar pelo cadastro que ja existe.
 
-    A comparacao e em Python, e nao no banco: sao centenas de padrinhos por
-    edicao, e "parecido" aqui e acento, nome do meio e erro de digitacao, que
-    um LIKE nao pega.
+    Tres pistas, cada uma pedida pelo seu campo: o nome parecido (acento, nome
+    do meio e erro de digitacao, que um LIKE nao pega — por isso em Python), e
+    o MESMO WhatsApp ou o mesmo email, que sao iguais ou nao sao. Sao centenas
+    de padrinhos por edicao, entao comparar tudo aqui sai barato.
     """
+    if not (nome or whatsapp or email):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Informe o nome, o WhatsApp ou o email."
+        )
     candidatos = db.scalars(
         select(Padrinho)
         .where(_filtro_padrinhos(ctx, "ver_padrinhos"), Padrinho.edicao_id == edicao_id)
         .options(selectinload(Padrinho.apadrinhamentos))
     ).all()
 
+    def saida(p: Padrinho, motivo: str) -> PadrinhoParecido:
+        return PadrinhoParecido(
+            id=p.id, nome=p.nome, whatsapp=p.whatsapp,
+            criancas=len({a.crianca_id for a in p.apadrinhamentos}), motivo=motivo,
+        )
+
+    # Contato igual e prova mais forte que nome parecido: vem primeiro.
+    telefone = _so_digitos(whatsapp)
+    if len(telefone) >= 10:
+        iguais = [p for p in candidatos if _so_digitos(p.whatsapp) == telefone]
+        if iguais:
+            return [saida(p, "whatsapp") for p in iguais[:3]]
+
+    correio = (email or "").strip().lower()
+    if "@" in correio:
+        iguais = [p for p in candidatos if (p.email or "").strip().lower() == correio]
+        if iguais:
+            return [saida(p, "email") for p in iguais[:3]]
+
+    if not nome:
+        return []
     notas = sorted(
         ((parecenca(nome, p.nome), p) for p in candidatos),
         key=lambda par: par[0],
         reverse=True,
     )
-    return [
-        PadrinhoParecido(
-            id=p.id,
-            nome=p.nome,
-            whatsapp=p.whatsapp,
-            criancas=len({a.crianca_id for a in p.apadrinhamentos}),
-        )
-        for nota, p in notas[:3]
-        if nota >= PARECIDO
-    ]
+    return [saida(p, "nome") for nota, p in notas[:3] if nota >= PARECIDO]
 
 
 @router.post("/padrinhos", response_model=PadrinhoOut, status_code=status.HTTP_201_CREATED)
@@ -591,6 +644,11 @@ def _apadrinhamento_do_agradecimento(db: Session, apadrinhamento_id: int, ctx: C
     if apadrinhamento is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Apadrinhamento nao encontrado.")
 
+    # Baixar e mandar o agradecimento e de quem captou: o comissario de base
+    # nao fala com o padrinho em nome do colega. A coordenacao passa.
+    if not _e_meu(ctx, db, apadrinhamento):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, DO_COLEGA)
+
     # O agradecimento leva nome, codigo e instituicao da crianca — mais do que a tela
     # de padrinhos mostra de proposito. Por isso exige tambem ver_criancas, e
     # na edicao DA CRIANCA: quem so cuida de padrinhos nao le a ficha dela por
@@ -683,9 +741,11 @@ def agradecimentos_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
         .order_by(Crianca.codigo)
     ).all()
 
+    # So os que quem pede alcanca, e — para o comissario de base — so os que
+    # ele registrou: o padrinho pode ter criancas de outros comissarios.
     por_crianca = {}
     for a in apadrinhamentos:
-        if ctx.alcanca_edicao(a.crianca.edicao_id, "ver_criancas"):
+        if ctx.alcanca_edicao(a.crianca.edicao_id, "ver_criancas") and _e_meu(ctx, db, a):
             por_crianca.setdefault(a.crianca_id, a)
 
     if not por_crianca:
@@ -998,10 +1058,25 @@ def listar_pagamentos(
         .limit(por_pagina)
     ).unique().all()
 
-    return PaginaPagamentos(
-        total=total, pagina=pagina, por_pagina=por_pagina,
-        itens=[_saida_pagamento(p) for p in itens],
-    )
+    # O comissario ve os pagamentos do colega no mesmo padrinho — e assim que
+    # entende por que aquela crianca ja esta paga —, mas sem o comprovante:
+    # `meu` diz a tela que esconda baixar e trocar, e o link do Drive (que
+    # abriria o arquivo direto) nao sai.
+    nomes = dict(db.execute(
+        select(Usuario.id, Usuario.nome).where(
+            Usuario.id.in_({p.registrado_por for p in itens if p.registrado_por})
+        )
+    ).all())
+    saidas = []
+    for p in itens:
+        saida = _saida_pagamento(p)
+        saida.registrado_por = nomes.get(p.registrado_por)
+        saida.meu = _pagamento_e_meu(ctx, p, p.padrinho)
+        if not saida.meu:
+            saida.comprovante_drive_link = None
+        saidas.append(saida)
+
+    return PaginaPagamentos(total=total, pagina=pagina, por_pagina=por_pagina, itens=saidas)
 
 
 @router.post("/pagamentos", response_model=PagamentoOut, status_code=status.HTTP_201_CREATED)
@@ -1050,6 +1125,8 @@ def editar_pagamento(pagamento_id: int, dados: PagamentoEditar, db: BD, ctx: Pag
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pagamento nao encontrado.")
 
     padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
+    if not _pagamento_e_meu(ctx, pagamento, padrinho):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, PAGAMENTO_DO_COLEGA)
 
     mudancas = dados.model_dump(exclude_unset=True)
     apadrinhamentos = mudancas.pop("apadrinhamentos", None)
@@ -1148,6 +1225,8 @@ def subir_comprovante(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pagamento nao encontrado.")
 
     padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
+    if not _pagamento_e_meu(ctx, pagamento, padrinho):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, PAGAMENTO_DO_COLEGA)
 
     anterior = comprovantes.guardar(
         db, pagamento, arquivo,
@@ -1172,5 +1251,7 @@ def baixar_comprovante(pagamento_id: int, db: BD, ctx: Pagar):
     if pagamento is None:
         raise comprovantes.NAO_ENCONTRADO
 
-    _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
+    padrinho = _carregar(db, pagamento.padrinho_id, ctx, "registrar_pagamentos_padrinho")
+    if not _pagamento_e_meu(ctx, pagamento, padrinho):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, PAGAMENTO_DO_COLEGA)
     return comprovantes.entregar(pagamento)
