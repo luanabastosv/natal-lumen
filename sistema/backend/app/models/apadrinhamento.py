@@ -26,6 +26,12 @@ class Padrinho(Base):
     """
 
     __tablename__ = "padrinhos"
+    __table_args__ = (
+        CheckConstraint(
+            "interesse_mensal IN ('sim', 'nao', 'ja_contribui')",
+            name="ck_padrinhos_interesse_mensal",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     edicao_id: Mapped[int] = mapped_column(
@@ -45,7 +51,11 @@ class Padrinho(Base):
     # justamente a lista dos "ainda nao perguntei" que a captacao precisa
     # reaproveitar no ano seguinte.
     membro_ser_feliz: Mapped[bool | None] = mapped_column(Boolean)
-    interesse_mensal: Mapped[bool | None] = mapped_column(Boolean)
+    # Tres respostas, e nao sim/nao: "sim" (quer comecar), "nao", e
+    # "ja_contribui" — quem ja e doador mensal. Este ultimo nao e lead para a
+    # captacao, e mistura-lo com o "sim" mandaria a equipe oferecer de novo o
+    # que a pessoa ja faz. Nulo continua sendo "ninguem perguntou".
+    interesse_mensal: Mapped[str | None] = mapped_column(String(12))
 
     # Ver `chave_envio` em Pagamento.
     chave_envio: Mapped[str | None] = mapped_column(String(64), unique=True)

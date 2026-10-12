@@ -62,6 +62,7 @@ export function CamposPadrinho({ campos, definirCampos, avisoNome = null }) {
         </option>
         <option value="sim">Sim</option>
         <option value="nao">Não</option>
+        <option value="ja_contribui">Já contribuo</option>
       </Selecao>
     </div>
   );

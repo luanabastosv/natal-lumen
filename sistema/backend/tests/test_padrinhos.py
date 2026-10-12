@@ -213,23 +213,26 @@ def main() -> None:
 
         r = ck.post("/padrinhos", json={
             "edicao_id": e1.id, "nome": "Clara Perguntada",
-            "membro_ser_feliz": True, "interesse_mensal": False,
+            "membro_ser_feliz": True, "interesse_mensal": "nao",
         })
         clara = r.json() if r.status_code == 201 else {}
         verifica("e as respostas dadas no cadastro sao guardadas",
                  clara.get("membro_ser_feliz") is True
-                 and clara.get("interesse_mensal") is False,
+                 and clara.get("interesse_mensal") == "nao",
                  f"{clara.get('membro_ser_feliz')} / {clara.get('interesse_mensal')}")
 
         # A resposta quase nunca vem no cadastro: o doador diz "esse ano quero
         # contribuir todo mes" semanas depois, e a ficha tem de aceitar isso.
-        r = ck.patch(f"/padrinhos/{jose['id']}", json={"interesse_mensal": True})
+        r = ck.patch(f"/padrinhos/{jose['id']}", json={"interesse_mensal": "ja_contribui"})
         verifica("responder depois, pela ficha, funciona",
-                 r.status_code == 200 and r.json().get("interesse_mensal") is True,
+                 r.status_code == 200 and r.json().get("interesse_mensal") == "ja_contribui",
                  r.text[:130])
         verifica("e nao contamina a outra pergunta",
                  r.json().get("membro_ser_feliz") is None,
                  str(r.json().get("membro_ser_feliz")))
+
+        r = ck.patch(f"/padrinhos/{jose['id']}", json={"interesse_mensal": "talvez"})
+        verifica("resposta fora das tres e recusada", r.status_code == 422, str(r.status_code))
 
         # Voltar para "nao perguntado" tem de ser possivel: quem marcou por
         # engano precisa poder desfazer, e nao so trocar sim por nao.

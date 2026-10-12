@@ -3,7 +3,12 @@
 from datetime import date, datetime
 from decimal import Decimal
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
+
+# Ver o modelo: sim, nao, ou ja contribui todo mes.
+InteresseMensal = Literal["sim", "nao", "ja_contribui"]
 
 
 class PadrinhoIn(BaseModel):
@@ -14,7 +19,7 @@ class PadrinhoIn(BaseModel):
     observacoes: str | None = None
     # Nulo nao e "nao": e "ninguem perguntou". Ver o modelo.
     membro_ser_feliz: bool | None = None
-    interesse_mensal: bool | None = None
+    interesse_mensal: InteresseMensal | None = None
     # Uma por tentativa de registrar, gerada pela tela. Ver o modelo.
     chave_envio: str | None = Field(default=None, max_length=64)
 
@@ -25,7 +30,7 @@ class PadrinhoEditar(BaseModel):
     email: EmailStr | None = None
     observacoes: str | None = None
     membro_ser_feliz: bool | None = None
-    interesse_mensal: bool | None = None
+    interesse_mensal: InteresseMensal | None = None
 
 
 class ApadrinhamentoResumo(BaseModel):
@@ -82,7 +87,7 @@ class PadrinhoOut(BaseModel):
     email: str | None
     observacoes: str | None
     membro_ser_feliz: bool | None
-    interesse_mensal: bool | None
+    interesse_mensal: InteresseMensal | None
     criado_em: datetime
     # Quem cadastrou: so essa pessoa (ou a coordenacao) muda as informacoes.
     criado_por_id: int | None = None

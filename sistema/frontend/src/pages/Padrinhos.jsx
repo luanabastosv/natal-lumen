@@ -345,7 +345,8 @@ export default function Padrinhos() {
             {
               id: "mensal",
               rotulo: "Mensal",
-              valor: (p) => (p.interesse_mensal ? "Sim" : p.interesse_mensal === false ? "Não" : ""),
+              valor: (p) =>
+                ({ sim: "Sim", nao: "Não", ja_contribui: "Já contribui" })[p.interesse_mensal] ?? "",
             },
             { id: "observacoes", rotulo: "Observações", valor: (p) => p.observacoes ?? "" },
           ]}

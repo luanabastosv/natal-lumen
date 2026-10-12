@@ -61,8 +61,18 @@ export default function FichaPadrinho({
      ("Editar informacoes", no menu da linha), que exige Sim ou Nao — a ficha
      nao tem mais seletor. "a perguntar" so aparece em cadastro antigo, de
      antes de as perguntas serem obrigatorias. */
-  function resposta(valor) {
-    return <dd>{valor === true ? "Sim" : valor === false ? "Não" : "a perguntar"}</dd>;
+  // Recebia so o valor, mas era chamada com o nome do campo na frente — e por
+  // isso as duas respostas apareciam sempre como "a perguntar".
+  function resposta(_campo, valor) {
+    const texto =
+      valor === true || valor === "sim"
+        ? "Sim"
+        : valor === false || valor === "nao"
+          ? "Não"
+          : valor === "ja_contribui"
+            ? "Já contribui"
+            : "a perguntar";
+    return <dd>{texto}</dd>;
   }
 
   // Qual agradecimento esta sendo gerado ou enviado: o PNG e montado no

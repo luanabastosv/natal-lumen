@@ -7,8 +7,9 @@ import { numeroLimpo } from "../../utils/whatsapp.js";
 // verdade e o servidor (EmailStr); isto so evita habilitar o botao cedo.
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/* As duas perguntas da captacao nascem vazias e sao obrigatorias: Sim ou Nao,
-   sem "a perguntar". O cadastro so fecha quando a captacao perguntou. */
+/* As duas perguntas da captacao nascem vazias e sao obrigatorias, sem "a
+   perguntar": o cadastro so fecha quando a captacao perguntou. A da
+   contribuicao mensal tem tres respostas — sim, nao e "ja contribuo". */
 export const PADRINHO_NOVO = {
   nome: "",
   whatsapp: "",
@@ -32,7 +33,8 @@ export function paraOFormulario(padrinho) {
     email: padrinho.email ?? "",
     observacoes: padrinho.observacoes ?? "",
     membro_ser_feliz: sel(padrinho.membro_ser_feliz),
-    interesse_mensal: sel(padrinho.interesse_mensal),
+    // Ja vem como texto: sim, nao ou ja_contribui.
+    interesse_mensal: padrinho.interesse_mensal ?? "",
   };
 }
 
@@ -45,7 +47,7 @@ export function dadosDoPadrinho(campos) {
     email: campos.email.trim() || null,
     observacoes: campos.observacoes.trim() || null,
     membro_ser_feliz: resposta(campos.membro_ser_feliz),
-    interesse_mensal: resposta(campos.interesse_mensal),
+    interesse_mensal: campos.interesse_mensal || null,
   };
 }
 
