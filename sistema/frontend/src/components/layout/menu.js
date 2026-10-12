@@ -65,13 +65,10 @@ export const ITENS_MENU = [
     Icone: MenuCuidados,
   },
   { para: "/usuarios", rotulo: "Usuários", permissao: "gerenciar_usuarios", Icone: MenuUsuarios },
-  // O quadro de horarios do dia do evento: e a coordenacao geral quem monta.
-  {
-    para: "/programacao",
-    rotulo: "Programação",
-    soCoordenacaoGeral: true,
-    Icone: MenuProgramacao,
-  },
+  // O quadro de horarios do dia do evento. Todo perfil da edicao abre: a
+  // coordenacao geral monta, e a equipe ve e imprime depois que ela conclui
+  // (quem decide o que cada um ve e o backend).
+  { para: "/programacao", rotulo: "Programação", Icone: MenuProgramacao },
   {
     para: "/instituicoes",
     rotulo: "Instituições",
@@ -105,10 +102,13 @@ export const ESTRUTURA_MENU = [
   { para: "/padrinhos" },
   { para: "/kits" },
   { para: "/financeiro" },
+  // Pagina propria, e nao item de Configuracoes: e o quadro do dia do evento,
+  // consultado e impresso, nao um cadastro.
+  { para: "/programacao" },
   {
     grupo: "Configurações",
     Icone: Configuracoes,
-    itens: ["/usuarios", "/instituicoes", "/programacao", "/cidades-edicoes"],
+    itens: ["/usuarios", "/instituicoes", "/cidades-edicoes"],
   },
 ];
 

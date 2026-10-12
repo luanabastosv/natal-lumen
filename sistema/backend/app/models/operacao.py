@@ -312,3 +312,10 @@ class Programacao(Base):
     atualizado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
+    # Concluida = liberada para a equipe inteira. Antes disso so a
+    # coordenacao geral ve: um quadro pela metade, impresso e distribuido,
+    # faria cada monitor seguir um horario diferente.
+    concluida_em: Mapped[MomentoOpcional]
+    concluida_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )

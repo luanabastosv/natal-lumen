@@ -257,6 +257,10 @@ def descrever(log: LogAtividade, nomes: _Nomes) -> str:
             return f"{verbo} a cidade {d.get('nome', '')}".rstrip()
         case "programacao_salva":
             return "Atualizou a programação do evento"
+        case "programacao_concluida":
+            return "Concluiu a programação e a liberou para a equipe"
+        case "programacao_reaberta":
+            return "Reabriu a programação para ajustes"
         case "nucleos_organizados":
             n = len(d.get("mudancas") or [])
             return f"Organizou os núcleos e as batas ({_plural(n, 'instituição alterada', 'instituições alteradas')})"

@@ -74,5 +74,14 @@ class ProgramacaoOut(ProgramacaoIn):
     existe: bool
     atualizado_em: datetime | None = None
     atualizado_por: str | None = None
+    # Liberada para toda a equipe. `pode_editar` diz a tela se mostra os
+    # botoes da coordenacao (editar, concluir).
+    concluida_em: datetime | None = None
+    concluida_por: str | None = None
+    pode_editar: bool = False
     # So leitura: vem da organizacao dos nucleos da monitoria, nao do quadro.
     nucleos: list[NucleosDoDia] = Field(default_factory=list)
+
+
+class ConclusaoIn(BaseModel):
+    concluida: bool

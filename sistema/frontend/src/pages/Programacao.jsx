@@ -3,13 +3,15 @@ import { createPortal } from "react-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import BotaoIcone from "../components/core/BotaoIcone.jsx";
-import { Imprimir, Xis } from "../components/core/icones.jsx";
+import { Imprimir, Visto, Xis } from "../components/core/icones.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
+import Modal from "../components/feedback/Modal.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
-import { buscarProgramacao, salvarProgramacao } from "../services/programacao.js";
+import useTelaEstreita from "../hooks/useTelaEstreita.js";
+import { buscarProgramacao, concluirProgramacao, salvarProgramacao } from "../services/programacao.js";
 import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
 import {
   MODELO_2025,
@@ -77,7 +79,7 @@ function CampoHora({ valor, aoMudar, rotulo }) {
  *  As colunas dividem a largura por igual (table-layout fixed): o quadro cabe
  *  inteiro na tela do computador, sem rolar de lado, e as atividades quebram
  *  em duas linhas quando precisam, em vez de cortar. */
-function Bloco({ bloco, atividades, editando, aoMudar, aoApagar }) {
+function Bloco({ bloco, atividades, editando, aoMudar, aoApagar, estreito = false }) {
   const comNucleos = bloco.horarios.some((h) => h.modo === "por_nucleo");
   const linhas = comNucleos ? NUCLEOS : [null];
 
@@ -149,6 +151,50 @@ function Bloco({ bloco, atividades, editando, aoMudar, aoApagar }) {
   const ultima = colunas.at(-1)?.chave;
   const fim = (c) => (c.chave === ultima ? " prog__ultima" : "");
 
+  // No celular o quadro nao cabe de lado: cada horario vira um cartao, um
+  // embaixo do outro, com os quatro nucleos em linhas e o intervalo como um
+  // aviso entre dois cartoes. O nome do bloco ja esta na aba escolhida. So
+  // leitura: a programacao se edita no computador.
+  if (estreito) {
+    return (
+      <section className="prog-cel">
+        {bloco.horarios.length === 0 && <p className="prog__sem-horario">Nenhum horário ainda.</p>}
+        {bloco.horarios.map((h, i) => {
+          const folga = i > 0 ? intervalo(bloco.horarios[i - 1], h) : 0;
+          return (
+            <div key={i}>
+              {folga > 0 && <p className="prog-cel__intervalo">Intervalo de {tempoEscrito(folga)}</p>}
+              <article className="prog-cel__horario">
+                <header className="prog-cel__hora">
+                  <span className="prog__hora-faixa">
+                    {h.inicio}
+                    <span className="prog__hora-ate">–</span>
+                    {h.fim}
+                  </span>
+                  <span className="prog__duracao-tag">{duracao(h.inicio, h.fim)}</span>
+                </header>
+                {h.modo === "todos" ? (
+                  <div className="prog-cel__todos">
+                    <Atividade nome={h.atividade} atividades={atividades} />
+                  </div>
+                ) : (
+                  <ul className="prog-cel__nucleos">
+                    {NUCLEOS.map((n) => (
+                      <li key={n}>
+                        <span className="prog-cel__letra">{n}</span>
+                        <Atividade nome={h.nucleos?.[n]} atividades={atividades} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            </div>
+          );
+        })}
+      </section>
+    );
+  }
+
   return (
     <section className={`prog__bloco ${editando ? "prog__bloco--editando" : ""}`}>
       <header className="prog__faixa">
@@ -219,7 +265,7 @@ function Bloco({ bloco, atividades, editando, aoMudar, aoApagar }) {
                         <>
                           <span className="prog__hora-faixa">
                             {c.h.inicio}
-                            <span className="prog__hora-ate">até</span>
+                            <span className="prog__hora-ate">–</span>
                             {c.h.fim}
                           </span>
                           <span className="prog__duracao-tag">{duracao(c.h.inicio, c.h.fim)}</span>
@@ -306,10 +352,7 @@ function EditarAtividades({ atividades, aoMudar }) {
           + Atividade
         </Button>
       </div>
-      <p className="prog__secao-dica">
-        A cor com que cada atividade aparece no quadro. Ao escrever numa célula, as atividades daqui
-        aparecem como sugestão.
-      </p>
+      <p className="prog__secao-dica">A cor de cada atividade no quadro.</p>
       <div className="prog__atividades">
         {atividades.map((a, i) => (
           <span key={i} className="prog__atividade-linha">
@@ -385,15 +428,12 @@ function NucleosDoDia({ dia }) {
 }
 
 /** Os nucleos de todos os dias, na tela. */
-function NucleosPorDia({ dias }) {
+function NucleosPorDia({ dias, semTitulo = false }) {
   if (dias.length === 0) return null;
   return (
     <section className="prog__secao">
-      <h2 className="prog__secao-titulo">Núcleos</h2>
-      <p className="prog__secao-dica">
-        As instituições de cada núcleo e a cor da bata delas. Quem organiza é a coordenação da
-        monitoria, no painel dela.
-      </p>
+      {/* Na janela o titulo dela ja diz "Núcleos". */}
+      {!semTitulo && <h2 className="prog__secao-titulo">Núcleos</h2>}
       {dias.map((d) => (
         <div key={d.dia_evento_id} className="prog-nucleos__dia">
           <h3 className="prog-nucleos__dia-titulo">{nomeDoDia(d)}</h3>
@@ -416,9 +456,6 @@ function TempoPorNucleo({ blocos, atividades }) {
   return (
     <section className="prog__secao">
       <h2 className="prog__secao-titulo">Tempo de cada núcleo nos rodízios</h2>
-      <p className="prog__secao-dica">
-        Para conferir se o rodízio está justo: quanto cada núcleo fica em cada atividade.
-      </p>
       <div className="tabela-rolagem">
         <table className="tabela tabela--densa prog__tempo">
           <thead>
@@ -457,7 +494,8 @@ export default function Programacao() {
   const [rascunho, definirRascunho] = useState(null);
   const [erro, definirErro] = useState("");
   const [salvando, definirSalvando] = useState(false);
-  const [imprimindo, definirImprimindo] = useState(false);
+  const [confirmandoConclusao, definirConfirmandoConclusao] = useState(false);
+  const [concluindo, definirConcluindo] = useState(false);
 
   // Trocou de edicao na lateral: a programacao da outra some na hora, durante
   // o render, sem esperar o efeito.
@@ -479,19 +517,40 @@ export default function Programacao() {
     };
   }, [edicaoAtiva]);
 
-  const editando = rascunho !== null;
+  // No celular a programacao so se le: editar um quadro de rodizios numa
+  // tela estreita e trabalho de computador. Um rascunho comecado no
+  // computador continua guardado e volta quando a tela alarga.
+  const estreito = useTelaEstreita();
+  const editando = rascunho !== null && !estreito;
   const quadro = editando ? rascunho : salvo;
 
-  // Monta a folha fora do #root e so depois abre o dialogo: print() no mesmo
-  // quadro imprimiria a pagina sem ela (o mesmo cuidado do ImprimirLista).
-  function imprimir() {
-    definirImprimindo(true);
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        window.print();
-        definirImprimindo(false);
-      }),
-    );
+  // E aparece por partes, um bloco por aba. Os nucleos, no celular e no
+  // computador, ficam numa janela: a pagina e o quadro.
+  const [parte, definirParte] = useState(0);
+  const [vendoNucleos, definirVendoNucleos] = useState(false);
+  const partes = quadro ? quadro.blocos.map((b, i) => ({ id: i, rotulo: b.titulo || "Bloco" })) : [];
+  // O bloco escolhido pode deixar de existir: volta para o primeiro.
+  const parteAtual = partes.some((p) => p.id === parte) ? parte : 0;
+  const mostra = (id) => !estreito || parteAtual === id;
+
+
+  // A coordenacao geral monta e conclui; o resto da equipe so ve e imprime,
+  // e so depois de concluida. Quem diz e o servidor.
+  const podeEditar = Boolean(salvo?.pode_editar);
+  const concluida = Boolean(salvo?.concluida_em);
+
+  async function mudarConclusao(valor) {
+    definirErro("");
+    definirConcluindo(true);
+    try {
+      definirSalvo(await concluirProgramacao(edicaoAtiva, valor));
+      definirConfirmandoConclusao(false);
+      notificar(valor ? "Programação liberada para as equipes." : "Programação reaberta: só a coordenação vê.");
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirConcluindo(false);
+    }
   }
 
   async function salvar() {
@@ -513,29 +572,46 @@ export default function Programacao() {
   }
 
   return (
-    <div>
+    <div className="prog-pagina">
       <div className="pagina__cabecalho">
         <div className="pagina__texto">
-          <div className="pagina__eyebrow">Configurações</div>
+          <div className="pagina__eyebrow">Dia do evento</div>
           <h1 className="pagina__titulo">Programação</h1>
           <Rabisco className="pagina__onda" />
-          <p className="pagina__lede">
-            O quadro do dia do evento{edicao ? ` de ${edicao.nome}` : ""}: a abertura, os rodízios
-            de cada núcleo e o que todos fazem juntos.
-            {salvo?.atualizado_em &&
-              ` Última alteração em ${formatarDataHora(salvo.atualizado_em)}${
-                salvo.atualizado_por ? `, por ${salvo.atualizado_por}` : ""
-              }.`}
-          </p>
+          <p className="pagina__lede">Horários e rodízios do dia do evento.</p>
+          {salvo?.atualizado_em && (
+            <p className="prog__editado">
+              {podeEditar && (
+                <span className={`etiqueta ${concluida ? "etiqueta--ok" : "etiqueta--neutra"}`}>
+                  {concluida ? "Liberada para as equipes" : "Em montagem · só a coordenação vê"}
+                </span>
+              )}
+              Editado por {salvo.atualizado_por ?? "alguém da coordenação"} em{" "}
+              {formatarDataHora(salvo.atualizado_em)}
+            </p>
+          )}
         </div>
         {salvo?.existe && !editando && (
           <span className="prog__acoes-topo">
-            <Button size="sm" variant="ghost" iconLeft={<Imprimir t={16} />} onClick={imprimir}>
-              Imprimir programação
-            </Button>
-            <Button size="sm" onClick={() => definirRascunho(copia(salvo))}>
-              Editar programação
-            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              soIcone
+              titulo="Imprimir programação"
+              iconLeft={<Imprimir t={15} />}
+              onClick={() => window.print()}
+            />
+            {(salvo.nucleos ?? []).length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => definirVendoNucleos(true)}>
+                Ver núcleos
+              </Button>
+            )}
+            {/* Editar so no computador, e so a coordenacao. */}
+            {podeEditar && !estreito && (
+              <Button size="sm" onClick={() => definirRascunho(copia(salvo))}>
+                Editar programação
+              </Button>
+            )}
           </span>
         )}
       </div>
@@ -544,17 +620,30 @@ export default function Programacao() {
 
       {!salvo && !erro && <Carregando tela>Buscando a programação...</Carregando>}
 
-      {salvo && !salvo.existe && !editando && (
+      {salvo && !salvo.existe && !editando && !podeEditar && (
+        <EmptyState
+          titulo="A programação ainda não foi liberada"
+          corpo="Assim que a coordenação liberar a programação, ela aparece aqui."
+        />
+      )}
+
+      {salvo && !salvo.existe && !editando && podeEditar && (
         <EmptyState
           titulo="Esta edição ainda não tem programação"
-          corpo="Comece pelo quadro de 2025 e ajuste o que mudar neste ano, ou monte do zero."
+          corpo={
+            estreito
+              ? "A programação é montada no computador. Assim que for salva, aparece aqui."
+              : "Comece pelo quadro de 2025 e ajuste o que mudar neste ano, ou monte do zero."
+          }
           acao={
-            <span style={{ display: "inline-flex", flexWrap: "wrap", gap: "var(--space-2)", justifyContent: "center" }}>
-              <Button onClick={() => definirRascunho(copia(MODELO_2025))}>Usar o quadro de 2025</Button>
-              <Button variant="ghost" onClick={() => definirRascunho(copia(QUADRO_VAZIO))}>
-                Começar do zero
-              </Button>
-            </span>
+            !estreito && (
+              <span style={{ display: "inline-flex", flexWrap: "wrap", gap: "var(--space-2)", justifyContent: "center" }}>
+                <Button onClick={() => definirRascunho(copia(MODELO_2025))}>Usar o quadro de 2025</Button>
+                <Button variant="ghost" onClick={() => definirRascunho(copia(QUADRO_VAZIO))}>
+                  Começar do zero
+                </Button>
+              </span>
+            )
           }
         />
       )}
@@ -568,20 +657,68 @@ export default function Programacao() {
             ))}
           </datalist>
 
-          {quadro.blocos.map((b, i) => (
-            <Bloco
-              key={i}
-              bloco={b}
-              atividades={quadro.atividades}
-              editando={editando}
-              aoMudar={(novo) =>
-                definirRascunho((r) => ({ ...r, blocos: r.blocos.map((x, j) => (j === i ? novo : x)) }))
-              }
-              aoApagar={() =>
-                definirRascunho((r) => ({ ...r, blocos: r.blocos.filter((_, j) => j !== i) }))
-              }
-            />
-          ))}
+          {estreito && (
+            // Todas as abas a vista, cada uma com a mesma largura, sem arrastar
+            // de lado: "Rodizios - Manha" quebra no traco, uma palavra por linha.
+            <div className="prog-abas" role="tablist" style={{ gridTemplateColumns: `repeat(${partes.length}, minmax(0, 1fr))` }}>
+              {partes.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={parteAtual === p.id}
+                  className={`aba ${parteAtual === p.id ? "aba--ativa" : ""}`}
+                  onClick={() => definirParte(p.id)}
+                >
+                  {p.rotulo.split(/\s+[-–]\s+/).map((pedaco, k) => (
+                    <span key={k}>{pedaco}</span>
+                  ))}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className={editando ? undefined : "prog__quadros"}>
+            {quadro.blocos.map((b, i) =>
+              mostra(i) ? (
+                <Bloco
+                  key={i}
+                  bloco={b}
+                  atividades={quadro.atividades}
+                  editando={editando}
+                  estreito={estreito}
+                  aoMudar={(novo) =>
+                    definirRascunho((r) => ({ ...r, blocos: r.blocos.map((x, j) => (j === i ? novo : x)) }))
+                  }
+                  aoApagar={() =>
+                    definirRascunho((r) => ({ ...r, blocos: r.blocos.filter((_, j) => j !== i) }))
+                  }
+                />
+              ) : null,
+            )}
+          </div>
+
+          {/* Liberar fica embaixo, a direita, longe dos botoes do dia a dia:
+              e o passo final, feito uma vez, depois de conferir o quadro. So no
+              computador, como a edicao. */}
+          {podeEditar && !editando && !estreito && (
+            <div className="prog__liberar">
+              {concluida ? (
+                <Button size="sm" variant="ghost" onClick={() => mudarConclusao(false)} carregando={concluindo}>
+                  Reabrir para ajustes
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="suave"
+                  iconLeft={<Visto t={15} />}
+                  onClick={() => definirConfirmandoConclusao(true)}
+                >
+                  Liberar para as equipes
+                </Button>
+              )}
+            </div>
+          )}
 
           {editando && (
             <>
@@ -606,9 +743,17 @@ export default function Programacao() {
             </>
           )}
 
-          {!editando && <NucleosPorDia dias={salvo.nucleos ?? []} />}
+          {/* O tempo de cada nucleo e conferencia de quem monta o rodizio: so
+              aparece na edicao. */}
+          {editando && <TempoPorNucleo blocos={quadro.blocos} atividades={quadro.atividades} />}
 
-          <TempoPorNucleo blocos={quadro.blocos} atividades={quadro.atividades} />
+          {vendoNucleos && !editando && (
+            <Modal titulo="Núcleos" rotulo="Programação" tamanho="largo" aoFechar={() => definirVendoNucleos(false)}>
+              <div className="prog-info">
+                <NucleosPorDia dias={salvo.nucleos ?? []} semTitulo />
+              </div>
+            </Modal>
+          )}
 
           {editando && (
             <div className="prog__barra-edicao">
@@ -626,12 +771,38 @@ export default function Programacao() {
         </>
       )}
 
+      {confirmandoConclusao && (
+        <Modal
+          titulo="Liberar a programação para as equipes?"
+          aoFechar={() => definirConfirmandoConclusao(false)}
+          rodape={
+            <>
+              <Button variant="ghost" onClick={() => definirConfirmandoConclusao(false)} disabled={concluindo}>
+                Cancelar
+              </Button>
+              <Button onClick={() => mudarConclusao(true)} carregando={concluindo}>
+                Liberar
+              </Button>
+            </>
+          }
+        >
+          <p className="prog__confirmar">
+            Todas as equipes da edição passam a ver e imprimir a programação. Você
+            ainda pode editar depois, e quem abrir verá a versão salva.
+          </p>
+        </Modal>
+      )}
+
       {/* A folha: A4 deitado, o quadro inteiro numa pagina so, para colar na
           parede e entregar a cada monitor. Sai do que esta SALVO, nunca do
           rascunho. A regra @page vai junto, como no ImprimirLista: e o jeito
           confiavel de o papel sair deitado. */}
-      {imprimindo &&
-        salvo?.existe &&
+      {/* A folha fica SEMPRE montada (escondida na tela pelo CSS), e nao so
+          enquanto se imprime: no celular o print() nao espera o dialogo
+          fechar — volta na hora, e a folha que sumia logo depois saia em
+          branco. Montada, tambem vale o "Imprimir" do proprio navegador. */}
+      {salvo?.existe &&
+        !editando &&
         createPortal(
           <div className="impressao">
             <style>{"@page { size: A4 landscape; margin: 8mm; }"}</style>
@@ -648,7 +819,7 @@ export default function Programacao() {
                     </p>
                   </div>
                   <p className="prog-folha__quando">
-                    Impresso em {formatarDataHora(new Date().toISOString())}
+                    Impresso em {new Date().toLocaleDateString("pt-BR")}
                   </p>
                 </header>
                 {salvo.blocos.map((b, i) => (

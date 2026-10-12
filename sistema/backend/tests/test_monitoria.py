@@ -255,8 +255,26 @@ def main() -> None:
                  cc.put(f"/programacao/{edicao.id}", json=ruim).status_code == 422)
         verifica("a coordenacao da monitoria nao mexe na programacao",
                  cm.put(f"/programacao/{edicao.id}", json=prog).status_code == 403)
-        verifica("nem o monitor ve",
-                 mo.get(f"/programacao/{edicao.id}").status_code == 403)
+        r = mo.get(f"/programacao/{edicao.id}")
+        verifica("antes de concluida, o monitor ainda nao ve o quadro",
+                 r.status_code == 200 and r.json()["existe"] is False
+                 and r.json()["blocos"] == [], r.text[:160])
+        verifica("o monitor nao conclui",
+                 mo.put(f"/programacao/{edicao.id}/conclusao", json={"concluida": True}).status_code == 403)
+        r = cc.put(f"/programacao/{edicao.id}/conclusao", json={"concluida": True})
+        verifica("a coordenacao geral conclui",
+                 r.status_code == 200 and r.json()["concluida_por"] == f"{MARCA} Coord", r.text[:160])
+        r = mo.get(f"/programacao/{edicao.id}")
+        p = r.json() if r.status_code == 200 else {}
+        verifica("concluida, o monitor ve o quadro e os nucleos, sem poder editar",
+                 p.get("existe") is True and p.get("pode_editar") is False
+                 and p["blocos"][0]["horarios"][1]["atividade"] == "Mágico" and p.get("nucleos"),
+                 str(p)[:200])
+        verifica("e continua sem salvar",
+                 mo.put(f"/programacao/{edicao.id}", json=prog).status_code == 403)
+        r = cc.put(f"/programacao/{edicao.id}/conclusao", json={"concluida": False})
+        verifica("reaberta, some de novo para o monitor",
+                 r.status_code == 200 and mo.get(f"/programacao/{edicao.id}").json()["existe"] is False)
     finally:
         limpar(db, log_inicial)
         db.close()
