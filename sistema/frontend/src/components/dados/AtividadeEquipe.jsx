@@ -39,7 +39,7 @@ function Situacao({ pessoa }) {
   }
   const dias = diasDesde(pessoa.ultimo_acesso);
   if (dias >= PARADO_DIAS) {
-    return <span className="etiqueta etiqueta--espera">Sem entrar há {dias} dias</span>;
+    return <span className="etiqueta etiqueta--neutra">Sem entrar há {dias} dias</span>;
   }
   return null;
 }

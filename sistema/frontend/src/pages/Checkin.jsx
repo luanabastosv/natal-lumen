@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Rabisco from "../components/core/Rabisco.jsx";
-import Button from "../components/core/Button.jsx";
 import { Entrada } from "../components/core/Campo.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useSessao } from "../contexts/useSessao.js";
@@ -11,28 +10,20 @@ import {
   listaDoCheckin,
   marcarFalta,
 } from "../services/logistica.js";
-import { Cuidado, Visto } from "../components/core/icones.jsx";
+import { Cuidado, Visto, Xis } from "../components/core/icones.jsx";
 import Estrelinhas from "../components/feedback/Estrelinhas.jsx";
-import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
-import { formatarData, formatarDataHora } from "../utils/dinheiro.js";
+import { formatarData } from "../utils/dinheiro.js";
 import EtiquetaDesistente from "../components/core/EtiquetaDesistente.jsx";
 
 export default function Checkin() {
   const { usuario, vinculoAtivo, edicaoAtiva } = useSessao();
 
-  // Duas telas para o mesmo check-in. Quem alcanca a edicao inteira fica na
-  // porta, com o leitor de QR, e recebe qualquer crianca: para essa pessoa uma
-  // lista de mil nomes nao ajudaria. O monitor responde por uma ou duas
-  // instituicoes e confirma a turma dele no onibus, a caminho do evento — ali
-  // a lista e mais rapida que digitar codigo. Quem separa os dois e o alcance
-  // (`instituicoes` so vem preenchido para quem e filtrado por elas), e nao o
-  // nome do perfil.
-  const porLista = !usuario?.admin_geral && Array.isArray(vinculoAtivo?.instituicoes);
-  // A administracao geral ve as duas: o codigo em cima, para a porta, e a
-  // lista embaixo, do jeito que o monitor ve — e quem acompanha e testa as
-  // duas telas. Confirmar pelo codigo atualiza a lista.
-  const asDuas = Boolean(usuario?.admin_geral);
-  const [confirmadosPorCodigo, definirConfirmadosPorCodigo] = useState(0);
+  // Uma tela so: a lista. Nao ha leitor de QR no evento — a tela da porta,
+  // com o codigo do cracha, saiu. O monitor ve a turma das instituicoes dele;
+  // quem alcanca a edicao inteira ve todas, com a busca por nome ou codigo,
+  // porque mil nomes sem busca nao se percorrem. Quem separa os dois e o
+  // alcance (`instituicoes` so vem preenchido para quem e filtrado por elas).
+  const daEdicaoInteira = Boolean(usuario?.admin_geral) || !Array.isArray(vinculoAtivo?.instituicoes);
 
   // O check-in so abre nos dias do evento da edicao. Quem decide e o backend
   // (ele recusa o registro fora do dia); a tela so pergunta antes, para nao
@@ -59,15 +50,7 @@ export default function Checkin() {
   if (erroSituacao) conteudo = <Mensagem tipo="erro">{erroSituacao}</Mensagem>;
   else if (situacao === null) conteudo = <Estrelinhas />;
   else if (!situacao.aberto) conteudo = <CheckinFechado dias={situacao.dias} hoje={situacao.hoje} />;
-  else if (asDuas)
-    conteudo = (
-      <>
-        <CheckinPorCodigo aoConfirmar={() => definirConfirmadosPorCodigo((n) => n + 1)} />
-        <h2 className="painel__titulo checkin__titulo-lista">Como o monitor vê</h2>
-        <CheckinPorLista recarregarEm={confirmadosPorCodigo} comBusca />
-      </>
-    );
-  else conteudo = porLista ? <CheckinPorLista /> : <CheckinPorCodigo />;
+  else conteudo = <CheckinPorLista comBusca={daEdicaoInteira} />;
 
   return (
     <div>
@@ -77,9 +60,7 @@ export default function Checkin() {
       <h1 className="pagina__titulo">Check-in</h1>
       <Rabisco className="pagina__onda" />
       <p className="pagina__lede">
-        {porLista
-          ? "Toque para confirmar a presença. O check-in nunca é recusado, só avisa."
-          : "Leia o QR do crachá ou digite o código. O check-in nunca é recusado, só avisa."}
+        Toque para confirmar a presença ou a falta de cada criança.
       </p>
 
       {conteudo}
@@ -111,7 +92,7 @@ function CheckinFechado({ dias, hoje }) {
 /** `comBusca`: o campo de busca por nome ou codigo. O monitor nao precisa —
  *  a turma dele cabe na tela, e ele confere de cima para baixo. Fica para a
  *  administracao, que ve a edicao inteira. */
-function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
+function CheckinPorLista({ comBusca = false }) {
   const { edicaoAtiva, vinculoAtivo } = useSessao();
 
   const [linhas, definirLinhas] = useState(null);
@@ -134,10 +115,9 @@ function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
 
   useEffect(() => {
     // Buscar no servidor e justamente o que este efeito existe para fazer.
-    // `recarregarEm` muda quando alguem confirma pelo codigo na mesma tela.
     // eslint-disable-next-line react/set-state-in-effect
     carregar();
-  }, [carregar, recarregarEm]);
+  }, [carregar]);
 
   // Monitor costuma ir em dupla ou trio, cada um no seu celular. Ao voltar
   // para a tela (depois de trocar de app, ou de bloquear o celular), a lista
@@ -302,7 +282,7 @@ function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
                             aria-label={`${l.nome}: presente desde ${formatarHora(l.checkin_em)}`}
                           >
                             <Visto t={16} />
-                            {formatarHora(l.checkin_em)}
+                            <span className="checkin-lista__rotulo">{formatarHora(l.checkin_em)}</span>
                           </span>
                         ) : (
                           <span
@@ -310,7 +290,8 @@ function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
                             role="img"
                             aria-label={`${l.nome}: faltou`}
                           >
-                            Faltou
+                            <Xis t={16} />
+                            <span className="checkin-lista__rotulo">Faltou</span>
                           </span>
                         )}
                         {/* Pequeno e embaixo, e nao no lugar do botao:
@@ -339,7 +320,14 @@ function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
                           disabled={ocupado || !edicaoAtiva}
                           onClick={() => confirmar(l)}
                         >
-                          {ocupado ? <Estrelinhas tamanho={13} /> : "Presente"}
+                          {ocupado ? (
+                            <Estrelinhas tamanho={13} />
+                          ) : (
+                            <>
+                              <Visto t={18} />
+                              <span className="checkin-lista__rotulo">Presente</span>
+                            </>
+                          )}
                         </button>
                         <button
                           type="button"
@@ -348,7 +336,8 @@ function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
                           disabled={ocupado || !edicaoAtiva}
                           onClick={() => trocar(l, marcarFalta)}
                         >
-                          Faltou
+                          <Xis t={18} />
+                          <span className="checkin-lista__rotulo">Faltou</span>
                         </button>
                       </span>
                     )}
@@ -374,197 +363,4 @@ function CheckinPorLista({ recarregarEm = 0, comBusca = false }) {
 
 function formatarHora(iso) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
-
-/** A tela da porta: leitor de QR ou codigo digitado, para qualquer crianca. */
-function CheckinPorCodigo({ aoConfirmar }) {
-  // A edicao vem da lateral: e a mesma para o sistema inteiro.
-  const { edicaoAtiva } = useSessao();
-
-  const [codigo, definirCodigo] = useState("");
-  const [resultado, definirResultado] = useState(null);
-  const [historico, definirHistorico] = useState([]);
-  const [erro, definirErro] = useState("");
-  const [enviando, definirEnviando] = useState(false);
-
-  const campoCodigo = useRef(null);
-
-  async function registrar(evento) {
-    evento.preventDefault();
-    definirErro("");
-    definirEnviando(true);
-
-    // O QR do crachá traz "edicao:codigo"; digitado, vem só o código.
-    const lido = codigo.trim();
-    const soCodigo = lido.includes(":") ? lido.split(":").pop() : lido;
-
-    try {
-      const entrada = await fazerCheckin(soCodigo, Number(edicaoAtiva));
-      definirResultado(entrada);
-      definirHistorico((h) => [entrada, ...h].slice(0, 15));
-      definirCodigo("");
-      aoConfirmar?.();
-    } catch (e) {
-      definirErro(e.message);
-      definirResultado(null);
-    } finally {
-      definirEnviando(false);
-      // Devolve o foco para o campo: na porta, um check-in vem atrás do outro.
-      campoCodigo.current?.focus();
-    }
-  }
-
-  /** Desfaz a entrada (o codigo trocado na porta): a crianca volta a nao ter
-   *  check-in, e a linha fica marcada como desfeita no historico. */
-  async function desfazerEntrada(entrada) {
-    definirErro("");
-    try {
-      await desfazerCheckin(entrada.crianca_id, Number(edicaoAtiva));
-      const marcar = (h) => (h.crianca_id === entrada.crianca_id ? { ...h, desfeito: true } : h);
-      definirHistorico((hs) => hs.map(marcar));
-      definirResultado((r) => (r && r.crianca_id === entrada.crianca_id ? marcar(r) : r));
-      aoConfirmar?.();
-    } catch (e) {
-      definirErro(e.message);
-    }
-  }
-
-  return (
-    <>
-      <Mensagem tipo="erro">{erro}</Mensagem>
-
-      <form className="painel" onSubmit={registrar}>
-        <div className="linha-campos">
-          <Entrada
-            rotulo="Código da criança"
-            value={codigo}
-            onChange={(e) => definirCodigo(e.target.value)}
-            ref={campoCodigo}
-            autoFocus
-            dica="O leitor de QR digita sozinho e confirma."
-          />
-        </div>
-        <Button type="submit" carregando={enviando} disabled={!codigo.trim() || !edicaoAtiva}>
-          Registrar entrada
-        </Button>
-      </form>
-
-      {resultado && (
-        <div className={`painel ${resultado.avisos.length ? "painel--destaque" : ""}`}>
-          <h2 className="painel__titulo">
-            {resultado.nome}, {resultado.idade} anos
-          </h2>
-          <p style={{ margin: "0 0 var(--space-4)", fontSize: "var(--size-body-sm)" }}>
-            {resultado.instituicao}
-            {resultado.dia_evento && (
-              <>
-                {" · "}
-                <EtiquetaDia
-                  data={resultado.dia_evento}
-                  descricao={resultado.dia_evento_descricao}
-                />
-              </>
-            )}
-            {/* O kit e montado ou nao: o estado "entregue" saiu do sistema, e
-                a entrega no dia e este proprio check-in. Nulo quer dizer outra
-                coisa: quem esta na porta nao monta kit, e o estado dele nao e
-                assunto dessa pessoa. */}
-            {resultado.kit_status !== null && (
-              <>
-                {" · "}
-                <span
-                  className={`etiqueta etiqueta--${resultado.kit_status === "montado" ? "ok" : "espera"}`}
-                >
-                  kit {resultado.kit_status}
-                </span>
-              </>
-            )}
-          </p>
-
-          {resultado.desfeito ? (
-            <Mensagem tipo="aviso">Check-in desfeito: esta criança não está mais com presença.</Mensagem>
-          ) : resultado.avisos.length === 0 ? (
-            <Mensagem tipo="sucesso">Tudo certo. Pode entrar!</Mensagem>
-          ) : (
-            <Mensagem tipo="aviso">
-              <strong>Atenção:</strong>
-              <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-                {resultado.avisos.map((a) => (
-                  <li key={a}>{a}</li>
-                ))}
-              </ul>
-            </Mensagem>
-          )}
-
-          {!resultado.desfeito && (
-            <Button size="sm" variant="ghost" onClick={() => desfazerEntrada(resultado)}>
-              Desfazer check-in
-            </Button>
-          )}
-        </div>
-      )}
-
-      {historico.length > 0 && (
-        <>
-          <h2 className="painel__titulo">Últimas entradas</h2>
-          <div className="tabela-rolagem">
-            <table className="tabela">
-              <thead>
-                <tr>
-                  <th>Criança</th>
-                  {/* No celular a instituicao desce para debaixo do nome em vez
-                      de virar coluna: sao quatro colunas e a tela do check-in e
-                      quase sempre um celular na porta do onibus. Uma janela
-                      para esconder um dado so custaria um toque por linha numa
-                      lista que se le de relance. */}
-                  <th className="so-no-monitor">Instituição</th>
-                  <th>Hora</th>
-                  <th>Avisos</th>
-                  <th className="tabela__acoes" />
-                </tr>
-              </thead>
-              <tbody>
-                {historico.map((h, i) => (
-                  <tr key={`${h.crianca_id}-${i}`}>
-                    <td>
-                      {h.nome}
-                      <span className="so-no-celular">
-                        <br />
-                        <span className="campo__dica">{h.instituicao}</span>
-                      </span>
-                    </td>
-                    <td className="so-no-monitor">{h.instituicao}</td>
-                    <td>{formatarDataHora(h.checkin_em)}</td>
-                    <td>
-                      {h.desfeito ? (
-                        <span className="etiqueta etiqueta--neutra">desfeito</span>
-                      ) : h.avisos.length === 0 ? (
-                        <span className="etiqueta etiqueta--ok">ok</span>
-                      ) : (
-                        <span className="etiqueta etiqueta--espera">
-                          {h.avisos.length} aviso(s)
-                        </span>
-                      )}
-                    </td>
-                    <td className="tabela__acoes">
-                      {!h.desfeito && (
-                        <button
-                          type="button"
-                          className="checkin-lista__desfazer"
-                          onClick={() => desfazerEntrada(h)}
-                          aria-label={`Desfazer o check-in de ${h.nome}`}
-                        >
-                          desfazer
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </>
-  );
 }
