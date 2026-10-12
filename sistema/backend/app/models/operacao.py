@@ -13,6 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -288,3 +289,26 @@ class Crianca(Base):
     def primeiro_nome(self) -> str:
         """O padrinho recebe apenas o primeiro nome e a idade da crianca."""
         return self.nome.strip().split(" ")[0]
+
+
+class Programacao(Base):
+    """A programacao do dia do evento de uma edicao: a abertura, os rodizios
+    de cada nucleo e o que todos fazem juntos.
+
+    Fica inteira num JSON so, e nao em tabelas: e um quadro que a coordenacao
+    edita como um todo (troca um horario, acrescenta um rodizio, muda a
+    atividade de um nucleo) e salva de uma vez. Nenhuma outra tela consulta
+    um pedaco dela. A forma do JSON e conferida em schemas/programacao.py.
+    """
+
+    __tablename__ = "programacoes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    edicao_id: Mapped[int] = mapped_column(
+        ForeignKey("edicoes.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    dados: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    atualizado_em: Mapped[MomentoOpcional]
+    atualizado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )

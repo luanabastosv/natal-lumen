@@ -19,6 +19,7 @@ import Cuidados from "./pages/Cuidados.jsx";
 import NovoPadrinho from "./pages/NovoPadrinho.jsx";
 import Padrinhos from "./pages/Padrinhos.jsx";
 import CidadesEdicoes from "./pages/CidadesEdicoes.jsx";
+import Programacao from "./pages/Programacao.jsx";
 import Instituicoes from "./pages/Instituicoes.jsx";
 import Painel from "./pages/Painel.jsx";
 import Usuarios from "./pages/Usuarios.jsx";
@@ -36,6 +37,7 @@ const PRONTAS = {
   "/usuarios": <Usuarios />,
   "/instituicoes": <Instituicoes />,
   "/cidades-edicoes": <CidadesEdicoes />,
+  "/programacao": <Programacao />,
 };
 
 const SECOES = ROTAS.filter((i) => i.para !== "/painel");

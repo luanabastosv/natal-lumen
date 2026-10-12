@@ -2502,6 +2502,32 @@ button.celula:hover {
 /* Nos paineis o rotulo sempre diz DO QUE e a barra — "Apadr. cesta" ou
    "Cartão cesta" — e nao so "Cesta": o mesmo numero de cesta quer dizer
    padrinho num painel e papel no outro. Ver docs/PADROES_UI.md. */
+/* No celular estreito o rotulo vai numa linha propria, em cima da barra: ao
+   lado dela, "CARTÃO CESTA" nao cabia nos 7,5em e era cortado. */
+@media (max-width: 480px) {
+  .pasta__barras .progresso,
+  .lista-progresso .progresso {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "rotulo rotulo" "trilho valor";
+    row-gap: 4px;
+  }
+
+  .pasta__barras .progresso__rotulo,
+  .lista-progresso .progresso__rotulo {
+    grid-area: rotulo;
+  }
+
+  .pasta__barras .progresso__trilho,
+  .lista-progresso .progresso__trilho {
+    grid-area: trilho;
+  }
+
+  .pasta__barras .progresso__valor,
+  .lista-progresso .progresso__valor {
+    grid-area: valor;
+  }
+}
+
 .pasta__barras .progresso__rotulo,
 .lista-progresso .progresso__rotulo {
   white-space: nowrap;
@@ -5220,11 +5246,44 @@ button.checkin-lista__botao:not(:disabled):active {
    para nao roubar largura do nome. */
 @media (max-width: 720px) {
   .checkin-lista th.checkin-lista__coluna-acao {
-    width: 184px;
+    width: 148px;
   }
 
   .checkin-lista__topo .campo {
     max-width: none;
+  }
+
+  /* No celular o botao vira um quadrado grande de dedo (56 x 56), com o icone
+     no meio e a palavra pequena embaixo. Lado a lado como pilulas, "Presente"
+     e "Faltou" nao cabiam: empurravam o nome para uma coluna de tres letras
+     e o "Faltou" saia da tela. */
+  .checkin-lista__botao {
+    flex-direction: column;
+    gap: 2px;
+    min-width: 68px;
+    width: 68px;
+    height: 56px;
+    padding: 0;
+    border-radius: var(--radius-md);
+  }
+
+  .checkin-lista__rotulo {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .checkin-lista__escolha {
+    gap: var(--space-2);
+  }
+
+  /* Ja marcado: o mesmo quadrado, cheio; a hora no lugar da palavra. */
+  .checkin-lista__feito .checkin-lista__botao {
+    width: 68px;
+  }
+
+  .checkin-lista td:first-child {
+    font-size: 12px;
   }
 }
 
@@ -6602,7 +6661,7 @@ button.checkin-lista__botao:not(:disabled):active {
 }
 
 .nucleo__parte--fora {
-  background: var(--amarelo-600);
+  background: #e57368;
 }
 
 .nucleo__ideal {
@@ -6616,7 +6675,7 @@ button.checkin-lista__botao:not(:disabled):active {
 .nucleo__desvio {
   font-size: 11px;
   font-weight: 700;
-  color: #8a6100;
+  color: #a93226;
 }
 
 .nucleo__vazio {
@@ -6698,7 +6757,7 @@ button.checkin-lista__botao:not(:disabled):active {
 }
 
 .nucleos-evento__falta {
-  color: #8a6100;
+  color: #a93226;
   font-weight: 700;
 }
 
@@ -6794,4 +6853,862 @@ button.checkin-lista__botao:not(:disabled):active {
 
 .barra-acoes--filtros > .campo + .campo {
   flex: 0 1 220px;
+}
+
+
+/* ---------- Campos de data no celular ----------
+   O Safari do iPhone desenha o campo de data com uma largura minima propria,
+   maior que a coluna: lado a lado com outro campo, ele invadia o vizinho e
+   quebrava a pagina. Sem a aparencia nativa e com min-width 0, o campo
+   obedece a largura da coluna; tocar nele continua abrindo o calendario. */
+.campo,
+.linha-campos > * {
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .campo__controle[type="date"],
+  .campo__controle[type="time"],
+  .campo__controle[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .campo__controle[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
+
+/* ---------- Fim do apadrinhamento no celular: os dois passos ----------
+   Cartoes grandes, com o numero do passo e um botao dentro. So o passo da vez
+   ganha cor — o azul claro do sistema com a borda azul-escura, a mesma do
+   botao secundario —; os outros ficam brancos. Assim nunca ha dois cartoes
+   disputando o olho: feito o passo 1, a cor passa para o passo 2. */
+.apadrinhar-final__chamada {
+  margin: 0 0 var(--space-3);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--navy-900);
+}
+
+.passo-final__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.passo-final {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  font: inherit;
+  text-align: left;
+  color: var(--text-on-light-secondary);
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.passo-final:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.passo-final:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.passo-final:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.passo-final--vez {
+  color: var(--navy-900);
+  background: var(--navy-100);
+  border-color: var(--navy-700);
+}
+
+/* O icone, sem fundo: so o desenho, na cor do texto. */
+.passo-final__icone {
+  flex: none;
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--navy-700);
+}
+
+.passo-final--feito .passo-final__icone {
+  color: var(--navy-500);
+}
+
+.passo-final__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.passo-final__texto strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--navy-900);
+}
+
+.passo-final__numero {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--navy-500);
+}
+
+/* A acao do cartao, numa pilula de botao: cheia no passo da vez, so contorno
+   nos outros. */
+.passo-final__acao {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin-top: var(--space-2);
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy-700);
+  background: var(--white);
+  border: 1px solid var(--navy-300);
+  border-radius: var(--radius-pill);
+}
+
+.passo-final--vez .passo-final__acao {
+  color: var(--white);
+  background: var(--navy-700);
+  border-color: var(--navy-700);
+}
+
+/* ---------- Check-in: verde para presente, vermelho claro para faltou ----------
+   As duas respostas se separam pela cor, alem do icone: no patio, com pressa,
+   o dedo acha o verde sem ler. */
+.checkin-lista__botao:not(.checkin-lista__botao--falta):not(.checkin-lista__botao--feito):not(.checkin-lista__botao--faltou) {
+  color: #1b7a43;
+  border-color: #2e9e5b;
+}
+
+@media (hover: hover) {
+  button.checkin-lista__botao:not(.checkin-lista__botao--falta):not(:disabled):hover {
+    background: #e6f5ec;
+  }
+}
+
+.checkin-lista__botao--falta {
+  color: #c0392b;
+  border-color: #f1a9a0;
+}
+
+@media (hover: hover) {
+  button.checkin-lista__botao--falta:not(:disabled):hover {
+    background: #fdecec;
+    border-color: #e57368;
+    color: #a93226;
+  }
+}
+
+/* Marcado presente: o verde cheio, com o visto e a hora. */
+.checkin-lista__botao--feito {
+  background: #2e9e5b;
+  border-color: #2e9e5b;
+  color: var(--white);
+}
+
+/* Marcado falta: o vermelho claro, cheio. */
+.checkin-lista__botao--faltou {
+  background: #fde3e0;
+  border-color: #f1a9a0;
+  color: #a93226;
+}
+
+/* ---------- Programacao do dia do evento ----------
+   O quadro da planilha de sempre, na identidade do sistema: cada bloco e um
+   cartao com a faixa azul do nome, o horario numa linha azul clara, a
+   duracao embaixo, uma linha por nucleo e o intervalo numa coluna estreita.
+   As colunas dividem a largura por igual (table-layout fixed), entao o
+   quadro cabe inteiro no computador; no celular ele ganha largura minima e
+   rola de lado, como planilha. */
+.prog__bloco {
+  max-width: 1100px;
+  margin: 0 auto var(--space-5);
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.prog__faixa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 38px;
+  padding: 6px var(--space-4);
+  background: var(--navy-700);
+  color: var(--white);
+}
+
+.prog__faixa-titulo {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prog__bloco--editando .prog__faixa {
+  justify-content: space-between;
+}
+
+.prog__faixa-campo {
+  flex: 1;
+  max-width: 360px;
+  height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-sm);
+}
+
+.prog__faixa-campo:focus {
+  outline: none;
+  border-color: var(--white);
+}
+
+.prog__faixa-acoes {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.prog__faixa-botao {
+  height: 30px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--white);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.prog__faixa-botao:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.prog__sem-horario {
+  margin: 0;
+  padding: var(--space-5);
+  font-size: 13px;
+  text-align: center;
+  color: var(--text-on-light-muted);
+}
+
+.prog__rolagem {
+  overflow-x: auto;
+}
+
+.prog__quadro {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.prog__col-nucleo {
+  width: 36px;
+}
+
+.prog__col-intervalo {
+  width: 24px;
+}
+
+.prog__quadro th,
+.prog__quadro td {
+  padding: 6px 5px;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  overflow-wrap: anywhere;
+}
+
+.prog__quadro .prog__ultima {
+  border-right: none;
+}
+
+/* O contorno do bloco ja fecha o quadro embaixo. As celulas que descem ate o
+   fim (o intervalo e o horario de "todos") moram na primeira linha, entao a
+   regra da ultima linha nao as alcanca: vao pelo nome. */
+.prog__linha-nucleo:last-child > *,
+.prog__quadro .prog__intervalo,
+.prog__quadro .prog__todos {
+  border-bottom: none;
+}
+
+/* O horario: as duas horas, sempre inteiras, com o "ate" pequeno no meio. */
+.prog__hora {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy-900);
+  background: var(--navy-100);
+  font-variant-numeric: tabular-nums;
+}
+
+/* As duas horas nunca se separam; a etiqueta da duracao vai ao lado e so
+   desce para baixo quando a coluna e estreita. */
+.prog__hora-faixa {
+  white-space: nowrap;
+}
+
+.prog__duracao-tag {
+  margin-left: 5px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--navy-700);
+  background: var(--white);
+  border: 1px solid var(--navy-200);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.prog__hora > span {
+  display: inline-block;
+}
+
+.prog__hora-ate {
+  margin: 0 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--navy-500);
+  text-transform: uppercase;
+}
+
+.prog__duracao {
+  height: 30px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--navy-500);
+  background: var(--navy-50);
+  font-variant-numeric: tabular-nums;
+}
+
+.prog__canto {
+  background: var(--navy-100);
+}
+
+.prog__nucleo {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy-700);
+  background: var(--navy-50);
+}
+
+/* O intervalo: uma fita cinza, com o tempo escrito de pe. */
+.prog__intervalo {
+  padding: 4px 0 !important;
+  background: var(--cream-100);
+  color: var(--text-on-light-muted);
+}
+
+.prog__intervalo span {
+  display: inline-block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.prog__celula {
+  height: 32px;
+}
+
+.prog__atividade {
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.prog__vazio {
+  color: var(--border-default);
+}
+
+/* ---- Edicao: os campos moram dentro das celulas, sem caixa, e so ganham
+   contorno ao passar o mouse ou ao focar. O quadro continua sendo o quadro. */
+.prog__bloco--editando .prog__quadro th,
+.prog__bloco--editando .prog__quadro td {
+  padding: 4px;
+}
+
+.prog__hora-edicao {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.prog__hora-campo {
+  width: 46px;
+  height: 26px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--navy-900);
+  background: var(--white);
+  border: 1px solid var(--navy-200);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.prog__hora-campo:focus {
+  outline: none;
+  border-color: var(--navy-700);
+}
+
+.prog__tirar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0;
+  color: var(--text-on-light-muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.prog__tirar:hover {
+  color: #a93226;
+  background: #fdecec;
+}
+
+/* "Por nucleo | Todos": duas opcoes encostadas, a escolhida em azul. */
+.prog__modo {
+  display: inline-flex;
+  border: 1px solid var(--navy-200);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.prog__modo-opcao {
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--navy-500);
+  background: var(--white);
+  border: none;
+  cursor: pointer;
+}
+
+.prog__modo-opcao--ativa {
+  color: var(--white);
+  background: var(--navy-700);
+}
+
+.prog__atividade-campo {
+  width: 100%;
+  min-height: 28px;
+  padding: 3px 5px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--navy-900);
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-sm);
+}
+
+.prog__atividade-campo:hover {
+  border-color: var(--navy-200);
+}
+
+.prog__atividade-campo:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--navy-700);
+  background: var(--white);
+}
+
+.prog__atividade-campo::placeholder {
+  font-weight: 500;
+  text-transform: none;
+  color: var(--text-on-light-muted);
+}
+
+/* ---- Atividades e cores, e o tempo de cada nucleo: cartoes comuns. */
+.prog__secao {
+  max-width: 1100px;
+  margin: 0 auto var(--space-6);
+  padding: var(--space-5);
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.prog__secao-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.prog__secao-titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--navy-900);
+}
+
+.prog__secao-dica {
+  margin: 0 0 var(--space-4);
+  font-size: 13px;
+  color: var(--text-on-light-secondary);
+}
+
+.prog__atividades {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-2);
+}
+
+.prog__atividade-linha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prog__atividade-linha input[type="color"] {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  cursor: pointer;
+}
+
+.prog__atividade-linha .campo__controle {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.prog__tempo {
+  width: 100%;
+  max-width: 720px;
+}
+
+.prog__tempo-num {
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.prog__adicionar-bloco {
+  max-width: 1100px;
+  margin: 0 auto var(--space-6);
+}
+
+/* Barra de salvar, presa ao pe da tela enquanto se edita: a pagina e longa,
+   e o botao no topo sumia depois do primeiro bloco. */
+.prog__barra-edicao {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--white);
+  border: 1px solid var(--navy-200);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-modal);
+}
+
+.prog__barra-edicao p {
+  margin: 0;
+  padding-left: var(--space-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy-700);
+}
+
+.prog__barra-edicao-acoes {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.prog__acoes-topo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---- A folha impressa: A4 deitado, o quadro inteiro numa pagina. As medidas
+   sao em pt/mm, nao em px da tela: 194mm de altura util cabem a abertura e
+   os dois rodizios com folga, e as cores saem como estao na tela. */
+@media print {
+  /* A folha nao vai de ponta a ponta: um quadro esticado na largura inteira
+     do A4 fica comprido demais para ler de uma olhada. */
+  /* E fica no meio do papel nos dois sentidos: a altura e a da area util do
+     A4 deitado (210mm menos as margens de 8mm), e o conteudo se centra nela.
+     Um quadro maior que isso so cresce e passa para a folha seguinte. */
+  .prog-folha {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 193mm;
+    max-width: 225mm;
+    margin: 0 auto;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .prog-folha__topo {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-bottom: 4mm;
+    padding-bottom: 2mm;
+    border-bottom: 1.5pt solid var(--navy-700);
+  }
+
+  .prog-folha__topo h1 {
+    margin: 0;
+    font-size: 13pt;
+    font-weight: 800;
+    color: var(--navy-900);
+  }
+
+  .prog-folha__topo p {
+    margin: 0;
+    font-size: 9pt;
+    color: var(--navy-700);
+  }
+
+  .prog-folha__topo .prog-folha__quando {
+    font-size: 8pt;
+    color: #555;
+  }
+
+  .prog-folha .prog__bloco {
+    margin-bottom: 4mm;
+    border-color: #9aa3b5;
+    border-radius: 2mm;
+    break-inside: avoid;
+  }
+
+  .prog-folha .prog__bloco:last-child {
+    margin-bottom: 0;
+  }
+
+  .prog-folha .prog__faixa {
+    min-height: 0;
+    padding: 1.2mm 3mm;
+  }
+
+  .prog-folha .prog__faixa-titulo {
+    font-size: 8.5pt;
+  }
+
+  .prog-folha .prog__rolagem {
+    overflow: visible;
+  }
+
+  /* A largura minima da tela (que faz o quadro rolar de lado no celular) nao
+     vale no papel: aqui as colunas dividem a folha. */
+  .prog-folha .prog__quadro {
+    min-width: 0 !important;
+    font-size: 7.5pt;
+  }
+
+  .prog-folha .prog__col-nucleo {
+    width: 7mm;
+  }
+
+  .prog-folha .prog__col-intervalo {
+    width: 5mm;
+  }
+
+  .prog-folha .prog__quadro th,
+  .prog-folha .prog__quadro td {
+    padding: 1.2mm 1mm;
+    border-color: #c8cdd8;
+  }
+
+  .prog-folha .prog__hora {
+    font-size: 8pt;
+  }
+
+  .prog-folha .prog__hora-ate {
+    margin: 0 0.8mm;
+    font-size: 5.5pt;
+  }
+
+  .prog-folha .prog__duracao {
+    height: auto;
+    font-size: 7pt;
+  }
+
+  .prog-folha .prog__nucleo {
+    font-size: 8.5pt;
+  }
+
+  .prog-folha .prog__intervalo span {
+    font-size: 5.5pt;
+  }
+
+  .prog-folha .prog__celula {
+    height: 8mm;
+  }
+
+  .prog-folha .prog__duracao-tag {
+    margin-left: 1mm;
+    padding: 0.2mm 1.2mm;
+    font-size: 6pt;
+  }
+
+  /* Os nucleos do dia, numa faixa de quatro colunas no pe da folha. */
+  .prog-folha .prog-nucleos {
+    margin-top: 4mm;
+    padding: 2.5mm 3mm;
+    border: 1px solid #9aa3b5;
+    border-radius: 2mm;
+    break-inside: avoid;
+  }
+
+  .prog-folha .prog-nucleos__grade {
+    gap: 4mm;
+  }
+
+  .prog-folha .prog-nucleos__letra {
+    font-size: 7.5pt;
+    margin-bottom: 1mm;
+  }
+
+  .prog-folha .prog-nucleos__lista {
+    font-size: 7pt;
+    gap: 0.8mm;
+  }
+
+  .prog-folha .amostra-bata {
+    width: 2.5mm;
+    height: 2.5mm;
+    margin-right: 1.5mm;
+  }
+
+  .prog-folha .prog-nucleos__falta {
+    font-size: 6.5pt;
+  }
+}
+
+/* ---- Os nucleos de cada dia: quatro colunas, a instituicao com a bolinha da
+   cor da bata. */
+.prog-nucleos__dia + .prog-nucleos__dia {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+}
+
+.prog-nucleos__dia-titulo {
+  margin: 0 0 var(--space-2);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy-900);
+}
+
+.prog-nucleos__grade {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.prog-nucleos__letra {
+  margin: 0 0 var(--space-1);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--navy-700);
+}
+
+.prog-nucleos__lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-on-light-secondary);
+}
+
+.prog-nucleos__lista li {
+  display: flex;
+  align-items: baseline;
+}
+
+.prog-nucleos__lista .amostra-bata {
+  align-self: center;
+}
+
+.prog-nucleos__cor {
+  color: var(--text-on-light-muted);
+}
+
+.prog-nucleos__coluna .prog__vazio {
+  margin: 0;
+}
+
+.prog-nucleos__falta {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  color: var(--text-on-light-muted);
+}
+
+@media (max-width: 720px) {
+  .prog-nucleos__grade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

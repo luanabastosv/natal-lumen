@@ -9,6 +9,7 @@ import {
   MenuKits,
   MenuPadrinhos,
   MenuPainel,
+  MenuProgramacao,
   MenuUsuarios,
 } from "../core/icones.jsx";
 
@@ -64,6 +65,13 @@ export const ITENS_MENU = [
     Icone: MenuCuidados,
   },
   { para: "/usuarios", rotulo: "Usuários", permissao: "gerenciar_usuarios", Icone: MenuUsuarios },
+  // O quadro de horarios do dia do evento: e a coordenacao geral quem monta.
+  {
+    para: "/programacao",
+    rotulo: "Programação",
+    soCoordenacaoGeral: true,
+    Icone: MenuProgramacao,
+  },
   {
     para: "/instituicoes",
     rotulo: "Instituições",
@@ -100,7 +108,7 @@ export const ESTRUTURA_MENU = [
   {
     grupo: "Configurações",
     Icone: Configuracoes,
-    itens: ["/usuarios", "/instituicoes", "/cidades-edicoes"],
+    itens: ["/usuarios", "/instituicoes", "/programacao", "/cidades-edicoes"],
   },
 ];
 

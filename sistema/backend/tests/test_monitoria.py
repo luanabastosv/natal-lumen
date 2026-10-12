@@ -225,6 +225,38 @@ def main() -> None:
         verifica("o monitor nao abre a ficha de instituicao que nao e dele", r.status_code == 404, str(r.status_code))
         r = mo.get(f"/instituicoes/{a.id}/ficha", params={"edicao_id": edicao.id})
         verifica("mas abre a da dele", r.status_code == 200, str(r.status_code))
+
+        print("\nProgramacao do evento")
+        r = cc.get(f"/programacao/{edicao.id}")
+        verifica("sem programacao ainda, diz que nao existe",
+                 r.status_code == 200 and r.json()["existe"] is False, r.text[:120])
+        prog = {
+            "atividades": [{"nome": "Teatro", "cor": "#c2185b"}],
+            "blocos": [{"titulo": "Rodizios - Tarde", "horarios": [
+                {"inicio": "13:45", "fim": "14:15", "modo": "por_nucleo",
+                 "nucleos": {"A": "Teatro", "B": "Infláveis P", "C": None, "D": "Teatro"}},
+                {"inicio": "15:05", "fim": "15:35", "modo": "todos", "atividade": "Mágico"},
+            ]}],
+        }
+        r = cc.put(f"/programacao/{edicao.id}", json=prog)
+        verifica("a coordenacao geral salva a programacao", r.status_code == 200, r.text[:160])
+        r = cc.get(f"/programacao/{edicao.id}")
+        p = r.json()
+        verifica("e ela volta igual, com quem salvou",
+                 p["existe"] and p["blocos"][0]["horarios"][1]["atividade"] == "Mágico"
+                 and p["atualizado_por"] == f"{MARCA} Coord", str(p)[:200])
+        sab = next((d for d in p["nucleos"] if d["descricao"] == "Sabado"), None)
+        verifica("e traz os nucleos de cada dia, com a instituicao no dela",
+                 sab is not None and any(i["nucleo"] == "A" and i["nome"] == a.nome
+                                         for i in sab["instituicoes"]), str(p["nucleos"])[:300])
+        ruim = {"atividades": [], "blocos": [{"titulo": "X", "horarios": [
+            {"inicio": "14:00", "fim": "13:00", "modo": "todos", "atividade": "Y"}]}]}
+        verifica("horario que termina antes de comecar e recusado",
+                 cc.put(f"/programacao/{edicao.id}", json=ruim).status_code == 422)
+        verifica("a coordenacao da monitoria nao mexe na programacao",
+                 cm.put(f"/programacao/{edicao.id}", json=prog).status_code == 403)
+        verifica("nem o monitor ve",
+                 mo.get(f"/programacao/{edicao.id}").status_code == 403)
     finally:
         limpar(db, log_inicial)
         db.close()

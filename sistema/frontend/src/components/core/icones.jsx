@@ -147,6 +147,16 @@ export function Imprimir({ t }) {
 }
 
 /** Enviar pelo WhatsApp. */
+/** Conversa no WhatsApp: o balao com o telefone dentro. */
+export function Conversa({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 8 19.4L3.5 20.5Z" />
+      <path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.6-2-1.2-1 .9a4.5 4.5 0 0 1-2.6-2.6l.9-1-1.2-2-1.6 1Z" />
+    </Svg>
+  );
+}
+
 export function Enviar({ t }) {
   return (
     <Svg t={t}>
@@ -273,6 +283,16 @@ export function MenuFinanceiro({ t }) {
       <circle cx="12" cy="12" r="9" />
       <path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2s1.3 1.7 3 2 3 .9 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5" />
       <path d="M12 6.5v11" />
+    </Svg>
+  );
+}
+
+/** Programacao: o relogio do dia do evento. */
+export function MenuProgramacao({ t }) {
+  return (
+    <Svg t={t}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
     </Svg>
   );
 }

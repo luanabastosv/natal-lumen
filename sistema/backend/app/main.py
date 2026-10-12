@@ -31,6 +31,7 @@ from app.routers import (
     padrinhos,
     painel,
     perfis,
+    programacao,
     usuarios,
 )
 
@@ -79,6 +80,7 @@ for router in (
     padrinhos.router,
     painel.router,
     perfis.router,
+    programacao.router,
     usuarios.router,
 ):
     app.include_router(router)

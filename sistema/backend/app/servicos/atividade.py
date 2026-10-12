@@ -255,6 +255,8 @@ def descrever(log: LogAtividade, nomes: _Nomes) -> str:
         case "cidade_criada" | "cidade_editada" | "cidade_apagada":
             verbo = {"cidade_criada": "Criou", "cidade_editada": "Editou", "cidade_apagada": "Apagou"}[a]
             return f"{verbo} a cidade {d.get('nome', '')}".rstrip()
+        case "programacao_salva":
+            return "Atualizou a programação do evento"
         case "nucleos_organizados":
             n = len(d.get("mudancas") or [])
             return f"Organizou os núcleos e as batas ({_plural(n, 'instituição alterada', 'instituições alteradas')})"
