@@ -1,11 +1,17 @@
 import { useNavigate } from "react-router-dom";
 import { useSessao } from "../../contexts/useSessao.js";
+import { rotuloDoPerfil } from "../dados/perfis.js";
 
 /** Barra fina que so existe no celular, onde a lateral vira gaveta: sem ela
  *  nao haveria de onde abrir a gaveta. No desktop ela nao e renderizada — a
  *  navegacao inteira mora na lateral. */
 export default function BarraMobile({ aoAbrirMenu, menuAberto }) {
-  const { edicao } = useSessao();
+  const { edicao, vinculoAtivo, usuario } = useSessao();
+  const perfil = vinculoAtivo
+    ? rotuloDoPerfil(vinculoAtivo.perfil)
+    : usuario?.admin_geral
+      ? "Administração geral"
+      : null;
   const navegar = useNavigate();
 
   return (
@@ -35,11 +41,15 @@ export default function BarraMobile({ aoAbrirMenu, menuAberto }) {
         <span className="barra-mobile__nome">Natal Lumen</span>
       </button>
 
-      {/* So mostra qual edicao esta sendo vista: com a lateral fechada, as
-          paginas nao diriam. Trocar continua sendo la dentro. */}
-      {edicao && (
-        <span className="barra-mobile__edicao">
-          {edicao.nome}
+      {/* Qual edicao esta sendo vista e com que perfil: com a lateral
+          fechada, as paginas nao diriam. No celular estreito so o perfil
+          cabe (ver layout.css). Trocar continua sendo la dentro. */}
+      {(edicao || perfil) && (
+        <span className="barra-mobile__etiquetas">
+          {edicao && (
+            <span className="barra-mobile__edicao barra-mobile__etiqueta-edicao">{edicao.nome}</span>
+          )}
+          {perfil && <span className="barra-mobile__edicao">{perfil}</span>}
         </span>
       )}
     </header>

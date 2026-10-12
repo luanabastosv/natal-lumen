@@ -492,20 +492,38 @@
     letter-spacing: var(--tracking-titulo);
   }
 
-  /* Num celular estreito quem encolhe e a etiqueta da edicao, com
-     reticencias — e nao o nome "Natal Lumen", que quebrava em duas linhas. */
-  .barra-mobile__edicao {
+  /* A edicao e o perfil, lado a lado, encostadas a direita. Num celular
+     estreito quem encolhe sao elas, com reticencias — e nao o nome "Natal
+     Lumen", que quebrava em duas linhas. */
+  .barra-mobile__etiquetas {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
+    margin-left: auto;
+  }
+
+  /* Letra pequena e branca: e contexto, nao chamada. */
+  .barra-mobile__edicao {
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-left: auto;
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 2px 8px;
+    font-size: 10px;
     font-weight: 700;
-    color: var(--cream-500);
+    line-height: 1.4;
+    color: var(--white);
     background: var(--navy-800);
     border-radius: var(--radius-pill);
     white-space: nowrap;
+  }
+
+  /* No celular de bolso as duas nao cabem ao lado da marca: fica so a do
+     perfil. A edicao continua na gaveta do menu. */
+  @media (max-width: 520px) {
+    .barra-mobile__etiqueta-edicao {
+      display: none;
+    }
   }
 
   .lateral__recolher {

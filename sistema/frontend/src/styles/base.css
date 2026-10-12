@@ -5879,7 +5879,21 @@ button.checkin-lista__botao:not(:disabled):active {
 /* O CTA do banner do painel (comissarios). O banner e escuro: o botao vem
    claro, com a tinta da marca, para ser a primeira coisa que se ve. */
 .abertura__cta {
+  position: relative;
   margin-top: var(--space-4);
+}
+
+/* No celular a barra de cima ja diz a edicao e o perfil. Sem a contagem de
+   dias, o bloco fica vazio — e sai inteiro, para nao deixar o vao dele entre
+   a saudacao e o botao. */
+@media (max-width: 960px) {
+  .abertura__chip-contexto {
+    display: none;
+  }
+
+  .abertura__contexto:not(:has(.chip--contagem)) {
+    display: none;
+  }
 }
 
 .abertura__cta .botao--primary {
@@ -7199,12 +7213,11 @@ button.checkin-lista__botao:not(:disabled):active {
   display: inline-block;
 }
 
+/* O traco entre as duas horas: mesma letra delas, so mais claro. */
 .prog__hora-ate {
-  margin: 0 3px;
-  font-size: 9px;
-  font-weight: 700;
+  margin: 0 4px;
+  font-weight: 500;
   color: var(--navy-500);
-  text-transform: uppercase;
 }
 
 .prog__duracao {
@@ -7583,8 +7596,7 @@ button.checkin-lista__botao:not(:disabled):active {
   }
 
   .prog-folha .prog__hora-ate {
-    margin: 0 0.8mm;
-    font-size: 5.5pt;
+    margin: 0 1mm;
   }
 
   .prog-folha .prog__duracao {
@@ -7711,4 +7723,263 @@ button.checkin-lista__botao:not(:disabled):active {
   .prog-nucleos__grade {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ---- Programacao no celular: uma parte por vez, e cada horario um cartao. */
+.prog-cel {
+  margin-bottom: var(--space-5);
+}
+
+.prog-cel__horario {
+  overflow: hidden;
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.prog-cel > div + div .prog-cel__horario {
+  margin-top: var(--space-2);
+}
+
+.prog-cel__hora {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--navy-900);
+  background: var(--navy-100);
+  font-variant-numeric: tabular-nums;
+}
+
+.prog-cel__hora .prog__duracao-tag {
+  margin-left: 0;
+}
+
+.prog-cel__nucleos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prog-cel__nucleos li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.prog-cel__letra {
+  flex: none;
+  width: 18px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+.prog-cel__todos {
+  padding: 12px;
+  font-size: 12px;
+  text-align: center;
+  border-top: 1px solid var(--border-light);
+}
+
+/* O intervalo entre dois cartoes: so o aviso, sem caixa. */
+.prog-cel__intervalo {
+  margin: var(--space-2) 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--text-on-light-muted);
+}
+
+@media (max-width: 720px) {
+  .prog-nucleos__grade {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .prog__secao {
+    padding: var(--space-4);
+  }
+}
+
+/* Na janela dos nucleos, sem a caixa de cartao: a janela ja e a caixa. */
+.prog-info .prog__secao {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* As abas dos blocos no celular: todas a vista, mesma largura, e o nome
+   quebrado em linhas ("Rodízios" / "Manhã") em vez de rolar de lado. */
+.prog-abas {
+  display: grid;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--stroke-hairline) solid var(--border-default);
+}
+
+.prog-abas .aba {
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 6px 4px;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+}
+
+/* Quem editou por ultimo: uma linha discreta embaixo da descricao. Para a
+   coordenacao, abre com a etiqueta de liberada ou em montagem. */
+.prog__editado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  color: var(--text-on-light-muted);
+}
+
+.prog__confirmar {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-on-light-secondary);
+}
+
+/* A janela dos nucleos. No computador ha espaco: letra de leitura e o nome
+   da cor ao lado da bolinha, em duas colunas para cada instituicao caber
+   numa linha so. */
+.prog-info .prog-nucleos__grade {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-6);
+}
+
+.prog-info .prog-nucleos__dia-titulo {
+  font-size: 15px;
+}
+
+.prog-info .prog-nucleos__dia + .prog-nucleos__dia {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+.prog-info .prog-nucleos__letra {
+  font-size: 12px;
+}
+
+.prog-info .prog-nucleos__lista {
+  gap: 4px;
+  font-size: 14px;
+}
+
+/* No celular, letra menor e duas colunas: e para consultar de relance. A cor
+   da bata fica so na bolinha. */
+@media (max-width: 720px) {
+  .prog-info .prog-nucleos__dia-titulo {
+    font-size: 12px;
+  }
+
+  .prog-info .prog-nucleos__dia + .prog-nucleos__dia {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+  }
+
+  .prog-info .prog-nucleos__grade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-4);
+  }
+
+  .prog-info .prog-nucleos__letra {
+    font-size: 10px;
+  }
+
+  .prog-info .prog-nucleos__lista {
+    gap: 2px;
+    font-size: 12px;
+  }
+
+  .prog-info .prog-nucleos__cor {
+    display: none;
+  }
+
+  .prog-info .amostra-bata {
+    width: 10px;
+    height: 10px;
+    margin-right: 5px;
+  }
+
+  .prog-info .prog-nucleos__falta {
+    font-size: 11px;
+  }
+}
+
+.prog__secao > .prog__secao-titulo {
+  margin-bottom: var(--space-3);
+}
+
+.prog-info .prog__tempo th,
+.prog-info .prog__tempo td {
+  font-size: 11px;
+}
+
+/* No computador o quadro fica no meio do vao entre o cabecalho e o rodape,
+   com o mesmo espaco em cima e embaixo. A pagina estica ate o rodape e o
+   quadro se centra na sobra. Embaixo ja ha os 72px do fim do <main>; em cima
+   o cabecalho deixa 20px, e estes 52px completam os mesmos 72. Quadro maior
+   que a tela: sem sobra, fica 72 e 72. Na edicao nao, que ali a pagina e
+   longa. */
+@media (min-width: 721px) {
+  .layout__conteudo:has(> .prog-pagina) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .prog-pagina {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .prog__quadros {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 52px;
+  }
+
+  .prog__quadros > .prog__bloco {
+    width: 100%;
+  }
+
+  .prog__quadros > .prog__bloco:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* Liberar para as equipes: no pe da pagina, a direita, alinhado com o quadro. */
+.prog__liberar {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 1100px;
+  margin: var(--space-5) auto 0;
+}
+
+/* Card de barras sem frase embaixo do titulo (o "Por idade"): o respiro que
+   a frase dava. */
+.cartao__topo + .barras {
+  margin-top: var(--space-4);
 }

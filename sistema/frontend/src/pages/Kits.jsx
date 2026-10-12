@@ -533,7 +533,9 @@ export default function Kits() {
               )}
               {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
               {!estreita && <col style={{ width: 116 }} />}
-              {!estreita && <col style={{ width: 78 }} />}
+              {/* Larga o bastante para a etiqueta "Presente" inteira: com 78
+                  ela cortava em reticencias. */}
+              {!estreita && <col style={{ width: 104 }} />}
               {!estreita && <col style={{ width: 160 }} />}
               {!estreita && <col style={{ width: 160 }} />}
               {estreita && <col style={{ width: 48 }} />}

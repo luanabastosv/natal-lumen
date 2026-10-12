@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/core/Button.jsx";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
+import { rotuloDoPerfil } from "../components/dados/perfis.js";
 import Rabisco from "../components/core/Rabisco.jsx";
 import ArtePainel from "../components/layout/ArtePainel.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
@@ -151,8 +152,8 @@ export default function Painel() {
   // O comissario e a coordenacao da captacao entram no sistema para uma
   // coisa: apadrinhar. O banner leva direto ao cadastro do padrinho, de onde
   // o passo a passo segue sozinho.
-  const captacao =
-    Boolean(vinculoAtivo?.perfil?.startsWith("Comissarios")) && pode("editar_padrinhos");
+  const deComissarios = Boolean(vinculoAtivo?.perfil?.startsWith("Comissarios"));
+  const captacao = deComissarios && pode("editar_padrinhos");
   const [detalhe, definirDetalhe] = useState(null);
   // "Ver atividade": so a coordenacao geral e a administracao geral, como os
   // cuidados especiais.
@@ -260,20 +261,18 @@ export default function Painel() {
                     ? "Os cartões e as autorizações de cada instituição, os cuidados especiais e os núcleos de cada dia."
                     : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
             </p>
-            {captacao && (
+            {captacao && !estreita && (
               <div className="abertura__cta">
-                <Button
-                  onClick={() => navegar(estreita ? "/padrinhos/novo" : "/padrinhos?novo=1")}
-                >
-                  Realizar apadrinhamento
-                </Button>
+                <Button onClick={() => navegar("/padrinhos?novo=1")}>Realizar apadrinhamento</Button>
               </div>
             )}
           </div>
           <div className="abertura__contexto">
           {/* Qual edicao esta sendo vista. Trocar de edicao e na lateral: e
-              uma escolha do sistema inteiro, nao deste card. */}
-            <span className="chip">
+              uma escolha do sistema inteiro, nao deste card. No celular a
+              edicao e o perfil ja estao na barra de cima, e somem daqui (ver
+              .abertura__chip-contexto). */}
+            <span className="chip abertura__chip-contexto">
               {edicao
                 ? edicao.nome
                 : usuario?.admin_geral
@@ -281,7 +280,9 @@ export default function Painel() {
                   : "Sem edição vinculada"}
             </span>
             {vinculoAtivo && (
-              <span className="chip chip--discreto">{vinculoAtivo.perfil}</span>
+              <span className="chip chip--discreto abertura__chip-contexto">
+                {rotuloDoPerfil(vinculoAtivo.perfil)}
+              </span>
             )}
             {faltamDias !== null && (
               <span className="chip chip--contagem">
@@ -292,6 +293,16 @@ export default function Painel() {
             )}
           </div>
         </div>
+        {/* No celular o botao de apadrinhar ocupa a largura do banner: e a
+            unica coisa que o comissario vem fazer aqui. No computador ele fica
+            embaixo da saudacao, como sempre. */}
+        {captacao && estreita && (
+          <div className="abertura__cta">
+            <Button larguraTotal onClick={() => navegar("/padrinhos/novo")}>
+              Realizar apadrinhamento
+            </Button>
+          </div>
+        )}
       </div>
 
       <Mensagem tipo="erro">{erro}</Mensagem>
@@ -424,7 +435,7 @@ export default function Painel() {
                             <>
                               {d.completas}
                               <span className="barra-dupla__de">/{d.criancas}</span>
-                              {d.onibus > 0 && (
+                              {d.onibus > 0 && !deComissarios && (
                                 <span className="barra-dupla__meta">
                                   {" "}
                                   · {d.onibus} ônibus
@@ -549,7 +560,9 @@ export default function Painel() {
                               daqui: o dia de cada instituicao ja e a leitura do
                               cartao ao lado, e repetido aqui ele competia com o
                               nome e com as duas barras. */}
-                          {l.onibus > 0 && (
+                          {/* O transporte e assunto da coordenacao e da
+                              logistica; o comissario cuida de padrinho. */}
+                          {l.onibus > 0 && !deComissarios && (
                             <div className="lista-progresso__rodape">
                               <span>{l.onibus} ônibus</span>
                             </div>
@@ -569,10 +582,6 @@ export default function Painel() {
                         <span className="legenda__item legenda__item--meninas">meninas</span>
                       </span>
                     </div>
-                    <p className="cartao__lede">
-                      O perfil das crianças — é por ele que se decide o que comprar e
-                      quantos presentes de cada tipo separar.
-                    </p>
                     <div className="barras">
                       {relatorio.por_idade.map((f) => (
                         <BarraDupla

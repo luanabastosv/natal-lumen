@@ -24,12 +24,27 @@
  * NAVY-900 (7,1:1). Os dois tons ficam a 4,3:1 um do outro, que e separacao de
  * sobra — bem mais do que o par anterior dava, e agora com o numero legivel
  * nos dois. Texto claro em cima de um tom medio era o que nao fechava.
+ *
+ * Parte com numero nunca fica mais estreita que o proprio numero: a idade com
+ * 3 meninas desenhava uma lasca de poucos pixels e o "3" sumia. Cada parte
+ * rotulada tem largura minima do tamanho dos digitos dela, e a barra inteira,
+ * a soma disso — a proporcao entre as linhas so cede onde o numero nao caberia.
  */
 
 export default function BarraDupla({ rotulo, partes, total, max, valorTexto, aria }) {
   const escala = max > 0 ? total / max : 0;
   // Com numero dentro, a barra precisa de altura para o texto caber.
   const rotulada = partes.some((p) => p.rotulo != null);
+  const visiveis = partes.filter((p) => p.valor > 0);
+
+  // O minimo de uma parte rotulada: os digitos dela mais o respiro dos lados.
+  const minimoDe = (p) => `calc(${String(p.rotulo).length}ch + 10px)`;
+  const comNumero = visiveis.filter((p) => p.rotulo != null);
+  const minimoDaBarra = comNumero.length
+    ? `calc(${comNumero.reduce((s, p) => s + String(p.rotulo).length, 0)}ch + ${
+        comNumero.length * 10 + (visiveis.length - 1) * 2
+      }px)`
+    : undefined;
 
   return (
     <div className={`barra-dupla ${rotulada ? "barra-dupla--rotulada" : ""}`.trim()}>
@@ -37,23 +52,28 @@ export default function BarraDupla({ rotulo, partes, total, max, valorTexto, ari
       <div className="barra-dupla__pista">
         <div
           className="barra-dupla__barra"
-          style={{ width: `${Math.max(escala * 100, total > 0 ? 3 : 0)}%` }}
+          style={{
+            width: `${Math.max(escala * 100, total > 0 ? 3 : 0)}%`,
+            minWidth: minimoDaBarra,
+          }}
           role="img"
           aria-label={aria}
         >
-          {partes
-            .filter((p) => p.valor > 0)
-            .map((p) => (
-              <div
-                key={p.nome}
-                className={`barra-dupla__parte barra-dupla__parte--${p.tom}`}
-                style={{ flexGrow: p.valor }}
-              >
-                {p.rotulo != null && (
-                  <span className="barra-dupla__numero">{p.rotulo}</span>
-                )}
-              </div>
-            ))}
+          {visiveis.map((p) => (
+            <div
+              key={p.nome}
+              className={`barra-dupla__parte barra-dupla__parte--${p.tom}`}
+              style={{
+                flexGrow: p.valor,
+                flexBasis: 0,
+                minWidth: p.rotulo != null ? minimoDe(p) : undefined,
+              }}
+            >
+              {p.rotulo != null && (
+                <span className="barra-dupla__numero">{p.rotulo}</span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
       <span className="barra-dupla__valor">{valorTexto}</span>
