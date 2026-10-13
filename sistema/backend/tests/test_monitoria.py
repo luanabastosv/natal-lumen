@@ -207,8 +207,13 @@ def main() -> None:
         verifica("a coordenacao geral tambem abre",
                  cc.get(f"/monitoria/{edicao.id}/painel").status_code == 200)
         mo = TestClient(app); entrar(mo, monitor.email)
-        verifica("o monitor de base nao abre",
-                 mo.get(f"/monitoria/{edicao.id}/painel").status_code == 403)
+        r = mo.get(f"/monitoria/{edicao.id}/painel")
+        pm = r.json() if r.status_code == 200 else {}
+        verifica("o monitor abre o painel so com as instituicoes dele",
+                 r.status_code == 200
+                 and [i["instituicao_id"] for i in pm["por_instituicao"]] == [a.id]
+                 and pm["criancas"] == next(i["criancas"] for i in pm["por_instituicao"]),
+                 r.text[:200])
         verifica("nem grava nucleo",
                  mo.put(f"/monitoria/{edicao.id}/nucleos", json={"instituicoes": []}).status_code == 403)
 

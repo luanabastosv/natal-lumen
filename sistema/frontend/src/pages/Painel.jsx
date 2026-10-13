@@ -169,6 +169,8 @@ export default function Painel() {
   // A coordenacao da monitoria tem o painel dela: o papel, os cuidados e os
   // nucleos de cada dia. Ver components/dados/PainelMonitoria.jsx.
   const coordMonitoria = vinculoAtivo?.perfil === "Monitoria - coordenacao";
+  // O monitor de base ve o mesmo painel, so com as instituicoes dele.
+  const monitor = vinculoAtivo?.perfil === "Monitoria - monitores";
   const faltamDias = diasParaAFesta(relatorio?.por_dia);
   const maxPorDia = Math.max(1, ...(relatorio?.por_dia ?? []).map((d) => d.criancas));
   const maxPorIdade = Math.max(
@@ -205,6 +207,66 @@ export default function Painel() {
   // O painel da estrutura: por dia, por idade e por instituicao, e mais nada.
   // O resumo de padrinhos e o anel sao a cobranca da captacao.
   const soLogistica = Boolean(relatorio?.so_logistica);
+
+  // O cartao de cada instituicao: no painel da coordenacao fica ao lado do
+  // "Por idade"; no do comissario, ao lado do anel de progresso — quando a
+  // linha do anel nao tem o dia do evento (o comissario de base nao tem).
+  const instAoLadoDoAnel = deComissarios && !(relatorio?.por_dia?.length > 0);
+  const cartaoPorInstituicao = relatorio?.por_instituicao?.length > 0 && (
+
+                  <section className="cartao">
+                    <div className="cartao__topo">
+                      <h3 className="cartao__titulo">Por instituição</h3>
+                      <span className="legenda">
+                        <span className="legenda__item legenda__item--cesta">apadrinhamento de cesta</span>
+                        <span className="legenda__item legenda__item--festa">apadrinhamento de festa</span>
+                      </span>
+                    </div>
+                    <div className="lista-progresso lista-progresso--densa">
+                      {relatorio.por_instituicao.map((l) => (
+                        <div key={l.instituicao_id} className="lista-progresso__item">
+                          <div className="lista-progresso__topo">
+                            <span className="lista-progresso__nome">
+                              {l.instituicao}
+                              {/* A sigla e como a equipe chama a instituicao no
+                                  dia a dia ("faltam tres da KN"), e e o prefixo
+                                  do codigo de cada crianca dela. */}
+                              {l.sigla && (
+                                <span className="etiqueta etiqueta--neutra lista-progresso__sigla">
+                                  {l.sigla}
+                                </span>
+                              )}
+                            </span>
+                            <span className="lista-progresso__total">
+                              {l.criancas}
+                              {/* Completa e a crianca com os dois padrinhos; o
+                                  que falta dela e o trabalho que sobra aqui. */}
+                              {l.faltam > 0 && (
+                                <span className="lista-progresso__falta">
+                                  {" "}
+                                  · faltam {l.faltam}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <Progresso rotulo="Apadr. cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
+                          <Progresso rotulo="Apadr. festa" valor={l.festa} de={l.criancas} tom="festa" />
+                          {/* O transporte fecha a linha. A etiqueta do dia saiu
+                              daqui: o dia de cada instituicao ja e a leitura do
+                              cartao ao lado, e repetido aqui ele competia com o
+                              nome e com as duas barras. */}
+                          {/* O transporte e assunto da coordenacao e da
+                              logistica; o comissario cuida de padrinho. */}
+                          {l.onibus > 0 && !deComissarios && (
+                            <div className="lista-progresso__rodape">
+                              <span>{l.onibus} ônibus</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+  );
 
   return (
     <div>
@@ -259,7 +321,9 @@ export default function Painel() {
                   ? "Quantas crianças vêm em cada dia, de cada instituição e de cada idade."
                   : coordMonitoria
                     ? "Os cartões e as autorizações de cada instituição, os cuidados especiais e os núcleos de cada dia."
-                    : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
+                    : monitor
+                      ? "Os cartões e as autorizações das suas crianças, e quem precisa de cuidado especial."
+                      : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
             </p>
             {captacao && !estreita && (
               <div className="abertura__cta">
@@ -452,6 +516,10 @@ export default function Painel() {
                   </section>
                 )}
 
+                {/* Para o comissario, ao lado do anel: o dia do evento nao e
+                    dele, e a linha fica com as instituicoes e o progresso. */}
+                {instAoLadoDoAnel && cartaoPorInstituicao}
+
                 {!semCriancas && !soLogistica && (
                   <section className="cartao cartao--anel">
                     <Anel
@@ -517,63 +585,13 @@ export default function Painel() {
 
               {veCuidados && nucleos && <NucleosDoEvento instituicoes={nucleos} />}
 
-              <div className="painel__grade painel__grade--meio">
-                {relatorio.por_instituicao.length > 0 && (
-                  <section className="cartao">
-                    <div className="cartao__topo">
-                      <h3 className="cartao__titulo">Por instituição</h3>
-                      <span className="legenda">
-                        <span className="legenda__item legenda__item--cesta">apadrinhamento de cesta</span>
-                        <span className="legenda__item legenda__item--festa">apadrinhamento de festa</span>
-                      </span>
-                    </div>
-                    <div className="lista-progresso lista-progresso--densa">
-                      {relatorio.por_instituicao.map((l) => (
-                        <div key={l.instituicao_id} className="lista-progresso__item">
-                          <div className="lista-progresso__topo">
-                            <span className="lista-progresso__nome">
-                              {l.instituicao}
-                              {/* A sigla e como a equipe chama a instituicao no
-                                  dia a dia ("faltam tres da KN"), e e o prefixo
-                                  do codigo de cada crianca dela. */}
-                              {l.sigla && (
-                                <span className="etiqueta etiqueta--neutra lista-progresso__sigla">
-                                  {l.sigla}
-                                </span>
-                              )}
-                            </span>
-                            <span className="lista-progresso__total">
-                              {l.criancas}
-                              {/* Completa e a crianca com os dois padrinhos; o
-                                  que falta dela e o trabalho que sobra aqui. */}
-                              {l.faltam > 0 && (
-                                <span className="lista-progresso__falta">
-                                  {" "}
-                                  · faltam {l.faltam}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <Progresso rotulo="Apadr. cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
-                          <Progresso rotulo="Apadr. festa" valor={l.festa} de={l.criancas} tom="festa" />
-                          {/* O transporte fecha a linha. A etiqueta do dia saiu
-                              daqui: o dia de cada instituicao ja e a leitura do
-                              cartao ao lado, e repetido aqui ele competia com o
-                              nome e com as duas barras. */}
-                          {/* O transporte e assunto da coordenacao e da
-                              logistica; o comissario cuida de padrinho. */}
-                          {l.onibus > 0 && !deComissarios && (
-                            <div className="lista-progresso__rodape">
-                              <span>{l.onibus} ônibus</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
+              {/* Sem o "Por idade" (comissarios), a instituicao ocupa a linha. */}
+              <div className={`painel__grade${deComissarios ? "" : " painel__grade--meio"}`}>
+                {!instAoLadoDoAnel && cartaoPorInstituicao}
 
-                {relatorio.por_idade.length > 0 && (
+                {/* O perfil por idade e para quem compra presente; o comissario
+                    cuida de padrinho. */}
+                {!deComissarios && relatorio.por_idade.length > 0 && (
                   <section className="cartao">
                     <div className="cartao__topo">
                       <h3 className="cartao__titulo">Por idade</h3>
@@ -734,11 +752,11 @@ export default function Painel() {
           {/* Sem ver_painel nao ha o que mostrar aqui, e a pagina ficaria so
               com a saudacao. O caminho e o menu — que ja lista o que o perfil
               alcanca — entao o que falta dizer e so isso. */}
-          {!podeVerNumeros && coordMonitoria && edicaoAtiva && (
-            <PainelMonitoria edicaoId={edicaoAtiva} />
+          {!podeVerNumeros && (coordMonitoria || monitor) && edicaoAtiva && (
+            <PainelMonitoria edicaoId={edicaoAtiva} monitor={monitor} />
           )}
 
-          {!podeVerNumeros && !coordMonitoria && (
+          {!podeVerNumeros && !coordMonitoria && !monitor && (
             <EmptyState
               titulo="Escolha por onde começar"
               corpo="Seu perfil não acompanha os números da edição. Use o menu ao lado: ele mostra tudo o que você alcança."

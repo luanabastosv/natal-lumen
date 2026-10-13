@@ -17,8 +17,13 @@ const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
 /** O painel da coordenacao da monitoria: o papel (cartoes de cesta e de
  *  festa, autorizacoes), os cuidados especiais e o dia — quantas criancas em
- *  cada dia e em cada nucleo. */
-export default function PainelMonitoria({ edicaoId }) {
+ *  cada dia e em cada nucleo.
+ *
+ *  `monitor`: a versao do monitor de base. O servidor ja manda so as
+ *  instituicoes dele; aqui saem os nucleos (que sao da coordenacao) e os
+ *  cuidados aparecem abertos, crianca a crianca — sao poucas, e e o que ele
+ *  precisa ter na mao no dia. */
+export default function PainelMonitoria({ edicaoId, monitor = false }) {
   const [p, definirP] = useState(null);
   const [erro, definirErro] = useState("");
   const [organizando, definirOrganizando] = useState(false);
@@ -37,7 +42,12 @@ export default function PainelMonitoria({ edicaoId }) {
   if (erro) return <Mensagem tipo="erro">{erro}</Mensagem>;
   if (!p) return <Carregando tela>Somando os números...</Carregando>;
   if (p.criancas === 0) {
-    return (
+    return monitor ? (
+      <EmptyState
+        titulo="Nenhuma criança nas suas instituições ainda"
+        corpo="Assim que a coordenação ligar você a uma instituição e a lista dela for importada, os números aparecem aqui."
+      />
+    ) : (
       <EmptyState
         titulo="Nenhuma criança nesta edição ainda"
         corpo="Assim que as listas das instituições forem importadas, os números aparecem aqui."
@@ -59,10 +69,18 @@ export default function PainelMonitoria({ edicaoId }) {
   return (
     <>
       <div className="painel__cabeca">
-        <h2 className="painel__titulo">{p.edicao}</h2>
-        <Button size="sm" onClick={() => definirOrganizando(true)}>
-          Organizar núcleos
-        </Button>
+        <h2 className="painel__titulo">
+          {monitor
+            ? p.por_instituicao.length === 1
+              ? p.por_instituicao[0].instituicao
+              : "Suas instituições"
+            : p.edicao}
+        </h2>
+        {!monitor && (
+          <Button size="sm" onClick={() => definirOrganizando(true)}>
+            Organizar núcleos
+          </Button>
+        )}
       </div>
 
       {/* Cartao aqui e PAPEL: o que a crianca escreveu para o padrinho de
@@ -80,14 +98,14 @@ export default function PainelMonitoria({ edicaoId }) {
           valor={p.cartoes_cesta}
           de={p.criancas}
           tom="cesta"
-          nota="cartões escritos e digitalizados"
+          nota={monitor ? `faltam ${p.criancas - p.cartoes_cesta}` : "cartões escritos e digitalizados"}
         />
         <Metrica
           rotulo="Cartões de festa"
           valor={p.cartoes_festa}
           de={p.criancas}
           tom="festa"
-          nota="cartões escritos e digitalizados"
+          nota={monitor ? `faltam ${p.criancas - p.cartoes_festa}` : "cartões escritos e digitalizados"}
         />
         <Metrica
           rotulo="Autorizações"
@@ -101,54 +119,56 @@ export default function PainelMonitoria({ edicaoId }) {
         padrinho — não a quantidade de apadrinhamentos.
       </p>
 
-      <div className="painel__grade painel__grade--meio">
-        <section className="cartao">
-          <div className="cartao__topo">
-            <h3 className="cartao__titulo">Por dia do evento</h3>
-          </div>
-          {dias.length === 0 && (
-            <p className="campo__dica">Nenhuma instituição tem dia do evento ainda.</p>
-          )}
-          {dias.map((d) => (
-            <div key={d.dia_evento_id} className="monitoria-dia">
-              <div className="monitoria-dia__topo">
-                <EtiquetaDia data={d.data} descricao={d.descricao} />
-                <span>
-                  <strong>{d.criancas}</strong> crianças ·{" "}
-                  {plural(d.instituicoes, "instituição", "instituições")}
-                </span>
-              </div>
-              {temNucleos(d.dia_evento_id) ? (
-                <div className="monitoria-dia__nucleos">
-                  {nucleosDoDia(d.dia_evento_id).map((n) => (
-                    <div key={n.nucleo} className="monitoria-nucleo">
-                      <span className="monitoria-nucleo__letra">{n.nucleo}</span>
-                      <span className="monitoria-nucleo__conta">{n.criancas}</span>
-                      <span className="monitoria-nucleo__batas">
-                        {n.insts.map((i) => (
-                          <span
-                            key={i.instituicao_id}
-                            className={`amostra-bata ${i.cor_bata_hex ? "" : "amostra-bata--vazia"}`}
-                            style={i.cor_bata_hex ? { background: i.cor_bata_hex } : undefined}
-                            title={`${i.sigla || i.instituicao}${i.cor_bata_nome ? ` · ${i.cor_bata_nome}` : ""}`}
-                          />
-                        ))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="campo__dica">Núcleos deste dia ainda não organizados.</p>
-              )}
-              {(d.necessidade_especial > 0 || d.restricao_alimentar > 0) && (
-                <p className="campo__dica">
-                  {plural(d.necessidade_especial, "necessidade especial", "necessidades especiais")} ·{" "}
-                  {plural(d.restricao_alimentar, "restrição alimentar", "restrições alimentares")}
-                </p>
-              )}
+      <div className={monitor ? "painel__monitor" : "painel__grade painel__grade--meio"}>
+        {!monitor && (
+          <section className="cartao">
+            <div className="cartao__topo">
+              <h3 className="cartao__titulo">Por dia do evento</h3>
             </div>
-          ))}
-        </section>
+            {dias.length === 0 && (
+              <p className="campo__dica">Nenhuma instituição tem dia do evento ainda.</p>
+            )}
+            {dias.map((d) => (
+              <div key={d.dia_evento_id} className="monitoria-dia">
+                <div className="monitoria-dia__topo">
+                  <EtiquetaDia data={d.data} descricao={d.descricao} />
+                  <span>
+                    <strong>{d.criancas}</strong> crianças ·{" "}
+                    {plural(d.instituicoes, "instituição", "instituições")}
+                  </span>
+                </div>
+                {temNucleos(d.dia_evento_id) ? (
+                  <div className="monitoria-dia__nucleos">
+                    {nucleosDoDia(d.dia_evento_id).map((n) => (
+                      <div key={n.nucleo} className="monitoria-nucleo">
+                        <span className="monitoria-nucleo__letra">{n.nucleo}</span>
+                        <span className="monitoria-nucleo__conta">{n.criancas}</span>
+                        <span className="monitoria-nucleo__batas">
+                          {n.insts.map((i) => (
+                            <span
+                              key={i.instituicao_id}
+                              className={`amostra-bata ${i.cor_bata_hex ? "" : "amostra-bata--vazia"}`}
+                              style={i.cor_bata_hex ? { background: i.cor_bata_hex } : undefined}
+                              title={`${i.sigla || i.instituicao}${i.cor_bata_nome ? ` · ${i.cor_bata_nome}` : ""}`}
+                            />
+                          ))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="campo__dica">Núcleos deste dia ainda não organizados.</p>
+                )}
+                {(d.necessidade_especial > 0 || d.restricao_alimentar > 0) && (
+                  <p className="campo__dica">
+                    {plural(d.necessidade_especial, "necessidade especial", "necessidades especiais")} ·{" "}
+                    {plural(d.restricao_alimentar, "restrição alimentar", "restrições alimentares")}
+                  </p>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
 
         <section className="cartao">
           <div className="cartao__topo">
@@ -160,6 +180,25 @@ export default function PainelMonitoria({ edicaoId }) {
           </p>
           {comCuidados.length === 0 ? (
             <p className="campo__dica">Nenhuma autorização com cuidado especial até agora.</p>
+          ) : monitor ? (
+            // Aberto, crianca a crianca: o monitor tem poucas, e precisa saber
+            // quem sao sem clicar.
+            comCuidados.map((i) => (
+              <div key={i.instituicao_id} className="monitoria-cuidados__bloco">
+                {p.por_instituicao.length > 1 && (
+                  <h4 className="monitoria-cuidados__inst">{i.instituicao}</h4>
+                )}
+                <ul className="monitoria-cuidados-lista">
+                  {i.cuidados.map((c) => (
+                    <li key={c.crianca_id}>
+                      <strong>{c.nome}</strong> <span className="campo__dica">{c.codigo}</span>
+                      {c.necessidade_especial && <div>Necessidade especial: {c.necessidade_especial}</div>}
+                      {c.restricao_alimentar && <div>Alergia ou restrição: {c.restricao_alimentar}</div>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
           ) : (
             <ul className="monitoria-cuidados">
               {comCuidados.map((i) => (
@@ -230,7 +269,7 @@ export default function PainelMonitoria({ edicaoId }) {
         </div>
       </section>
 
-      {organizando && (
+      {organizando && !monitor && (
         <OrganizarNucleos
           edicaoId={edicaoId}
           instituicoes={p.por_instituicao}

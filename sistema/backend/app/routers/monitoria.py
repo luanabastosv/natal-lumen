@@ -5,8 +5,10 @@ escrevem, as autorizacoes, quem tem cuidado especial, e como as instituicoes de
 cada dia se dividem nos nucleos de rodizio (A a D), cada uma com a cor de bata
 dela.
 
-So a coordenacao da monitoria, a coordenacao geral e a administracao geral.
-O monitor de base continua so com as pastas das instituicoes dele.
+O painel inteiro e da coordenacao da monitoria, da coordenacao geral e da
+administracao geral. O monitor de base ve o MESMO painel recortado nas
+instituicoes dele: as criancas, os cartoes e autorizacoes que faltam, e quem
+precisa de cuidado especial. Os nucleos continuam so da coordenacao.
 """
 
 from typing import Annotated
@@ -35,6 +37,7 @@ BD = Annotated[Session, Depends(get_db)]
 Logado = Annotated[ContextoAcesso, Depends(contexto_atual)]
 
 PERFIL_COORDENACAO_MONITORIA = "Monitoria - coordenacao"
+PERFIL_MONITOR = "Monitoria - monitores"
 
 
 def _so_coordenacao_da_monitoria(ctx: ContextoAcesso, edicao_id: int) -> None:
@@ -51,14 +54,30 @@ def _so_coordenacao_da_monitoria(ctx: ContextoAcesso, edicao_id: int) -> None:
     )
 
 
+def _alcance_do_painel(ctx: ContextoAcesso, edicao_id: int) -> frozenset[int] | None:
+    """None = a edicao inteira (quem coordena). Um conjunto = as instituicoes
+    do monitor — vazio, se a coordenacao ainda nao deu nenhuma a ele."""
+    try:
+        _so_coordenacao_da_monitoria(ctx, edicao_id)
+        return None
+    except HTTPException:
+        pass
+    for v in ctx.vinculos:
+        if v.edicao_id == edicao_id and v.perfil == PERFIL_MONITOR:
+            return v.instituicoes
+    raise HTTPException(status.HTTP_403_FORBIDDEN, "Este painel e da monitoria.")
+
+
 @router.get("/{edicao_id}/painel", response_model=PainelMonitoria)
 def painel(edicao_id: int, db: BD, ctx: Logado):
-    _so_coordenacao_da_monitoria(ctx, edicao_id)
+    alcance = _alcance_do_painel(ctx, edicao_id)
     edicao = db.get(Edicao, edicao_id)
     if edicao is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
     vai = (Crianca.edicao_id == edicao_id) & Crianca.desistiu_em.is_(None)
+    if alcance is not None:
+        vai = vai & Crianca.instituicao_id.in_(alcance)
 
     # Uma linha por instituicao: criancas que vao, cartoes de cada tipo e
     # autorizacoes. Subconsultas por crianca, e nao joins, para um cartao a

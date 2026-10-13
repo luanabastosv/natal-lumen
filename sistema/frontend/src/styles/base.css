@@ -8006,3 +8006,21 @@ button.checkin-lista__botao:not(:disabled):active {
 .cartao__topo + .barras {
   margin-top: var(--space-4);
 }
+
+/* Os cuidados abertos no painel do monitor, por instituicao. */
+.monitoria-cuidados__bloco + .monitoria-cuidados__bloco {
+  margin-top: var(--space-4);
+}
+
+.monitoria-cuidados__inst {
+  margin: 0 0 var(--space-1);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--navy-700);
+}
+
+/* No painel do monitor os cuidados vem sozinhos, em cima da lista por
+   instituicao, com o mesmo respiro da grade da coordenacao. */
+.painel__monitor {
+  margin: var(--space-6) 0 var(--layout-gap);
+}
