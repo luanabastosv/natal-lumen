@@ -253,10 +253,20 @@ def listar_padrinhos(
     ctx: Ver,
     edicao_id: int | None = None,
     busca: str | None = None,
+    # Padrinhos em que esta pessoa registrou ao menos um apadrinhamento — o
+    # "meus padrinhos" do comissario, e o filtro por comissario da coordenacao.
+    registrado_por: int | None = None,
     pagina: int = Query(default=1, ge=1),
     por_pagina: int = Query(default=50, ge=1, le=200),
 ):
     condicao = _filtro_padrinhos(ctx, "ver_padrinhos")
+
+    if registrado_por is not None:
+        condicao = condicao & Padrinho.id.in_(
+            select(Apadrinhamento.padrinho_id).where(
+                Apadrinhamento.comissario_id == registrado_por
+            )
+        )
 
     if edicao_id is not None:
         condicao = condicao & (Padrinho.edicao_id == edicao_id)

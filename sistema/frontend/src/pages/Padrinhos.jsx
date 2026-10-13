@@ -4,7 +4,7 @@ import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
 import { Enviar, Imprimir } from "../components/core/icones.jsx";
-import { Entrada } from "../components/core/Campo.jsx";
+import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import { AvisoParecidos, CamposPadrinho } from "../components/dados/CamposPadrinho.jsx";
 import {
@@ -32,6 +32,8 @@ import {
   editarPadrinho,
   listarPadrinhos,
 } from "../services/padrinhos.js";
+import { listarComissarios } from "../services/criancas.js";
+import { rotuloDoPerfil } from "../components/dados/perfis.js";
 import { dinheiro } from "../utils/dinheiro.js";
 
 const POR_PAGINA = 100;
@@ -55,6 +57,10 @@ export default function Padrinhos() {
 
   const [padrinhos, definirPadrinhos] = useState({ itens: [], total: 0 });
   const [busca, definirBusca] = useState("");
+  // Quem registrou apadrinhamento no padrinho: "" = todos, "eu" = quem esta
+  // usando, ou o id de um comissario do time.
+  const [registro, definirRegistro] = useState("");
+  const [time, definirTime] = useState([]);
   const [imprimindo, definirImprimindo] = useState(false);
   const [pagina, definirPagina] = useState(1);
 
@@ -131,17 +137,38 @@ export default function Padrinhos() {
     definirFichaAbertaId(null);
   }
 
+  const registradoPor = registro === "eu" ? usuario?.id : registro;
+
   const buscar = useCallback(async () => {
     try {
       definirPadrinhos(
-        await listarPadrinhos({ edicao_id: edicaoAtiva, busca, pagina, por_pagina: POR_PAGINA }),
+        await listarPadrinhos({
+          edicao_id: edicaoAtiva,
+          busca,
+          registrado_por: registradoPor ?? "",
+          pagina,
+          por_pagina: POR_PAGINA,
+        }),
       );
     } catch (e) {
       definirErro(e.message);
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoAtiva, busca, pagina]);
+  }, [edicaoAtiva, busca, registradoPor, pagina]);
+
+  // O time da edicao, para a coordenacao filtrar por comissario. O comissario
+  // de base so escolhe entre todos e os dele.
+  useEffect(() => {
+    if (!edicaoAtiva || soMeusPadrinhos) return undefined;
+    let vivo = true;
+    listarComissarios(edicaoAtiva)
+      .then((t) => vivo && definirTime(t.filter((m) => m.id !== usuario?.id)))
+      .catch(() => vivo && definirTime([]));
+    return () => {
+      vivo = false;
+    };
+  }, [edicaoAtiva, soMeusPadrinhos, usuario?.id]);
 
   useEffect(() => {
     // Buscar no servidor e justamente o que este efeito existe para fazer: a
@@ -215,7 +242,13 @@ export default function Padrinhos() {
   async function todosOsPadrinhos() {
     const todos = [];
     for (let p = 1; ; p += 1) {
-      const r = await listarPadrinhos({ edicao_id: edicaoAtiva, busca, pagina: p, por_pagina: 200 });
+      const r = await listarPadrinhos({
+        edicao_id: edicaoAtiva,
+        busca,
+        registrado_por: registradoPor ?? "",
+        pagina: p,
+        por_pagina: 200,
+      });
       todos.push(...r.itens);
       if (todos.length >= r.total || r.itens.length === 0) break;
     }
@@ -391,12 +424,31 @@ export default function Padrinhos() {
             Buscar
           </Button>
         )}
-        {busca && (
+        <Selecao
+          classe={`barra-acoes__filtro-registro ${estreita ? "barra-acoes__linha-inteira" : ""}`}
+          value={registro}
+          onChange={(e) => {
+            definirRegistro(e.target.value);
+            definirPagina(1);
+          }}
+          aria-label="Filtrar por quem registrou o apadrinhamento"
+        >
+          <option value="">Todos os padrinhos</option>
+          <option value="eu">Meus apadrinhamentos</option>
+          {time.map((m) => (
+            <option key={m.id} value={m.id}>
+              Apadrinhamentos de {m.nome}
+              {m.papel === "Comissarios - comissario" ? "" : ` · ${rotuloDoPerfil(m.papel)}`}
+            </option>
+          ))}
+        </Selecao>
+        {(busca || registro) && (
           <Button
             size="sm"
             variant="ghost"
             onClick={() => {
               definirBusca("");
+              definirRegistro("");
               definirPagina(1);
             }}
           >
@@ -528,10 +580,10 @@ export default function Padrinhos() {
         <Carregando tela>Carregando padrinhos...</Carregando>
       ) : padrinhos.itens.length === 0 ? (
         <EmptyState
-          titulo="Nenhum padrinho ainda"
+          titulo={busca || registro ? "Nenhum padrinho encontrado" : "Nenhum padrinho ainda"}
           corpo={
-            busca
-              ? "Nenhum resultado para esta busca."
+            busca || registro
+              ? "Nenhum padrinho com esta busca ou este filtro."
               : "Cadastre os padrinhos captados e ligue cada um às crianças."
           }
         />

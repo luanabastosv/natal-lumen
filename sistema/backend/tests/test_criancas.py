@@ -1080,6 +1080,20 @@ def main() -> None:
                  r.status_code == 200 and all(c["comissario_id"] is None for c in r.json()),
                  r.text[:160])
 
+        # A coordenacao dos comissarios distribui a lista: marca varias e
+        # atribui de uma vez. So o responsavel — mudar de escola nao e dela.
+        capcoord = criar_usuario("CapCoord", "Comissarios - coordenacao")
+        db.commit()
+        ccap = TestClient(app)
+        entrar(ccap, capcoord.email)
+        r = ccap.post("/criancas/lote", json={"criancas": metade, "comissario_id": caio.id})
+        verifica("a coordenacao dos comissarios atribui varias de uma vez",
+                 r.status_code == 200 and all(c["comissario_id"] == caio.id for c in r.json()),
+                 r.text[:160])
+        r = ccap.post("/criancas/lote", json={"criancas": metade, "instituicao_id": inst_b.id})
+        verifica("mas nao muda as criancas de escola no lote", r.status_code in (403, 404),
+                 str(r.status_code))
+
         # De volta com a Bia, para os filtros terem o que achar.
         cc.post("/criancas/lote", json={"criancas": metade, "comissario_id": bia.id})
 

@@ -965,6 +965,16 @@ def main() -> None:
         verifica("e o pagamento dele vem como dele",
                  any(p["meu"] for p in por_id.values() if p["id"] != pag_colega),
                  str(list(por_id.values()))[:200])
+        r = ck.get("/padrinhos", params={"edicao_id": e1.id, "registrado_por": colega.id,
+                                         "por_pagina": 200})
+        ids_colega = {p["id"] for p in r.json()["itens"]}
+        verifica("filtra os padrinhos em que o colega registrou apadrinhamento",
+                 do_colega["id"] in ids_colega and jose["id"] not in ids_colega, str(ids_colega))
+        r = ck.get("/padrinhos", params={"edicao_id": e1.id, "registrado_por": comissario.id,
+                                         "por_pagina": 200})
+        ids_meus = {p["id"] for p in r.json()["itens"]}
+        verifica("e os dele incluem o padrinho do colega em que ele tambem apadrinhou",
+                 do_colega["id"] in ids_meus, str(ids_meus))
         r = ccap.get("/pagamentos", params={"padrinho_id": do_colega["id"]})
         verifica("a coordenacao da captacao ve todos",
                  r.status_code == 200 and pag_colega in [p["id"] for p in r.json()["itens"]],

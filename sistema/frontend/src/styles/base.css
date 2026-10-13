@@ -2168,6 +2168,17 @@ button.celula:hover {
   font-size: var(--size-body-sm);
 }
 
+/* Sobre a barra navy o botao terciario sumia: texto navy em fundo navy. */
+.lote .botao--ghost {
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.lote .botao--ghost:not(.botao--inativo):hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--white);
+}
+
 .lote select {
   font-family: var(--font-body);
   font-size: var(--size-body-sm);
@@ -5767,6 +5778,18 @@ button.checkin-lista__botao:not(:disabled):active {
 .barra-acoes > .campo.barra-acoes__busca {
   flex: 1 1 0;
   min-width: 0;
+}
+
+/* O filtro de quem registrou o apadrinhamento: largura de um nome, e nao da
+   linha. No celular vai para uma linha propria, embaixo da busca. */
+.barra-acoes > .campo.barra-acoes__filtro-registro {
+  flex: 0 1 260px;
+  min-width: 0;
+}
+
+.barra-acoes > .campo.barra-acoes__linha-inteira {
+  flex: 1 1 100%;
+  order: 10;
 }
 
 /* ---------- Barra de base (celular) ----------

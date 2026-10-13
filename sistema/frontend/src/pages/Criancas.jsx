@@ -164,6 +164,9 @@ export default function Criancas() {
   // redistribui a lista entre o time sem poder criar nem renomear crianca.
   // Por isso a coluna do responsavel nao olha `podeEditar` como as outras.
   const podeAtribuir = podeEditar || pode("atribuir_comissario");
+  // Marcar varias de uma vez existe para atribuir o responsavel em lote: e o
+  // que a coordenacao dos comissarios faz ao distribuir a lista.
+  const podeMarcar = podeAtribuir;
   const veKit = pode("gerenciar_kits");
   // A visao do comissario (o de base e a coordenacao da captacao): e so para
   // ele que a coluna de observacao existe — ele escreve ali o proprio recado
@@ -271,7 +274,7 @@ export default function Criancas() {
      que o rotulo pede; o nome da crianca vai sem largura (null) e fica com
      toda a sobra. */
   const larguras = [
-    ...(podeEditar && !estreita ? [34] : []),
+    ...(podeMarcar && !estreita ? [34] : []),
     estreita ? 74 : 84,
     null,
     ...(!estreita ? [50, 46, 88, 130] : []),
@@ -867,7 +870,7 @@ export default function Criancas() {
               </colgroup>
               <thead>
                 <tr>
-                  {podeEditar && !estreita && (
+                  {podeMarcar && !estreita && (
                     <th className="planilha__marcar">
                       <input
                         type="checkbox"
@@ -934,7 +937,7 @@ export default function Criancas() {
                        a mesma coisa no caminho de quem usa Tab. */
                     onClick={estreita ? () => definirFichaAberta(c.id) : undefined}
                   >
-                    {podeEditar && !estreita && (
+                    {podeMarcar && !estreita && (
                       <td className="planilha__marcar">
                         <input
                           type="checkbox"
@@ -1210,7 +1213,7 @@ export default function Criancas() {
             </div>
           )}
 
-          {podeEditar && !estreita && marcadas.length > 0 && (
+          {podeMarcar && !estreita && marcadas.length > 0 && (
             <div className="lote">
               <span className="lote__texto">{marcadas.length} marcada(s)</span>
               <Selecao
