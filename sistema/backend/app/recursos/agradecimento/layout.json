@@ -1,0 +1,42 @@
+{
+  "campos": {
+    "nome": {
+      "x": 382,
+      "y": 734,
+      "tamanho": 42,
+      "cor": "#15286a",
+      "fonte": "bold",
+      "ancora": "ls",
+      "largura_max": 442
+    },
+    "codigo": {
+      "x": 387,
+      "y": 852,
+      "tamanho": 42,
+      "cor": "#15286a",
+      "fonte": "bold",
+      "ancora": "ls",
+      "largura_max": 437,
+      "maiusculas": true
+    },
+    "instituicao": {
+      "x": 394,
+      "y": 971,
+      "tamanho": 42,
+      "cor": "#15286a",
+      "fonte": "bold",
+      "ancora": "ls",
+      "largura_max": 430,
+      "encurtar": true
+    },
+    "dia": {
+      "x": 394,
+      "y": 1090,
+      "tamanho": 42,
+      "cor": "#15286a",
+      "fonte": "bold",
+      "ancora": "ls",
+      "largura_max": 430
+    }
+  }
+}

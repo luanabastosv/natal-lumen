@@ -16,9 +16,11 @@ Onde ficam os arquivos (o primeiro que existir vence):
 
     {ARQUIVOS_DIR}/agradecimento/{CIDADE}/{ano}/template.png   <- por edicao
     {ARQUIVOS_DIR}/agradecimento/template.png                  <- para todas
+    app/recursos/agradecimento/template.png                    <- a do sistema
 
-Sem nenhum dos dois, o sistema desenha uma arte simples com as cores da
-marca, para a funcionalidade nao ficar esperando o design ficar pronto.
+A do sistema vem no codigo, montada com os elementos graficos do Natal Lumen
+2026 por scripts/montar_arte_agradecimento.py. Sem nenhuma das tres, uma arte
+simples com as cores da marca, so para nao quebrar.
 """
 
 import json
@@ -33,6 +35,9 @@ from app.config import config
 from app.servicos.arquivos import limpar_texto
 
 PASTA_FONTES = Path(__file__).resolve().parent.parent / "recursos" / "fontes"
+TEMPLATE_DO_SISTEMA = (
+    Path(__file__).resolve().parent.parent / "recursos" / "agradecimento" / "template.png"
+)
 
 FONTES = {
     "regular": PASTA_FONTES / "Typold-Regular.otf",
@@ -72,6 +77,14 @@ class Campo:
     largura_max: int | None = None
     # Texto fixo que aparece antes do valor (ex.: "Codigo ").
     prefixo: str = ""
+    # Ate quantas linhas o texto pode ocupar. Com 2, o que nao cabe numa linha
+    # nem com a letra no piso quebra entre palavras — em letra do tamanho do
+    # piso, para as duas linhas caberem no espaco de uma.
+    linhas: int = 1
+    # Se o texto nao cabe na largura com a letra no tamanho cheio, fica so
+    # com os dois primeiros nomes ("CSL Madonnina Del Grappa" vira "CSL
+    # Madonnina"), em vez de encolher. E o caso da instituicao.
+    encurtar: bool = False
 
 
 @dataclass
@@ -102,17 +115,38 @@ LAYOUT_PADRAO = Layout(
     }
 )
 
-MESES = [
-    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+DIAS_DA_SEMANA = [
+    "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo",
 ]
 
 
 def formatar_dia(dia: date | None) -> str:
-    """15 de dezembro de 2026 — por extenso, que e como se le num convite."""
+    """"Sábado · 5/12": o dia da semana e a data curta, como na arte do
+    design. O ano ja esta na arte, e o dia da semana e o que o padrinho
+    lembra ("ela vai no sabado")."""
     if dia is None:
-        return "data a confirmar"
-    return f"{dia.day} de {MESES[dia.month - 1]} de {dia.year}"
+        return "A confirmar"
+    return f"{DIAS_DA_SEMANA[dia.weekday()]} · {dia.day}/{dia.month}"
+
+
+# "Maria de Fatima": a particula nao conta como nome, e o nome que vem
+# depois dela entra junto.
+PARTICULAS = {"de", "da", "do", "das", "dos", "e", "d'"}
+
+
+def dois_primeiros_nomes(nome: str) -> str:
+    """Os dois primeiros nomes da crianca. O nome completo nao cabe na arte
+    sem encolher ate ficar miudo, e o padrinho reconhece a crianca pelos dois
+    primeiros — "Maria Julia", "Maria de Fatima"."""
+    palavras = (nome or "").split()
+    if len(palavras) <= 2:
+        return " ".join(palavras)
+    tomados = [palavras[0]]
+    for palavra in palavras[1:]:
+        tomados.append(palavra)
+        if palavra.lower() not in PARTICULAS:
+            break
+    return " ".join(tomados)
 
 
 def pasta_da_edicao(cidade: str, ano: int) -> Path:
@@ -120,10 +154,11 @@ def pasta_da_edicao(cidade: str, ano: int) -> Path:
 
 
 def achar_template(cidade: str, ano: int) -> Path | None:
-    """Template da edicao; senao o geral; senao nenhum."""
+    """Template da edicao; senao o geral; senao o do sistema; senao nenhum."""
     candidatos = [
         pasta_da_edicao(cidade, ano) / "template.png",
         config.caminho_arquivos / "agradecimento" / "template.png",
+        TEMPLATE_DO_SISTEMA,
     ]
     for caminho in candidatos:
         if caminho.is_file():
@@ -158,8 +193,38 @@ def _largura(desenho: ImageDraw.ImageDraw, texto: str, fonte) -> int:
     return direita - esquerda
 
 
+def _caber(desenho, linhas: list[str], campo: Campo, piso: float, teto: float = 1.0):
+    """A maior fonte (ate `teto` do tamanho do campo) em que todas as linhas
+    cabem, sem descer de `piso`."""
+    tamanho = int(campo.tamanho * teto)
+    fonte = _fonte(campo.fonte, tamanho)
+    if not campo.largura_max:
+        return fonte, True
+    minimo = max(12, int(campo.tamanho * piso))
+    while max(_largura(desenho, t, fonte) for t in linhas) > campo.largura_max:
+        if tamanho <= minimo:
+            return fonte, False
+        tamanho -= 2
+        fonte = _fonte(campo.fonte, tamanho)
+    return fonte, True
+
+
+def _em_duas(texto: str) -> list[str]:
+    """Quebra entre palavras no ponto que deixa as duas linhas mais parecidas."""
+    palavras = texto.split()
+    if len(palavras) < 2:
+        return [texto]
+    cortes = range(1, len(palavras))
+    melhor = min(
+        cortes,
+        key=lambda i: abs(len(" ".join(palavras[:i])) - len(" ".join(palavras[i:]))),
+    )
+    return [" ".join(palavras[:melhor]), " ".join(palavras[melhor:])]
+
+
 def _escrever(desenho: ImageDraw.ImageDraw, texto: str, campo: Campo) -> None:
-    """Escreve um campo, encolhendo a fonte ate caber em largura_max.
+    """Escreve um campo, encolhendo a fonte ate caber em largura_max — e, se o
+    campo aceita duas linhas, quebrando antes de encolher demais.
 
     Sem isto "Escola Municipal Professora Maria das Dores" atravessaria a arte
     inteira — e e justamente o tipo de nome que as instituicoes tem.
@@ -171,18 +236,26 @@ def _escrever(desenho: ImageDraw.ImageDraw, texto: str, campo: Campo) -> None:
     if campo.maiusculas:
         texto = texto.upper()
 
-    tamanho = campo.tamanho
-    fonte = _fonte(campo.fonte, tamanho)
+    if campo.encurtar and campo.largura_max:
+        cheia = _fonte(campo.fonte, campo.tamanho)
+        if _largura(desenho, texto, cheia) > campo.largura_max:
+            texto = dois_primeiros_nomes(texto)
 
-    if campo.largura_max:
-        # 60% do tamanho original e o piso: abaixo disso nao da para ler, e e
-        # melhor deixar transbordar de leve do que entregar algo ilegivel.
-        minimo = max(12, int(campo.tamanho * 0.6))
-        while tamanho > minimo and _largura(desenho, texto, fonte) > campo.largura_max:
-            tamanho -= 2
-            fonte = _fonte(campo.fonte, tamanho)
+    # 60% do tamanho original e o piso: abaixo disso nao da para ler, e e
+    # melhor deixar transbordar de leve do que entregar algo ilegivel.
+    linhas = [texto]
+    fonte, coube = _caber(desenho, linhas, campo, 0.6)
+    if not coube and campo.linhas >= 2:
+        linhas = _em_duas(texto)
+        fonte, _ = _caber(desenho, linhas, campo, 0.45, teto=0.6)
 
-    desenho.text((campo.x, campo.y), texto, font=fonte, fill=campo.cor, anchor=campo.ancora)
+    # Em duas linhas o bloco sobe meia linha, para ficar centrado onde a
+    # linha unica estaria, entre o rotulo dele e o do campo seguinte.
+    altura = round(fonte.size * 1.15)
+    y = campo.y - (altura // 2 if len(linhas) == 2 else 0)
+    for linha in linhas:
+        desenho.text((campo.x, y), linha, font=fonte, fill=campo.cor, anchor=campo.ancora)
+        y += altura
 
 
 def _arte_de_reserva() -> Image.Image:
@@ -239,7 +312,7 @@ def gerar(
     desenho = ImageDraw.Draw(imagem)
 
     valores = {
-        "nome": crianca_nome,
+        "nome": dois_primeiros_nomes(crianca_nome),
         "codigo": crianca_codigo,
         "instituicao": instituicao,
         "dia": formatar_dia(dia_evento),
