@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import Button from "../components/core/Button.jsx";
 import { Entrada } from "../components/core/Campo.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
@@ -8,7 +8,6 @@ import "./Login.css";
 
 export default function Login() {
   const { autenticado, entrar } = useSessao();
-  const local = useLocation();
 
   const [email, definirEmail] = useState("");
   const [senha, definirSenha] = useState("");
@@ -16,8 +15,11 @@ export default function Login() {
   const [enviando, definirEnviando] = useState(false);
 
   if (autenticado) {
-    // Volta para a pagina que a pessoa tentou abrir antes de entrar.
-    return <Navigate to={local.state?.de ?? "/painel"} replace />;
+    // Entrar leva SEMPRE ao painel. Voltar para a pagina de antes parecia
+    // ajuda, mas depois de sair de uma conta e entrar em outra (ou na mesma)
+    // a pessoa caia na tela onde a anterior estava — as criancas de outro
+    // perfil, por exemplo — em vez do comeco.
+    return <Navigate to="/painel" replace />;
   }
 
   async function aoEnviar(evento) {

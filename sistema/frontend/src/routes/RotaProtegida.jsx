@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import Carregando from "../components/feedback/Carregando.jsx";
 import EmptyState from "../components/feedback/EmptyState.jsx";
 import { useSessao } from "../contexts/useSessao.js";
@@ -22,15 +22,14 @@ export default function RotaProtegida({
   children,
 }) {
   const { autenticado, carregando, pode, usuario, vinculoAtivo } = useSessao();
-  const local = useLocation();
 
   if (carregando) {
     return <Carregando tela>Verificando sua sessão...</Carregando>;
   }
 
   if (!autenticado) {
-    // Guarda de onde veio, para voltar para ca depois de entrar.
-    return <Navigate to="/entrar" replace state={{ de: local.pathname }} />;
+    // Depois de entrar, o login leva sempre ao painel (ver Login.jsx).
+    return <Navigate to="/entrar" replace />;
   }
 
   if (apenasAdmin && !usuario?.admin_geral) {
