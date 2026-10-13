@@ -50,7 +50,7 @@ from app.seguranca.dependencias import exige_permissao
 from app.servicos import agradecimento, comprovantes, exclusao, whatsapp
 from app.servicos.arquivos import limpar_texto
 from app.servicos.log import registrar, valores
-from app.servicos.nomes import nome_proprio, parecenca
+from app.servicos.nomes import mesmo_nome, nome_proprio, parecenca
 
 router = APIRouter(tags=["padrinhos"])
 
@@ -315,6 +315,46 @@ def _so_digitos(telefone: str | None) -> str:
     return d
 
 
+ROTULO_DO_CAMPO = {"nome": "este nome", "whatsapp": "este WhatsApp", "email": "este email"}
+
+
+def _repetido(
+    db: Session, edicao_id: int, *, nome: str | None, whatsapp: str | None,
+    email: str | None, ignorar_id: int | None = None,
+) -> tuple[Padrinho, str] | None:
+    """O padrinho da edicao que ja tem o mesmo nome, WhatsApp ou email.
+
+    Basta UM igual para ser o mesmo doador: dois cadastros viram dois
+    pagamentos, dois agradecimentos e duas cobrancas. O nome conta igual
+    quando sobra o mesmo depois de tirar acento, caixa e "da/de/dos" — nome
+    so parecido continua sendo so aviso, porque homonimo existe.
+    """
+    candidatos = db.scalars(
+        select(Padrinho).where(Padrinho.edicao_id == edicao_id, Padrinho.id != (ignorar_id or 0))
+    ).all()
+    telefone = _so_digitos(whatsapp)
+    correio = (email or "").strip().lower()
+    for p in candidatos:
+        if len(telefone) >= 10 and _so_digitos(p.whatsapp) == telefone:
+            return p, "whatsapp"
+        if correio and (p.email or "").strip().lower() == correio:
+            return p, "email"
+        if nome and mesmo_nome(nome, p.nome):
+            return p, "nome"
+    return None
+
+
+def _recusar_repetido(achado: tuple[Padrinho, str] | None) -> None:
+    if achado is None:
+        return
+    p, campo = achado
+    raise HTTPException(
+        status.HTTP_409_CONFLICT,
+        f"Ja existe um padrinho com {ROTULO_DO_CAMPO[campo]}: {p.nome}. Apadrinhe pela "
+        "ficha dele em vez de cadastrar outro.",
+    )
+
+
 @router.get("/padrinhos/parecidos", response_model=list[PadrinhoParecido])
 def padrinhos_parecidos(
     db: BD,
@@ -351,6 +391,8 @@ def padrinhos_parecidos(
         return PadrinhoParecido(
             id=p.id, nome=p.nome, whatsapp=p.whatsapp,
             criancas=len({a.crianca_id for a in p.apadrinhamentos}), motivo=motivo,
+            # Igual de verdade: o cadastro vai ser recusado.
+            igual=motivo != "nome" or mesmo_nome(nome, p.nome),
         )
 
     # Contato igual e prova mais forte que nome parecido: vem primeiro.
@@ -384,6 +426,10 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
     ja = _ja_enviado(db, Padrinho, dados.chave_envio)
     if ja is not None:
         return _saida(_carregar(db, ja.id, ctx, "editar_padrinhos"))
+
+    _recusar_repetido(_repetido(
+        db, dados.edicao_id, nome=dados.nome, whatsapp=dados.whatsapp, email=dados.email,
+    ))
 
     padrinho = Padrinho(
         edicao_id=dados.edicao_id,
@@ -431,6 +477,13 @@ def editar_padrinho(padrinho_id: int, dados: PadrinhoEditar, db: BD, ctx: Editar
         )
 
     mudancas = dados.model_dump(exclude_unset=True)
+    # Trocar o contato para o de outro padrinho tambem junta dois doadores.
+    # So o que esta mudando e conferido: um par antigo nao trava a edicao.
+    _recusar_repetido(_repetido(
+        db, padrinho.edicao_id, ignorar_id=padrinho.id,
+        nome=mudancas.get("nome"), whatsapp=mudancas.get("whatsapp"),
+        email=mudancas.get("email"),
+    ))
     antes = valores(padrinho, mudancas)
     for campo, valor in mudancas.items():
         setattr(padrinho, campo, nome_proprio(valor) if campo == "nome" and valor else valor)

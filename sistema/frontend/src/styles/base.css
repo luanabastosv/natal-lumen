@@ -5854,6 +5854,13 @@ button.checkin-lista__botao:not(:disabled):active {
   font-weight: 700;
 }
 
+/* Dado igual ao de outro padrinho: o Salvar trava, e o aviso fala na cor de
+   erro do formulario. */
+.aviso-parecidos--trava {
+  color: #c0392b;
+  font-weight: 600;
+}
+
 .aviso-parecidos__acao {
   padding: 0;
   border: none;

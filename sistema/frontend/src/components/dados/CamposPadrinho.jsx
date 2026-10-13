@@ -115,7 +115,7 @@ const FRASE = {
  *
  *  Pergunta ao servidor so depois de uma pausa na digitacao, e so quando o
  *  campo ja da para comparar (ver PRONTO). */
-export function AvisoParecidos({ campo = "nome", valor, edicaoId, aoEscolher }) {
+export function AvisoParecidos({ campo = "nome", valor, edicaoId, aoEscolher, aoBloquear }) {
   const [parecidos, definirParecidos] = useState([]);
   const termo = (valor ?? "").trim();
   const pronto = PRONTO[campo](termo);
@@ -135,14 +135,23 @@ export function AvisoParecidos({ campo = "nome", valor, edicaoId, aoEscolher }) 
     };
   }, [edicaoId, campo, termo, pronto]);
 
-  if (!pronto || parecidos.length === 0) return null;
+  // Dado IGUAL ao de outro padrinho (e nao so parecido): o servidor recusa o
+  // cadastro, entao o formulario trava o Salvar e diz por que.
+  const p = pronto ? parecidos[0] : undefined;
+  const trava = Boolean(p?.igual);
+  useEffect(() => {
+    aoBloquear?.(campo, trava);
+  }, [aoBloquear, campo, trava]);
+  useEffect(() => () => aoBloquear?.(campo, false), [aoBloquear, campo]);
+
+  if (!p) return null;
 
   // So o mais parecido, numa linha: e um lembrete embaixo do campo, e nao um
   // bloco que empurra o formulario enquanto se digita.
-  const p = parecidos[0];
   return (
-    <span className="aviso-parecidos">
-      {FRASE[campo](p)}{" "}
+    <span className={`aviso-parecidos ${trava ? "aviso-parecidos--trava" : ""}`}>
+      {FRASE[campo](p)}
+      {trava && " Não dá para cadastrar outro: apadrinhe pela ficha dele."}{" "}
       <button type="button" className="aviso-parecidos__acao" onClick={() => aoEscolher(p)}>
         Ir para padrinho
       </button>

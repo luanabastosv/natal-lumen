@@ -3,7 +3,12 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/core/Button.jsx";
 import { AvisoParecidos, CamposPadrinho } from "../components/dados/CamposPadrinho.jsx";
-import { PADRINHO_NOVO, dadosDoPadrinho, padrinhoCompleto } from "../components/dados/padrinho.js";
+import {
+  PADRINHO_NOVO,
+  dadosDoPadrinho,
+  padrinhoCompleto,
+  useBloqueioDeRepetido,
+} from "../components/dados/padrinho.js";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
 import { useSessao } from "../contexts/useSessao.js";
@@ -28,6 +33,8 @@ export default function NovoPadrinho() {
   const [campos, definirCampos] = useState(PADRINHO_NOVO);
   const [salvando, definirSalvando] = useState(false);
   const [erro, definirErro] = useState("");
+  // Algum dado ja e de outro padrinho: nao da para salvar.
+  const [repetido, aoBloquear] = useBloqueioDeRepetido();
 
   const apadrinharDepois = pode("registrar_pagamentos_padrinho");
 
@@ -82,14 +89,14 @@ export default function NovoPadrinho() {
           campos={campos}
           definirCampos={definirCampos}
           avisoNome={
-            <AvisoParecidos
+            <AvisoParecidos aoBloquear={aoBloquear}
               valor={campos.nome}
               edicaoId={edicaoAtiva}
               aoEscolher={(p) => apadrinharPor(p.id)}
             />
           }
           avisoWhatsapp={
-            <AvisoParecidos
+            <AvisoParecidos aoBloquear={aoBloquear}
               campo="whatsapp"
               valor={campos.whatsapp}
               edicaoId={edicaoAtiva}
@@ -97,7 +104,7 @@ export default function NovoPadrinho() {
             />
           }
           avisoEmail={
-            <AvisoParecidos
+            <AvisoParecidos aoBloquear={aoBloquear}
               campo="email"
               valor={campos.email}
               edicaoId={edicaoAtiva}
@@ -113,7 +120,7 @@ export default function NovoPadrinho() {
             type="submit"
             variant="secondary"
             carregando={salvando}
-            disabled={!edicaoAtiva || !padrinhoCompleto(campos)}
+            disabled={!edicaoAtiva || !padrinhoCompleto(campos) || repetido}
           >
             {apadrinharDepois ? "Salvar e apadrinhar" : "Salvar"}
           </Button>

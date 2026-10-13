@@ -15,7 +15,8 @@ import {
 import { dinheiro, formatarData } from "../../utils/dinheiro.js";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 
-const FORMAS = ["Pix", "Dinheiro", "Transferência", "Cartão", "Boleto"];
+// O padrinho paga por Pix ou em dinheiro (o servidor confere o mesmo).
+const FORMAS = ["Pix", "Dinheiro"];
 
 /** Quantos de cada tipo, escrito como o comissário fala: "5 cestas + 2 festas". */
 function resumoTipos(itens) {

@@ -64,6 +64,12 @@ def _chave(nome: str | None) -> list[str]:
     return [p for p in LETRAS.findall(sem_acento.lower()) if p not in LIGADORES]
 
 
+def mesmo_nome(a: str | None, b: str | None) -> bool:
+    """O mesmo nome depois de tirar acento, caixa, espacos e "da/de/dos"."""
+    ka, kb = _chave(a), _chave(b)
+    return bool(ka) and ka == kb
+
+
 def parecenca(a: str | None, b: str | None) -> float:
     """De 0 a 1, o quanto dois nomes de pessoa parecem ser o mesmo.
 

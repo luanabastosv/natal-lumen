@@ -3,12 +3,30 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
 # Ver o modelo: sim, nao, ou ja contribui todo mes.
 InteresseMensal = Literal["sim", "nao", "ja_contribui"]
+
+# O padrinho paga por Pix ou em dinheiro, e so: transferencia, cartao e
+# boleto sairam em 13/10/2026. A grafia sai sempre a mesma, para o financeiro
+# somar por forma sem "pix" e "Pix" virarem duas linhas. Pagamentos antigos
+# com outra forma continuam como estao; so o que entra agora e conferido.
+FORMAS_DE_PAGAMENTO = ("Pix", "Dinheiro")
+
+
+def _forma(valor: str | None) -> str | None:
+    if valor is None:
+        return None
+    for forma in FORMAS_DE_PAGAMENTO:
+        if valor.strip().lower() == forma.lower():
+            return forma
+    raise ValueError("A forma de pagamento e Pix ou Dinheiro.")
+
+
+FormaDePagamento = Annotated[str | None, AfterValidator(_forma)]
 
 
 class PadrinhoIn(BaseModel):
@@ -117,6 +135,8 @@ class PadrinhoParecido(BaseModel):
     criancas: int
     # Por que ele apareceu: o nome parecido, ou o mesmo WhatsApp ou email.
     motivo: str = "nome"
+    # True quando o dado e o mesmo (e nao so parecido): salvar e recusado.
+    igual: bool = False
 
 
 class CriancaApadrinhada(BaseModel):
@@ -131,7 +151,7 @@ class ApadrinharComPagamento(BaseModel):
 
     criancas: list[CriancaApadrinhada] = Field(min_length=1)
     data: date
-    forma: str | None = Field(default=None, max_length=40)
+    forma: FormaDePagamento = None
     observacoes: str | None = None
     # Uma por tentativa de registrar, gerada pela tela. Ver o modelo.
     chave_envio: str | None = Field(default=None, max_length=64)
@@ -146,7 +166,7 @@ class PagamentoIn(BaseModel):
     padrinho_id: int
     valor: Decimal = Field(gt=0, decimal_places=2)
     data: date
-    forma: str | None = Field(default=None, max_length=40)
+    forma: FormaDePagamento = None
     observacoes: str | None = None
     # Apadrinhamentos que este pagamento quita.
     apadrinhamentos: list[int] = Field(default_factory=list)
@@ -157,7 +177,7 @@ class PagamentoIn(BaseModel):
 class PagamentoEditar(BaseModel):
     valor: Decimal | None = Field(default=None, gt=0, decimal_places=2)
     data: date | None = None
-    forma: str | None = Field(default=None, max_length=40)
+    forma: FormaDePagamento = None
     observacoes: str | None = None
     conferido: bool | None = None
     apadrinhamentos: list[int] | None = None

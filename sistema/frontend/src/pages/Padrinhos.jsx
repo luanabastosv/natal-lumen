@@ -12,6 +12,7 @@ import {
   dadosDoPadrinho,
   padrinhoCompleto,
   paraOFormulario,
+  useBloqueioDeRepetido,
 } from "../components/dados/padrinho.js";
 import ApadrinharCriancas from "../components/dados/ApadrinharCriancas.jsx";
 import FichaPadrinho from "../components/dados/FichaPadrinho.jsx";
@@ -73,6 +74,8 @@ export default function Padrinhos() {
   // mesma janela serve aos dois: os campos sao os mesmos, so muda o titulo e
   // para onde vai o salvar.
   const [emEdicao, definirEmEdicao] = useState(null);
+  // Algum dado do novo padrinho ja e de outro: nao da para salvar.
+  const [repetido, aoBloquear] = useBloqueioDeRepetido();
   // O padrinho com o passo a passo de apadrinhar aberto, no computador (no
   // celular e a pagina propria). Abre SOZINHO, sem a ficha por baixo: vem do
   // "Salvar e apadrinhar" do cadastro ou do "Apadrinhar" do menu da linha.
@@ -507,12 +510,12 @@ export default function Padrinhos() {
               definirCampos={definirCampos}
               avisoNome={
                 !emEdicao && (
-                  <AvisoParecidos valor={campos.nome} edicaoId={edicaoAtiva} aoEscolher={usarExistente} />
+                  <AvisoParecidos aoBloquear={aoBloquear} valor={campos.nome} edicaoId={edicaoAtiva} aoEscolher={usarExistente} />
                 )
               }
               avisoWhatsapp={
                 !emEdicao && (
-                  <AvisoParecidos
+                  <AvisoParecidos aoBloquear={aoBloquear}
                     campo="whatsapp"
                     valor={campos.whatsapp}
                     edicaoId={edicaoAtiva}
@@ -522,7 +525,7 @@ export default function Padrinhos() {
               }
               avisoEmail={
                 !emEdicao && (
-                  <AvisoParecidos
+                  <AvisoParecidos aoBloquear={aoBloquear}
                     campo="email"
                     valor={campos.email}
                     edicaoId={edicaoAtiva}
@@ -537,7 +540,7 @@ export default function Padrinhos() {
               <Button variant="secondary" type="submit" carregando={salvando}
                 /* As duas perguntas sao obrigatorias: Sim ou Nao, sem "a
                    perguntar". O cadastro so fecha quando a captacao perguntou. */
-                disabled={!padrinhoCompleto(campos)}>
+                disabled={!padrinhoCompleto(campos) || (!emEdicao && repetido)}>
                 {!emEdicao && salvarEApadrinhar ? "Salvar e apadrinhar" : "Salvar"}
               </Button>
             </div>

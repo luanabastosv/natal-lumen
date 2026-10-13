@@ -28,7 +28,8 @@ const TETO = 20;
 
 const TIPOS = ["cesta", "festa"];
 const PASSOS = ["Crianças", "Pagamento", "Confirmar"];
-const FORMAS = ["Pix", "Dinheiro", "Transferência", "Cartão", "Boleto"];
+// O padrinho paga por Pix ou em dinheiro (o servidor confere o mesmo).
+const FORMAS = ["Pix", "Dinheiro"];
 
 /** Separa "SL03, SL04 SL06;SL13" em codigos, sem repetir. */
 function separarCodigos(texto) {
@@ -76,8 +77,9 @@ export default function ApadrinharCriancas({
   const { usuario } = useSessao();
   const notificar = useNotificar();
   const [passo, definirPasso] = useState(0);
-  // Depois de gravar, no celular: o padrinho atualizado e as criancas que
-  // acabaram de entrar, para o fim do fluxo — o agradecimento.
+  // Depois de gravar: o padrinho atualizado e as criancas que acabaram de
+  // entrar, para o fim do fluxo — o agradecimento. No celular e uma pagina,
+  // no computador a mesma janela.
   const [concluido, definirConcluido] = useState(null);
   const [baixando, definirBaixando] = useState(false);
   // Os dois gestos do fim, para a tela dizer o que ja foi feito e o que falta.
@@ -285,34 +287,25 @@ export default function ApadrinharCriancas({
       // e o pagamento ja estao gravados, e o arquivo entra pela aba Pagamentos.
       try {
         await subirComprovante(atualizado.ultimo_pagamento_id, arquivo);
-        // No celular a tela final ja diz que deu certo, e o recado cobria o
-        // botao de concluir.
-        if (!comoPagina) {
-          notificar(
-            `${resumoTipos(escolhas)} para ${padrinho.nome.split(" ")[0]}, ${dinheiro(total)} registrados.`,
-          );
-        }
+        // A tela final ja diz que deu certo; o recado so cobriria o botao
+        // de concluir.
       } catch (e) {
         notificar(
           `Apadrinhado e pago, mas o comprovante não subiu: ${e.message} ` +
             "Envie o arquivo pela aba Pagamentos.",
         );
       }
-      if (comoPagina) {
-        // No celular o fluxo nao acaba aqui: o comissario esta com o padrinho
-        // na conversa, e o agradecimento e o proximo gesto. Um por crianca —
-        // cesta e festa da mesma crianca sao o mesmo agradecimento.
-        const novas = new Set(escolhas.map((e) => e.crianca.id));
-        const porCrianca = new Map();
-        for (const a of atualizado.apadrinhamentos) {
-          if (a.pago && novas.has(a.crianca_id) && !porCrianca.has(a.crianca_id)) {
-            porCrianca.set(a.crianca_id, a);
-          }
+      // O fluxo nao acaba aqui: o comissario esta com o padrinho na conversa,
+      // e o agradecimento e o proximo gesto — no celular e no computador. Um
+      // por crianca: cesta e festa da mesma crianca sao o mesmo agradecimento.
+      const novas = new Set(escolhas.map((e) => e.crianca.id));
+      const porCrianca = new Map();
+      for (const a of atualizado.apadrinhamentos) {
+        if (a.pago && novas.has(a.crianca_id) && !porCrianca.has(a.crianca_id)) {
+          porCrianca.set(a.crianca_id, a);
         }
-        definirConcluido({ padrinho: atualizado, apadrinhamentos: [...porCrianca.values()] });
-        return;
       }
-      aoFechar();
+      definirConcluido({ padrinho: atualizado, apadrinhamentos: [...porCrianca.values()] });
     } catch (e) {
       definirErro(e.message);
     } finally {
@@ -427,6 +420,19 @@ export default function ApadrinharCriancas({
     );
   }
 
+  if (concluido) {
+    return (
+      <Modal
+        rotulo={`Apadrinhar com ${padrinho.nome.split(" ")[0]}:`}
+        titulo="Apadrinhado!"
+        aoFechar={aoFechar}
+        rodape={rodapeFinal()}
+      >
+        {meioFinal()}
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       rotulo={`Apadrinhar com ${padrinho.nome.split(" ")[0]}:`}
@@ -458,8 +464,9 @@ export default function ApadrinharCriancas({
     }
   }
 
-  /** O fim do fluxo no celular: deu certo, e o agradecimento a um toque. */
-  function telaFinal() {
+  /** O que o fim do fluxo diz e oferece: o mesmo no celular e no
+   *  computador. Muda so onde a imagem cai (galeria ou downloads). */
+  function dadosFinais() {
     const { padrinho: atual, apadrinhamentos } = concluido;
     const nomes = apadrinhamentos.map((a) => a.crianca_primeiro_nome);
     const criancas =
@@ -469,107 +476,124 @@ export default function ApadrinharCriancas({
       `Oi, ${primeiroNome(atual.nome)}! Obrigado por apadrinhar ${criancas} no Natal Lumen. ` +
         "Segue o nosso agradecimento.",
     );
+    return { atual, apadrinhamentos, criancas, zap };
+  }
 
+  /** O fim do fluxo: deu certo, e o agradecimento a um toque. */
+  function meioFinal() {
+    const { atual, apadrinhamentos, criancas, zap } = dadosFinais();
+    const ondeCai = comoPagina ? "na galeria do seu celular" : "na pasta de downloads";
+    return (
+      <>
+        <Mensagem tipo="erro">{erro}</Mensagem>
+        <p className="apadrinhar-final__texto">
+          <Visto t={16} /> {primeiroNome(atual.nome)} apadrinhou {criancas}. O pagamento já
+          está registrado.
+        </p>
+
+        {/* Os dois gestos, na ordem, como dois passos grandes que chamam o
+            dedo — e nao dois botoes comuns no fim da tela, que quem acabou
+            de apadrinhar passava sem perceber que ainda faltava o
+            agradecimento. O passo da vez fica destacado; o feito ganha o
+            visto. O link do WhatsApp so leva texto: a imagem vai pela
+            galeria, e por isso baixar vem primeiro. */}
+        <h2 className="apadrinhar-final__chamada">
+          {baixou && enviou ? "Tudo certo!" : "Agora, agradeça ao padrinho"}
+        </h2>
+        <div className="passo-final__lista">
+          <button
+            type="button"
+            className={`passo-final ${!baixou ? "passo-final--vez" : "passo-final--feito"}`}
+            onClick={baixarAgradecimentos}
+            disabled={baixando}
+          >
+            <span className="passo-final__icone" aria-hidden="true">
+              {baixou ? <Visto t={24} /> : <Baixar t={24} />}
+            </span>
+            <span className="passo-final__texto">
+              <span className="passo-final__numero">Passo 1</span>
+              <strong>
+                {baixando
+                  ? "Baixando..."
+                  : apadrinhamentos.length === 1
+                    ? "Baixe o agradecimento"
+                    : `Baixe os ${apadrinhamentos.length} agradecimentos`}
+              </strong>
+              <span>
+                {baixou
+                  ? comoPagina
+                    ? "Salvo no celular."
+                    : "Salvo no computador."
+                  : `A imagem fica ${ondeCai}.`}
+              </span>
+              {/* A "pilula" de acao: e o que faz o cartao ler como botao, e
+                  nao como aviso. */}
+              <span className="passo-final__acao">
+                <Baixar t={16} />
+                {baixou ? "Baixar de novo" : "Baixar agora"}
+              </span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`passo-final ${
+              enviou ? "passo-final--feito" : baixou ? "passo-final--vez" : ""
+            }`}
+            disabled={!zap}
+            onClick={() => {
+              window.open(zap, "_blank", "noopener");
+              definirEnviou(true);
+            }}
+          >
+            <span className="passo-final__icone" aria-hidden="true">
+              {enviou ? <Visto t={24} /> : <Conversa t={24} />}
+            </span>
+            <span className="passo-final__texto">
+              <span className="passo-final__numero">Passo 2</span>
+              <strong>Envie no WhatsApp de {primeiroNome(atual.nome)}</strong>
+              <span>
+                {!zap
+                  ? "Este padrinho não tem WhatsApp válido cadastrado."
+                  : enviou
+                    ? `Conversa aberta. Anexe a imagem ${ondeCai} e envie.`
+                    : "A conversa abre com a mensagem pronta. Anexe a imagem que você baixou."}
+              </span>
+              {zap && (
+                <span className="passo-final__acao">
+                  <Conversa t={16} />
+                  {enviou ? "Abrir de novo" : "Abrir o WhatsApp"}
+                </span>
+              )}
+            </span>
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function rodapeFinal() {
+    return (
+      <div className="passos__rodape">
+        {/* Concluir antes de agradecer e possivel — o padrinho pode ter
+            WhatsApp errado —, mas o botao diz que ficou faltando. */}
+        <Button variant={baixou && enviou ? "primary" : "ghost"} onClick={aoFechar}>
+          {baixou && enviou ? "Concluir" : "Concluir sem agradecer"}
+        </Button>
+      </div>
+    );
+  }
+
+  function telaFinal() {
+    const { atual } = dadosFinais();
     return (
       <div className="apadrinhar-pagina">
         <header className="apadrinhar-pagina__topo">
           <div className="pagina__eyebrow">Apadrinhar com {atual.nome}</div>
           <h1 className="pagina__titulo">Apadrinhado!</h1>
         </header>
-
-        <div className="apadrinhar-pagina__meio">
-          <Mensagem tipo="erro">{erro}</Mensagem>
-          <p className="apadrinhar-final__texto">
-            <Visto t={16} /> {primeiroNome(atual.nome)} apadrinhou {criancas}. O pagamento já
-            está registrado.
-          </p>
-
-          {/* Os dois gestos, na ordem, como dois passos grandes que chamam o
-              dedo — e nao dois botoes comuns no fim da tela, que quem acabou
-              de apadrinhar passava sem perceber que ainda faltava o
-              agradecimento. O passo da vez fica destacado; o feito ganha o
-              visto. O link do WhatsApp so leva texto: a imagem vai pela
-              galeria, e por isso baixar vem primeiro. */}
-          <h2 className="apadrinhar-final__chamada">
-            {baixou && enviou ? "Tudo certo!" : "Agora, agradeça ao padrinho"}
-          </h2>
-          <div className="passo-final__lista">
-            <button
-              type="button"
-              className={`passo-final ${!baixou ? "passo-final--vez" : "passo-final--feito"}`}
-              onClick={baixarAgradecimentos}
-              disabled={baixando}
-            >
-              <span className="passo-final__icone" aria-hidden="true">
-                {baixou ? <Visto t={24} /> : <Baixar t={24} />}
-              </span>
-              <span className="passo-final__texto">
-                <span className="passo-final__numero">Passo 1</span>
-                <strong>
-                  {baixando
-                    ? "Baixando..."
-                    : apadrinhamentos.length === 1
-                      ? "Baixe o agradecimento"
-                      : `Baixe os ${apadrinhamentos.length} agradecimentos`}
-                </strong>
-                <span>
-                  {baixou
-                    ? "Salvo no celular."
-                    : "A imagem vai para a galeria do seu celular."}
-                </span>
-                {/* A "pilula" de acao: e o que faz o cartao ler como botao, e
-                    nao como aviso. */}
-                <span className="passo-final__acao">
-                  <Baixar t={16} />
-                  {baixou ? "Baixar de novo" : "Baixar agora"}
-                </span>
-              </span>
-            </button>
-
-            <button
-              type="button"
-              className={`passo-final ${
-                enviou ? "passo-final--feito" : baixou ? "passo-final--vez" : ""
-              }`}
-              disabled={!zap}
-              onClick={() => {
-                window.open(zap, "_blank", "noopener");
-                definirEnviou(true);
-              }}
-            >
-              <span className="passo-final__icone" aria-hidden="true">
-                {enviou ? <Visto t={24} /> : <Conversa t={24} />}
-              </span>
-              <span className="passo-final__texto">
-                <span className="passo-final__numero">Passo 2</span>
-                <strong>Envie no WhatsApp de {primeiroNome(atual.nome)}</strong>
-                <span>
-                  {!zap
-                    ? "Este padrinho não tem WhatsApp válido cadastrado."
-                    : enviou
-                      ? "Conversa aberta. Anexe a imagem da galeria e envie."
-                      : "A conversa abre com a mensagem pronta. Anexe a imagem que você baixou."}
-                </span>
-                {zap && (
-                  <span className="passo-final__acao">
-                    <Conversa t={16} />
-                    {enviou ? "Abrir de novo" : "Abrir o WhatsApp"}
-                  </span>
-                )}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <div className="apadrinhar-pagina__rodape">
-          <div className="passos__rodape">
-            {/* Concluir antes de agradecer e possivel — o padrinho pode ter
-                WhatsApp errado —, mas o botao diz que ficou faltando. */}
-            <Button variant={baixou && enviou ? "primary" : "ghost"} onClick={aoFechar}>
-              {baixou && enviou ? "Concluir" : "Concluir sem agradecer"}
-            </Button>
-          </div>
-        </div>
+        <div className="apadrinhar-pagina__meio">{meioFinal()}</div>
+        <div className="apadrinhar-pagina__rodape">{rodapeFinal()}</div>
       </div>
     );
   }

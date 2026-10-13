@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+
 /* As regras do formulario do padrinho, divididas entre a janela do
    computador e a pagina de cadastro do celular (ver CamposPadrinho.jsx). */
 
@@ -61,4 +63,17 @@ export function padrinhoCompleto(campos) {
       campos.membro_ser_feliz &&
       campos.interesse_mensal,
   );
+}
+
+/** O que trava o "Salvar" do cadastro: algum campo ja e de outro padrinho
+ *  (ver AvisoParecidos). Devolve se esta travado e a funcao que cada aviso
+ *  chama para dizer se o campo dele trava. */
+export function useBloqueioDeRepetido() {
+  const [bloqueios, definirBloqueios] = useState({});
+  const aoBloquear = useCallback(
+    (campo, trava) =>
+      definirBloqueios((atual) => (atual[campo] === trava ? atual : { ...atual, [campo]: trava })),
+    [],
+  );
+  return [Object.values(bloqueios).some(Boolean), aoBloquear];
 }

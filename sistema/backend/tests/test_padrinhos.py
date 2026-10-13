@@ -202,6 +202,29 @@ def main() -> None:
         r = cm.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Jose Doador"})
         verifica("monitor NAO consulta padrinhos", r.status_code == 403, str(r.status_code))
 
+        print("\nNao cadastra padrinho com dado igual ao de outro")
+        r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Outro Nome Qualquer",
+                                        "whatsapp": "(85) 99999-0000"})
+        verifica("mesmo WhatsApp (com mascara) e recusado",
+                 r.status_code == 409 and "WhatsApp" in r.text and "Jose Doador" in r.text, r.text[:160])
+        r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "JOSÉ  doador",
+                                        "whatsapp": "85911112222"})
+        verifica("mesmo nome (acento, caixa, espaco) e recusado", r.status_code == 409, r.text[:160])
+        r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Jose Carlos Doador",
+                                        "whatsapp": "85911112222"})
+        verifica("nome so parecido ainda cadastra", r.status_code == 201, r.text[:160])
+        outro_id = r.json().get("id")
+        r = ck.patch(f"/padrinhos/{outro_id}", json={"whatsapp": "85999990000"})
+        verifica("e nao pode trocar o WhatsApp para o de outro padrinho",
+                 r.status_code == 409, r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "jose doador"})
+        verifica("o aviso de nome igual vem marcado como igual",
+                 r.json() and r.json()[0]["igual"] is True, r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Jose C. Doador"})
+        verifica("e o so parecido, nao",
+                 r.json() and all(not p["igual"] for p in r.json()), r.text[:160])
+        cc.delete(f"/padrinhos/{outro_id}")
+
         print("\nWhatsApp ou email de um padrinho ja cadastrado")
         ck.patch(f"/padrinhos/{jose['id']}", json={"email": "Jose.Doador@Exemplo.org"})
         r = ck.get("/padrinhos/parecidos",
@@ -419,6 +442,10 @@ def main() -> None:
         r = ck.patch(f"/pagamentos/{do_comissario.get('id')}", json={"forma": "dinheiro"})
         verifica("mas corrige os dados do que registrou",
                  r.status_code == 200, r.text[:140])
+        verifica("e a forma sai sempre escrita do mesmo jeito",
+                 r.json().get("forma") == "Dinheiro", r.text[:140])
+        r = ck.patch(f"/pagamentos/{do_comissario.get('id')}", json={"forma": "Boleto"})
+        verifica("forma que nao e Pix nem Dinheiro e recusada", r.status_code == 422, str(r.status_code))
         r = ck.delete(f"/pagamentos/{do_comissario.get('id')}")
         verifica("comissario NAO apaga pagamento", r.status_code == 403, str(r.status_code))
         r = ck.get("/recebimentos", params={"edicao_id": e1.id})
