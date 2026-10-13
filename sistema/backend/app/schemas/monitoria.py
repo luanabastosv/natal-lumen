@@ -58,11 +58,23 @@ class PainelMonitoria(BaseModel):
     por_instituicao: list[InstituicaoMonitoria]
 
 
+class NucleoAntes(BaseModel):
+    """Como a instituicao estava quando a janela abriu."""
+
+    nucleo: str | None = None
+    cor_bata_nome: str | None = None
+    cor_bata_hex: str | None = None
+
+
 class NucleoIn(BaseModel):
     instituicao_id: int
     nucleo: str | None = Field(default=None, pattern="^[ABCD]$")
     cor_bata_nome: str | None = Field(default=None, max_length=40)
     cor_bata_hex: str | None = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
+    # Se veio, o servidor confere que ninguem mudou esta instituicao enquanto
+    # a janela estava aberta — senao quem salva por ultimo apagaria o que o
+    # outro fez.
+    antes: NucleoAntes | None = None
 
 
 class NucleosIn(BaseModel):

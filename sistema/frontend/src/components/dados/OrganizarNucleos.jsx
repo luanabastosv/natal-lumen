@@ -232,9 +232,23 @@ export default function OrganizarNucleos({ edicaoId, instituicoes, aoFechar, aoS
     definirErro("");
     definirSalvando(true);
     try {
+      // So o que mudou, cada um com como estava ao abrir: o servidor recusa se
+      // outra pessoa salvou a mesma instituicao no meio do caminho, e as que
+      // ninguem tocou aqui nao sao regravadas por cima de quem as mudou.
+      const igual = (a, b) =>
+        (a.nucleo ?? null) === (b.nucleo ?? null) &&
+        ((a.cor_bata_nome ?? "").trim() || null) === ((b.cor_bata_nome ?? "").trim() || null) &&
+        (a.cor_bata_hex ?? "").toLowerCase() === (b.cor_bata_hex ?? "").toLowerCase();
+      const mudadas = comDia
+        .map((i) => ({
+          antes: { nucleo: i.nucleo, cor_bata_nome: i.cor_bata_nome, cor_bata_hex: i.cor_bata_hex },
+          agora: rascunho[i.instituicao_id],
+          instituicao_id: i.instituicao_id,
+        }))
+        .filter((m) => !igual(m.antes, m.agora));
       const novo = await salvarNucleos(
         edicaoId,
-        comDia.map((i) => ({ instituicao_id: i.instituicao_id, ...rascunho[i.instituicao_id] })),
+        mudadas.map((m) => ({ instituicao_id: m.instituicao_id, ...m.agora, antes: m.antes })),
       );
       aoSalvar(novo);
     } catch (e) {

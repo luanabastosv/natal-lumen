@@ -195,6 +195,21 @@ def main() -> None:
         inst = {i["sigla"]: i for i in r.json().get("por_instituicao", [])} if r.status_code == 200 else {}
         verifica("e devolve o painel com eles",
                  inst.get("EA", {}).get("nucleo") == "A" and inst["EA"]["cor_bata_hex"] == "#d32f2f", str(inst.get("EA")))
+        # Duas pessoas com a janela aberta: a segunda salva a partir do que
+        # viu ao abrir (nucleo A), mas a primeira ja tinha mudado para C.
+        visto = {"nucleo": "A", "cor_bata_nome": "Vermelho", "cor_bata_hex": "#d32f2f"}
+        r = cm.put(f"/monitoria/{edicao.id}/nucleos", json={"instituicoes": [
+            {"instituicao_id": a.id, "nucleo": "C", "cor_bata_nome": "Vermelho",
+             "cor_bata_hex": "#d32f2f", "antes": visto}]})
+        verifica("quem salva a partir do que viu grava", r.status_code == 200, r.text[:160])
+        r = cm.put(f"/monitoria/{edicao.id}/nucleos", json={"instituicoes": [
+            {"instituicao_id": a.id, "nucleo": "D", "cor_bata_nome": "Vermelho",
+             "cor_bata_hex": "#d32f2f", "antes": visto}]})
+        verifica("quem salva por cima de uma mudanca que nao viu e recusado",
+                 r.status_code == 409 and "Outra pessoa" in r.text, r.text[:160])
+        cm.put(f"/monitoria/{edicao.id}/nucleos", json={"instituicoes": [
+            {"instituicao_id": a.id, "nucleo": "A", "cor_bata_nome": "Vermelho",
+             "cor_bata_hex": "#d32f2f"}]})
         r = cm.put(f"/monitoria/{edicao.id}/nucleos", json={"instituicoes": [
             {"instituicao_id": sem.id, "nucleo": "C"}]})
         verifica("instituicao sem dia nao entra em nucleo", r.status_code == 409, str(r.status_code))
@@ -245,6 +260,12 @@ def main() -> None:
         }
         r = cc.put(f"/programacao/{edicao.id}", json=prog)
         verifica("a coordenacao geral salva a programacao", r.status_code == 200, r.text[:160])
+        lida = r.json()["atualizado_em"] if r.status_code == 200 else None
+        r = cc.put(f"/programacao/{edicao.id}", json={**prog, "versao_lida": lida})
+        verifica("salvar de novo a partir da versao lida grava", r.status_code == 200, r.text[:160])
+        r = cc.put(f"/programacao/{edicao.id}", json={**prog, "versao_lida": lida})
+        verifica("salvar a partir de uma versao que outra pessoa ja mudou e recusado",
+                 r.status_code == 409, r.text[:160])
         r = cc.get(f"/programacao/{edicao.id}")
         p = r.json()
         verifica("e ela volta igual, com quem salvou",

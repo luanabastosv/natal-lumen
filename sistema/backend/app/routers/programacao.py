@@ -21,6 +21,7 @@ from app.schemas.programacao import (
     NucleosDoDia,
     ProgramacaoIn,
     ProgramacaoOut,
+    ProgramacaoSalvar,
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import contexto_atual
@@ -102,16 +103,24 @@ def ver(edicao_id: int, db: BD, ctx: Logado):
 
 
 @router.put("/{edicao_id}", response_model=ProgramacaoOut)
-def salvar(edicao_id: int, dados: ProgramacaoIn, db: BD, ctx: Logado):
+def salvar(edicao_id: int, dados: ProgramacaoSalvar, db: BD, ctx: Logado):
     _so_coordenacao(ctx, edicao_id)
     if db.get(Edicao, edicao_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Edicao nao encontrada.")
 
     p = _buscar(db, edicao_id)
+    if "versao_lida" in dados.model_fields_set:
+        salvo = p.atualizado_em if p is not None else None
+        if salvo != dados.versao_lida:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Outra pessoa salvou a programacao enquanto voce editava. Copie o "
+                "que mudou, cancele a edicao e abra de novo para ver o que esta salvo.",
+            )
     if p is None:
         p = Programacao(edicao_id=edicao_id, dados={})
         db.add(p)
-    p.dados = dados.model_dump()
+    p.dados = ProgramacaoIn(**dados.model_dump(exclude={"versao_lida"})).model_dump()
     p.atualizado_em = datetime.now(UTC)
     p.atualizado_por = ctx.usuario.id
     db.flush()

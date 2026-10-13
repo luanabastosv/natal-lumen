@@ -201,8 +201,15 @@ export default function Padrinhos() {
     const dados = dadosDoPadrinho(campos);
     try {
       if (emEdicao) {
+        // So os campos que a pessoa mudou: mandar o formulario inteiro
+        // regravaria, com o valor velho, o que outra pessoa mudou no mesmo
+        // padrinho enquanto esta janela estava aberta.
+        const antes = dadosDoPadrinho(paraOFormulario(emEdicao));
+        const mudou = Object.fromEntries(
+          Object.entries(dados).filter(([campo, valor]) => valor !== antes[campo]),
+        );
         // Troca so a linha: a pessoa continua onde estava na planilha.
-        trocarLinha(await editarPadrinho(emEdicao.id, dados));
+        if (Object.keys(mudou).length > 0) trocarLinha(await editarPadrinho(emEdicao.id, mudou));
         notificar(`${dados.nome} atualizado.`);
       } else {
         const novo = await criarPadrinho({ edicao_id: Number(edicaoAtiva), ...dados });

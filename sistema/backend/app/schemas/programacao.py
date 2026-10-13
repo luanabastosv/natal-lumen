@@ -51,6 +51,13 @@ class ProgramacaoIn(BaseModel):
     blocos: list[Bloco] = Field(default_factory=list, max_length=10)
 
 
+class ProgramacaoSalvar(ProgramacaoIn):
+    # O `atualizado_em` que a tela leu ao abrir a edicao. Se o salvo mudou
+    # desde entao, outra pessoa salvou no meio do caminho, e gravar o quadro
+    # inteiro por cima apagaria o que ela fez.
+    versao_lida: datetime | None = None
+
+
 class InstituicaoNoNucleo(BaseModel):
     nome: str
     sigla: str | None

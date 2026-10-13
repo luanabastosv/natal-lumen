@@ -218,6 +218,31 @@ def salvar_nucleos(edicao_id: int, dados: NucleosIn, db: BD, ctx: Logado):
             "Ha instituicoes sem dia do evento nesta edicao. Defina o dia delas antes.",
         )
 
+    def normal(nucleo, nome, hexa):
+        return (nucleo or None, (nome or "").strip() or None, hexa.lower() if hexa else None)
+
+    # Alguem salvou estas instituicoes enquanto esta janela estava aberta:
+    # recusa tudo, antes de gravar, e diz quais.
+    mexidas = []
+    for i in dados.instituicoes:
+        if i.antes is None:
+            continue
+        r = registros[i.instituicao_id]
+        if normal(i.antes.nucleo, i.antes.cor_bata_nome, i.antes.cor_bata_hex) != normal(
+            r.nucleo, r.cor_bata_nome, r.cor_bata_hex
+        ):
+            mexidas.append(i.instituicao_id)
+    if mexidas:
+        nomes = db.scalars(
+            select(Instituicao.nome).where(Instituicao.id.in_(mexidas)).order_by(Instituicao.nome)
+        ).all()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Outra pessoa mudou os nucleos enquanto voce editava ("
+            + ", ".join(nomes[:5]) + (" e outras" if len(nomes) > 5 else "")
+            + "). Feche a janela e abra de novo para ver o que esta salvo.",
+        )
+
     mudancas = []
     for i in dados.instituicoes:
         r = registros[i.instituicao_id]

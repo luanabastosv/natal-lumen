@@ -560,6 +560,9 @@ export default function Programacao() {
       const r = await salvarProgramacao(edicaoAtiva, {
         atividades: rascunho.atividades.filter((a) => a.nome.trim()),
         blocos: rascunho.blocos,
+        // A versao que estava salva quando a edicao abriu: se outra pessoa
+        // salvou no meio do caminho, o servidor recusa em vez de sobrescrever.
+        versao_lida: salvo?.atualizado_em ?? null,
       });
       definirSalvo(r);
       definirRascunho(null);
