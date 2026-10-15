@@ -5618,7 +5618,8 @@ button.checkin-lista__botao:not(:disabled):active {
    z-index 75: acima da barra azul do celular (60) e do menu lateral (70),
    que antes cobria o topo da pagina; abaixo das janelas (80) e dos avisos
    (90), que continuam podendo aparecer por cima. */
-.apadrinhar-pagina {
+.apadrinhar-pagina,
+.nucleos-pagina {
   position: fixed;
   inset: 0;
   z-index: 75;
@@ -5628,17 +5629,21 @@ button.checkin-lista__botao:not(:disabled):active {
 }
 
 .apadrinhar-pagina__topo,
-.apadrinhar-pagina__rodape {
+.apadrinhar-pagina__rodape,
+.nucleos-pagina__topo,
+.nucleos-pagina__rodape {
   flex: none;
   padding: var(--space-3) var(--space-5);
   background: var(--white);
 }
 
-.apadrinhar-pagina__topo {
+.apadrinhar-pagina__topo,
+.nucleos-pagina__topo {
   border-bottom: var(--stroke-hairline) solid var(--border-light);
 }
 
-.apadrinhar-pagina__topo .pagina__titulo {
+.apadrinhar-pagina__topo .pagina__titulo,
+.nucleos-pagina__topo .pagina__titulo {
   margin: 0 0 var(--space-3);
   font-size: var(--size-h3);
   line-height: var(--lh-h3);
@@ -5652,7 +5657,8 @@ button.checkin-lista__botao:not(:disabled):active {
 
 /* So esta faixa rola. `min-height: 0` deixa o filho de flex encolher abaixo
    do conteudo — sem isto ele cresce e empurra o rodape para fora da tela. */
-.apadrinhar-pagina__meio {
+.apadrinhar-pagina__meio,
+.nucleos-pagina__meio {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -5660,12 +5666,14 @@ button.checkin-lista__botao:not(:disabled):active {
   padding: var(--space-4) var(--space-5);
 }
 
-.apadrinhar-pagina__topo {
+.apadrinhar-pagina__topo,
+.nucleos-pagina__topo {
   /* Mais respiro em cima: o "voltar" nao fica rente ao topo da tela. */
   padding-top: max(var(--space-6), calc(env(safe-area-inset-top) + var(--space-4)));
 }
 
-.apadrinhar-pagina__rodape {
+.apadrinhar-pagina__rodape,
+.nucleos-pagina__rodape {
   border-top: var(--stroke-hairline) solid var(--border-light);
   padding-top: var(--space-4);
   /* Os botoes nao ficam colados no pe da tela, onde mora a barra de gestos
@@ -5697,7 +5705,8 @@ button.checkin-lista__botao:not(:disabled):active {
    computador o mouse acerta alvo pequeno; no celular, com uma mao e o
    telefone do padrinho na outra, nao. Os alvos ficam em 44-48px, a altura
    que o iOS e o Android pedem. */
-.apadrinhar-pagina .pasta-aberta__voltar {
+.apadrinhar-pagina .pasta-aberta__voltar,
+.nucleos-pagina .pasta-aberta__voltar {
   min-height: 44px;
 }
 
@@ -6791,6 +6800,69 @@ button.checkin-lista__botao:not(:disabled):active {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   background: none;
+}
+
+/* Organizar nucleos como pagina (celular). A moldura e a do apadrinhar; aqui
+   so o que e dele. Os dias ficam no topo fixo, entao a faixa de abas perde a
+   margem e o filete — quem separa o topo do meio e o filete do proprio topo. */
+.nucleos-pagina__topo .nucleos__dias {
+  margin: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.nucleos-pagina__topo .aba {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.nucleos-pagina__rodape .mensagem {
+  margin-bottom: var(--space-3);
+}
+
+/* Cancelar e Salvar dividem a largura; o Salvar maior, que e o que se aperta. */
+.nucleos-pagina__acoes {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.nucleos-pagina__acoes > .botao {
+  flex: 1;
+}
+
+.nucleos-pagina__acoes > .botao:last-child {
+  flex: 2;
+}
+
+.nucleos-pagina .nucleos__barra > .botao {
+  width: 100%;
+  min-height: 44px;
+}
+
+/* Os seletores de nucleo e de cor no tamanho do dedo, e com 16px de letra:
+   abaixo disso o iPhone da zoom na pagina ao tocar no campo. */
+.nucleos-pagina .nucleo-inst__controles .campo__controle {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  font-size: 16px;
+}
+
+.nucleos-pagina .nucleo-inst {
+  padding: var(--space-3);
+}
+
+.nucleos-pagina .nucleo-inst__topo {
+  font-size: 15px;
+}
+
+.nucleos-pagina .nucleo-inst__outra input[type="color"] {
+  width: 44px;
+  height: 44px;
+}
+
+.nucleos-pagina .nucleos__grade {
+  margin-top: var(--space-3);
 }
 
 /* Nucleos no painel da coordenacao geral: so leitura. */

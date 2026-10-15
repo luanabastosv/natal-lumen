@@ -10,6 +10,7 @@ import Progresso from "../feedback/Progresso.jsx";
 import OrganizarNucleos from "./OrganizarNucleos.jsx";
 import { buscarPainelMonitoria } from "../../services/monitoria.js";
 import { rotuloDia } from "../../utils/dinheiro.js";
+import useTelaEstreita from "../../hooks/useTelaEstreita.js";
 
 const NUCLEOS = ["A", "B", "C", "D"];
 
@@ -28,6 +29,7 @@ export default function PainelMonitoria({ edicaoId, monitor = false }) {
   const [erro, definirErro] = useState("");
   const [organizando, definirOrganizando] = useState(false);
   const [vendoCuidados, definirVendoCuidados] = useState(null);
+  const estreita = useTelaEstreita();
 
   useEffect(() => {
     let vivo = true;
@@ -271,6 +273,7 @@ export default function PainelMonitoria({ edicaoId, monitor = false }) {
 
       {organizando && !monitor && (
         <OrganizarNucleos
+          comoPagina={estreita}
           edicaoId={edicaoId}
           instituicoes={p.por_instituicao}
           aoFechar={() => definirOrganizando(false)}

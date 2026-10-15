@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Button from "../core/Button.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
@@ -192,8 +193,19 @@ function CartaoInstituicao({ inst, valor, aoMudar, conflito }) {
 
 /** "Organizar núcleos": divide as instituicoes de cada dia em A, B, C e D, com
  *  quantidades parecidas de criancas, e marca a cor da bata de cada uma —
- *  avisando quando duas batas parecidas caem no mesmo nucleo. */
-export default function OrganizarNucleos({ edicaoId, instituicoes, aoFechar, aoSalvar }) {
+ *  avisando quando duas batas parecidas caem no mesmo nucleo.
+ *
+ *  `comoPagina`: o caminho do celular, como no apadrinhar. A janela espremia
+ *  os quatro nucleos numa caixa que rolava dentro da tela, e os botoes de
+ *  salvar ficavam la no fim. Como pagina, os dias ficam fixos em cima, o
+ *  Salvar fixo embaixo, e so o meio rola. */
+export default function OrganizarNucleos({
+  edicaoId,
+  instituicoes,
+  aoFechar,
+  aoSalvar,
+  comoPagina = false,
+}) {
   const comDia = instituicoes.filter((i) => i.dia_evento_id);
   const semDia = instituicoes.length - comDia.length;
 
@@ -218,6 +230,17 @@ export default function OrganizarNucleos({ edicaoId, instituicoes, aoFechar, aoS
   );
   const [salvando, definirSalvando] = useState(false);
   const [erro, definirErro] = useState("");
+
+  // Como pagina ela cobre a tela e rola so por dentro: o fundo nao pode rolar
+  // junto quando o dedo passa do fim da lista.
+  useEffect(() => {
+    if (!comoPagina) return undefined;
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = antes;
+    };
+  }, [comoPagina]);
 
   const doDia = comDia.filter((i) => i.dia_evento_id === diaId);
   const totalDoDia = doDia.reduce((s, i) => s + i.criancas, 0);
@@ -277,34 +300,52 @@ export default function OrganizarNucleos({ edicaoId, instituicoes, aoFechar, aoS
     .filter((i) => !rascunho[i.instituicao_id].nucleo)
     .sort((a, b) => b.criancas - a.criancas);
 
-  return (
-    <Modal rotulo="Monitoria" titulo="Organizar núcleos" tamanho="amplo" aoFechar={aoFechar}>
-      <form onSubmit={salvar} className="nucleos">
-        {dias.length === 0 ? (
+  const abasDosDias = (
+    <div className="abas nucleos__dias" role="tablist">
+      {dias.map((d) => (
+        <button
+          key={d.id}
+          type="button"
+          role="tab"
+          aria-selected={d.id === diaId}
+          className={`aba ${d.id === diaId ? "aba--ativa" : ""}`}
+          onClick={() => definirDiaId(d.id)}
+        >
+          <span>{rotuloDia(d.data, d.descricao)}</span>
+          <span className="aba__contagem">
+            {comDia.filter((i) => i.dia_evento_id === d.id).reduce((s, i) => s + i.criancas, 0)}{" "}
+            crianças
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
+  const acoes = (
+    <>
+      <Button variant="ghost" onClick={aoFechar} disabled={salvando}>
+        Cancelar
+      </Button>
+      <Button
+        variant="secondary"
+        type="submit"
+        carregando={salvando}
+        disabled={dias.length === 0}
+      >
+        Salvar núcleos
+      </Button>
+    </>
+  );
+
+  const conteudo =
+        dias.length === 0 ? (
           <Mensagem tipo="aviso">
             Nenhuma instituição tem dia do evento ainda. Os núcleos são uma divisão de cada
             dia: defina o dia das instituições em Instituições primeiro.
           </Mensagem>
         ) : (
           <>
-            <div className="abas nucleos__dias" role="tablist">
-              {dias.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={d.id === diaId}
-                  className={`aba ${d.id === diaId ? "aba--ativa" : ""}`}
-                  onClick={() => definirDiaId(d.id)}
-                >
-                  <span>{rotuloDia(d.data, d.descricao)}</span>
-                  <span className="aba__contagem">
-                    {comDia.filter((i) => i.dia_evento_id === d.id).reduce((s, i) => s + i.criancas, 0)}{" "}
-                    crianças
-                  </span>
-                </button>
-              ))}
-            </div>
+            {!comoPagina && abasDosDias}
 
             <div className="nucleos__barra">
               <p className="nucleos__nota">
@@ -407,18 +448,43 @@ export default function OrganizarNucleos({ edicaoId, instituicoes, aoFechar, aoS
               </p>
             )}
           </>
-        )}
+        );
+
+  if (comoPagina) {
+    // Por portal, direto no <body>, pelo mesmo motivo do apadrinhar: dentro do
+    // layout, um ancestral com transform ou overflow corta o `fixed`.
+    return createPortal(
+      <form className="nucleos-pagina nucleos" onSubmit={salvar}>
+        <header className="nucleos-pagina__topo">
+          <button
+            type="button"
+            className="pasta-aberta__voltar"
+            onClick={() => !salvando && aoFechar()}
+          >
+            ← Painel
+          </button>
+          <div className="pagina__eyebrow">Monitoria</div>
+          <h1 className="pagina__titulo">Organizar núcleos</h1>
+          {dias.length > 0 && abasDosDias}
+        </header>
+        <div className="nucleos-pagina__meio">{conteudo}</div>
+        <div className="nucleos-pagina__rodape">
+          <Mensagem tipo="erro">{erro}</Mensagem>
+          <div className="nucleos-pagina__acoes">{acoes}</div>
+        </div>
+      </form>,
+      document.body,
+    );
+  }
+
+  return (
+    <Modal rotulo="Monitoria" titulo="Organizar núcleos" tamanho="amplo" aoFechar={aoFechar}>
+      <form onSubmit={salvar} className="nucleos">
+        {conteudo}
 
         <Mensagem tipo="erro">{erro}</Mensagem>
         <div className="barra-acoes barra-acoes--fim">
-          <div className="barra-acoes__ponta">
-            <Button variant="ghost" onClick={aoFechar} disabled={salvando}>
-              Cancelar
-            </Button>
-            <Button variant="secondary" type="submit" carregando={salvando} disabled={dias.length === 0}>
-              Salvar núcleos
-            </Button>
-          </div>
+          <div className="barra-acoes__ponta">{acoes}</div>
         </div>
       </form>
     </Modal>
