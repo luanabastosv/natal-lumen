@@ -79,6 +79,16 @@ function LinkDeAcesso({ link, aoFechar }) {
   );
 }
 
+// A ordem das equipes na lista. Perfil que nao estiver aqui vai para o fim.
+const ORDEM_DAS_EQUIPES = [
+  "Coordenacao",
+  "Comissarios - coordenacao",
+  "Comissarios - comissario",
+  "Monitoria - coordenacao",
+  "Monitoria - monitores",
+  "Estrutura",
+];
+
 export default function Usuarios() {
   // A edicao vem da lateral: a conta nasce na edicao que esta sendo vista, e a
   // lista mostra a equipe dessa mesma edicao.
@@ -180,13 +190,21 @@ export default function Usuarios() {
   // A equipe DESTA edicao. As contas de administracao geral ficam sempre a
   // vista: elas alcancam todas as cidades e nao tem vinculo com nenhuma, entao
   // filtrar por edicao as faria sumir da tela de quem precisa gerencia-las.
-  const daEdicao = useMemo(
-    () =>
-      usuarios.filter(
-        (u) => u.admin_geral || u.vinculos.some((v) => v.edicao_id === edicaoAtiva),
-      ),
-    [usuarios, edicaoAtiva],
-  );
+  //
+  // Agrupada por equipe, na ordem de quem responde por quem, e por nome dentro
+  // de cada uma: numa lista de trinta pessoas, procurar "os monitores" e mais
+  // comum que procurar alguem pelo nome.
+  const daEdicao = useMemo(() => {
+    const equipe = (u) => {
+      if (u.admin_geral) return -1;
+      const v = u.vinculos.find((x) => x.edicao_id === edicaoAtiva);
+      const i = ORDEM_DAS_EQUIPES.indexOf(v?.perfil);
+      return i === -1 ? ORDEM_DAS_EQUIPES.length : i;
+    };
+    return usuarios
+      .filter((u) => u.admin_geral || u.vinculos.some((v) => v.edicao_id === edicaoAtiva))
+      .sort((a, b) => equipe(a) - equipe(b) || a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [usuarios, edicaoAtiva]);
 
   function abrirNovo() {
     definirCampos({ ...VAZIO, perfil_id: perfisDisponiveis[0]?.id ?? "" });

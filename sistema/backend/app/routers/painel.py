@@ -11,6 +11,7 @@ contas, mas so as quebras por dia, por idade e por instituicao — o que orienta
 a compra e a montagem dos kits. O resto e a cobranca da captacao, e sai vazio.
 """
 
+import unicodedata
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from typing import Annotated
@@ -504,8 +505,10 @@ def _por_comissario(
         # So comissario tem grupo; o resto do time aparece sem.
         linhas.append(linha(i, nome, grupo if perfil == PERFIL_COMISSARIO else None))
 
-    # Sem grupo vai para o fim de cada bloco, e o nome ordena dentro do grupo.
-    linhas.sort(key=lambda l: (l.grupo is None, l.grupo or "", l.comissario))
+    # Em ordem alfabetica: e pelo nome que a coordenacao procura alguem. O
+    # grupo segue ao lado do nome.
+    # Sem acento na comparacao, senao "Alvaro" com acento iria para o fim.
+    linhas.sort(key=lambda l: unicodedata.normalize("NFKD", l.comissario).casefold())
 
     if None in contagens or None in festas:
         linhas.append(linha(None, SEM_COMISSARIO, None))
