@@ -66,11 +66,41 @@ function mensagemPorStatus(status, metodo, padrao) {
   return padrao;
 }
 
+// O nome do campo, como a pessoa le na tela, para o 422 da validacao.
+const NOMES_DE_CAMPO = {
+  email: "O email",
+  nome: "O nome",
+  whatsapp: "O WhatsApp",
+  telefone: "O telefone",
+  valor: "O valor",
+  data: "A data",
+};
+
+/** O 422 do FastAPI vem como lista, um item por campo recusado — e caia na
+ *  frase generica, sem dizer qual campo. Aqui vira uma frase sobre o primeiro. */
+function frasesDaValidacao(detail) {
+  const primeiro = Array.isArray(detail) ? detail[0] : null;
+  if (!primeiro) return null;
+  const campo = primeiro.loc?.[primeiro.loc.length - 1];
+  const nome = NOMES_DE_CAMPO[campo] ?? (campo ? `O campo "${campo}"` : "Um campo");
+  if (campo === "email") {
+    return "O email não parece válido. Confira se está completo (ex.: nome@gmail.com).";
+  }
+  if (primeiro.type === "string_too_short") return `${nome} está curto demais.`;
+  if (primeiro.type === "string_too_long") return `${nome} está longo demais.`;
+  return `${nome} não foi aceito. Confira e tente de novo.`;
+}
+
 /** Erro de uma resposta que chegou, com a frase do servidor quando ha. */
 function erroDaResposta(resposta, corpo, metodo, padrao) {
   // O FastAPI responde {detail: "..."}; o nginx (429, 502...) responde HTML,
   // e ai corpo e null.
-  const detalhe = typeof corpo?.detail === "string" ? corpo.detail : null;
+  const detalhe =
+    typeof corpo?.detail === "string"
+      ? corpo.detail
+      : resposta.status === 422
+        ? frasesDaValidacao(corpo?.detail)
+        : null;
   return new ErroApi(
     detalhe ?? mensagemPorStatus(resposta.status, metodo, padrao),
     resposta.status,
