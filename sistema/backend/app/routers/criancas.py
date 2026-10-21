@@ -97,6 +97,7 @@ CARREGAR = (
     joinedload(Crianca.comissario)
     .selectinload(Usuario.edicoes)
     .joinedload(UsuarioEdicao.grupo),
+    joinedload(Crianca.comissario_festa),
 )
 
 
@@ -167,6 +168,11 @@ def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) 
         promessa_festa=extra.get("promessa_festa", False) if padrinho else None,
         valor_cesta=crianca.edicao.valor_cesta if padrinho else None,
         valor_festa=crianca.edicao.valor_festa if padrinho else None,
+        festa_liberada=crianca.edicao.festa_liberada_em is not None,
+        comissario_festa_id=crianca.comissario_festa_id if padrinho else None,
+        comissario_festa=(
+            crianca.comissario_festa.nome if crianca.comissario_festa else None
+        ) if padrinho else None,
         cartoes=extra.get("cartoes", 0),
         autorizacao=extra.get("autorizacao", False),
         cuidados=extra.get("cuidados"),
@@ -310,7 +316,7 @@ def _permissoes_da_edicao(mudancas: set[str]) -> tuple[str, ...]:
     editar tudo numa edicao e so atribuir responsavel na seguinte, e quem
     resolve isso e o filtro de alcance, tentado nesta ordem.
     """
-    if mudancas <= {"comissario_id"}:
+    if mudancas <= {"comissario_id", "comissario_festa_id", "festa_do_responsavel"}:
         return ("editar_criancas", "atribuir_comissario")
     return ("editar_criancas",)
 
@@ -637,8 +643,30 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: EditarOuAtribuir):
             destino=instituicao if dados.instituicao_id is not None else None,
         )
 
+    # A festa: para alguem escolhido (de qualquer instituicao), de volta para a
+    # coordenacao (null), ou para o responsavel pela cesta de cada crianca.
+    mexe_na_festa = "comissario_festa_id" in dados.model_fields_set
+    if mexe_na_festa and dados.festa_do_responsavel:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Escolha uma pessoa para a festa OU o responsavel pela cesta, nao os dois.",
+        )
+    # A festa so vai para quem atende a instituicao da crianca, como a cesta:
+    # para dar a festa de outra escola a um comissario, a coordenacao marca a
+    # escola no cadastro dele primeiro. Assim ninguem recebe crianca de uma
+    # instituicao que o cadastro dele nao mostra.
+    if mexe_na_festa and dados.comissario_festa_id is not None:
+        _conferir_comissario(db, dados.comissario_festa_id, list(criancas))
+
     mudou = []
     for crianca in criancas:
+        if mexe_na_festa:
+            crianca.comissario_festa_id = dados.comissario_festa_id
+            mudou.append("comissario_festa_id")
+        if dados.festa_do_responsavel:
+            crianca.comissario_festa_id = crianca.comissario_id
+            mudou.append("comissario_festa_id")
+
         if dados.instituicao_id is not None:
             crianca.instituicao_id = dados.instituicao_id
             # Mudou de escola: o dia passa a ser o da escola nova.
@@ -654,6 +682,12 @@ def editar_em_lote(dados: CriancasEmLote, db: BD, ctx: EditarOuAtribuir):
                 if membro is None or dados.instituicao_id not in membro[1]:
                     crianca.comissario_id = None
                     mudou.append("comissario_id")
+            # A festa tambem, pela mesma regra.
+            if not mexe_na_festa and crianca.comissario_festa_id is not None:
+                membro = _time(db, crianca.edicao_id).get(crianca.comissario_festa_id)
+                if membro is None or dados.instituicao_id not in membro[1]:
+                    crianca.comissario_festa_id = None
+                    mudou.append("comissario_festa_id")
 
         if mexe_no_comissario:
             crianca.comissario_id = dados.comissario_id

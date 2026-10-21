@@ -4650,6 +4650,30 @@ button.celula:hover {
 
 .anel__trilho { stroke: var(--navy-100); }
 .anel__parte { stroke: var(--navy-600); }
+/* As mesmas cores das barras de cesta e de festa do painel. */
+.anel__parte--cesta { stroke: var(--navy-500); }
+.anel__parte--festa { stroke: var(--amarelo-600); }
+
+/* Duas series no centro: o porcento de cada uma, com o nome embaixo. */
+.anel__serie {
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+}
+
+.anel__serie .anel__numero--menor {
+  font-size: 22px;
+}
+
+.anel__serie + .anel__serie {
+  margin-top: 4px;
+}
+
+.anel__nome {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}
 
 .anel__centro {
   position: absolute;
@@ -8102,4 +8126,12 @@ button.checkin-lista__botao:not(:disabled):active {
    instituicao, com o mesmo respiro da grade da coordenacao. */
 .painel__monitor {
   margin: var(--space-6) 0 var(--layout-gap);
+}
+
+/* Tudo o que fala de apadrinhamento de festa antes de a campanha dela
+   comecar: continua no lugar, mas apagado, para nao competir com a cesta. */
+.metrica--apagada,
+.progresso--apagada,
+.festa-fechada {
+  opacity: 0.4;
 }

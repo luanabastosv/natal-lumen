@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { MenuRecolher } from "../core/icones.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import MenuLateral from "./MenuLateral.jsx";
+import CampanhaFesta from "./CampanhaFesta.jsx";
 import { nomeCurto } from "../../utils/nomes.js";
 
 function iniciais(nome) {
@@ -65,6 +66,8 @@ export default function BarraLateral({ aoNavegar, recolhida = false, aoAlternar 
       <MenuLateral aoNavegar={aoNavegar} recolhida={recolhida} />
 
       <div className="lateral__base">
+        <CampanhaFesta recolhida={recolhida} />
+
         {/* A edicao ativa vale para o sistema inteiro: escolhida uma vez aqui,
             nenhuma pagina volta a perguntar.
 

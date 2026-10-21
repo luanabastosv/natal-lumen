@@ -264,6 +264,15 @@ export function MenuCartoes({ t }) {
   );
 }
 
+/** Campanha da festa: a estrela do Natal Lumen. */
+export function Estrela({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6L12 16.7 6.6 19.6l1.1-6-4.5-4.2 6.1-.8z" />
+    </Svg>
+  );
+}
+
 /** Kits: a caixa de presente. */
 export function MenuKits({ t }) {
   return (

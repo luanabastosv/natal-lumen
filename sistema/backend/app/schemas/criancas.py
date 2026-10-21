@@ -87,6 +87,13 @@ class CriancaOut(BaseModel):
     # sem `ver_padrinhos`.
     valor_cesta: Decimal | None = None
     valor_festa: Decimal | None = None
+    # Quem responde pela festa. Nulo com `ver_padrinhos` = esta com a
+    # coordenacao; nulo sem a permissao = nao e para voce, como o resto.
+    comissario_festa_id: int | None = None
+    comissario_festa: str | None = None
+    # A edicao DELA ja liberou o apadrinhamento da festa. Antes disso a festa
+    # nao pode ser escolhida no apadrinhar.
+    festa_liberada: bool = False
     # Quantos cartoes ja foram digitalizados. Este fica de pe para todo mundo
     # que ve a crianca: e o andamento do trabalho da monitoria, e nao diz nada
     # sobre doador nenhum.
@@ -156,6 +163,12 @@ class CriancasEmLote(BaseModel):
     # toca: distribuir 200 criancas entre 3 comissarios uma a uma nao e
     # trabalho que alguem faca.
     comissario_id: int | None = None
+    # Quem responde pela FESTA. Mesma regra: null devolve a festa para a
+    # coordenacao, ausente nao toca. Pode ser de qualquer instituicao.
+    comissario_festa_id: int | None = None
+    # A festa de cada crianca vai para o responsavel pela cesta DELA — o caso
+    # comum, quando a coordenacao devolve a festa ao time de cada instituicao.
+    festa_do_responsavel: bool = False
 
 
 class ResumoInstituicao(BaseModel):

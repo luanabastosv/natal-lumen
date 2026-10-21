@@ -17,6 +17,9 @@ export const apagarCidade = (id, senha) => api.delete(`/cidades/${id}?confirmar=
 export const listarEdicoes = () => api.get("/edicoes");
 export const criarEdicao = (dados) => api.post("/edicoes", dados);
 export const editarEdicao = (id, dados) => api.patch(`/edicoes/${id}`, dados);
+/** A coordenacao geral comeca (ou suspende) o apadrinhamento da festa. */
+export const liberarCampanhaFesta = (id, liberada) =>
+  api.put(`/edicoes/${id}/campanha-festa`, { liberada });
 export const dependenciasDaEdicao = (id) => api.get(`/edicoes/${id}/dependencias`);
 /** Apaga a edicao com tudo dentro. Pede a senha de quem apaga, de novo. */
 export const apagarEdicao = (id, senha) => api.delete(`/edicoes/${id}?confirmar=true`, { senha });

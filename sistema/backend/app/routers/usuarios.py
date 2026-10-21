@@ -296,7 +296,14 @@ def _soltar_criancas_fora_do_alcance(db: Session, vinculo: UsuarioEdicao) -> int
     soltas = db.execute(
         update(Crianca).where(*condicoes).values(comissario_id=None)
     ).rowcount
-    return soltas or 0
+
+    # A festa segue a mesma cerca: so vai para quem atende a instituicao da
+    # crianca, e sai quando a instituicao sai.
+    condicoes[1] = Crianca.comissario_festa_id == vinculo.usuario_id
+    soltas_festa = db.execute(
+        update(Crianca).where(*condicoes).values(comissario_festa_id=None)
+    ).rowcount
+    return (soltas or 0) + (soltas_festa or 0)
 
 
 def _espelhos(vinculos: list[UsuarioEdicao]) -> dict:

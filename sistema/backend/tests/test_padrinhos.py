@@ -154,6 +154,9 @@ def main() -> None:
         return a.id
 
     coord = usuario("Coord", "Coordenacao", [e1.id, e2.id])
+    admin = Usuario(nome=f"{MARCA} Admin", email=f"{MARCA.lower()}.admin@exemplo.org",
+                    senha_hash=gerar_hash(SENHA), admin_geral=True)
+    db.add(admin)
     comissario = usuario("Comissario", "Comissarios - comissario", [e1.id], [i1.id])
     # O colega do mesmo TIME da Escola A: alcanca a mesma instituicao, mas
     # outras criancas.
@@ -174,6 +177,8 @@ def main() -> None:
 
     try:
         cc = TestClient(app); entrar(cc, coord.email)
+        ccol = TestClient(app); entrar(ccol, colega.email)
+        ccap = TestClient(app); entrar(ccap, capcoord.email)
         ck = TestClient(app); entrar(ck, comissario.email)
         cm = TestClient(app); entrar(cm, monitor.email)
 
@@ -314,6 +319,68 @@ def main() -> None:
 
         r = apadrinhar(ck, jose["id"], (ana.id, "cesta"))
         verifica("recusa dois padrinhos de cesta para a mesma crianca", r.status_code == 409)
+
+        # A festa so abre quando a coordenacao geral da a largada.
+        r = apadrinhar(ck, jose["id"], (ana.id, "festa"))
+        verifica("festa recusada antes de a campanha comecar", r.status_code == 409, r.text[:110])
+        r = ck.get("/criancas", params={"edicao_id": e1.id})
+        lista = r.json()["itens"] if r.status_code == 200 else []
+        verifica("a crianca diz que a festa ainda nao foi liberada",
+                 any(c["id"] == ana.id and c["festa_liberada"] is False for c in lista), r.text[:110])
+        r = cc.get(f"/painel/{e1.id}")
+        verifica("o painel diz que a festa ainda nao foi liberada",
+                 r.status_code == 200 and r.json()["resumo"]["festa_liberada"] is False, r.text[:110])
+        r = ck.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": True})
+        verifica("comissario nao comeca a campanha da festa", r.status_code == 403, str(r.status_code))
+        r = cc.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": True})
+        verifica("nem a coordenacao geral liga a campanha da festa", r.status_code == 403, str(r.status_code))
+        ca = TestClient(app); entrar(ca, admin.email)
+        r = ca.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": True})
+        verifica("a administracao geral liga a campanha da festa",
+                 r.status_code == 200 and r.json()["festa_liberada"] is True, r.text[:110])
+        r = ca.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": False})
+        verifica("e desliga", r.status_code == 200 and r.json()["festa_liberada"] is False, r.text[:110])
+        r = ca.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": True})
+        r = cc.get(f"/painel/{e1.id}")
+        verifica("e o painel passa a dizer que ela comecou",
+                 r.status_code == 200 and r.json()["resumo"]["festa_liberada"] is True, r.text[:110])
+
+        # A festa tem responsavel proprio: comecar a campanha nao a entrega aos
+        # comissarios. Fica com a coordenacao ate ela passar adiante.
+        r = apadrinhar(ck, jose["id"], (ana.id, "festa"))
+        verifica("comissario nao apadrinha festa que esta com a coordenacao",
+                 r.status_code == 403 and "coordenacao" in r.text, r.text[:110])
+        r = ck.post("/criancas/lote", json={"criancas": [ana.id], "festa_do_responsavel": True})
+        verifica("comissario nao distribui a festa", r.status_code in (403, 404), str(r.status_code))
+        r = cc.post("/criancas/lote", json={"criancas": [ana.id, bruno.id], "festa_do_responsavel": True})
+        verifica("coordenacao passa a festa ao responsavel pela cesta",
+                 r.status_code == 200 and all(c["comissario_festa_id"] == comissario.id for c in r.json()),
+                 r.text[:110])
+        r = ccap.post("/criancas/lote", json={"criancas": [duda.id], "comissario_festa_id": colega.id})
+        verifica("coordenacao dos comissarios passa a festa a alguem",
+                 r.status_code == 200 and r.json()[0]["comissario_festa"] == colega.nome, r.text[:110])
+        r = cc.post("/criancas/lote", json={"criancas": [carla.id], "comissario_festa_id": comissario.id})
+        verifica("a festa nao vai para quem nao atende a instituicao", r.status_code == 422, r.text[:110])
+        r = cc.post("/criancas/lote", json={"criancas": [elias.id], "comissario_festa_id": comissario.id})
+        verifica("a festa vai para quem nao responde pela cesta", r.status_code == 200, r.text[:110])
+        lista = ck.get("/criancas", params={"edicao_id": e1.id}).json()["itens"]
+        verifica("o comissario passa a ver a crianca da festa dele",
+                 any(c["id"] == elias.id for c in lista), str([c["codigo"] for c in lista]))
+        r = apadrinhar(ck, jose["id"], (elias.id, "cesta"))
+        verifica("mas nao apadrinha a cesta dela", r.status_code == 403, r.text[:110])
+        r = ca.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": False})
+        lista = ck.get("/criancas", params={"edicao_id": e1.id}).json()["itens"]
+        verifica("campanha desligada: a crianca da festa some da lista dele",
+                 not any(c["id"] == elias.id for c in lista), str([c["codigo"] for c in lista]))
+        r = ca.put(f"/edicoes/{e1.id}/campanha-festa", json={"liberada": True})
+        lista = ck.get("/criancas", params={"edicao_id": e1.id}).json()["itens"]
+        verifica("e volta quando a campanha volta",
+                 any(c["id"] == elias.id for c in lista), str([c["codigo"] for c in lista]))
+        r = cc.post("/criancas/lote", json={"criancas": [elias.id], "comissario_festa_id": None})
+        verifica("e a festa volta para a coordenacao",
+                 r.status_code == 200 and r.json()[0]["comissario_festa_id"] is None, r.text[:110])
+        lista = ck.get("/criancas", params={"edicao_id": e1.id}).json()["itens"]
+        verifica("e a crianca sai da lista dele", not any(c["id"] == elias.id for c in lista))
 
         r = apadrinhar(ck, jose["id"], (ana.id, "festa"))
         verifica("a mesma crianca aceita padrinho de festa", r.status_code == 201, r.text[:110])
@@ -905,8 +972,6 @@ def main() -> None:
                            .where(Apadrinhamento.crianca_id == ana.id)) == 0)
 
         print("\nCada comissario mexe no que e dele")
-        ccol = TestClient(app); entrar(ccol, colega.email)
-        ccap = TestClient(app); entrar(ccap, capcoord.email)
 
         # Duda e do colega: o apadrinhamento nasce no nome dele.
         r = ccol.post("/padrinhos", json={"edicao_id": e1.id, "nome": f"{MARCA} Doador do Colega"})

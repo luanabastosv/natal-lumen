@@ -18,11 +18,21 @@ const TRACO = 14;
 const RAIO = (TAMANHO - TRACO) / 2;
 const VOLTA = 2 * Math.PI * RAIO;
 
-export default function Anel({ valor, de, rotulo, nota }) {
-  const parte = de > 0 ? Math.min(100, Math.round((valor / de) * 100)) : 0;
-  // O arco comeca no topo: -90 graus. Sem isso ele abriria as tres horas, e a
-  // leitura de "quanto ja foi" deixa de ser imediata.
-  const preenchido = (parte / 100) * VOLTA;
+function porcento(valor, de) {
+  return de > 0 ? Math.min(100, Math.round((valor / de) * 100)) : 0;
+}
+
+/** `partes`: um arco por serie, desenhados na ordem — o ultimo fica por cima.
+ *  E assim que a festa entra: o arco da cesta embaixo, o da festa sobre ele,
+ *  os dois partindo do topo. Com uma parte so, o centro diz a fracao; com
+ *  duas, o porcento de cada uma, cada um com o nome escrito (a cor nao e a
+ *  unica pista). */
+export default function Anel({ partes, rotulo, nota }) {
+  const arcos = partes.map((p) => ({ ...p, parte: porcento(p.valor, p.de) }));
+  const unica = arcos.length === 1 ? arcos[0] : null;
+  const descricao = arcos
+    .map((a) => `${a.nome ?? rotulo}: ${a.valor} de ${a.de}, ${a.parte}%`)
+    .join("; ");
 
   return (
     <div className="anel">
@@ -32,7 +42,7 @@ export default function Anel({ valor, de, rotulo, nota }) {
           height={TAMANHO}
           viewBox={`0 0 ${TAMANHO} ${TAMANHO}`}
           role="img"
-          aria-label={`${rotulo}: ${valor} de ${de}, ${parte}%`}
+          aria-label={descricao}
         >
           <circle
             className="anel__trilho"
@@ -42,23 +52,42 @@ export default function Anel({ valor, de, rotulo, nota }) {
             fill="none"
             strokeWidth={TRACO}
           />
-          <circle
-            className="anel__parte"
-            cx={TAMANHO / 2}
-            cy={TAMANHO / 2}
-            r={RAIO}
-            fill="none"
-            strokeWidth={TRACO}
-            strokeLinecap="round"
-            strokeDasharray={`${preenchido} ${VOLTA - preenchido}`}
-            transform={`rotate(-90 ${TAMANHO / 2} ${TAMANHO / 2})`}
-          />
+          {/* O arco comeca no topo: -90 graus. Sem isso ele abriria as tres
+              horas, e a leitura de "quanto ja foi" deixa de ser imediata. */}
+          {arcos.map((a) => {
+            const preenchido = (a.parte / 100) * VOLTA;
+            return a.parte > 0 ? (
+              <circle
+                key={a.tom}
+                className={`anel__parte anel__parte--${a.tom}`}
+                cx={TAMANHO / 2}
+                cy={TAMANHO / 2}
+                r={RAIO}
+                fill="none"
+                strokeWidth={TRACO}
+                strokeLinecap="round"
+                strokeDasharray={`${preenchido} ${VOLTA - preenchido}`}
+                transform={`rotate(-90 ${TAMANHO / 2} ${TAMANHO / 2})`}
+              />
+            ) : null;
+          })}
         </svg>
         <div className="anel__centro">
-          <span className="anel__numero">{parte}%</span>
-          <span className="anel__fracao">
-            {valor} de {de}
-          </span>
+          {unica ? (
+            <>
+              <span className="anel__numero">{unica.parte}%</span>
+              <span className="anel__fracao">
+                {unica.valor} de {unica.de}
+              </span>
+            </>
+          ) : (
+            arcos.map((a) => (
+              <span key={a.tom} className="anel__serie">
+                <span className="anel__numero anel__numero--menor">{a.parte}%</span>
+                <span className={`anel__nome anel__nome--${a.tom}`}>{a.nome}</span>
+              </span>
+            ))
+          )}
         </div>
       </div>
       <span className="anel__rotulo">{rotulo}</span>

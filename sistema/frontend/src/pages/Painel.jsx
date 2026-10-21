@@ -80,17 +80,29 @@ function totalIdade(faixas, coluna) {
  * comissario nao: ele abre o sistema para saber quantas criancas ainda
  * dependem dele hoje, e essa e a unica coisa que a frase precisa dizer.
  */
-function ledeDoComissario(r) {
-  if (r.criancas === 0) {
+function ledeDoComissario(r, festaFechada) {
+  if (r.criancas === 0 && !r.festa_criancas) {
     return "Assim que a coordenação atribuir crianças a você, elas aparecem aqui.";
   }
 
-  const faltam = r.criancas - r.completas;
-  if (faltam === 0) {
-    return `Suas ${r.criancas} crianças já têm padrinho de cesta e de festa. Obrigada!`;
+  // Antes da campanha da festa, o trabalho e so a cesta.
+  if (festaFechada) {
+    const semCesta = r.criancas - r.cesta_feitos;
+    if (semCesta === 0) return `Suas ${r.criancas} crianças já têm padrinho de cesta. Obrigada!`;
+    return `Você ainda tem ${plural(semCesta, "criança", "crianças")} para apadrinhar.`;
   }
 
-  return `Você ainda tem ${plural(faltam, "criança", "crianças")} para apadrinhar.`;
+  // Com a festa aberta sao duas listas: a cesta das crianças dele e a festa
+  // que a coordenacao passou para ele, que podem nao ser as mesmas crianças.
+  const cestas = r.criancas - r.cesta_feitos;
+  const festas = (r.festa_criancas ?? 0) - r.festa_feitos;
+  if (cestas === 0 && festas === 0) {
+    return "Todas as suas crianças já têm padrinho. Obrigada!";
+  }
+  const partes = [];
+  if (cestas > 0) partes.push(plural(cestas, "cesta", "cestas"));
+  if (festas > 0) partes.push(plural(festas, "festa", "festas"));
+  return `Você ainda tem ${partes.join(" e ")} para apadrinhar.`;
 }
 
 export default function Painel() {
@@ -196,6 +208,11 @@ export default function Painel() {
   }, [podeVerNumeros, edicaoAtiva]);
 
   const r = relatorio?.resumo;
+  // Antes da campanha da festa, tudo o que fala dela aparece apagado. Vem da
+  // edicao da sessao, e nao do relatorio: o botao da lateral recarrega as
+  // edicoes, e o painel acompanha sem buscar os numeros de novo.
+  const festaFechada = Boolean(edicao && !edicao.festa_liberada);
+
   // Quem responde por criancas atribuidas a ele — o comissario — ve o painel
   // DELE. Quem diz isso e o backend, junto com os numeros que ja vieram
   // filtrados; a tela nao olha o nome do perfil.
@@ -203,7 +220,7 @@ export default function Painel() {
   // Comissario sem nenhuma crianca atribuida: tres zeros nao explicam nada,
   // uma frase sim. A edicao vazia da coordenacao continua mostrando os zeros —
   // la eles sao a noticia.
-  const semCriancas = soMinhas && r?.criancas === 0;
+  const semCriancas = soMinhas && r?.criancas === 0 && !r?.festa_criancas;
   // O painel da estrutura: por dia, por idade e por instituicao, e mais nada.
   // O resumo de padrinhos e o anel sao a cobranca da captacao.
   const soLogistica = Boolean(relatorio?.so_logistica);
@@ -211,7 +228,10 @@ export default function Painel() {
   // O cartao de cada instituicao: no painel da coordenacao fica ao lado do
   // "Por idade"; no do comissario, ao lado do anel de progresso — quando a
   // linha do anel nao tem o dia do evento (o comissario de base nao tem).
-  const instAoLadoDoAnel = deComissarios && !(relatorio?.por_dia?.length > 0);
+  // O comissario de base nao ve a quebra por dia: o dia do evento nao e
+  // assunto dele.
+  const mostraPorDia = !soMinhas && relatorio?.por_dia?.length > 0;
+  const instAoLadoDoAnel = deComissarios && !mostraPorDia;
   const cartaoPorInstituicao = relatorio?.por_instituicao?.length > 0 && (
 
                   <section className="cartao">
@@ -219,7 +239,7 @@ export default function Painel() {
                       <h3 className="cartao__titulo">Por instituição</h3>
                       <span className="legenda">
                         <span className="legenda__item legenda__item--cesta">apadrinhamento de cesta</span>
-                        <span className="legenda__item legenda__item--festa">apadrinhamento de festa</span>
+                        <span className={`legenda__item legenda__item--festa ${festaFechada ? "festa-fechada" : ""}`}>apadrinhamento de festa</span>
                       </span>
                     </div>
                     <div className="lista-progresso lista-progresso--densa">
@@ -238,7 +258,10 @@ export default function Painel() {
                               )}
                             </span>
                             <span className="lista-progresso__total">
-                              {l.criancas}
+                              {/* Com a festa do comissario, a cesta e a festa
+                                  sao listas diferentes: o total de uma so
+                                  enganaria. Fica o que falta das duas. */}
+                              {l.festa_criancas == null && l.criancas}
                               {/* Completa e a crianca com os dois padrinhos; o
                                   que falta dela e o trabalho que sobra aqui. */}
                               {l.faltam > 0 && (
@@ -249,8 +272,20 @@ export default function Painel() {
                               )}
                             </span>
                           </div>
-                          <Progresso rotulo="Apadr. cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
-                          <Progresso rotulo="Apadr. festa" valor={l.festa} de={l.criancas} tom="festa" />
+                          {/* Instituicao em que o comissario so tem a festa:
+                              sem barra de cesta. */}
+                          {(l.criancas > 0 || l.festa_criancas == null) && (
+                            <Progresso rotulo="Apadr. cesta" valor={l.cesta} de={l.criancas} tom="cesta" />
+                          )}
+                          {(l.festa_criancas == null || l.festa_criancas > 0) && (
+                            <Progresso
+                              rotulo="Apadr. festa"
+                              valor={l.festa}
+                              de={l.festa_criancas ?? l.criancas}
+                              tom="festa"
+                              apagada={festaFechada}
+                            />
+                          )}
                           {/* O transporte fecha a linha. A etiqueta do dia saiu
                               daqui: o dia de cada instituicao ja e a leitura do
                               cartao ao lado, e repetido aqui ele competia com o
@@ -316,7 +351,7 @@ export default function Painel() {
             </div>
             <p className="abertura__lede">
               {soMinhas && r
-                ? ledeDoComissario(r)
+                ? ledeDoComissario(r, festaFechada)
                 : soLogistica
                   ? "Quantas crianças vêm em cada dia, de cada instituição e de cada idade."
                   : coordMonitoria
@@ -424,9 +459,16 @@ export default function Painel() {
                   <Metrica
                     rotulo="Apadrinhamento · festa"
                     valor={r.festa_feitos}
-                    de={r.criancas}
+                    /* Para o comissario, a festa e a que a coordenacao passou
+                       para ele — nao as criancas da lista de cesta. */
+                    de={soMinhas ? r.festa_criancas : r.criancas}
                     tom="festa"
-                    nota={`faltam ${r.criancas - r.festa_feitos}`}
+                    apagada={festaFechada}
+                    nota={
+                      !festaFechada
+                        ? `faltam ${(soMinhas ? r.festa_criancas : r.criancas) - r.festa_feitos}`
+                        : "ainda não liberada"
+                    }
                   />
                   <Metrica
                     rotulo="Completas"
@@ -462,7 +504,7 @@ export default function Painel() {
               <div
                 className={`painel__grade${soLogistica ? "" : " painel__grade--larga"}`}
               >
-                {relatorio.por_dia.length > 0 && (
+                {mostraPorDia && (
                   <section className="cartao">
                     <div className="cartao__topo">
                       <h3 className="cartao__titulo">Por dia do evento</h3>
@@ -522,11 +564,28 @@ export default function Painel() {
 
                 {!semCriancas && !soLogistica && (
                   <section className="cartao cartao--anel">
+                    {/* A cesta primeiro, numa cor; quando a festa comeca, o
+                        arco dela entra por cima do da cesta. */}
                     <Anel
-                      valor={r.completas}
-                      de={r.criancas}
+                      partes={[
+                        { nome: "cesta", tom: "cesta", valor: r.cesta_feitos, de: r.criancas },
+                        ...(festaFechada
+                          ? []
+                          : [
+                              {
+                                nome: "festa",
+                                tom: "festa",
+                                valor: r.festa_feitos,
+                                de: soMinhas ? r.festa_criancas : r.criancas,
+                              },
+                            ]),
+                      ]}
                       rotulo={soMinhas ? "das suas crianças" : "da edição"}
-                      nota="crianças com padrinho de cesta e de festa"
+                      nota={
+                        festaFechada
+                          ? "crianças com padrinho de cesta"
+                          : "apadrinhamento de cesta e de festa"
+                      }
                     />
                   </section>
                 )}
@@ -646,8 +705,9 @@ export default function Painel() {
                     <h3 className="cartao__titulo">Por comissário</h3>
                   </div>
                   <p className="cartao__lede">
-                    Completa é a criança que já tem os dois padrinhos, de cesta e de
-                    festa. São muitos nomes: aqui a tabela lê melhor que um gráfico.
+                    {festaFechada
+                      ? "Quanto da cesta de cada comissário já tem padrinho."
+                      : "A cesta e a festa de cada comissário: a festa conta as crianças que a coordenação passou para ele."}
                   </p>
                   <div className="tabela-rolagem">
                     {/* Sem `tabela--larga` no celular: e a largura minima dela
@@ -665,16 +725,15 @@ export default function Painel() {
                       <thead>
                         <tr>
                           <th>Comissário</th>
-                          <th>Crianças</th>
-                          {!estreita && (
+                          {!estreita && <th>Apadr. cesta</th>}
+                          <th>% cesta</th>
+                          {!festaFechada && (
                             <>
-                              <th>Apadr. cesta</th>
-                              <th>Apadr. festa</th>
-                              <th>Completas</th>
-                              <th>Faltam</th>
+                              {!estreita && <th>Apadr. festa</th>}
+                              <th>% festa</th>
                             </>
                           )}
-                          <th>% feito</th>
+                          {!estreita && <th>Faltam</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -696,22 +755,31 @@ export default function Painel() {
                                 <span className="comissario__grupo"> · {l.grupo}</span>
                               )}
                             </td>
-                            <td>{l.criancas}</td>
+                            {/* Feitas de quantas, como na festa: o total de
+                                criancas sozinho nao dizia de qual lista era. */}
                             {!estreita && (
-                              <>
-                                <td>{l.cesta}</td>
-                                <td>{l.festa}</td>
-                                <td>{l.completas}</td>
-                                <td className={l.faltam > 0 ? "tabela__pendente" : undefined}>
-                                  {l.faltam}
-                                </td>
-                              </>
+                              <td>{l.criancas ? `${l.cesta}/${l.criancas}` : "—"}</td>
                             )}
                             {/* A planilha antiga media o que FALTAVA. Aqui a
                                 coluna mede o que esta feito: e o mesmo dado,
                                 e ler "80%" como boa noticia cansa menos o
                                 time do que ler "20%" como ma. */}
-                            <td>{percentual(l.completas, l.criancas)}</td>
+                            <td>{percentual(l.cesta, l.criancas)}</td>
+                            {!festaFechada && (
+                              <>
+                                {!estreita && (
+                                  <td>
+                                    {l.festa_criancas ? `${l.festa}/${l.festa_criancas}` : "—"}
+                                  </td>
+                                )}
+                                <td>{percentual(l.festa, l.festa_criancas ?? 0)}</td>
+                              </>
+                            )}
+                            {!estreita && (
+                              <td className={l.faltam > 0 ? "tabela__pendente" : undefined}>
+                                {l.faltam}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -725,10 +793,22 @@ export default function Painel() {
                       aoFechar={() => definirDetalhe(null)}
                       campos={[
                         { rotulo: "Grupo", valor: detalhe.grupo },
-                        { rotulo: "Crianças", valor: detalhe.criancas },
-                        { rotulo: "Cesta", valor: detalhe.cesta },
-                        { rotulo: "Festa", valor: detalhe.festa },
-                        { rotulo: "Completas", valor: detalhe.completas },
+                        {
+                          rotulo: "Cesta",
+                          valor: detalhe.criancas
+                            ? `${detalhe.cesta}/${detalhe.criancas} · ${percentual(detalhe.cesta, detalhe.criancas)}`
+                            : "—",
+                        },
+                        ...(festaFechada
+                          ? []
+                          : [
+                              {
+                                rotulo: "Festa",
+                                valor: detalhe.festa_criancas
+                                  ? `${detalhe.festa}/${detalhe.festa_criancas} · ${percentual(detalhe.festa, detalhe.festa_criancas)}`
+                                  : "—",
+                              },
+                            ]),
                         {
                           rotulo: "Faltam",
                           valor: (
@@ -736,10 +816,6 @@ export default function Painel() {
                               {detalhe.faltam}
                             </span>
                           ),
-                        },
-                        {
-                          rotulo: "% feito",
-                          valor: percentual(detalhe.completas, detalhe.criancas),
                         },
                       ]}
                     />

@@ -109,7 +109,9 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
 
     # Mesmo filtro das telas: quem so alcanca algumas instituicoes ve os
     # numeros dessas instituicoes.
-    alcance = ctx.filtro_criancas(permissao) & (Crianca.edicao_id == edicao_id)
+    # Sem as criancas que o comissario alcanca so pela festa: os numeros dele
+    # sao os da lista de cesta, e a festa dele e contada a parte, abaixo.
+    alcance = ctx.filtro_criancas(permissao, com_festa=False) & (Crianca.edicao_id == edicao_id)
     criancas_visiveis = select(Crianca.id).where(alcance)
 
     criancas = db.scalar(select(func.count()).select_from(Crianca).where(alcance)) or 0
@@ -147,6 +149,30 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         )
     ) or 0
 
+    # A festa do comissario nao e a das criancas da lista dele: e a que a
+    # coordenacao passou para ele, de qualquer instituicao. Para quem ve a
+    # edicao inteira, sao as mesmas criancas de sempre.
+    so_minhas_criancas = ctx.so_proprias_criancas(edicao_id)
+    festa_criancas, festa_feitos = criancas, por_tipo.get(FESTA, 0)
+    if so_minhas_criancas and edicao.festa_liberada_em is None:
+        festa_criancas = festa_feitos = 0
+    elif so_minhas_criancas:
+        da_festa = (Crianca.edicao_id == edicao_id) & (
+            Crianca.comissario_festa_id == ctx.usuario.id
+        )
+        festa_criancas = db.scalar(
+            select(func.count()).select_from(Crianca).where(da_festa)
+        ) or 0
+        festa_feitos = db.scalar(
+            select(func.count())
+            .select_from(Apadrinhamento)
+            .where(
+                Apadrinhamento.crianca_id.in_(select(Crianca.id).where(da_festa)),
+                Apadrinhamento.tipo == FESTA,
+                CONFIRMADO,
+            )
+        ) or 0
+
     resumo = ResumoEdicao(
         edicao_id=edicao.id,
         edicao=edicao.nome,
@@ -155,17 +181,22 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         criancas=criancas,
         instituicoes=instituicoes,
         cesta_feitos=por_tipo.get(CESTA, 0),
-        festa_feitos=por_tipo.get(FESTA, 0),
+        festa_feitos=festa_feitos,
+        festa_criancas=festa_criancas,
         completas=completas,
         # As promessas sao cobranca da captacao, nao assunto de quem monta kit.
         prometidos=0 if so_logistica else prometidos,
+        festa_liberada=edicao.festa_liberada_em is not None,
     )
 
     # O comissario ja esta vendo so as criancas dele — a quebra por comissario
     # nao tem o que quebrar, e traria os colegas todos zerados. Ela e da
     # coordenacao, que e quem distribui a lista e cobra o time.
-    so_minhas_criancas = ctx.so_proprias_criancas(edicao_id)
     por_instituicao = _por_instituicao(db, alcance, criancas_visiveis, edicao_id)
+    if so_minhas_criancas and edicao.festa_liberada_em is not None:
+        por_instituicao = _com_a_festa_do_comissario(
+            db, por_instituicao, edicao_id, ctx.usuario.id
+        )
 
     return Relatorio(
         resumo=resumo,
@@ -175,7 +206,10 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         por_comissario=(
             []
             if so_minhas_criancas or so_logistica
-            else _por_comissario(db, alcance, criancas_visiveis, edicao_id)
+            else _por_comissario(
+                db, alcance, criancas_visiveis, edicao_id,
+                festa_ligada=edicao.festa_liberada_em is not None,
+            )
         ),
         por_idade=_por_idade(db, alcance),
         por_dia=_por_dia(por_instituicao),
@@ -253,6 +287,55 @@ def _por_instituicao(
     ]
 
 
+def _com_a_festa_do_comissario(
+    db: Session, linhas: list[LinhaInstituicao], edicao_id: int, usuario_id: int
+) -> list[LinhaInstituicao]:
+    """A festa do comissario em cada instituicao: as criancas que a
+    coordenacao passou para ele, e quantas ja tem padrinho de festa.
+
+    A lista de cesta dele e uma, a de festa e outra — numa instituicao ele pode
+    ter so a festa. A linha dessa instituicao entra aqui, com zero de cesta.
+    """
+    festa_ok = (
+        select(Apadrinhamento.crianca_id)
+        .where(Apadrinhamento.tipo == FESTA, CONFIRMADO)
+    )
+    contas = {
+        i: (total, feitas)
+        for i, total, feitas in db.execute(
+            select(
+                Crianca.instituicao_id,
+                func.count(Crianca.id),
+                func.count(case((Crianca.id.in_(festa_ok), Crianca.id))),
+            )
+            .where(Crianca.edicao_id == edicao_id, Crianca.comissario_festa_id == usuario_id)
+            .group_by(Crianca.instituicao_id)
+        ).all()
+    }
+
+    saida = []
+    for linha in linhas:
+        total, feitas = contas.pop(linha.instituicao_id, (0, 0))
+        saida.append(linha.model_copy(update={"festa_criancas": total, "festa": feitas}))
+
+    # Instituicoes em que ele so tem festa.
+    if contas:
+        for inst in db.scalars(select(Instituicao).where(Instituicao.id.in_(contas))).all():
+            total, feitas = contas[inst.id]
+            saida.append(LinhaInstituicao(
+                instituicao_id=inst.id, instituicao=inst.nome, sigla=inst.sigla,
+                criancas=0, cesta=0, festa=feitas, festa_criancas=total,
+                completas=0, faltam=0, dia_evento_id=None, dia_evento=None,
+                dia_evento_descricao=None, onibus=0,
+            ))
+        saida.sort(key=lambda l: l.instituicao)
+    # O que falta, para ele, e o que falta das duas listas.
+    return [
+        l.model_copy(update={"faltam": (l.criancas - l.cesta) + (l.festa_criancas - l.festa)})
+        for l in saida
+    ]
+
+
 def _por_idade(db: Session, alcance) -> list[FaixaIdade]:
     """A distribuicao de idade, separada por sexo.
 
@@ -324,7 +407,9 @@ def _por_dia(instituicoes: list[LinhaInstituicao]) -> list[LinhaDia]:
     )
 
 
-def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
+def _por_comissario(
+    db: Session, alcance, criancas_visiveis, edicao_id: int, festa_ligada: bool = False
+):
     """Cada comissario, o grupo dele, e o que falta no time dele.
 
     A lista comeca pelo time da edicao, e nao pelas criancas ja atribuidas: um
@@ -351,6 +436,41 @@ def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
         ).all()
     }
 
+    # A festa de cada um, quando a campanha esta ligada: as criancas cuja festa
+    # a coordenacao passou para ele, e quantas ja tem padrinho de festa. A
+    # chave nula e a festa que ainda esta com a coordenacao.
+    festas: dict = {}
+    if festa_ligada:
+        festas = {
+            responsavel: (total, feitas)
+            for responsavel, total, feitas in db.execute(
+                select(
+                    Crianca.comissario_festa_id,
+                    func.count(Crianca.id),
+                    func.coalesce(func.sum(tipos.c.festa), 0),
+                )
+                .outerjoin(tipos, tipos.c.crianca_id == Crianca.id)
+                .where(alcance)
+                .group_by(Crianca.comissario_festa_id)
+            ).all()
+        }
+
+    def linha(i, nome, grupo):
+        total, cesta, festa, completas = contagens.get(i, (0, 0, 0, 0))
+        if not festa_ligada:
+            return LinhaComissario(
+                comissario_id=i, comissario=nome, grupo=grupo,
+                criancas=total, cesta=cesta, festa=festa,
+                completas=completas, faltam=total - completas,
+            )
+        festa_total, festa_feitas = festas.get(i, (0, 0))
+        return LinhaComissario(
+            comissario_id=i, comissario=nome, grupo=grupo,
+            criancas=total, cesta=cesta, festa=festa_feitas,
+            festa_criancas=festa_total, completas=completas,
+            faltam=(total - cesta) + (festa_total - festa_feitas),
+        )
+
     # O time da edicao. Coordenacao e administracao geral tambem podem assumir
     # criancas; elas entram na lista se tiverem alguma, mas sem grupo, porque
     # grupo e coisa de comissario.
@@ -367,6 +487,7 @@ def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
         i for i, (_, _, perfil) in membros.items() if perfil == PERFIL_COMISSARIO
     }
     responsaveis |= {i for i in contagens if i is not None}
+    responsaveis |= {i for i in festas if i is not None}
 
     # Quem assumiu crianca mas nao tem vinculo ativo nesta edicao (saiu do time
     # depois de atribuido) continua aparecendo: as criancas dele existem.
@@ -380,29 +501,14 @@ def _por_comissario(db: Session, alcance, criancas_visiveis, edicao_id: int):
     linhas = []
     for i in responsaveis:
         nome, grupo, perfil = membros.get(i, (f"Usuário {i}", None, None))
-        total, cesta, festa, completas = contagens.get(i, (0, 0, 0, 0))
         # So comissario tem grupo; o resto do time aparece sem.
-        linhas.append(
-            LinhaComissario(
-                comissario_id=i, comissario=nome,
-                grupo=grupo if perfil == PERFIL_COMISSARIO else None,
-                criancas=total, cesta=cesta, festa=festa,
-                completas=completas, faltam=total - completas,
-            )
-        )
+        linhas.append(linha(i, nome, grupo if perfil == PERFIL_COMISSARIO else None))
 
     # Sem grupo vai para o fim de cada bloco, e o nome ordena dentro do grupo.
     linhas.sort(key=lambda l: (l.grupo is None, l.grupo or "", l.comissario))
 
-    if None in contagens:
-        total, cesta, festa, completas = contagens[None]
-        linhas.append(
-            LinhaComissario(
-                comissario_id=None, comissario=SEM_COMISSARIO, grupo=None,
-                criancas=total, cesta=cesta, festa=festa,
-                completas=completas, faltam=total - completas,
-            )
-        )
+    if None in contagens or None in festas:
+        linhas.append(linha(None, SEM_COMISSARIO, None))
 
     return linhas
 

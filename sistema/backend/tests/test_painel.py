@@ -11,7 +11,7 @@ dele — o mesmo filtro, so que crianca a crianca.
 Rodar com:  python -m tests.test_painel
 """
 
-from datetime import date
+from datetime import UTC, datetime, date
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
@@ -211,7 +211,9 @@ def main() -> None:
     coord = usuario("Coord", "Coordenacao")
     so_a = usuario("SoA", "Monitoria - monitores", [inst_a.id])
     # Dois comissarios: um com criancas na mao, outro sem nenhuma ainda.
-    com_a = usuario("ComA", "Comissarios - comissario", [inst_a.id], grupo_id=grupo.id)
+    # Atende a Escola B tambem, mas so pela festa: nenhuma crianca de cesta
+    # dele esta la.
+    com_a = usuario("ComA", "Comissarios - comissario", [inst_a.id, inst_b.id], grupo_id=grupo.id)
     usuario("ComVazio", "Comissarios - comissario", [inst_b.id], grupo_id=grupo.id)
     estrutura = usuario("Estrutura", "Estrutura")
 
@@ -219,6 +221,12 @@ def main() -> None:
     # sem responsavel, para a linha "Sem comissario" ter o que contar.
     criancas_a[0].comissario_id = com_a.id
     criancas_a[2].comissario_id = com_a.id
+    # A festa e outra lista: a da A1 (que tem festa) e a de uma crianca da
+    # Escola B, que nao e da instituicao dele. A A3 e dele so na cesta.
+    criancas_a[0].comissario_festa_id = com_a.id
+    criancas_b[0].comissario_festa_id = com_a.id
+    # A festa dele so vale com a campanha da festa ligada.
+    edicao.festa_liberada_em = datetime.now(UTC)
     db.commit()
 
     try:
@@ -317,12 +325,15 @@ def main() -> None:
                  linha_a.get("grupo") == "Elyon", str(linha_a.get("grupo")))
         verifica("conta as 2 criancas atribuidas a ele",
                  linha_a.get("criancas") == 2, str(linha_a.get("criancas")))
-        verifica("uma delas esta completa, a outra falta",
-                 (linha_a.get("completas"), linha_a.get("faltam")) == (1, 1),
-                 f"{linha_a.get('completas')}/{linha_a.get('faltam')}")
-        verifica("separa cesta e festa das criancas dele",
-                 (linha_a.get("cesta"), linha_a.get("festa")) == (1, 1),
-                 f"{linha_a.get('cesta')}/{linha_a.get('festa')}")
+        # Com a festa ligada, a festa dele e a lista que a coordenacao passou:
+        # A1 (com festa) e B1 (sem). Falta uma cesta (A3) e uma festa (B1).
+        verifica("a cesta conta a lista dele: 1 das 2",
+                 linha_a.get("cesta") == 1, str(linha_a.get("cesta")))
+        verifica("a festa conta a festa que e dele: 1 de 2",
+                 (linha_a.get("festa"), linha_a.get("festa_criancas")) == (1, 2),
+                 f"{linha_a.get('festa')}/{linha_a.get('festa_criancas')}")
+        verifica("falta o que falta das duas listas",
+                 linha_a.get("faltam") == 2, str(linha_a.get("faltam")))
 
         vazio = por_com.get(f"{MARCA} ComVazio", {})
         verifica("o comissario sem nenhuma crianca tambem aparece, zerado",
@@ -400,15 +411,20 @@ def main() -> None:
         verifica("cesta e festa contam so o que e dele",
                  (meu_resumo.get("cesta_feitos"), meu_resumo.get("festa_feitos")) == (1, 1),
                  f"{meu_resumo.get('cesta_feitos')}/{meu_resumo.get('festa_feitos')}")
+        verifica("a festa dele e a que a coordenacao passou, de qualquer escola",
+                 meu_resumo.get("festa_criancas") == 2, str(meu_resumo.get("festa_criancas")))
+        verifica("a crianca so da festa nao entra na conta da cesta dele",
+                 meu_resumo.get("criancas") == 2, str(meu_resumo.get("criancas")))
         verifica("uma das duas esta completa — e a outra e o que falta a ele",
                  meu_resumo.get("completas") == 1, str(meu_resumo.get("completas")))
         verifica("a tela sabe que este painel e o dele",
                  meu.get("so_minhas_criancas") is True, str(meu.get("so_minhas_criancas")))
         verifica("a quebra por comissario nao vai para o comissario",
                  meu.get("por_comissario") == [], str(meu.get("por_comissario")))
-        verifica("a quebra por instituicao traz so a dele, com as 2 criancas",
-                 [(l["instituicao"], l["criancas"]) for l in meu.get("por_instituicao", [])]
-                 == [(f"{MARCA} Escola A", 2)],
+        verifica("a quebra por instituicao traz a cesta dele e a festa dele",
+                 [(l["instituicao"], l["criancas"], l["festa_criancas"])
+                  for l in meu.get("por_instituicao", [])]
+                 == [(f"{MARCA} Escola A", 2, 1), (f"{MARCA} Escola B", 0, 1)],
                  str(meu.get("por_instituicao")))
 
         print("\nO painel da estrutura e o da logistica")

@@ -111,7 +111,24 @@ export default function ApadrinharCriancas({
   function bloqueio(crianca, tipo) {
     if (crianca[`tem_padrinho_${tipo}`]) return "já apadrinhada";
     if (crianca[`promessa_${tipo}`]) return "reservada, a pagar";
+    // A festa so abre quando a coordenacao geral comeca a campanha dela.
+    if (tipo === "festa" && !crianca.festa_liberada) return "ainda não liberada";
+    // Cesta e festa tem responsaveis diferentes: o comissario pode ter uma
+    // e nao a outra da mesma crianca.
+    if (tipo === "cesta" && foraDaCesta(crianca)) {
+      return crianca.comissario ? `é de ${nomeCurto(crianca.comissario)}` : "sem responsável";
+    }
+    if (tipo === "festa" && foraDaFesta(crianca)) {
+      return crianca.comissario_festa
+        ? `com ${nomeCurto(crianca.comissario_festa)}`
+        : "com a coordenação";
+    }
     return "";
+  }
+
+  /** Ja tem padrinho (ou promessa) neste tipo — o lugar esta tomado. */
+  function tomado(crianca, tipo) {
+    return Boolean(crianca[`tem_padrinho_${tipo}`] || crianca[`promessa_${tipo}`]);
   }
 
   /** Esta crianca nao e da lista de quem esta olhando?
@@ -120,13 +137,28 @@ export default function ApadrinharCriancas({
    *  edicoes, mas achar nao e poder ligar: o comissario so apadrinha as
    *  atribuidas a ele, e o backend recusa as outras. Vale so para quem e
    *  filtrado crianca a crianca. */
-  function foraDaMinhaLista(crianca) {
+  function soAtribuidas(crianca) {
     if (!crianca || usuario.admin_geral) return false;
-    const vinculo = usuario.vinculos.find(
-      (v) => v.edicao_id === crianca.edicao_id,
+    return Boolean(
+      usuario.vinculos.find((v) => v.edicao_id === crianca.edicao_id)
+        ?.so_criancas_atribuidas,
     );
-    if (!vinculo?.so_criancas_atribuidas) return false;
-    return crianca.comissario_id !== usuario.id;
+  }
+
+  /** A cesta desta crianca nao e de quem olha. */
+  function foraDaCesta(crianca) {
+    return soAtribuidas(crianca) && crianca.comissario_id !== usuario.id;
+  }
+
+  /** A festa desta crianca nao e de quem olha: ela e de quem a coordenacao
+   *  escolheu, e enquanto ninguem foi escolhido, da coordenacao. */
+  function foraDaFesta(crianca) {
+    return soAtribuidas(crianca) && crianca.comissario_festa_id !== usuario.id;
+  }
+
+  /** Nem a cesta nem a festa desta crianca sao de quem olha. */
+  function foraDaMinhaLista(crianca) {
+    return foraDaCesta(crianca) && foraDaFesta(crianca);
   }
 
   /** A crianca inteira esta fora: nao e da lista, ou desistiu. */
@@ -771,7 +803,9 @@ export default function ApadrinharCriancas({
           <div className="ficha__linha ficha__linha--cabecalho">
             <span className="ficha__linha-nome">{achadas.length} crianças</span>
             <span className="ficha__linha-acoes apadrinhar__escolhas">
-              {TIPOS.map((t) => (
+              {TIPOS.filter(
+                (t) => t !== "festa" || achadas.some((r) => r.crianca.festa_liberada),
+              ).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -790,6 +824,8 @@ export default function ApadrinharCriancas({
           const fora = c && foraDaMinhaLista(c);
           // Cesta e festa ja tomadas: a crianca esta apadrinhada, e a linha
           // fica a vista mas sem nada para tocar.
+          // Ou nada mais a escolher agora: a cesta tomada e a festa ainda
+          // fechada. A etiqueta e que diz qual dos dois casos e.
           const completa = c && TIPOS.every((t) => bloqueio(c, t));
           return (
             <div
@@ -813,7 +849,9 @@ export default function ApadrinharCriancas({
               <span className="ficha__linha-etiquetas">
                 {c?.desistiu_em && <EtiquetaDesistente />}
                 {completa && !c.desistiu_em && (
-                  <span className="etiqueta etiqueta--ok">apadrinhada</span>
+                  <span className="etiqueta etiqueta--ok">
+                    {TIPOS.every((t) => tomado(c, t)) ? "apadrinhada" : "cesta apadrinhada"}
+                  </span>
                 )}
                 {fora && (
                   <span

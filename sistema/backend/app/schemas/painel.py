@@ -31,6 +31,10 @@ class ResumoEdicao(BaseModel):
     # dois se comparam sempre ao total de criancas, e nunca entre si.
     cesta_feitos: int
     festa_feitos: int
+    # De quantas criancas a festa e de quem olha. Para a coordenacao e o total
+    # de criancas; para o comissario, as que a coordenacao passou para ele —
+    # que nao sao as da lista de cesta dele, e podem ser de outra instituicao.
+    festa_criancas: int = 0
 
     # Crianca completa: tem os dois. O que falta dela — `criancas - completas` —
     # e o tanto de trabalho que ainda sobra de quem esta olhando.
@@ -42,6 +46,10 @@ class ResumoEdicao(BaseModel):
     # de ter captado, e para a coordenacao saber quanto ha a cobrar.
     prometidos: int = 0
 
+    # A coordenacao geral ja comecou a campanha da festa. Antes disso o painel
+    # avisa que ela ainda nao foi liberada, e o que falta e so a cesta.
+    festa_liberada: bool = False
+
 
 class LinhaInstituicao(BaseModel):
     instituicao_id: int
@@ -52,6 +60,10 @@ class LinhaInstituicao(BaseModel):
     criancas: int
     cesta: int
     festa: int
+    # De quantas a festa e de quem olha. Nulo = as mesmas `criancas` (a
+    # coordenacao). Para o comissario sao as que a coordenacao passou para ele
+    # nesta instituicao, que nao precisam ser as da lista de cesta dele.
+    festa_criancas: int | None = None
     # Completa e a crianca que tem os dois padrinhos; `faltam` e o resto. Sao o
     # "APADRINHADO" e o "FALTA APADRINHAR" da planilha, que contavam a crianca
     # inteira — nao cesta e festa em separado.
@@ -110,8 +122,14 @@ class LinhaComissario(BaseModel):
     criancas: int
     cesta: int
     festa: int
+    # Com a campanha da festa ligada, a festa e outra lista: de quantas
+    # criancas a festa esta com ele (na linha "Sem comissario", com a
+    # coordenacao), e `festa` passa a contar as feitas dessa lista. Nulo =
+    # campanha desligada.
+    festa_criancas: int | None = None
     # Crianca completa: tem cesta E festa. `faltam` sao as que ainda nao tem
-    # os dois, que e o que sobra de trabalho para o comissario.
+    # os dois, que e o que sobra de trabalho para o comissario. Com a festa
+    # ligada, e o que falta das duas listas.
     completas: int
     faltam: int
 

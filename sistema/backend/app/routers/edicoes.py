@@ -8,6 +8,7 @@ coordena a cidade ja entra nela. Sem isso, abrir 2027 deixaria a cidade parada
 ate a administracao geral recriar os vinculos um a um.
 """
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Crianca, DiaEvento, Edicao, Instituicao
 from app.schemas.cadastros import (
+    CampanhaFestaIn,
     DependenciasOut,
     DiaDaInstituicaoIn,
     DiaDaInstituicaoOut,
@@ -50,6 +52,7 @@ def _saida(edicao: Edicao) -> EdicaoOut:
         valor_cesta=edicao.valor_cesta,
         valor_festa=edicao.valor_festa,
         ativa=edicao.ativa,
+        festa_liberada=edicao.festa_liberada_em is not None,
     )
 
 
@@ -138,6 +141,33 @@ def editar(edicao_id: int, dados: EdicaoEditar, db: BD, ctx: Admin):
             "campos": sorted(mudancas),
             **({"coordenacao_herdada": len(herdados)} if herdados else {}),
         },
+    )
+    db.commit()
+    db.refresh(edicao)
+    return _saida(edicao)
+
+
+@router.put("/{edicao_id}/campanha-festa", response_model=EdicaoOut)
+def campanha_da_festa(edicao_id: int, dados: CampanhaFestaIn, db: BD, ctx: Contexto):
+    """Liga (ou desliga) o apadrinhamento da festa nesta edicao.
+
+    So a administracao geral: e uma chave da edicao inteira, ligada uma vez,
+    quase no fim da campanha da cesta. Desligar nao desfaz os apadrinhamentos
+    de festa ja feitos; so impede os novos.
+    """
+    edicao = _buscar_edicao(db, ctx, edicao_id)
+    if not ctx.admin_geral:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Quem liga a campanha da festa e a administracao geral.",
+        )
+    if dados.liberada and edicao.festa_liberada_em is None:
+        edicao.festa_liberada_em, edicao.festa_liberada_por = datetime.now(UTC), ctx.usuario.id
+    elif not dados.liberada:
+        edicao.festa_liberada_em, edicao.festa_liberada_por = None, None
+    registrar(
+        db, "campanha_festa_liberada" if dados.liberada else "campanha_festa_suspensa",
+        usuario_id=ctx.usuario.id, tabela="edicoes", registro_id=edicao.id,
     )
     db.commit()
     db.refresh(edicao)

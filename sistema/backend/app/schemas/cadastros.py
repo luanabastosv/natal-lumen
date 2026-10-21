@@ -49,6 +49,12 @@ class EdicaoOut(BaseModel):
     valor_cesta: Decimal
     valor_festa: Decimal
     ativa: bool
+    # A coordenacao geral ja deu a largada no apadrinhamento da festa.
+    festa_liberada: bool = False
+
+
+class CampanhaFestaIn(BaseModel):
+    liberada: bool
 
 
 class DiaIn(BaseModel):

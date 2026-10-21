@@ -523,12 +523,37 @@ def _fora_do_alcance(crianca: Crianca) -> str:
     return "Esta crianca nao esta na sua lista."
 
 
-def _crianca_para_apadrinhar(db: Session, ctx: ContextoAcesso, crianca_id: int) -> Crianca:
-    """A crianca, se quem pede pode apadrinha-la. Senao, o erro que diz por que."""
+def _festa_fora_do_alcance(crianca: Crianca) -> str:
+    """Por que a festa desta crianca nao e desta pessoa."""
+    if crianca.comissario_festa is not None:
+        return (
+            f"A festa de {crianca.codigo} esta com {crianca.comissario_festa.nome}. "
+            "Cada comissario so apadrinha a festa que a coordenacao passou para ele."
+        )
+    return (
+        f"A festa de {crianca.codigo} esta com a coordenacao. Fale com ela para "
+        "receber a festa desta crianca."
+    )
+
+
+def _crianca_para_apadrinhar(
+    db: Session, ctx: ContextoAcesso, crianca_id: int, tipo: str
+) -> Crianca:
+    """A crianca, se quem pede pode apadrinha-la neste tipo. Senao, o erro que
+    diz por que.
+
+    Cesta e festa tem responsaveis diferentes: a cesta e do comissario da
+    crianca (comissario_id); a festa, de quem a coordenacao escolheu
+    (comissario_festa_id), e enquanto ninguem foi escolhido, da coordenacao.
+    """
     crianca = db.scalar(
         select(Crianca)
         .where(Crianca.id == crianca_id)
-        .options(joinedload(Crianca.edicao), joinedload(Crianca.comissario))
+        .options(
+            joinedload(Crianca.edicao),
+            joinedload(Crianca.comissario),
+            joinedload(Crianca.comissario_festa),
+        )
     )
     if crianca is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Crianca nao encontrada.")
@@ -549,13 +574,31 @@ def _crianca_para_apadrinhar(db: Session, ctx: ContextoAcesso, crianca_id: int) 
     # A conferencia reusa a MESMA condicao SQL que filtra a lista de criancas,
     # e nao uma copia da regra: assim os dois caminhos nao podem divergir. Para
     # a coordenacao ela continua valendo a edicao inteira.
-    no_alcance = db.scalar(
-        select(Crianca.id).where(
-            Crianca.id == crianca.id, ctx.filtro_criancas("editar_padrinhos")
+    if tipo == TipoApadrinhamento.FESTA:
+        if crianca.edicao.festa_liberada_em is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"A campanha da festa ainda nao comecou: {crianca.codigo} so pode "
+                "ser apadrinhada na cesta por enquanto. Nada foi gravado.",
+            )
+        # O comissario so apadrinha a festa que e dele — mesmo sendo o
+        # responsavel pela cesta da crianca.
+        if (
+            ctx.so_proprias_criancas(crianca.edicao_id)
+            and crianca.comissario_festa_id != ctx.usuario.id
+        ):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, _festa_fora_do_alcance(crianca))
+    else:
+        no_alcance = db.scalar(
+            select(Crianca.id).where(
+                Crianca.id == crianca.id,
+                # A lista da cesta: quem so tem a festa da crianca nao apadrinha
+                # a cesta dela.
+                ctx.filtro_criancas("editar_padrinhos", com_festa=False),
+            )
         )
-    )
-    if no_alcance is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, _fora_do_alcance(crianca))
+        if no_alcance is None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, _fora_do_alcance(crianca))
 
     # Quem desistiu nao vai ao evento: nao ha cesta nem festa para pagar.
     if crianca.desistiu_em is not None:
@@ -606,7 +649,9 @@ def apadrinhar_com_pagamento(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "A mesma crianca e tipo vieram duas vezes."
         )
 
-    criancas = {cid: _crianca_para_apadrinhar(db, ctx, cid) for cid, _ in pares}
+    criancas = {}
+    for cid, tipo in pares:
+        criancas[cid] = _crianca_para_apadrinhar(db, ctx, cid, tipo)
 
     pagamento = Pagamento(
         padrinho_id=padrinho.id,

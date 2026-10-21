@@ -4,11 +4,12 @@
  * dela: cesta e festa se distinguem pelo nome escrito, nao pelo tom. Quem nao
  * separa as duas cores le a linha do mesmo jeito.
  */
-export default function Progresso({ rotulo, valor, de, tom = "cesta" }) {
+// `apagada`: ainda nao esta valendo (a festa antes da campanha dela).
+export default function Progresso({ rotulo, valor, de, tom = "cesta", apagada }) {
   const parte = de > 0 ? Math.min(100, Math.round((valor / de) * 100)) : 0;
 
   return (
-    <div className="progresso">
+    <div className={`progresso ${apagada ? "progresso--apagada" : ""}`.trim()}>
       <span className="progresso__rotulo">{rotulo}</span>
       <div
         className="progresso__trilho"

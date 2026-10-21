@@ -15,11 +15,13 @@ const TONS = {
   neutro: "",
 };
 
-export default function Metrica({ rotulo, valor, de, nota, tom = "neutro", destaque }) {
+// `apagada`: o numero existe mas ainda nao esta valendo — a festa antes de a
+// campanha dela comecar.
+export default function Metrica({ rotulo, valor, de, nota, tom = "neutro", destaque, apagada }) {
   const parte = de > 0 ? Math.min(100, Math.round((valor / de) * 100)) : null;
 
   return (
-    <div className={`metrica ${destaque ? "metrica--destaque" : ""}`.trim()}>
+    <div className={`metrica ${destaque ? "metrica--destaque" : ""} ${apagada ? "metrica--apagada" : ""}`.trim()}>
       <span className="metrica__rotulo">{rotulo}</span>
       <span className="metrica__valor">
         {valor}

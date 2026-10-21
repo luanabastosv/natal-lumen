@@ -34,6 +34,7 @@ import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { tomDoDia } from "../utils/dias.js";
 import { rotuloDia } from "../utils/dinheiro.js";
 import ImportarLista from "./ImportarLista.jsx";
+import { nomeCurto } from "../utils/nomes.js";
 
 /** Como um responsavel se escreve nas listas desta tela.
  *
@@ -59,15 +60,18 @@ function comoAparece(membro) {
  *             a crianca que nao tem ninguem;
  *  - apagado — nao tem ninguem.
  */
-function Marcador({ letra, tipo, feito, prometido }) {
+function Marcador({ letra, tipo, feito, prometido, fechado }) {
   const estado = feito ? "marcador--feito" : prometido ? "marcador--parcial" : "";
-  const titulo = feito
+  // A festa antes da campanha dela: apagada, e o porque na dica.
+  const titulo = fechado && !feito && !prometido
+    ? "A campanha da festa ainda não foi liberada"
+    : feito
     ? `Tem padrinho de ${tipo}`
     : prometido
       ? `Padrinho de ${tipo} prometido, esperando o pagamento — ainda não conta como apadrinhada`
       : `Sem padrinho de ${tipo}`;
   return (
-    <span className={`marcador ${estado}`} title={titulo}>
+    <span className={`marcador ${estado} ${fechado ? "festa-fechada" : ""}`.trim()} title={titulo}>
       {letra}
     </span>
   );
@@ -79,6 +83,8 @@ const POR_PAGINA = 100;
 const POR_PAGINA_MAXIMO = 200;
 const TODAS = "todas";
 const SEM_RESPONSAVEL = "sem";
+// No lote da festa: cada crianca vai para quem responde pela cesta dela.
+const FESTA_DA_CESTA = "cesta";
 // O minimo que a coluna do nome guarda antes de a lista passar a rolar.
 const LARGURA_MINIMA_DO_NOME = 200;
 
@@ -160,6 +166,9 @@ export default function Criancas() {
   // nisto: nenhuma das duas trabalha com padrinho, e a monitoria tambem nao
   // com kit.
   const veCaptacao = pode("ver_padrinhos");
+  // Depois que a campanha da festa comeca, a festa tem responsavel proprio:
+  // uma coluna a mais, e o lote ganha o seletor da festa.
+  const veFesta = veCaptacao && Boolean(edicao?.festa_liberada);
   // Trocar SO o responsavel e um poder a parte: quem coordena a captacao
   // redistribui a lista entre o time sem poder criar nem renomear crianca.
   // Por isso a coluna do responsavel nao olha `podeEditar` como as outras.
@@ -279,6 +288,7 @@ export default function Criancas() {
     null,
     ...(!estreita ? [50, 46, 88, 130] : []),
     ...(veCaptacao && !estreita ? [132, 90] : []),
+    ...(veFesta && !estreita ? [132] : []),
     ...(veCaptacao ? [estreita ? 62 : 80] : []),
     ...(!estreita ? [64] : []),
     // "Aut.": o rotulo curto deixa a coluna do tamanho do marcador.
@@ -344,6 +354,39 @@ export default function Criancas() {
         .filter((c) => c.instituicoes.includes(instituicaoId))
         .map((c) => ({ valor: c.id, rotulo: comoAparece(c) })),
     ];
+  }
+
+  /** Passa a festa das criancas marcadas: para alguem, para o responsavel
+   *  pela cesta de cada uma, ou de volta para a coordenacao. */
+  async function passarFesta(escolha) {
+    definirErro("");
+    definirAtribuindo(true);
+    try {
+      const atualizadas = await editarEmLote({
+        criancas: marcadas,
+        ...(escolha === FESTA_DA_CESTA
+          ? { festa_do_responsavel: true }
+          : { comissario_festa_id: escolha === SEM_RESPONSAVEL ? null : Number(escolha) }),
+      });
+      const porId = new Map(atualizadas.map((c) => [c.id, c]));
+      definirCriancas((atual) => ({
+        ...atual,
+        itens: atual.itens.map((c) => porId.get(c.id) ?? c),
+      }));
+      const nome = comissarios.find((c) => String(c.id) === String(escolha))?.nome;
+      notificar(
+        escolha === FESTA_DA_CESTA
+          ? `Festa de ${marcadas.length} criança(s) com o responsável pela cesta.`
+          : nome
+            ? `Festa de ${marcadas.length} criança(s) agora com ${nome}.`
+            : `Festa de ${marcadas.length} criança(s) de volta para a coordenação.`,
+      );
+      definirMarcadas([]);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirAtribuindo(false);
+    }
   }
 
   /** Poe (ou tira) o responsavel das criancas marcadas, de uma vez. */
@@ -892,13 +935,18 @@ export default function Criancas() {
                   )}
                   {veCaptacao && !estreita && (
                     <>
-                      <th title="Comissário responsável por esta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
-                        Comissário
+                      <th title="Comissário responsável pela cesta desta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
+                        Comissário C.
                       </th>
                       <th title="O grupo do comissário responsável na comunidade. Vem do cadastro dele nesta edição e não se edita aqui.">
                         Grupo
                       </th>
                     </>
+                  )}
+                  {veFesta && !estreita && (
+                    <th title="Quem apadrinha a festa desta criança. Até a coordenação passar adiante, a festa fica com ela.">
+                      Comissário F.
+                    </th>
                   )}
                   {veCaptacao && <th title="Padrinho de cesta e de festa">Padrinhos</th>}
                   {!estreita && <th title="Cartões digitalizados, de 2">Cartões</th>}
@@ -1080,6 +1128,19 @@ export default function Criancas() {
                       </td>
                       </>
                     )}
+                    {veFesta && !estreita && (
+                      <td>
+                        {/* So leitura: a festa se distribui pelo lote, marcando
+                            as criancas. */}
+                        <span
+                          className={`celula ${c.comissario_festa ? "" : "celula--vazia"}`}
+                          style={{ cursor: "default" }}
+                          title={c.comissario_festa ?? "A festa desta criança está com a coordenação"}
+                        >
+                          {c.comissario_festa ? nomeCurto(c.comissario_festa) : "coordenação"}
+                        </span>
+                      </td>
+                    )}
                     {veCaptacao && (
                       <td>
                         {/* O cursor de "aqui nao se clica" so vale onde a celula
@@ -1100,6 +1161,7 @@ export default function Criancas() {
                             tipo="festa"
                             feito={c.tem_padrinho_festa}
                             prometido={c.promessa_festa}
+                            fechado={!c.festa_liberada}
                           />
                         </span>
                       </td>
@@ -1235,6 +1297,31 @@ export default function Criancas() {
                 ))}
                 <option value={SEM_RESPONSAVEL}>Sem responsável</option>
               </Selecao>
+              {/* A festa vai para quem atende a instituicao, como a cesta: para
+                  dar a festa de outra escola a um comissario, marque a escola
+                  no cadastro dele, na tela de usuarios. */}
+              {veFesta && (
+                <Selecao
+                  value=""
+                  disabled={atribuindo}
+                  onChange={(e) => passarFesta(e.target.value)}
+                  aria-label="Passar a festa das marcadas"
+                >
+                  <option value="" disabled>
+                    {atribuindo ? "Passando..." : "Festa para..."}
+                  </option>
+                  <option value={FESTA_DA_CESTA}>Responsável pela cesta</option>
+                  {comissariosDoLote.length === 0 && (
+                    <option value="" disabled>
+                      (ninguém da equipe atende todas as escolas marcadas)
+                    </option>
+                  )}
+                  {comissariosDoLote.map((c) => (
+                    <option key={c.id} value={c.id}>{comoAparece(c)}</option>
+                  ))}
+                  <option value={SEM_RESPONSAVEL}>Coordenação</option>
+                </Selecao>
+              )}
               <Button size="sm" variant="ghost" onClick={() => definirMarcadas([])}>
                 Desmarcar
               </Button>

@@ -61,6 +61,14 @@ class Edicao(Base):
         Boolean, nullable=False, default=True, server_default=text("true")
     )
 
+    # O apadrinhamento da festa so comeca depois do da cesta, quase no fim da
+    # campanha, e quem da a largada e a coordenacao geral. Nulo = ainda nao:
+    # a crianca so pode ser apadrinhada na cesta.
+    festa_liberada_em: Mapped[MomentoOpcional]
+    festa_liberada_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+
     cidade: Mapped[Cidade] = relationship(back_populates="edicoes")
     dias: Mapped[list["DiaEvento"]] = relationship(back_populates="edicao")
     criancas: Mapped[list["Crianca"]] = relationship(back_populates="edicao")
@@ -243,6 +251,13 @@ class Crianca(Base):
     comissario_id: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL"), index=True
     )
+    # Quem responde pela FESTA desta crianca. O comissario da instituicao fica
+    # com a cesta; a festa comeca depois, quase no fim, e fica com a
+    # coordenacao (geral e dos comissarios) ate ela passar a festa para
+    # alguem — que pode ser de outra instituicao. Nulo = com a coordenacao.
+    comissario_festa_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), index=True
+    )
 
     checkin_em: Mapped[MomentoOpcional]
     checkin_por: Mapped[int | None] = mapped_column(
@@ -275,6 +290,9 @@ class Crianca(Base):
     dia_evento: Mapped[DiaEvento | None] = relationship(back_populates="criancas")
     comissario: Mapped["Usuario | None"] = relationship(  # noqa: F821
         foreign_keys=[comissario_id]
+    )
+    comissario_festa: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[comissario_festa_id]
     )
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(  # noqa: F821
         back_populates="crianca"

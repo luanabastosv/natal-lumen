@@ -9,7 +9,9 @@ E aqui que mora o isolamento de dados exigido pela LGPD. Regras:
     que ele tem AQUELA permissao, e nao por todas as suas edicoes;
   - comissarios e monitores ainda sao limitados as instituicoes atribuidas;
   - o comissario e limitado mais uma vez, crianca a crianca: so alcanca as
-    que estao atribuidas a ele em criancas.comissario_id.
+    que estao atribuidas a ele em criancas.comissario_id;
+  - e alcanca tambem as criancas cuja FESTA a coordenacao passou para ele
+    (criancas.comissario_festa_id), dentro das mesmas instituicoes.
 """
 
 from dataclasses import dataclass, field
@@ -34,6 +36,10 @@ class Vinculo:
     perfil: str
     permissoes: frozenset[str]
     instituicoes: frozenset[int] = field(default_factory=frozenset)
+    # A campanha da festa desta edicao esta ligada. Desligada, a festa que a
+    # coordenacao passou para o comissario para de valer — as criancas somem
+    # da lista dele ate a campanha voltar.
+    festa_liberada: bool = False
 
     @property
     def filtrado_por_instituicao(self) -> bool:
@@ -91,12 +97,18 @@ class ContextoAcesso:
 
     # --------------------------------------------------------------- filtros
 
-    def filtro_criancas(self, permissao: str = "ver_criancas") -> ColumnElement[bool]:
+    def filtro_criancas(
+        self, permissao: str = "ver_criancas", com_festa: bool = True
+    ) -> ColumnElement[bool]:
         """Condicao SQL que limita as criancas que este usuario alcanca.
 
         Aplica os tres niveis: edicao; para comissario e monitor, tambem as
         instituicoes atribuidas; e, so para o comissario, a propria crianca.
         Usar em toda consulta de criancas.
+
+        `com_festa=False` deixa de fora as criancas que o comissario alcanca so
+        pela festa — e a lista da CESTA dele, a que vale para apadrinhar cesta
+        e para os numeros de cesta do painel.
         """
         if self.admin_geral:
             return true()
@@ -125,7 +137,13 @@ class ContextoAcesso:
             # valendo como cerca externa — atribuicao em instituicao que saiu
             # do vinculo dele para de valer na hora.
             if vinculo.filtrado_por_crianca:
-                alcance = alcance & (Crianca.comissario_id == self.usuario.id)
+                da_cesta = Crianca.comissario_id == self.usuario.id
+                # E a festa que a coordenacao passou para ele, numa das
+                # instituicoes que ele atende — enquanto a campanha da festa
+                # estiver ligada.
+                if com_festa and vinculo.festa_liberada:
+                    da_cesta = da_cesta | (Crianca.comissario_festa_id == self.usuario.id)
+                alcance = alcance & da_cesta
 
             condicoes.append(alcance)
 
@@ -185,6 +203,7 @@ def montar_contexto(db: Session, usuario: Usuario) -> ContextoAcesso:
             # As permissoes vem junto: sem isto seria uma consulta por vinculo.
             selectinload(UsuarioEdicao.perfil).selectinload(Perfil.permissoes),
             selectinload(UsuarioEdicao.instituicoes),
+            selectinload(UsuarioEdicao.edicao),
         )
     ).all()
 
@@ -196,6 +215,7 @@ def montar_contexto(db: Session, usuario: Usuario) -> ContextoAcesso:
             instituicoes=frozenset(
                 i.instituicao_id for i in v.instituicoes if i.ativo
             ),
+            festa_liberada=v.edicao.festa_liberada_em is not None,
         )
         for v in vinculos_db
     )
