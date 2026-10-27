@@ -109,6 +109,8 @@ class PadrinhoOut(BaseModel):
     criado_em: datetime
     # Quem cadastrou: so essa pessoa (ou a coordenacao) muda as informacoes.
     criado_por_id: int | None = None
+    # O nome de quem cadastrou, para a ficha. Nulo em padrinho antigo sem autor.
+    criado_por: str | None = None
     apadrinhamentos: list[ApadrinhamentoResumo]
     total_combinado: Decimal
     total_pago: Decimal

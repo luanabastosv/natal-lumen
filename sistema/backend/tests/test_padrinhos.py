@@ -1003,6 +1003,8 @@ def main() -> None:
                  r.status_code == 403, r.text[:140])
         verifica("o padrinho diz quem o cadastrou",
                  do_colega.get("criado_por_id") == colega.id, str(do_colega.get("criado_por_id")))
+        verifica("e o nome de quem cadastrou, para a ficha",
+                 do_colega.get("criado_por") == colega.nome, str(do_colega.get("criado_por")))
         r = ccol.patch(f"/padrinhos/{do_colega['id']}", json={"whatsapp": "85988887777"})
         verifica("quem cadastrou edita", r.status_code == 200, r.text[:140])
         r = ccap.patch(f"/padrinhos/{do_colega['id']}", json={"observacoes": "conferido"})

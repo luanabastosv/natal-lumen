@@ -191,6 +191,7 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
         interesse_mensal=padrinho.interesse_mensal,
         criado_em=padrinho.criado_em,
         criado_por_id=padrinho.criado_por,
+        criado_por=padrinho.criador.nome if padrinho.criador else None,
         apadrinhamentos=resumos,
         # Quantizados para o total sair sempre com duas casas: sem isto um
         # padrinho sem pagamento devolvia "0" e outro devolvia "240.00".
@@ -235,6 +236,7 @@ def _carregar(db: Session, padrinho_id: int, ctx: ContextoAcesso, permissao: str
         .where(Padrinho.id == padrinho_id, _filtro_padrinhos(ctx, permissao))
         .options(
             joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
+            joinedload(Padrinho.criador),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
@@ -285,6 +287,7 @@ def listar_padrinhos(
         .where(condicao)
         .options(
             joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
+            joinedload(Padrinho.criador),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),

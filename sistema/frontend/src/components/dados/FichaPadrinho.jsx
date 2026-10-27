@@ -275,6 +275,10 @@ export default function FichaPadrinho({
         <dd>
           {padrinho.edicao}
         </dd>
+        {/* Quem pos o padrinho no sistema. Cada crianca tem o seu comissario
+            na lista abaixo, e nem sempre e a mesma pessoa. */}
+        <dt>Cadastrado por</dt>
+        <dd>{padrinho.criado_por || "—"}</dd>
         <dt>WhatsApp</dt>
         <dd>
           {padrinho.whatsapp ? (

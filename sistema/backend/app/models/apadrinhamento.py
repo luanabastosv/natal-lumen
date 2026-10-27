@@ -66,6 +66,11 @@ class Padrinho(Base):
     criado_em: Mapped[CriadoEm]
 
     edicao: Mapped["Edicao"] = relationship(back_populates="padrinhos")  # noqa: F821
+    # Quem cadastrou o padrinho no sistema, para a ficha mostrar o nome. Pode
+    # nao ser quem registrou cada apadrinhamento (ver Apadrinhamento.comissario).
+    criador: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[criado_por]
+    )
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(
         back_populates="padrinho"
     )
