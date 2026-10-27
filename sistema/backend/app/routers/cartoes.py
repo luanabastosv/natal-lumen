@@ -29,6 +29,7 @@ from typing import Annotated
 import cv2
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -67,7 +68,7 @@ from app.schemas.cartoes import (
 from app.servicos.apadrinhamento import CONFIRMADO
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import arquivos, imagens, nomes_de_arquivo, scanner
+from app.servicos import arquivos, espelho, imagens, nomes_de_arquivo, scanner
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar
 
@@ -435,7 +436,13 @@ def lote_previa(
 
 
 @router.post("/lote/{id_lote}/confirmar", response_model=ResultadoLote)
-def lote_confirmar(id_lote: str, db: BD, ctx: Subir, dados_in: ConfirmarLote | None = None):
+def lote_confirmar(
+    id_lote: str,
+    db: BD,
+    ctx: Subir,
+    segundo_plano: BackgroundTasks,
+    dados_in: ConfirmarLote | None = None,
+):
     """Grava os cartoes que passaram na previa.
 
     Na pilha de autorizacoes, cada foto vem com as respostas que o monitor
@@ -468,7 +475,7 @@ def lote_confirmar(id_lote: str, db: BD, ctx: Subir, dados_in: ConfirmarLote | N
                 + ", ".join(sem_resposta[:5]),
             )
 
-    gravados = 0
+    gravados: list[int] = []
     ignorados = 0
 
     for item in dados["itens"]:
@@ -523,19 +530,24 @@ def lote_confirmar(id_lote: str, db: BD, ctx: Subir, dados_in: ConfirmarLote | N
 
         # So move depois de a base aceitar: assim nao fica imagem orfa.
         origem.replace(destino)
-        gravados += 1
+        gravados.append(registro.id)
 
     registrar(
         db, "cartoes_em_lote", usuario_id=ctx.usuario.id,
         tabela="autorizacoes" if tipo == AUTORIZACAO else "cartoes",
-        detalhes={"tipo": tipo, "gravados": gravados, "ignorados": ignorados},
+        detalhes={"tipo": tipo, "gravados": len(gravados), "ignorados": ignorados},
     )
     db.commit()
 
     shutil.rmtree(pasta_lote, ignore_errors=True)
     caminho_manifesto.unlink(missing_ok=True)
 
-    return ResultadoLote(gravados=gravados, ignorados=ignorados)
+    # A copia no Drive vai depois da resposta: ver servicos/espelho.py.
+    segundo_plano.add_task(
+        espelho.em_segundo_plano, Autorizacao if tipo == AUTORIZACAO else Cartao, gravados
+    )
+
+    return ResultadoLote(gravados=len(gravados), ignorados=ignorados)
 
 
 @router.get("/lote/{id_lote}/{indice}/imagem")
@@ -581,7 +593,7 @@ def miniatura_do_cartao(cartao_id: int, db: BD, ctx: Ver):
 
 
 @router.delete("/{cartao_id}", status_code=status.HTTP_204_NO_CONTENT)
-def apagar_cartao(cartao_id: int, db: BD, ctx: Subir):
+def apagar_cartao(cartao_id: int, db: BD, ctx: Subir, segundo_plano: BackgroundTasks):
     """Apaga um cartao subido por engano.
 
     Exige `subir_cartoes`, a mesma permissao de quem sobe: quem pode pôr pode
@@ -600,6 +612,9 @@ def apagar_cartao(cartao_id: int, db: BD, ctx: Subir):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cartao nao encontrado.")
 
     imagens.apagar_do_disco(cartao.arquivo)
+    segundo_plano.add_task(
+        espelho.tirar_em_segundo_plano, "cartoes", cartao.id, cartao.drive_id
+    )
 
     registrar(
         db, "cartao_apagado", usuario_id=ctx.usuario.id,
@@ -615,6 +630,7 @@ def trocar_imagem(
     cartao_id: int,
     db: BD,
     ctx: Subir,
+    segundo_plano: BackgroundTasks,
     arquivo: UploadFile = File(...),
 ):
     """Troca a imagem de um cartao que ja existe, sem mexer no resto.
@@ -661,6 +677,10 @@ def trocar_imagem(
     cartao.arquivo = str(destino.relative_to(config.caminho_arquivos))
     cartao.monitor_id = ctx.usuario.id
     imagens.apagar_do_disco(antiga)
+
+    # A copia nova vai para o Drive e a antiga para a lixeira, depois da resposta.
+    segundo_plano.add_task(espelho.em_segundo_plano, Cartao, [cartao.id], [cartao.drive_id])
+    cartao.drive_id = None
 
     registrar(
         db, "cartao_trocado", usuario_id=ctx.usuario.id,

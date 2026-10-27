@@ -99,6 +99,28 @@ comprovantes de edições diferentes do mesmo padrinho colidiriam.
 O `id` e o `webViewLink` voltam gravados em `pagamentos.comprovante_drive_id`
 e `.comprovante_drive_link`, e o link sai no `PagamentoOut`.
 
+### Cartões e autorizações (desde 27/10/2026)
+
+Cada cartão e cada autorização também ganha cópia, em pastas dentro da mesma
+pasta configurada:
+
+```
+Cartões - {edição}/{instituição}/Cesta/ESCOLA_X_MARIA_SILVA_CESTA.jpg
+Cartões - {edição}/{instituição}/Festa/ESCOLA_X_MARIA_SILVA_FESTA.jpg
+Autorizações - {edição}/{instituição}/ESCOLA_X_MARIA_SILVA_AUTORIZACAO.jpg
+```
+
+- A cópia sai **depois** da resposta (`BackgroundTasks`), para o monitor não
+  esperar 120 envios ao Google ao confirmar uma pilha.
+- O id fica em `cartoes.drive_id` / `autorizacoes.drive_id`. Nulo = ainda não
+  foi: o `backup.sh` roda `espelhar_no_drive.py` toda noite e manda o que
+  falhou durante o dia (e, na primeira noite, tudo o que subiu antes).
+- Trocar a imagem manda a nova e põe a antiga na lixeira do Drive; apagar o
+  cartão ou a autorização põe a cópia na lixeira.
+- Edição de teste (nome começando com `ZZ`) nunca vai.
+- Apagar instituição, edição ou cidade inteira **não** mexe no Drive: as cópias
+  ficam lá, como os comprovantes.
+
 ---
 
 ## 6. Limites, e o que ainda não existe

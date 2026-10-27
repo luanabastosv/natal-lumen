@@ -94,6 +94,16 @@ if [ -x "$AQUI/.venv/bin/python" ] && [ -f "$AQUI/guardar_backup.py" ]; then
       "$DESTINO/arquivos_$QUANDO.tar.gz") || echo "    (o envio falhou; a copia local esta feita)"
 fi
 
+# ------------------------------------------------------ cartoes no Drive
+# Cada cartao e autorizacao ja vai para o Drive ao subir; aqui vai o que falhou
+# durante o dia. Mesma regra: falhar aqui nao derruba o backup.
+if [ -x "$AQUI/.venv/bin/python" ] && [ -f "$AQUI/espelhar_no_drive.py" ]; then
+  echo
+  echo "==> Cartoes e autorizacoes que faltavam no Drive"
+  (cd "$AQUI" && ./.venv/bin/python espelhar_no_drive.py) \
+    || echo "    (alguns nao foram; tenta de novo amanha)"
+fi
+
 # ---------------------------------------------------------------- planilha
 # A planilha consolidada de cada edicao, para a equipe acompanhar pelo Drive no
 # dia em que o sistema cair. Mesma regra do envio acima: falhar aqui nao derruba

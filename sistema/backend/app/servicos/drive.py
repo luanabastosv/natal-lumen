@@ -1,4 +1,5 @@
-"""Comprovante de pagamento no Drive Compartilhado do evento.
+"""Copias no Drive Compartilhado do evento: comprovantes de pagamento, cartoes
+e autorizacoes (servicos/espelho.py), o backup e a planilha da noite.
 
 Duas chamadas, nesta ordem:
 
@@ -26,6 +27,7 @@ novo.
 """
 
 import json
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,13 +157,33 @@ def _access_token() -> str:
     return _token
 
 
-def garantir_subpasta(nome: str) -> str:
-    """Devolve o id de uma subpasta da pasta configurada, criando-a se preciso.
+def _aspas(nome: str) -> str:
+    """Escapa o nome para a consulta do Drive: "Escola D'Agua" quebraria a busca."""
+    return nome.replace("\\", "\\\\").replace("'", "\\'")
 
-    Serve ao backup, que NAO deve cair no mesmo lugar dos comprovantes: um
-    comprovante e um recibo de uma pessoa; o dump do banco tem o nome e a idade
-    de todas as criancas, o contato dos padrinhos e os hashes de senha. Em
-    pasta separada da para restringir quem ve uma coisa sem restringir a outra.
+
+# Pasta ja achada ou criada: (pai, nome) -> id. Uma pilha de 120 cartoes da
+# mesma escola faria 240 consultas ao Google so para reencontrar as mesmas duas
+# pastas.
+_pastas: dict[tuple[str, str], str] = {}
+# Duas pilhas confirmadas ao mesmo tempo, da mesma escola, procurariam a pasta
+# juntas, nao achariam, e criariam DUAS "Escola X" lado a lado.
+_trava_pastas = threading.Lock()
+
+
+def esquecer_pastas() -> None:
+    """Descarta os ids guardados. Pasta apagada a mao no Drive exige isto."""
+    _pastas.clear()
+
+
+def garantir_subpasta(nome: str, pai: str | None = None) -> str:
+    """Devolve o id de uma subpasta, criando-a se preciso.
+
+    Sem `pai`, a subpasta fica direto na pasta configurada. Serve ao backup, que
+    NAO deve cair no mesmo lugar dos comprovantes: um comprovante e um recibo de
+    uma pessoa; o dump do banco tem o nome e a idade de todas as criancas, o
+    contato dos padrinhos e os hashes de senha. Em pasta separada da para
+    restringir quem ve uma coisa sem restringir a outra.
 
     O escopo `drive.file` so enxerga o que a propria conta de servico criou —
     o que basta aqui: ou ela achou a pasta que ela mesma criou, ou cria agora.
@@ -169,40 +191,90 @@ def garantir_subpasta(nome: str) -> str:
     if not configurado():
         raise ErroDrive("O envio para o Drive nao esta configurado neste servidor.")
 
+    pai = pai or config.drive_pasta_id
+    with _trava_pastas:
+        if (pai, nome) in _pastas:
+            return _pastas[(pai, nome)]
+
+        token = _access_token()
+        consulta = (
+            f"name = '{_aspas(nome)}' and mimeType = 'application/vnd.google-apps.folder' "
+            f"and '{pai}' in parents and trashed = false"
+        )
+
+        try:
+            with _cliente() as cliente:
+                achou = cliente.get(
+                    ARQUIVOS_URL,
+                    params={
+                        "q": consulta,
+                        "fields": "files(id)",
+                        "supportsAllDrives": "true",
+                        "includeItemsFromAllDrives": "true",
+                    },
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                if achou.status_code == 200 and achou.json().get("files"):
+                    _pastas[(pai, nome)] = achou.json()["files"][0]["id"]
+                    return _pastas[(pai, nome)]
+
+                criada = cliente.post(
+                    ARQUIVOS_URL,
+                    params={"supportsAllDrives": "true", "fields": "id"},
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={
+                        "name": nome,
+                        "mimeType": "application/vnd.google-apps.folder",
+                        "parents": [pai],
+                    },
+                )
+        except httpx.HTTPError as erro:
+            raise ErroDrive("Nao foi possivel falar com o Google.", detalhe=str(erro))
+
+        if criada.status_code not in (200, 201):
+            raise ErroDrive(_traduzir(criada), detalhe=criada.text[:300])
+        _pastas[(pai, nome)] = criada.json()["id"]
+        return _pastas[(pai, nome)]
+
+
+def garantir_caminho(*nomes: str) -> str:
+    """A pasta no fim de um caminho a partir da configurada, criando o que faltar.
+
+        garantir_caminho("Cartoes - Fortaleza 2026", "Escola X", "Cesta")
+    """
+    pai = None
+    for nome in nomes:
+        pai = garantir_subpasta(nome, pai)
+    return pai or config.drive_pasta_id
+
+
+def para_a_lixeira(arquivo_id: str) -> None:
+    """Manda um arquivo que a conta de servico criou para a lixeira do Drive.
+
+    Lixeira, e nao apagar de vez: a conta e "Colaborador" no Drive Compartilhado
+    e nao tem como apagar de vez — e e melhor assim. Um cartao apagado por engano
+    ainda volta da lixeira por 30 dias.
+    """
+    if not configurado():
+        raise ErroDrive("O envio para o Drive nao esta configurado neste servidor.")
+
     token = _access_token()
-    consulta = (
-        f"name = '{nome}' and mimeType = 'application/vnd.google-apps.folder' "
-        f"and '{config.drive_pasta_id}' in parents and trashed = false"
-    )
+    try:
+        with _cliente() as cliente:
+            resposta = cliente.patch(
+                f"{ARQUIVOS_URL}/{arquivo_id}",
+                params={"supportsAllDrives": "true"},
+                headers={"Authorization": f"Bearer {token}"},
+                json={"trashed": True},
+            )
+    except httpx.HTTPError as erro:
+        raise ErroDrive("Nao foi possivel falar com o Google.", detalhe=str(erro))
 
-    with _cliente() as cliente:
-        achou = cliente.get(
-            ARQUIVOS_URL,
-            params={
-                "q": consulta,
-                "fields": "files(id)",
-                "supportsAllDrives": "true",
-                "includeItemsFromAllDrives": "true",
-            },
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        if achou.status_code == 200 and achou.json().get("files"):
-            return achou.json()["files"][0]["id"]
-
-        criada = cliente.post(
-            ARQUIVOS_URL,
-            params={"supportsAllDrives": "true", "fields": "id"},
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "name": nome,
-                "mimeType": "application/vnd.google-apps.folder",
-                "parents": [config.drive_pasta_id],
-            },
-        )
-
-    if criada.status_code not in (200, 201):
-        raise ErroDrive(_traduzir(criada), detalhe=criada.text[:300])
-    return criada.json()["id"]
+    # Ja nao existe (alguem tirou a mao): o que se queria ja aconteceu.
+    if resposta.status_code == 404:
+        return
+    if resposta.status_code != 200:
+        raise ErroDrive(_traduzir(resposta), detalhe=resposta.text[:300])
 
 
 def enviar(
@@ -244,7 +316,7 @@ def enviar(
                 },
             )
     except httpx.HTTPError as erro:
-        raise ErroDrive("Nao foi possivel enviar o comprovante ao Drive.", detalhe=str(erro))
+        raise ErroDrive("Nao foi possivel enviar o arquivo ao Drive.", detalhe=str(erro))
 
     if resposta.status_code not in (200, 201):
         raise ErroDrive(_traduzir(resposta), detalhe=resposta.text[:300])

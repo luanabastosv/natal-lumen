@@ -9,7 +9,7 @@ permissoes da pilha de cartoes, que e quem recolhe as duas.
 from typing import Annotated
 
 import cv2
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -19,7 +19,7 @@ from app.models import Autorizacao, Crianca, Edicao
 from app.schemas.autorizacoes import AutorizacaoOut
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import arquivos, imagens, scanner
+from app.servicos import arquivos, espelho, imagens, scanner
 from app.servicos.log import registrar
 from app.servicos.upload import ler_limitado
 
@@ -96,10 +96,14 @@ def miniatura(autorizacao_id: int, db: BD, ctx: Ver):
 
 
 @router.delete("/{autorizacao_id}", status_code=status.HTTP_204_NO_CONTENT)
-def apagar(autorizacao_id: int, db: BD, ctx: Subir):
-    """Apaga uma autorizacao subida por engano, e o arquivo dela junto."""
+def apagar(autorizacao_id: int, db: BD, ctx: Subir, segundo_plano: BackgroundTasks):
+    """Apaga uma autorizacao subida por engano, e o arquivo dela junto — no
+    disco e no Drive."""
     autorizacao = _buscar(db, ctx, autorizacao_id, "subir_cartoes")
     imagens.apagar_do_disco(autorizacao.arquivo)
+    segundo_plano.add_task(
+        espelho.tirar_em_segundo_plano, "autorizacoes", autorizacao.id, autorizacao.drive_id
+    )
 
     registrar(
         db, "autorizacao_apagada", usuario_id=ctx.usuario.id,
@@ -115,6 +119,7 @@ def trocar_imagem(
     autorizacao_id: int,
     db: BD,
     ctx: Subir,
+    segundo_plano: BackgroundTasks,
     arquivo: UploadFile = File(...),
 ):
     """Troca a imagem, sem mexer no resto. Passa pelo mesmo endireitamento da
@@ -142,6 +147,12 @@ def trocar_imagem(
     autorizacao.arquivo = str(destino.relative_to(config.caminho_arquivos))
     autorizacao.monitor_id = ctx.usuario.id
     imagens.apagar_do_disco(antiga)
+
+    # A copia nova vai para o Drive e a antiga para a lixeira, depois da resposta.
+    segundo_plano.add_task(
+        espelho.em_segundo_plano, Autorizacao, [autorizacao.id], [autorizacao.drive_id]
+    )
+    autorizacao.drive_id = None
 
     registrar(
         db, "autorizacao_trocada", usuario_id=ctx.usuario.id,

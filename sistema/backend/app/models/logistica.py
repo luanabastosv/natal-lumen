@@ -55,6 +55,10 @@ class Cartao(Base):
     arquivo: Mapped[str] = mapped_column(String(500), nullable=False)
     texto_ocr: Mapped[str | None] = mapped_column(Text)
 
+    # Id da copia no Drive (servicos/espelho.py). Nulo = ainda nao foi: a copia
+    # da noite manda o que ficou para tras.
+    drive_id: Mapped[str | None] = mapped_column(String(100))
+
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -103,6 +107,10 @@ class Autorizacao(Base):
     restricao_alimentar_qual: Mapped[str | None] = mapped_column(Text)
     tem_observacao: Mapped[bool | None] = mapped_column(Boolean)
     observacao: Mapped[str | None] = mapped_column(Text)
+
+    # Id da copia no Drive (servicos/espelho.py). Nulo = ainda nao foi: a copia
+    # da noite manda o que ficou para tras.
+    drive_id: Mapped[str | None] = mapped_column(String(100))
 
     monitor_id: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
