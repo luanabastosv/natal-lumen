@@ -474,7 +474,9 @@ export default function Painel() {
                     rotulo="Completas"
                     valor={r.completas}
                     de={r.criancas}
-                    nota="com os dois padrinhos"
+                    /* Com a festa fechada, a cesta e tudo o que a crianca
+                       pode ter: completa e a que ja tem a dela. */
+                    nota={festaFechada ? "com padrinho de cesta" : "com os dois padrinhos"}
                   />
                 </div>
               )}

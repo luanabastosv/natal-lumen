@@ -91,6 +91,14 @@ def _tipos_por_crianca(criancas_visiveis):
     )
 
 
+def _completa(tipos, festa_ligada: bool):
+    """A crianca que ja tem tudo o que pode ter agora: cesta e festa, ou so a
+    cesta enquanto a campanha da festa nao abre."""
+    if festa_ligada:
+        return (tipos.c.cesta > 0) & (tipos.c.festa > 0)
+    return tipos.c.cesta > 0
+
+
 @router.get("/{edicao_id}", response_model=Relatorio)
 def relatorio(edicao_id: int, db: BD, ctx: Painel):
     edicao = db.scalar(
@@ -140,7 +148,11 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
 
     # Crianca completa: tem cesta E festa. Conta uma vez por crianca, entao sai
     # de um agrupamento — somar os dois tipos contaria a completa duas vezes.
-    completas = db.scalar(
+    # Com a festa ainda fechada, a cesta e tudo o que a crianca pode ter: sem
+    # isto o "faltam" ficava parado no total de criancas ate a festa abrir,
+    # por mais cestas que entrassem.
+    festa_ligada = edicao.festa_liberada_em is not None
+    completas = por_tipo.get(CESTA, 0) if not festa_ligada else db.scalar(
         select(func.count()).select_from(
             select(Apadrinhamento.crianca_id)
             .where(Apadrinhamento.crianca_id.in_(criancas_visiveis), CONFIRMADO)
@@ -193,7 +205,7 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     # O comissario ja esta vendo so as criancas dele — a quebra por comissario
     # nao tem o que quebrar, e traria os colegas todos zerados. Ela e da
     # coordenacao, que e quem distribui a lista e cobra o time.
-    por_instituicao = _por_instituicao(db, alcance, criancas_visiveis, edicao_id)
+    por_instituicao = _por_instituicao(db, alcance, criancas_visiveis, edicao_id, festa_ligada)
     if so_minhas_criancas and edicao.festa_liberada_em is not None:
         por_instituicao = _com_a_festa_do_comissario(
             db, por_instituicao, edicao_id, ctx.usuario.id
@@ -209,7 +221,7 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
             if so_minhas_criancas or so_logistica
             else _por_comissario(
                 db, alcance, criancas_visiveis, edicao_id,
-                festa_ligada=edicao.festa_liberada_em is not None,
+                festa_ligada=festa_ligada,
             )
         ),
         por_idade=_por_idade(db, alcance),
@@ -218,7 +230,7 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
 
 
 def _por_instituicao(
-    db: Session, alcance, criancas_visiveis, edicao_id: int
+    db: Session, alcance, criancas_visiveis, edicao_id: int, festa_ligada: bool = False
 ) -> list[LinhaInstituicao]:
     """Quantas criancas a instituicao tem, quanto ja esta apadrinhado, e a
     logistica do dia dela.
@@ -238,7 +250,7 @@ def _por_instituicao(
             func.count(Crianca.id),
             func.coalesce(func.sum(tipos.c.cesta), 0),
             func.coalesce(func.sum(tipos.c.festa), 0),
-            func.count(case(((tipos.c.cesta > 0) & (tipos.c.festa > 0), Crianca.id))),
+            func.count(case((_completa(tipos, festa_ligada), Crianca.id))),
             InstituicaoDia.dia_evento_id,
             DiaEvento.data,
             DiaEvento.descricao,
@@ -427,9 +439,7 @@ def _por_comissario(
                 func.count(Crianca.id),
                 func.coalesce(func.sum(tipos.c.cesta), 0),
                 func.coalesce(func.sum(tipos.c.festa), 0),
-                func.count(
-                    case(((tipos.c.cesta > 0) & (tipos.c.festa > 0), Crianca.id))
-                ),
+                func.count(case((_completa(tipos, festa_ligada), Crianca.id))),
             )
             .outerjoin(tipos, tipos.c.crianca_id == Crianca.id)
             .where(alcance)

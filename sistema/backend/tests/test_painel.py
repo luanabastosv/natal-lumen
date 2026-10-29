@@ -287,6 +287,28 @@ def main() -> None:
                  == ("sabado", 2),
                  f"{escola_a.get('dia_evento_descricao')}/{escola_a.get('onibus')}")
 
+        print("\nCom a festa ainda fechada")
+        # Antes de a festa abrir, a cesta e tudo o que a crianca pode ter. Sem
+        # isto o "faltam" ficava no total de criancas ate a festa abrir.
+        edicao.festa_liberada_em = None
+        db.commit()
+        fechada = cc.get(f"/painel/{edicao.id}").json()
+        a_fechada = {l["instituicao"]: l for l in fechada.get("por_instituicao", [])}.get(
+            f"{MARCA} Escola A", {})
+        verifica("Escola A: A1 e A2 tem cesta, falta so a A3",
+                 (a_fechada.get("completas"), a_fechada.get("faltam")) == (2, 1),
+                 f"{a_fechada.get('completas')}/{a_fechada.get('faltam')}")
+        verifica("e o resumo conta as 3 criancas com cesta",
+                 fechada.get("resumo", {}).get("completas") == 3,
+                 str(fechada.get("resumo", {}).get("completas")))
+        sem_resp = {l["comissario"]: l for l in fechada.get("por_comissario", [])}.get(
+            "Sem comissário", {})
+        # A2 (cesta) e B1 (cesta) e B2 (nada) estao sem responsavel.
+        verifica("e o comissario tambem: sem responsavel falta so a B2",
+                 sem_resp.get("faltam") == 1, str(sem_resp))
+        edicao.festa_liberada_em = datetime.now(UTC)
+        db.commit()
+
         print("\nQuebra por idade e sexo")
         por_idade = {f["idade"]: f for f in rel.get("por_idade", [])}
         verifica("as 3 criancas de 8 anos sao todas meninas",

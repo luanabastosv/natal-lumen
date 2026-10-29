@@ -67,6 +67,7 @@ class LinhaInstituicao(BaseModel):
     # Completa e a crianca que tem os dois padrinhos; `faltam` e o resto. Sao o
     # "APADRINHADO" e o "FALTA APADRINHAR" da planilha, que contavam a crianca
     # inteira — nao cesta e festa em separado.
+    # Com a festa ainda fechada, completa e a que tem a cesta.
     completas: int
     faltam: int
     # Em que dia esta instituicao vai, e quantos onibus a buscam. Vazios
