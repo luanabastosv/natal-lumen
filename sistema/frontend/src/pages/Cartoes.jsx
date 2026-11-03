@@ -43,6 +43,13 @@ const AUTORIZACAO = "autorizacao";
 /** O tipo como se escreve na tela. O servidor manda sem acento. */
 const NOME_DO_TIPO = { cesta: "cesta", festa: "festa", autorizacao: "autorização" };
 
+/** A foto do cartao EM BRANCO de cada pilha, para o monitor reconhecer o
+ * papel que tem na mao. Mora em `public/`: e a mesma para toda instituicao. */
+const MODELO_DO_CARTAO = {
+  cesta: "/acesso/images/cartoes/cartao-cesta.jpg",
+  festa: "/acesso/images/cartoes/cartao-festa.jpg",
+};
+
 /* A autorizacao mora em rota propria no servidor, mas na tela ela e mais uma
    pilha de papel da pasta: estas tres funcoes escolhem a porta pelo tipo, e o
    resto da tela trata as duas coisas igual. */
@@ -87,6 +94,10 @@ export default function Cartoes() {
 
   // Qual cartao esta aberto para olhar.
   const [vendo, definirVendo] = useState(null);
+  // A foto do cartao em branco aberta grande, e a que nao carregou (sem foto
+  // ainda no servidor, a faixa some em vez de mostrar imagem quebrada).
+  const [modeloAberto, definirModeloAberto] = useState(false);
+  const [modeloFaltando, definirModeloFaltando] = useState({});
   // Onde o aberto esta na pasta, para as setas do visualizador.
   const posicaoVendo = vendo
     ? cartoes.itens.findIndex((c) => c.id === vendo.id && c.tipo === vendo.tipo)
@@ -497,6 +508,44 @@ export default function Cartoes() {
               ))}
           </div>
         </div>
+      )}
+
+      {pasta && MODELO_DO_CARTAO[abaTipo] && !modeloFaltando[abaTipo] && (
+        <div className="cartao-modelo">
+          <button
+            type="button"
+            className="cartao-modelo__foto"
+            onClick={() => definirModeloAberto(true)}
+            aria-label={`Ampliar o Cartão ${abaTipo === "cesta" ? "Cesta" : "Festa"} em branco`}
+            title="Ampliar"
+          >
+            <img
+              src={MODELO_DO_CARTAO[abaTipo]}
+              alt=""
+              onError={() => definirModeloFaltando((m) => ({ ...m, [abaTipo]: true }))}
+            />
+          </button>
+          <p className="cartao-modelo__texto">
+            <strong>Este é o Cartão {abaTipo === "cesta" ? "Cesta" : "Festa"}.</strong>
+            <br />
+            Confira se o papel na sua mão é igual antes de subir.
+          </p>
+        </div>
+      )}
+
+      {modeloAberto && MODELO_DO_CARTAO[abaTipo] && (
+        <Modal
+          rotulo="Cartão em branco"
+          titulo={`Cartão ${abaTipo === "cesta" ? "Cesta" : "Festa"}`}
+          tamanho="largo"
+          aoFechar={() => definirModeloAberto(false)}
+        >
+          <ImagemComZoom
+            key={MODELO_DO_CARTAO[abaTipo]}
+            src={MODELO_DO_CARTAO[abaTipo]}
+            alt={`Cartão ${NOME_DO_TIPO[abaTipo]} em branco`}
+          />
+        </Modal>
       )}
 
       {/* O envio mora DENTRO da pasta: sobe-se a pilha de uma escola, e o

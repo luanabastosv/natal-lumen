@@ -2363,12 +2363,52 @@ button.celula:hover {
   margin-right: 6px;
 }
 
+/* O pontinho repete a cor do PAPEL: o cartao da cesta e impresso em
+   amarelo e o da festa em azul. Quem separa a pilha na mao reconhece a aba
+   pela cor da folha que esta segurando. */
 .aba__ponto.tipo--cesta {
-  background: var(--navy-500);
+  background: var(--amarelo-600);
 }
 
 .aba__ponto.tipo--festa {
-  background: var(--amarelo-600);
+  background: var(--navy-500);
+}
+
+/* O cartao em branco da aba aberta, para o monitor se localizar: "e este
+   aqui". Pequeno, ao lado da frase; o toque abre a foto inteira. */
+.cartao-modelo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.cartao-modelo__foto {
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  overflow: hidden;
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.cartao-modelo__foto img {
+  height: 120px;
+  width: auto;
+  display: block;
+}
+
+.cartao-modelo__texto {
+  margin: 0;
+  color: var(--text-on-light-secondary);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+}
+
+.cartao-modelo__texto strong {
+  color: var(--text-on-light-primary);
 }
 
 .aba__ponto.tipo--autorizacao {
