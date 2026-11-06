@@ -17,12 +17,18 @@ const TONS = {
 
 // `apagada`: o numero existe mas ainda nao esta valendo — a festa antes de a
 // campanha dela comecar.
-export default function Metrica({ rotulo, valor, de, nota, tom = "neutro", destaque, apagada }) {
+// `etiqueta`: uma palavra ao lado do rotulo, para o numero que esta ali so de
+// informacao e nao e trabalho de quem olha (as ave-marias no painel da
+// intercessao). `informativa` da a esse numero o fundo de fora da fileira.
+export default function Metrica({ rotulo, valor, de, nota, tom = "neutro", destaque, apagada, etiqueta, informativa }) {
   const parte = de > 0 ? Math.min(100, Math.round((valor / de) * 100)) : null;
 
   return (
-    <div className={`metrica ${destaque ? "metrica--destaque" : ""} ${apagada ? "metrica--apagada" : ""}`.trim()}>
-      <span className="metrica__rotulo">{rotulo}</span>
+    <div className={`metrica ${destaque ? "metrica--destaque" : ""} ${apagada ? "metrica--apagada" : ""} ${informativa ? "metrica--informativa" : ""}`.trim()}>
+      <span className="metrica__rotulo">
+        {rotulo}
+        {etiqueta && <span className="etiqueta etiqueta--neutra metrica__etiqueta">{etiqueta}</span>}
+      </span>
       <span className="metrica__valor">
         {valor}
         {de != null && <span className="metrica__de">/{de}</span>}

@@ -20,6 +20,7 @@ from sqlalchemy import delete, func, select
 
 from app.database import SessionLocal
 from app.models import (
+    AveMaria,
     Apadrinhamento,
     Cartao,
     Cidade,
@@ -107,6 +108,7 @@ def main() -> None:
                           valor=130, pagamento_id=pag.id))
     db.add(Apadrinhamento(crianca_id=a1.id, padrinho_id=padrinho.id, tipo="festa", valor=60))
     db.add(Cartao(crianca_id=a1.id, tipo="cesta", arquivo="zz/E1_cesta.jpg"))
+    db.add_all([AveMaria(crianca_id=a1.id, dia=date(2026, 10, d)) for d in (1, 2, 3)])
     db.commit()
 
     try:
@@ -139,6 +141,9 @@ def main() -> None:
         verifica("o cartao de cesta aparece como subido",
                  e1[cabecalho.index("Cartão cesta")] == "Subiu"
                  and e1[cabecalho.index("Cartão festa")] in (None, ""))
+        verifica("as ave-marias de cada crianca, zero para quem nao tem",
+                 e1[cabecalho.index("Ave-marias")] == 3
+                 and linhas["E2"][cabecalho.index("Ave-marias")] == 0)
 
         print("\nOs calculos")
         calc = livro["CÁLCULOS"]

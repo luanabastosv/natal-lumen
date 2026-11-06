@@ -61,6 +61,15 @@ class Sexo(StrEnum):
     FEMININO = "F"
 
 
+class TipoIntercessao(StrEnum):
+    """As quatro vivencias da planilha de intercessao da equipe."""
+
+    MISSA = "missa"
+    ADORACAO = "adoracao"
+    TERCO = "terco"  # um misterio do terco
+    JEJUM = "jejum"
+
+
 def valores(enum: type[StrEnum]) -> tuple[str, ...]:
     """Valores do enum, para montar o CHECK da coluna."""
     return tuple(item.value for item in enum)

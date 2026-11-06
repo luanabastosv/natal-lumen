@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.intercessao import MarcaIntercessao
+
 
 class CriancaIn(BaseModel):
     edicao_id: int
@@ -107,6 +109,13 @@ class CriancaOut(BaseModel):
     cuidados: str | None = None
     # Nulo = sem `gerenciar_kits`.
     kit_status: str | None = None
+    # Quantas ave-marias ja foram rezadas por ela (convites de oracao, desde
+    # sempre). Como os cartoes, vale para todo mundo que ve a crianca.
+    ave_marias: int = 0
+    # As vivencias de intercessao marcadas nela (missa, adoracao, terco,
+    # jejum), com quem marcou. Nulo = sem `interceder`: so a equipe da
+    # intercessao recebe as colunas de marcar.
+    intercessoes: list[MarcaIntercessao] | None = None
 
 
 class PaginaCriancas(BaseModel):

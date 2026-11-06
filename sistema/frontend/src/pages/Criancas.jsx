@@ -4,8 +4,10 @@ import BotaoIcone from "../components/core/BotaoIcone.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import FaixaDeAbas from "../components/core/FaixaDeAbas.jsx";
-import { Cuidado, Importar, Imprimir, Olho, Xis } from "../components/core/icones.jsx";
+import { Cuidado, Importar, Imprimir, Olho, Oracao, Xis } from "../components/core/icones.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
+import CelulaIntercessao from "../components/dados/CelulaIntercessao.jsx";
+import { VIVENCIAS } from "../services/intercessao.js";
 import FichaCrianca from "../components/dados/FichaCrianca.jsx";
 import FichaInstituicao from "../components/dados/FichaInstituicao.jsx";
 import ImprimirLista from "../components/dados/ImprimirLista.jsx";
@@ -109,7 +111,7 @@ const SEXOS = [
 
 export default function Criancas() {
   // A edicao vem da lateral: e a mesma para o sistema inteiro.
-  const { pode, edicaoAtiva, edicao, vinculoAtivo } = useSessao();
+  const { usuario, pode, edicaoAtiva, edicao, vinculoAtivo } = useSessao();
 
   const [instituicoes, definirInstituicoes] = useState([]);
   const [abas, definirAbas] = useState([]);
@@ -191,6 +193,20 @@ export default function Criancas() {
   // e os padrinhos — e o resto vai para a ficha, a um toque de distancia.
   const estreita = useTelaEstreita();
 
+  // A equipe da intercessao reza pela lista inteira, e nela so precisa saber
+  // quem e a crianca, quantas ave-marias ja recebeu e as quatro vivencias para
+  // marcar. Idade, dia, instituicao, cartoes e autorizacao saem: nao sao
+  // assunto dela. Pelo perfil, como a visao do comissario: a administracao
+  // geral tem todas as permissoes e continua vendo a lista de sempre.
+  const visaoIntercessao = vinculoAtivo?.perfil === "Intercessao";
+  const outrasColunas = !estreita && !visaoIntercessao;
+  const colunaAveMarias = !estreita;
+  // No celular a intercessao fica so com o nome e os quatro checkboxes: e la
+  // que a equipe marca, de dedo, e cada coluna a mais empurrava os checkboxes
+  // para fora da tela. Codigo, ave-marias e o olho saem; tocar no nome
+  // continua abrindo a ficha.
+  const intercessaoNoCelular = estreita && visaoIntercessao;
+
   // O check-in so acontece no dia do evento. Ate la a coluna seria uma fileira
   // de "nao" ocupando largura que o nome e a instituicao precisam mais — entao
   // ela so entra quando ha check-in feito.
@@ -199,7 +215,8 @@ export default function Criancas() {
   // planilha devolve a crianca atualizada, e a coluna tem de aparecer no
   // mesmo instante, sem esperar a proxima busca.
   const mostrarCheckin =
-    visaoComissario || criancas.com_checkin > 0 || criancas.itens.some((c) => c.checkin_em);
+    !visaoIntercessao &&
+    (visaoComissario || criancas.com_checkin > 0 || criancas.itens.some((c) => c.checkin_em));
 
   useEffect(() => {
     let vivo = true;
@@ -284,21 +301,26 @@ export default function Criancas() {
      toda a sobra. */
   const larguras = [
     ...(podeMarcar && !estreita ? [34] : []),
-    estreita ? 74 : 84,
+    ...(intercessaoNoCelular ? [] : [estreita ? 74 : 84]),
     null,
-    ...(!estreita ? [50, 46, 88, 130] : []),
+    ...(outrasColunas ? [50, 46, 88, 130] : []),
     ...(veCaptacao && !estreita ? [132, 90] : []),
     ...(veFesta && !estreita ? [132] : []),
     ...(veCaptacao ? [estreita ? 62 : 80] : []),
-    ...(!estreita ? [64] : []),
+    ...(outrasColunas ? [64] : []),
     // "Aut.": o rotulo curto deixa a coluna do tamanho do marcador.
-    ...(!estreita ? [56] : []),
+    ...(outrasColunas ? [56] : []),
+    // Ave-marias: as maos postas e um numero de ate tres digitos.
+    ...(colunaAveMarias ? [estreita ? 50 : 58] : []),
+    // As vivencias: o checkbox e ate duas etiquetas de nome. No celular, so o
+    // checkbox e a contagem.
+    ...(visaoIntercessao ? VIVENCIAS.map(() => (estreita ? 52 : 150)) : []),
     ...(veKit && !estreita ? [58] : []),
     ...(escreveObservacao && !estreita ? [150] : []),
     ...(mostrarCheckin && !estreita ? [66] : []),
     // Dois botoes de 24px (ficha e apagar); sem o de apagar, um. No celular
     // e um olho so, mas de 40px: alvo de dedo.
-    estreita ? 48 : podeEditar ? 66 : 40,
+    ...(intercessaoNoCelular ? [] : [estreita ? 48 : podeEditar ? 66 : 40]),
   ];
 
   async function todasAsCriancas() {
@@ -792,6 +814,7 @@ export default function Criancas() {
               : []),
             { id: "cartoes", rotulo: "Cartões", valor: (c) => `${c.cartoes}/2` },
             { id: "autorizacao", rotulo: "Autorização", valor: (c) => (c.autorizacao ? "Sim" : "Não") },
+            { id: "ave_marias", rotulo: "Ave-marias", valor: (c) => String(c.ave_marias ?? 0) },
             ...(veKit
               ? [{ id: "kit", rotulo: "Kit", valor: (c) => c.kit_status ?? "—" }]
               : []),
@@ -885,7 +908,15 @@ export default function Criancas() {
               // fixa — ficava com zero quando as outras somavam mais que a
               // tela, e o nome vazava por cima da idade. Com o piso, a lista
               // rola para o lado, como a dica acima promete.
-              style={{ minWidth: larguras.reduce((s, w) => s + (w ?? LARGURA_MINIMA_DO_NOME), 0) }}
+              //
+              // No celular, nunca: rolar de lado com o dedo e a pior coisa da
+              // lista. A tabela fica na largura da tela e o nome, que e a
+              // coluna sem largura fixa, e cortado com reticencias.
+              style={
+                estreita
+                  ? undefined
+                  : { minWidth: larguras.reduce((s, w) => s + (w ?? LARGURA_MINIMA_DO_NOME), 0) }
+              }
             >
               {/* So faz sentido onde a lista de fato rola. Na versao estreita
                   as colunas cabem todas na tela, e prometer arraste ali seria
@@ -923,9 +954,9 @@ export default function Criancas() {
                       />
                     </th>
                   )}
-                  <th>Código</th>
+                  {!intercessaoNoCelular && <th>Código</th>}
                   <th>Nome</th>
-                  {!estreita && (
+                  {outrasColunas && (
                     <>
                       <th>Idade</th>
                       <th>Sexo</th>
@@ -949,10 +980,23 @@ export default function Criancas() {
                     </th>
                   )}
                   {veCaptacao && <th title="Padrinho de cesta e de festa">Padrinhos</th>}
-                  {!estreita && <th title="Cartões digitalizados, de 2">Cartões</th>}
-                  {!estreita && (
+                  {outrasColunas && <th title="Cartões digitalizados, de 2">Cartões</th>}
+                  {outrasColunas && (
                     <th title="Autorização do responsável já digitalizada">Aut.</th>
                   )}
+                  {colunaAveMarias && (
+                    <th title="Ave-marias já rezadas por esta criança, pelos convites de oração">
+                      <span className="contagem-oracao" aria-label="Ave-marias">
+                        <Oracao t={14} />
+                      </span>
+                    </th>
+                  )}
+                  {visaoIntercessao &&
+                    VIVENCIAS.map((v) => (
+                      <th key={v.tipo} title={`${v.rotulo}: marque as crianças por quem você ofereceu`}>
+                        {estreita ? v.curto : v.rotulo}
+                      </th>
+                    ))}
                   {veKit && !estreita && <th>Kit</th>}
                   {escreveObservacao && !estreita && (
                     <th title="O recado do comissário sobre a criança. Só quem capta vê e escreve.">
@@ -960,7 +1004,7 @@ export default function Criancas() {
                     </th>
                   )}
                   {mostrarCheckin && !estreita && <th>Check-in</th>}
-                  <th className="planilha__acoes" />
+                  {!intercessaoNoCelular && <th className="planilha__acoes" />}
                 </tr>
               </thead>
               <tbody>
@@ -1000,16 +1044,18 @@ export default function Criancas() {
                         teclado em quem so queria rolar a lista, e um codigo
                         trocado sem querer nao avisa que foi trocado. Edicao e
                         no computador. */}
-                    <td>
-                      {podeEditar && !estreita ? (
-                        <CelulaEditavel
-                          valor={c.codigo}
-                          aoSalvar={(v) => salvarCampo(c, "codigo", v)}
-                        />
-                      ) : (
-                        <span className="celula celula--fixa">{c.codigo}</span>
-                      )}
-                    </td>
+                    {!intercessaoNoCelular && (
+                      <td>
+                        {podeEditar && !estreita ? (
+                          <CelulaEditavel
+                            valor={c.codigo}
+                            aoSalvar={(v) => salvarCampo(c, "codigo", v)}
+                          />
+                        ) : (
+                          <span className="celula celula--fixa">{c.codigo}</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       {/* O coracaozinho no canto de cima, a esquerda do nome,
                           sem empurrar o texto: a autorizacao avisa
@@ -1038,7 +1084,7 @@ export default function Criancas() {
                         )}
                       </span>
                     </td>
-                    {!estreita && (
+                    {outrasColunas && (
                       <>
                         <td>
                         {podeEditar ? (
@@ -1166,7 +1212,7 @@ export default function Criancas() {
                         </span>
                       </td>
                     )}
-                    {!estreita && (
+                    {outrasColunas && (
                       <td>
                         <span className="celula" style={{ cursor: "default" }}>
                           <span
@@ -1179,7 +1225,7 @@ export default function Criancas() {
                         </span>
                       </td>
                     )}
-                    {!estreita && (
+                    {outrasColunas && (
                       <td>
                         <span className="celula" style={{ cursor: "default" }}>
                           <span className={`marcador ${c.autorizacao ? "marcador--feito" : ""}`}>
@@ -1188,6 +1234,46 @@ export default function Criancas() {
                         </span>
                       </td>
                     )}
+                    {colunaAveMarias && (
+                      <td>
+                        <span
+                          className="celula"
+                          style={{ cursor: "default" }}
+                          title={
+                            c.ave_marias === 1
+                              ? "1 ave-maria já foi rezada por esta criança"
+                              : `${c.ave_marias ?? 0} ave-marias já foram rezadas por esta criança`
+                          }
+                        >
+                          <span
+                            className={`contagem-oracao ${c.ave_marias ? "" : "contagem-oracao--zero"}`}
+                          >
+                            <Oracao t={13} />
+                            {c.ave_marias ?? 0}
+                          </span>
+                        </span>
+                      </td>
+                    )}
+                    {visaoIntercessao &&
+                      VIVENCIAS.map((v) => (
+                        <td key={v.tipo}>
+                          <CelulaIntercessao
+                            crianca={c}
+                            vivencia={v}
+                            usuarioId={usuario?.id}
+                            compacta={estreita}
+                            aoErro={definirErro}
+                            aoMudar={(intercessoes) =>
+                              definirCriancas((atual) => ({
+                                ...atual,
+                                itens: atual.itens.map((x) =>
+                                  x.id === c.id ? { ...x, intercessoes } : x,
+                                ),
+                              }))
+                            }
+                          />
+                        </td>
+                      ))}
                     {veKit && !estreita && (
                       <td>
                         <span className="celula" style={{ cursor: "default" }}>
@@ -1234,6 +1320,7 @@ export default function Criancas() {
                         planilha, e a planilha inteira mora na tela grande —
                         alem de ser o vizinho mais perigoso que um dedo podia
                         ter ao lado da acao que se repete em toda linha. */}
+                    {!intercessaoNoCelular && (
                     <td className="planilha__acoes">
                       <span className="acoes-icone">
                         <BotaoIcone
@@ -1255,6 +1342,7 @@ export default function Criancas() {
                         )}
                       </span>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

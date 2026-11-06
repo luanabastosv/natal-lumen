@@ -17,6 +17,7 @@ import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import FichaSimples from "../components/dados/FichaSimples.jsx";
 import AtividadeEquipe from "../components/dados/AtividadeEquipe.jsx";
 import PainelMonitoria from "../components/dados/PainelMonitoria.jsx";
+import PainelIntercessao from "../components/dados/PainelIntercessao.jsx";
 import { buscarRelatorio } from "../services/painel.js";
 import { listarCuidados } from "../services/cuidados.js";
 import { buscarPainelMonitoria } from "../services/monitoria.js";
@@ -183,6 +184,10 @@ export default function Painel() {
   const coordMonitoria = vinculoAtivo?.perfil === "Monitoria - coordenacao";
   // O monitor de base ve o mesmo painel, so com as instituicoes dele.
   const monitor = vinculoAtivo?.perfil === "Monitoria - monitores";
+  // O quantitativo da intercessao: o painel inteiro da equipe que reza, e uma
+  // secao a mais embaixo do painel da coordenacao.
+  const veIntercessao = pode("ver_painel_intercessao");
+  const intercessao = vinculoAtivo?.perfil === "Intercessao";
   const faltamDias = diasParaAFesta(relatorio?.por_dia);
   const maxPorDia = Math.max(1, ...(relatorio?.por_dia ?? []).map((d) => d.criancas));
   const maxPorIdade = Math.max(
@@ -358,7 +363,9 @@ export default function Painel() {
                     ? "Os cartões e as autorizações de cada instituição, os cuidados especiais e os núcleos de cada dia."
                     : monitor
                       ? "Os cartões e as autorizações das suas crianças, e quem precisa de cuidado especial."
-                      : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
+                      : intercessao
+                        ? "Cada vivência oferecida por uma criança conta aqui. Marque as suas na lista geral."
+                        : "Acompanhe o panorama da edição e siga para o que precisa da sua mão."}
             </p>
             {captacao && !estreita && (
               <div className="abertura__cta">
@@ -834,7 +841,11 @@ export default function Painel() {
             <PainelMonitoria edicaoId={edicaoAtiva} monitor={monitor} />
           )}
 
-          {!podeVerNumeros && !coordMonitoria && !monitor && (
+          {veIntercessao && edicaoAtiva && (
+            <PainelIntercessao edicaoId={edicaoAtiva} secao={podeVerNumeros} />
+          )}
+
+          {!podeVerNumeros && !coordMonitoria && !monitor && !veIntercessao && (
             <EmptyState
               titulo="Escolha por onde começar"
               corpo="Seu perfil não acompanha os números da edição. Use o menu ao lado: ele mostra tudo o que você alcança."

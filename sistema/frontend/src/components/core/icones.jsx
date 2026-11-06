@@ -375,3 +375,14 @@ export function Cuidado({ t }) {
     </Svg>
   );
 }
+
+/** Oracao: duas maos postas, as pontas dos dedos juntas no alto. Fica ao
+ *  lado do numero de ave-marias rezadas por uma crianca, na lista. */
+export function Oracao({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M12 3c-1.6 1.2-2.8 4-3.2 7L7 14l-3 3 3 3 5-4 5 4 3-3-3-3-1.8-4c-.4-3-1.6-5.8-3.2-7z" />
+      <path d="M12 3v13" />
+    </Svg>
+  );
+}

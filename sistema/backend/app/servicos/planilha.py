@@ -23,12 +23,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models import (
     Apadrinhamento,
     Autorizacao,
+    AveMaria,
     Cartao,
     Compra,
     Crianca,
@@ -89,6 +90,8 @@ COLUNAS_FIM = [
     ("Autorização", 12),
     ("Kit", 10),
     ("Check-in", 16),
+    # No fim, para nao deslocar as colunas que a equipe ja conhece.
+    ("Ave-marias", 11),
 ]
 
 SEM = "SEM APADRINHAMENTO"
@@ -152,6 +155,14 @@ class _Dados:
         )
         self.kits = dict(
             db.execute(select(Kit.crianca_id, Kit.status).where(Kit.crianca_id.in_(ids))).all()
+        )
+        # Quantas ave-marias cada crianca ja recebeu, a mesma conta da ficha.
+        self.ave_marias = dict(
+            db.execute(
+                select(AveMaria.crianca_id, func.count())
+                .where(AveMaria.crianca_id.in_(ids))
+                .group_by(AveMaria.crianca_id)
+            ).all()
         )
 
         # O time da edicao, com o grupo de cada um NESTA edicao
@@ -266,6 +277,7 @@ def _linha_crianca(dados: _Dados, c: Crianca) -> list:
         "Subiu" if c.id in dados.autorizacoes else "",
         "Montado" if dados.kits.get(c.id) == "montado" else "",
         _momento(c.checkin_em),
+        dados.ave_marias.get(c.id, 0),
     ]
 
 

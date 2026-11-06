@@ -66,6 +66,12 @@ PERMISSOES: dict[str, str] = {
     "fazer_checkin": "Fazer o check-in das criancas no dia do evento",
     "gerenciar_usuarios": "Criar usuarios e definir vinculos, perfis e instituicoes",
     "gerenciar_cadastros": "Cadastrar instituicoes e os dias do evento da edicao",
+    # A intercessao, desde 06/11/2026: a equipe que reza pelas criancas marca
+    # nelas a Santa Missa, a Adoracao, o Misterio do Terco e o Jejum. Duas
+    # permissoes porque sao duas coisas: marcar e da equipe; acompanhar o
+    # quantitativo e da equipe e da coordenacao.
+    "interceder": "Marcar as intercessoes pelas criancas: missa, adoracao, terco e jejum",
+    "ver_painel_intercessao": "Ver o quantitativo da intercessao no painel",
 }
 
 # Os dois lados do comissariado partem da MESMA lista; a coordenacao da
@@ -91,6 +97,12 @@ MONITORIA = (
     "fazer_checkin",
 )
 
+# A unica permissao que a coordenacao NAO recebe: marcar intercessao. O
+# checkbox e pessoal (quem marcou foi quem rezou), e as quatro colunas a mais
+# apertariam a lista da coordenacao, que ja e a mais larga. Ela acompanha
+# pelos numeros (ver_painel_intercessao).
+SO_DA_INTERCESSAO = ("interceder",)
+
 # nome do perfil -> (descricao, permissoes)
 # Vem da especificacao, com duas mudancas pedidas depois. A primeira: o
 # comissario perdeu registrar_pagamentos e fazer_checkin — o caixa da edicao e a
@@ -111,7 +123,7 @@ MONITORIA = (
 PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
     "Coordenacao": (
         "Coordenacao da cidade: todas as permissoes, em todas as edicoes dela",
-        tuple(PERMISSOES),
+        tuple(p for p in PERMISSOES if p not in SO_DA_INTERCESSAO),
     ),
     # O comissariado se parte em dois desde 01/10/2026, pelo mesmo motivo da
     # monitoria: quem coordena a captacao precisa da edicao inteira, e quem
@@ -159,6 +171,13 @@ PERFIS: dict[str, tuple[str, tuple[str, ...]]] = {
             "gerenciar_kits",
         ),
     ),
+    # A equipe que reza pelas criancas, desde 06/11/2026. Ve a edicao inteira
+    # (a intercessao e por todas as criancas), e na lista so o que precisa:
+    # codigo, nome, ave-marias e as quatro vivencias.
+    "Intercessao": (
+        "Reza pelas criancas e marca as vivencias de intercessao",
+        ("ver_criancas", "interceder", "ver_painel_intercessao"),
+    ),
 }
 
 # Perfis filtrados pelas instituicoes atribuidas em usuario_instituicao.
@@ -201,6 +220,7 @@ PERFIS_COMISSARIADO = ("Comissarios - coordenacao", "Comissarios - comissario")
 # e filtrado crianca a crianca.
 PERFIL_COMISSARIO = "Comissarios - comissario"
 PERFIL_COORDENACAO = "Coordenacao"
+PERFIL_INTERCESSAO = "Intercessao"
 
 
 def semear(db: Session) -> tuple[int, int]:

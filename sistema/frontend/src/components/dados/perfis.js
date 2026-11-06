@@ -75,6 +75,8 @@ const ROTULOS = {
   "Monitoria - coordenacao": "Monitoria - coordenação",
   "Monitoria - monitores": "Monitoria - monitores",
   Estrutura: "Estrutura",
+  // A equipe que reza pelas criancas e marca as vivencias na lista.
+  Intercessao: "Intercessão",
   // Nao e um perfil da base: e o atributo da conta que alcanca tudo. Aparece
   // aqui porque a lista de responsaveis por crianca mistura os dois.
   "Administracao geral": "Administração geral",

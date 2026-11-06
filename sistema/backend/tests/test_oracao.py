@@ -181,6 +181,12 @@ def main() -> None:
         verifica("reaparecer noutro dia soma mais uma, e repetir no dia nao",
                  ave_marias() == 2, str(ave_marias()))
 
+        r = cc.get("/criancas", params={"edicao_id": edicao.id, "codigo": escolhida.codigo})
+        na_lista = next((c for c in r.json().get("itens", []) if c["id"] == escolhida.id), {}) \
+            if r.status_code == 200 else {}
+        verifica("a lista de criancas mostra a mesma conta da ficha",
+                 na_lista.get("ave_marias") == 2, str(na_lista.get("ave_marias")))
+
         print("\nAlcance: o comissario so recebe crianca que ja e dele")
         ck = TestClient(app); entrar(ck, com.email)
         do_com = ck.get(f"/oracao/{edicao.id}").json()

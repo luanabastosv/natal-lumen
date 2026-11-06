@@ -252,12 +252,15 @@ def main() -> None:
         verifica("login correto devolve 200", r.status_code == 200, r.text[:120])
 
         corpo = r.json()
-        from app.seeds.perfis_permissoes import PERMISSOES
+        from app.seeds.perfis_permissoes import PERMISSOES, SO_DA_INTERCESSAO
 
+        # Todas menos marcar intercessao, que e so da equipe que reza.
+        esperadas = len(PERMISSOES) - len(SO_DA_INTERCESSAO)
         verifica(
-            "coordenacao recebe todas as permissoes",
-            len(corpo["permissoes"]) == len(PERMISSOES),
-            f'{len(corpo["permissoes"])} de {len(PERMISSOES)}',
+            "coordenacao recebe todas as permissoes, menos marcar intercessao",
+            len(corpo["permissoes"]) == esperadas
+            and "interceder" not in corpo["permissoes"],
+            f'{len(corpo["permissoes"])} de {esperadas}',
         )
         verifica("resposta traz o vinculo com a edicao", len(corpo["vinculos"]) == 1)
         verifica(

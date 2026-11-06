@@ -19,7 +19,7 @@ from app.models.apadrinhamento import (
 )
 from app.models.financeiro import Compra, Recebimento
 from app.models.logistica import Autorizacao, Cartao, Kit
-from app.models.oracao import AveMaria
+from app.models.oracao import AveMaria, Intercessao
 from app.models.operacao import (
     Cidade,
     Crianca,
@@ -52,6 +52,7 @@ __all__ = [
     "Kit",
     # oracao
     "AveMaria",
+    "Intercessao",
     # financeiro
     "Compra",
     "Recebimento",

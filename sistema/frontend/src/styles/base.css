@@ -8175,3 +8175,98 @@ button.checkin-lista__botao:not(:disabled):active {
 .festa-fechada {
   opacity: 0.4;
 }
+
+/* ---------- Ave-marias na lista de criancas ----------
+   O numero com as maos postas ao lado, sem fundo: e um dado para ler, nao um
+   estado para destacar. Zero fica apagado. */
+.contagem-oracao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-on-light-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.contagem-oracao--zero {
+  opacity: 0.4;
+  font-weight: 400;
+}
+
+/* ---------- Intercessao na lista de criancas ----------
+   O checkbox de quem esta na sessao e, ao lado, uma etiqueta por pessoa que
+   ja ofereceu aquela vivencia pela crianca. A minha leva o azul do sistema;
+   a dos outros, a neutra. */
+.intercessao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.intercessao input {
+  flex: none;
+  margin: 0 2px 0 0;
+  cursor: pointer;
+}
+
+.intercessao__etiqueta {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 72px;
+}
+
+.intercessao__conta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-on-light-muted);
+}
+
+/* A intercessao embaixo do painel da coordenacao: um cartao de lista, com o
+   mesmo respiro que separa os outros cartoes, e os numeros alinhados a
+   direita, como numa planilha. */
+.painel__secao {
+  margin-top: var(--layout-gap);
+}
+
+.painel__valor-lista {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A etiqueta ao lado do rotulo da metrica: avisa que o numero e so de
+   informacao. Neutra de proposito, para nao competir com o numero. */
+.metrica__etiqueta {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+/* O numero que esta no painel so de informacao (as ave-marias, no painel da
+   intercessao): o bege mais clarinho e a borda tracejada dizem "isto e de
+   fora", sem disputar com o destaque azul do total. A etiqueta vai para o
+   branco, senao some no fundo creme. */
+.metrica--informativa {
+  background: var(--cream-100);
+  border-style: dashed;
+  border-color: var(--cream-500);
+}
+
+.metrica--informativa .metrica__etiqueta {
+  background: var(--white);
+}
+
+/* No celular a tabela nunca passa da largura da tela (ver Criancas.jsx): o
+   que nao couber no cabecalho e cortado, como no corpo. */
+.planilha--compacta th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

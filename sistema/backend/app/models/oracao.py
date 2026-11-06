@@ -2,11 +2,11 @@
 
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import CheckConstraint, Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.tipos import CriadoEm
+from app.models.tipos import CriadoEm, TipoIntercessao, valores
 
 
 class AveMaria(Base):
@@ -39,3 +39,34 @@ class AveMaria(Base):
     # O dia no fuso de Brasilia, o mesmo que escolheu a crianca.
     dia: Mapped[date] = mapped_column(Date, nullable=False)
     criado_em: Mapped[CriadoEm]
+
+
+class Intercessao(Base):
+    """Uma vivencia da equipe de intercessao oferecida por uma crianca.
+
+    E a planilha manual da intercessao virando sistema: quem foi a Santa
+    Missa, a Adoracao, fez Jejum ou rezou um misterio do Terco escolhe as
+    criancas e marca nelas. O checkbox e de quem marcou: cada pessoa marca
+    cada vivencia UMA vez por crianca (a chave unica), e desmarcar apaga so a
+    marcacao dela. As marcacoes dos outros aparecem como etiquetas com o nome.
+    """
+
+    __tablename__ = "intercessoes"
+    __table_args__ = (
+        UniqueConstraint(
+            "crianca_id", "usuario_id", "tipo", name="uq_intercessoes_crianca_usuario_tipo"
+        ),
+        CheckConstraint("tipo IN " + str(valores(TipoIntercessao)), name="ck_intercessoes_tipo"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    crianca_id: Mapped[int] = mapped_column(
+        ForeignKey("criancas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # SET NULL pelo mesmo motivo da ave-maria: quem rezou pode sair do
+    # sistema, e o que rezou continua rezado (e contado no painel).
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"))
+    tipo: Mapped[str] = mapped_column(String(10), nullable=False)
+    criado_em: Mapped[CriadoEm]
+
+    usuario: Mapped["Usuario | None"] = relationship()  # noqa: F821

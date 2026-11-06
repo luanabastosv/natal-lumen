@@ -21,6 +21,7 @@ from app.database import get_db
 from app.models import (
     Apadrinhamento,
     Autorizacao,
+    AveMaria,
     Cartao,
     Crianca,
     DiaEvento,
@@ -62,7 +63,7 @@ from app.seguranca.contexto import ContextoAcesso
 from app.servicos.oracao import ave_marias_da_crianca
 from app.seguranca.dependencias import Contexto, exige_permissao, exige_qualquer
 from app.servicos.apadrinhamento import CONFIRMADO, confirmado
-from app.servicos import codigos, cuidados, dias, exclusao, importador
+from app.servicos import codigos, cuidados, dias, exclusao, importador, intercessao
 from app.servicos.nomes import nome_proprio
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar, valores
@@ -177,13 +178,18 @@ def _saida(crianca: Crianca, ctx: ContextoAcesso, panorama: dict | None = None) 
         autorizacao=extra.get("autorizacao", False),
         cuidados=extra.get("cuidados"),
         kit_status=extra.get("kit", "pendente") if kit else None,
+        ave_marias=extra.get("ave_marias", 0),
+        intercessoes=extra.get("intercessoes", [])
+        if ctx.alcanca_edicao(crianca.edicao_id, "interceder")
+        else None,
     )
 
 
 def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
-    """Padrinhos, cartoes, autorizacao e kit de varias criancas, em 4 consultas.
+    """Padrinhos, cartoes, autorizacao, kit e ave-marias de varias criancas, em
+    5 consultas.
 
-    Buscar isso crianca por crianca daria 4500 consultas numa edicao de 1500 —
+    Buscar isso crianca por crianca daria 7500 consultas numa edicao de 1500 —
     a tela nunca abriria.
     """
     if not ids:
@@ -221,6 +227,16 @@ def _panorama(db: Session, ids: list[int]) -> dict[int, dict]:
         select(Kit.crianca_id, Kit.status).where(Kit.crianca_id.in_(ids))
     ).all():
         dados[crianca_id]["kit"] = estado
+
+    for crianca_id, quantas in db.execute(
+        select(AveMaria.crianca_id, func.count())
+        .where(AveMaria.crianca_id.in_(ids))
+        .group_by(AveMaria.crianca_id)
+    ).all():
+        dados[crianca_id]["ave_marias"] = quantas
+
+    for crianca_id, lista in intercessao.marcas(db, ids).items():
+        dados[crianca_id]["intercessoes"] = lista
 
     return dados
 

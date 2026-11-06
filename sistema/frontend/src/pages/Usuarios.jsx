@@ -87,6 +87,7 @@ const ORDEM_DAS_EQUIPES = [
   "Monitoria - coordenacao",
   "Monitoria - monitores",
   "Estrutura",
+  "Intercessao",
 ];
 
 export default function Usuarios() {
