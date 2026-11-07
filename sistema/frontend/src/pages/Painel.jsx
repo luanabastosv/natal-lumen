@@ -70,6 +70,33 @@ function percentual(valor, de) {
   return de > 0 ? `${Math.round((valor / de) * 100)}%` : "—";
 }
 
+/** A porcentagem da tabela de comissarios com uma barra curta ao lado.
+ *
+ * Numa lista de vinte comissarios, o olho compara comprimento mais rapido do
+ * que le numero: a barra mostra de relance quem esta adiantado e quem esta
+ * para tras. O numero continua escrito, entao a barra nao carrega sentido
+ * sozinha. Azul nas duas colunas (cesta e festa): o cabecalho ja diz qual e
+ * qual, e amarelo na lista nao combina com o sistema.
+ */
+function BarraPercentual({ valor, de }) {
+  if (!(de > 0)) return "—";
+  const parte = Math.round((valor / de) * 100);
+  const largura = Math.min(100, parte);
+  return (
+    <span className="barra-pct">
+      <span className="barra-pct__trilho" aria-hidden="true">
+        {largura > 0 && (
+          <span
+            className={`barra-pct__marca${largura >= 100 ? " barra-pct__marca--completa" : ""}`}
+            style={{ width: `${largura}%` }}
+          />
+        )}
+      </span>
+      <span className="barra-pct__valor">{parte}%</span>
+    </span>
+  );
+}
+
 /** A soma de uma coluna da tabela de idades. */
 function totalIdade(faixas, coluna) {
   return faixas.reduce((soma, f) => soma + f[coluna], 0);
@@ -773,7 +800,9 @@ export default function Painel() {
                                 coluna mede o que esta feito: e o mesmo dado,
                                 e ler "80%" como boa noticia cansa menos o
                                 time do que ler "20%" como ma. */}
-                            <td>{percentual(l.cesta, l.criancas)}</td>
+                            <td>
+                              <BarraPercentual valor={l.cesta} de={l.criancas} />
+                            </td>
                             {!festaFechada && (
                               <>
                                 {!estreita && (
@@ -781,7 +810,9 @@ export default function Painel() {
                                     {l.festa_criancas ? `${l.festa}/${l.festa_criancas}` : "—"}
                                   </td>
                                 )}
-                                <td>{percentual(l.festa, l.festa_criancas ?? 0)}</td>
+                                <td>
+                                  <BarraPercentual valor={l.festa} de={l.festa_criancas ?? 0} />
+                                </td>
                               </>
                             )}
                             {!estreita && (

@@ -1315,6 +1315,53 @@ textarea.campo__controle {
   color: var(--text-on-light-muted);
 }
 
+/* ---------- Porcentagem com barra (tabela de comissarios) ----------
+   Trilho de largura fixa, para que as barras de todas as linhas comecem e
+   terminem no mesmo ponto e se comparem por comprimento. O numero vem depois,
+   alinhado a direita com largura minima, para nao empurrar a barra quando
+   passa de "9%" para "100%". */
+.barra-pct {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.barra-pct__trilho {
+  display: block;
+  width: 96px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--navy-100);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.barra-pct__marca {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--navy-500);
+  min-width: 3px;
+}
+
+/* Completo fecha no azul do sistema: o mesmo acento, um tom mais firme. */
+.barra-pct__marca--completa {
+  background: var(--color-primary);
+  border-radius: 0;
+}
+
+.barra-pct__valor {
+  min-width: 4ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* No celular a barra encolhe para a linha caber na tela sem rolar de lado. */
+.tabela--compacta .barra-pct__trilho {
+  width: 48px;
+}
+
 /* ---------- Numeros compactos (Financeiro) ----------
    A mesma fileira de numeros, em tamanho de resumo: a tela do financeiro e a
    lista, e os cards cheios do painel comiam um terco da altura antes dela
