@@ -6,6 +6,7 @@ import { Baixar, Desfazer, Enviar } from "../core/icones.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
 import ApadrinharCriancas from "./ApadrinharCriancas.jsx";
+import LinkDePagamento from "./LinkDePagamento.jsx";
 import RegistrarPagamento from "./RegistrarPagamento.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import {
@@ -115,7 +116,10 @@ export default function FichaPadrinho({
 
   const zap = linkWhatsapp(padrinho.whatsapp);
 
-  const aPagar = padrinho.apadrinhamentos.filter((a) => !a.pago).length;
+  // A crianca reservada por um link nao e promessa: o pagamento dela entra
+  // sozinho, pelo Mercado Pago, e nao pela aba Pagamentos.
+  const aPagar = padrinho.apadrinhamentos.filter((a) => !a.pago && !a.aguardando_link).length;
+  const links = padrinho.links_abertos ?? [];
 
   // Um agradecimento por crianca, e nao por apadrinhamento: cesta e festa da
   // mesma crianca sao o mesmo agradecimento. E a mesma conta que o servidor
@@ -230,6 +234,22 @@ export default function FichaPadrinho({
     if (link) window.open(link, "_blank", "noopener");
   }
 
+  /* O passo a passo de apadrinhar TROCA de lugar com a ficha, e nao abre por
+     cima dela: duas janelas empilhadas confundiam qual era a da vez (decisao
+     de 07/11/2026). Ao fechar, a ficha volta, ja com o que mudou. */
+  if (apadrinhando) {
+    return (
+      <ApadrinharCriancas
+        padrinho={padrinho}
+        aoMudar={aoMudar}
+        aoFechar={() => {
+          definirApadrinhando(false);
+          voltarParaLista();
+        }}
+      />
+    );
+  }
+
   return (
     <Modal
       rotulo="Nome do padrinho:"
@@ -341,6 +361,20 @@ export default function FichaPadrinho({
       )}
 
       <div role="tabpanel" aria-label={abas.find((a) => a.id === aba)?.rotulo}>
+        {aba === "criancas" && links.length > 0 && (
+          <div style={{ marginBottom: "var(--space-2)" }}>
+            {links.map((l) => (
+              <LinkDePagamento
+                key={l.id}
+                link={l}
+                padrinho={padrinho}
+                aoMudar={aoMudar}
+                podeCancelar={podeEditar && (!soMinhas || l.criado_por_id === usuario?.id)}
+                compacto
+              />
+            ))}
+          </div>
+        )}
         {aba === "criancas" &&
           (padrinho.apadrinhamentos.length === 0 ? (
             <p className="campo__dica" style={{ marginTop: 0 }}>
@@ -355,7 +389,11 @@ export default function FichaPadrinho({
                       <span className="ficha__linha-etiquetas">
                         <span className="etiqueta etiqueta--neutra">{TIPOS[a.tipo] ?? a.tipo}</span>
                         <span className={`etiqueta ${a.pago ? "etiqueta--ok" : "etiqueta--espera"}`}>
-                          {a.pago ? "confirmado" : "promessa · falta pagar"}
+                          {a.pago
+                            ? "confirmado"
+                            : a.aguardando_link
+                              ? "aguardando pagamento"
+                              : "promessa · falta pagar"}
                         </span>
                         {a.cartao_status === "enviado" && (
                           <span
@@ -444,7 +482,11 @@ export default function FichaPadrinho({
                       {/* Sem pagamento, quem capta desfaz. Com pagamento, so a
                           coordenacao — e a dica diz o que vai acontecer com o
                           dinheiro, porque ele NAO some junto. */}
-                      {((podeEditar && !a.pago && meu(a)) || podeExcluir) && (
+                      {/* A reservada pelo link se solta cancelando o link,
+                          acima: desfazer so ela deixaria o link cobrando o
+                          valor cheio. */}
+                      {((podeEditar && !a.pago && !a.aguardando_link && meu(a)) ||
+                        (podeExcluir && !a.aguardando_link)) && (
                         <BotaoIcone
                           perigo
                           titulo={
@@ -475,17 +517,6 @@ export default function FichaPadrinho({
           />
         )}
       </div>
-
-      {apadrinhando && (
-        <ApadrinharCriancas
-          padrinho={padrinho}
-          aoMudar={aoMudar}
-          aoFechar={() => {
-            definirApadrinhando(false);
-            voltarParaLista();
-          }}
-        />
-      )}
 
       {/* Por cima da ficha, e nao no lugar dela: a pessoa decide sem perder de
           vista de qual padrinho e a lista. */}

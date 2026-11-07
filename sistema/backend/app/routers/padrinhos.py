@@ -26,13 +26,23 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.database import get_db
-from app.models import Apadrinhamento, Crianca, Edicao, EnvioCartao, Padrinho, Pagamento, Usuario
+from app.models import (
+    Apadrinhamento,
+    CobrancaCartao,
+    Crianca,
+    Edicao,
+    EnvioCartao,
+    Padrinho,
+    Pagamento,
+    Usuario,
+)
 from app.models.tipos import TipoApadrinhamento
 from app.schemas.cadastros import DependenciasOut
 from app.schemas.padrinhos import (
     ApadrinhamentoEditar,
     ApadrinharComPagamento,
     ApadrinhamentoResumo,
+    CobrancaOut,
     EnvioCartaoOut,
     PadrinhoEditar,
     PadrinhoIn,
@@ -47,7 +57,7 @@ from app.schemas.padrinhos import (
 from app.servicos.apadrinhamento import confirmado
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import agradecimento, comprovantes, exclusao, whatsapp
+from app.servicos import agradecimento, cobrancas, comprovantes, exclusao, whatsapp
 from app.servicos.arquivos import limpar_texto
 from app.servicos.log import registrar, valores
 from app.servicos.nomes import mesmo_nome, nome_proprio, parecenca
@@ -170,6 +180,7 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
                 valor=a.valor,
                 pago=quitado,
                 vai_ao_evento=a.vai_ao_evento,
+                aguardando_link=not quitado and a.cobranca_id is not None,
                 comissario_id=a.comissario_id,
                 comissario=a.comissario.nome if a.comissario else None,
                 cartao_status=ultimo.status if ultimo else None,
@@ -197,6 +208,31 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
         # padrinho sem pagamento devolvia "0" e outro devolvia "240.00".
         total_combinado=combinado.quantize(DOIS_DECIMAIS),
         total_pago=pago.quantize(DOIS_DECIMAIS),
+        links_abertos=[
+            saida_cobranca(c) for c in padrinho.cobrancas if c.status == "aguardando"
+        ],
+    )
+
+
+def saida_cobranca(cobranca: CobrancaCartao) -> CobrancaOut:
+    """O link de pagamento, com as criancas que ele segura."""
+    criancas = [
+        f"{a.crianca.codigo} {a.crianca.nome} ({a.tipo})"
+        for a in cobranca.apadrinhamentos
+    ]
+    return CobrancaOut(
+        id=cobranca.id,
+        padrinho_id=cobranca.padrinho_id,
+        valor=cobranca.valor,
+        status=cobranca.status,
+        status_mercadopago=cobranca.status_mercadopago,
+        link=cobranca.link,
+        expira_em=cobranca.expira_em,
+        criado_em=cobranca.criado_em,
+        criado_por_id=cobranca.criado_por,
+        criado_por=cobranca.criador.nome if cobranca.criador else None,
+        pagamento_id=cobranca.pagamento_id,
+        criancas=criancas,
     )
 
 
@@ -240,6 +276,10 @@ def _carregar(db: Session, padrinho_id: int, ctx: ContextoAcesso, permissao: str
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
+            selectinload(Padrinho.cobrancas).joinedload(CobrancaCartao.criador),
+            selectinload(Padrinho.cobrancas)
+            .selectinload(CobrancaCartao.apadrinhamentos)
+            .joinedload(Apadrinhamento.crianca),
         )
     )
     if padrinho is None:
@@ -261,6 +301,7 @@ def listar_padrinhos(
     pagina: int = Query(default=1, ge=1),
     por_pagina: int = Query(default=50, ge=1, le=200),
 ):
+    cobrancas.expirar_vencidas(db)
     condicao = _filtro_padrinhos(ctx, "ver_padrinhos")
 
     if registrado_por is not None:
@@ -291,6 +332,10 @@ def listar_padrinhos(
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
+            selectinload(Padrinho.cobrancas).joinedload(CobrancaCartao.criador),
+            selectinload(Padrinho.cobrancas)
+            .selectinload(CobrancaCartao.apadrinhamentos)
+            .joinedload(Apadrinhamento.crianca),
         )
         .order_by(Padrinho.nome)
         .offset((pagina - 1) * por_pagina)
@@ -461,6 +506,7 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
 
 @router.get("/padrinhos/{padrinho_id}", response_model=PadrinhoOut)
 def detalhe_padrinho(padrinho_id: int, db: BD, ctx: Ver):
+    cobrancas.expirar_vencidas(db)
     return _saida(_carregar(db, padrinho_id, ctx, "ver_padrinhos"))
 
 
@@ -634,6 +680,9 @@ def apadrinhar_com_pagamento(
     edicao da crianca. O comprovante sobe em seguida, por
     POST /pagamentos/{id}/comprovante — o id volta em `ultimo_pagamento_id`.
     """
+    # Link vencido libera a crianca: precisa acontecer antes de conferir se ela
+    # esta livre.
+    cobrancas.expirar_vencidas(db)
     padrinho = _carregar(db, padrinho_id, ctx, "editar_padrinhos")
     # Apadrinhar agora e tambem registrar dinheiro: as duas permissoes.
     if not ctx.alcanca_edicao(padrinho.edicao_id, "registrar_pagamentos_padrinho"):
@@ -1081,6 +1130,7 @@ def _saida_pagamento(pagamento: Pagamento) -> PagamentoOut:
         conferido=pagamento.conferido,
         comprovante_arquivo=pagamento.comprovante_arquivo,
         comprovante_drive_link=pagamento.comprovante_drive_link,
+        mercadopago_id=pagamento.mercadopago_id,
         apadrinhamentos=[a.id for a in pagamento.apadrinhamentos],
     )
 
@@ -1151,12 +1201,14 @@ def listar_pagamentos(
     # Quem cobra comprovante precisa achar os que ainda nao tem. O filtro olha
     # o arquivo no disco, e nao a copia no Drive: o disco e o original, e o
     # Drive pode estar desligado sem que falte comprovante nenhum.
+    # O pago pelo link do Mercado Pago nao tem arquivo, e nao falta nada nele:
+    # o numero da transacao e o comprovante.
     if comprovante is not None:
-        condicao = condicao & (
-            Pagamento.comprovante_arquivo.is_not(None)
-            if comprovante
-            else Pagamento.comprovante_arquivo.is_(None)
+        tem = or_(
+            Pagamento.comprovante_arquivo.is_not(None),
+            Pagamento.mercadopago_id.is_not(None),
         )
+        condicao = condicao & (tem if comprovante else ~tem)
 
     total = db.scalar(select(func.count()).select_from(Pagamento).where(condicao)) or 0
 

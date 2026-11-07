@@ -454,6 +454,8 @@ export default function Financeiro() {
                 </a>
               )}
             </span>
+          ) : l.mercadopago_id ? (
+            <span title="Pago pelo link do Mercado Pago">Mercado Pago nº {l.mercadopago_id}</span>
           ) : (
             <span className="etiqueta etiqueta--espera">Falta</span>
           ),
@@ -845,6 +847,13 @@ export default function Financeiro() {
                                           Drive
                                         </a>
                                       )}
+                                    </span>
+                                  ) : l.mercadopago_id ? (
+                                    <span
+                                      className="celula--vazia"
+                                      title={`Pago pelo link do Mercado Pago, nº ${l.mercadopago_id}`}
+                                    >
+                                      Mercado Pago
                                     </span>
                                   ) : (
                                     <span className="etiqueta etiqueta--espera">

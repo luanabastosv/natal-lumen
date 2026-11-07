@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import AvisoDeLinkPago from "../feedback/AvisoDeLinkPago.jsx";
 import ConviteDeOracao from "../feedback/ConviteDeOracao.jsx";
 import BarraLateral from "./BarraLateral.jsx";
 import BarraMobile from "./BarraMobile.jsx";
@@ -60,6 +61,9 @@ export default function LayoutSistema() {
           por onde o trabalho dela pede, e muita gente nunca passa pelo painel.
           Ele mesmo decide se aparece. */}
       <ConviteDeOracao />
+      {/* O padrinho paga o link do cartao minutos depois: o aviso aparece onde
+          quem gerou o link estiver. */}
+      <AvisoDeLinkPago />
 
       <BarraMobile
         menuAberto={menuAberto}

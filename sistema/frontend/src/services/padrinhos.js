@@ -65,3 +65,26 @@ export const baixarComprovante = (id) => api.baixar(`/pagamentos/${id}/comprovan
 export const criarPagamento = (dados) => api.postUmaVez("/pagamentos", dados);
 export const editarPagamento = (id, dados) => api.patch(`/pagamentos/${id}`, dados);
 export const apagarPagamento = (id) => api.delete(`/pagamentos/${id}`);
+
+/* Link de pagamento do Mercado Pago (cartao). */
+
+/** { ligado, horas }: se a opcao "Cartao (link)" aparece no apadrinhar. */
+export const situacaoMercadoPago = () => api.get("/mercadopago/situacao");
+
+/** Reserva as criancas e gera o link: { criancas: [{ crianca_id, tipo }] }.
+ *  Devolve o padrinho atualizado, com o link novo em `ultimo_link`. */
+export const gerarLinkDePagamento = (padrinhoId, dados) =>
+  api.postUmaVez(`/padrinhos/${padrinhoId}/link-de-pagamento`, dados);
+
+/** Pergunta ao Mercado Pago se o link ja foi pago. Devolve o padrinho. */
+export const conferirLink = (id) => api.post(`/cobrancas/${id}/conferir`);
+
+/** Desiste do link: as criancas voltam a ficar livres. Devolve o padrinho. */
+export const cancelarLink = (id) => api.post(`/cobrancas/${id}/cancelar`);
+
+/** { abertos, pagos }: os links que EU gerei e o padrinho ja pagou, e eu
+ *  ainda nao vi. E o que alimenta o aviso de "pagamento aprovado". */
+export const meusLinks = () => api.get("/cobrancas/minhas");
+
+/** Vi o aviso deste link pago: ele nao aparece mais. */
+export const marcarLinkAvisado = (id) => api.post(`/cobrancas/${id}/avisado`);

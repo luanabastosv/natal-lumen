@@ -8317,3 +8317,363 @@ button.checkin-lista__botao:not(:disabled):active {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---------------------------------------------------- link de pagamento
+   Escala unica nas tres telas do link: rotulo de 12px, texto de 14px, e um
+   destaque so por tela. Nada de numero gigante: quem le esta no telefone com
+   o padrinho e precisa achar o botao, nao admirar o valor. */
+
+/* Logo depois de gerar. */
+.link-envio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.link-envio__titulo {
+  margin: 0;
+  font-size: var(--size-h4);
+  line-height: var(--lh-h4);
+  font-weight: 700;
+  color: var(--text-on-light-primary);
+}
+
+.link-envio__botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.link-envio__resumo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  border-top: var(--stroke-hairline) solid var(--border-light);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+}
+
+.link-envio__resumo dt {
+  color: var(--text-on-light-muted);
+}
+
+.link-envio__resumo dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-on-light-primary);
+}
+
+.link-envio__crianca {
+  display: block;
+}
+
+.link-envio__rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--size-small);
+  color: var(--text-on-light-muted);
+}
+
+.link-envio__estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.link-envio__ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: link-pulso 1.6s ease-in-out infinite;
+}
+
+@keyframes link-pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link-envio__ponto { animation: none; }
+}
+
+.link-envio__secundarias {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.link-envio__cancelar {
+  color: var(--text-on-light-muted);
+}
+
+/* Na ficha: uma faixa de fundo suave, sem moldura, acima das criancas. */
+.link-aberto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--navy-50);
+}
+
+.link-aberto + .link-aberto {
+  margin-top: var(--space-2);
+}
+
+.link-aberto__texto {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+  color: var(--text-on-light-primary);
+}
+
+.link-aberto__texto .link-envio__ponto {
+  transform: translateY(-1px);
+}
+
+.link-aberto__detalhe {
+  display: block;
+  font-size: var(--size-small);
+  color: var(--text-on-light-muted);
+}
+
+.link-aberto__acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-left: calc(8px + var(--space-3));
+  font-size: var(--size-small);
+}
+
+.link-aberto__acoes .link-envio__botoes {
+  margin-top: 0;
+}
+
+/* Resumo antes de gravar (o passo Confirmar do apadrinhar). */
+.resumo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.resumo__total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resumo__rotulo {
+  font-size: var(--size-caption);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-on-light-muted);
+}
+
+.resumo__valor {
+  font-size: var(--size-h2);
+  line-height: var(--lh-h2);
+  font-weight: 800;
+  color: var(--text-on-light-primary);
+}
+
+.resumo__detalhe {
+  font-size: var(--size-small);
+  color: var(--text-on-light-secondary);
+}
+
+.resumo__criancas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--stroke-hairline) solid var(--border-light);
+}
+
+.resumo__criancas li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-bottom: var(--stroke-hairline) solid var(--border-light);
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+}
+
+.resumo__codigo {
+  flex: none;
+  font-size: var(--size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-on-light-muted);
+}
+
+.resumo__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-on-light-primary);
+}
+
+.resumo__tipo {
+  flex: none;
+  font-size: var(--size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-on-light-secondary);
+}
+
+.resumo__dados {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  font-size: var(--size-body-sm);
+  line-height: var(--lh-body-sm);
+}
+
+.resumo__dados dt {
+  color: var(--text-on-light-muted);
+}
+
+.resumo__dados dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-on-light-primary);
+}
+
+.resumo__nota {
+  display: block;
+  margin: 2px 0 0;
+  font-size: var(--size-small);
+  line-height: var(--lh-small);
+  color: var(--text-on-light-muted);
+}
+
+/* No celular os dois botoes do link dividem a largura, e o resto desce. */
+@media (max-width: 560px) {
+  .link-envio__botoes > .botao {
+    flex: 1 1 0;
+  }
+  .link-envio__rodape,
+  .link-aberto__acoes {
+    flex-direction: column;
+    align-items: stretch;
+    padding-left: 0;
+  }
+  .link-envio__secundarias {
+    justify-content: center;
+  }
+}
+
+/* Aviso de link pago: fica no canto ate a pessoa agir. Mesmo lugar dos
+   recados passageiros, mas branco e com borda azul: este nao sai sozinho. */
+.aviso-link {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(380px, calc(100vw - var(--space-4) * 2));
+}
+
+.aviso-link__cartao {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--stroke-hairline) solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  box-shadow: var(--shadow-popover);
+  animation: notificacao-entra var(--dur-slow) var(--ease-out);
+}
+
+.aviso-link__icone {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-primary);
+}
+
+.aviso-link__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--size-small);
+  line-height: var(--lh-small);
+  color: var(--text-on-light-secondary);
+}
+
+.aviso-link__corpo strong {
+  font-size: var(--size-body-sm);
+  color: var(--text-on-light-primary);
+}
+
+.aviso-link__acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 560px) {
+  .aviso-link {
+    right: var(--space-4);
+    left: var(--space-4);
+    bottom: var(--space-4);
+    width: auto;
+  }
+}
+
+/* As criancas que o link cobra, dentro da faixa da ficha: alinhadas com o
+   texto (depois do ponto), uma por linha, em letra de nota. */
+.link-aberto__criancas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: calc(-1 * var(--space-1)) 0 0;
+  padding: 0 0 0 calc(8px + var(--space-3));
+  list-style: none;
+  font-size: var(--size-small);
+  line-height: var(--lh-small);
+  color: var(--text-on-light-primary);
+}
+
+.link-aberto__criancas li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.link-aberto__codigo {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-on-light-muted);
+}
+
+.link-aberto__tipo {
+  color: var(--text-on-light-muted);
+}
+
+.link-aberto__tipo::before {
+  content: "· ";
+}

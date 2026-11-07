@@ -137,6 +137,8 @@ class LinhaRecebimento(BaseModel):
     conferido: bool
     tem_comprovante: bool
     comprovante_drive_link: str | None
+    # Pago pelo link do Mercado Pago: o numero da transacao e o comprovante.
+    mercadopago_id: str | None = None
     # Pagamento que nao quita apadrinhamento nenhum (o apadrinhamento foi
     # desfeito e o dinheiro ficou). A categoria dele e o "apadrinhamento" sem
     # tipo.

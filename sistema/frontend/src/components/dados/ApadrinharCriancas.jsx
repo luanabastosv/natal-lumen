@@ -7,6 +7,7 @@ import { Baixar, Conversa, Visto, Xis } from "../core/icones.jsx";
 import Carregando from "../feedback/Carregando.jsx";
 import Mensagem from "../feedback/Mensagem.jsx";
 import Modal from "../feedback/Modal.jsx";
+import LinkDePagamento from "./LinkDePagamento.jsx";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
 import { useNotificar } from "../../contexts/useNotificar.js";
 import { useSessao } from "../../contexts/useSessao.js";
@@ -14,6 +15,9 @@ import { listarCriancas } from "../../services/criancas.js";
 import {
   apadrinharComPagamento,
   baixarAgradecimento,
+  gerarLinkDePagamento,
+  marcarLinkAvisado,
+  situacaoMercadoPago,
   subirComprovante,
 } from "../../services/padrinhos.js";
 import { dinheiro, formatarData } from "../../utils/dinheiro.js";
@@ -28,8 +32,12 @@ const TETO = 20;
 
 const TIPOS = ["cesta", "festa"];
 const PASSOS = ["Crianças", "Pagamento", "Confirmar"];
-// O padrinho paga por Pix ou em dinheiro (o servidor confere o mesmo).
+// O padrinho paga por Pix ou em dinheiro (o servidor confere o mesmo). O
+// cartao nao e registrado: o sistema gera um link do Mercado Pago, e o
+// pagamento entra sozinho quando o padrinho paga. So aparece com o Mercado Pago
+// ligado no servidor.
 const FORMAS = ["Pix", "Dinheiro"];
+const LINK = "Cartão (link)";
 
 /** Separa "SL03, SL04 SL06;SL13" em codigos, sem repetir. */
 function separarCodigos(texto) {
@@ -102,6 +110,22 @@ export default function ApadrinharCriancas({
   const [observacoes, definirObservacoes] = useState("");
   const [arquivo, definirArquivo] = useState(null);
   const [salvando, definirSalvando] = useState(false);
+
+  // O link do cartao: se o servidor oferece, e o link que acabou de nascer.
+  const [mercadoPago, definirMercadoPago] = useState({ ligado: false, minutos: 30 });
+  const [gerado, definirGerado] = useState(null);
+  const porLink = forma === LINK;
+  const formas = mercadoPago.ligado ? [...FORMAS, LINK] : FORMAS;
+
+  useEffect(() => {
+    let valido = true;
+    situacaoMercadoPago()
+      .then((r) => valido && definirMercadoPago(r))
+      .catch(() => {});
+    return () => {
+      valido = false;
+    };
+  }, []);
 
   /** Por que este tipo desta crianca nao pode ser escolhido — ou "" se pode.
    *
@@ -229,7 +253,7 @@ export default function ApadrinharCriancas({
   // motivo de o botao estar inativo — os dois saem daqui.
   const falta = [
     escolhas.length === 0 ? "Procure as crianças e marque cesta ou festa." : "",
-    !arquivo ? "Escolha o comprovante para continuar." : "",
+    !arquivo && !porLink ? "Escolha o comprovante para continuar." : "",
     "",
   ][passo];
 
@@ -300,7 +324,52 @@ export default function ApadrinharCriancas({
     }
   }
 
+  /** Pagou pelo link: as criancas do link estao pagas, e o fluxo segue para
+   *  o agradecimento, igual ao Pix. */
+  function linkPago(atualizado) {
+    aoMudar?.(atualizado);
+    if (atualizado.ultimo_link?.status !== "pago") {
+      // Cancelado ou vencido: o link sai da tela.
+      if (atualizado.ultimo_link?.status !== "aguardando") aoFechar();
+      return;
+    }
+    const pagamento = atualizado.ultimo_link.pagamento_id;
+    // A pessoa esta vendo o agradecimento aqui mesmo: o aviso do canto da
+    // tela, para este link, ja nao tem o que dizer.
+    marcarLinkAvisado(atualizado.ultimo_link.id).catch(() => {});
+    const novas = new Set(escolhas.map((e) => e.crianca.id));
+    const porCrianca = new Map();
+    for (const a of atualizado.apadrinhamentos) {
+      if (a.pago && novas.has(a.crianca_id) && !porCrianca.has(a.crianca_id)) {
+        porCrianca.set(a.crianca_id, a);
+      }
+    }
+    definirGerado(null);
+    definirConcluido({
+      padrinho: atualizado,
+      apadrinhamentos: [...porCrianca.values()],
+      pagamento,
+    });
+  }
+
+  async function confirmarPorLink() {
+    definirErro("");
+    definirSalvando(true);
+    try {
+      const atualizado = await gerarLinkDePagamento(padrinho.id, {
+        criancas: escolhas.map((e) => ({ crianca_id: e.crianca.id, tipo: e.tipo })),
+      });
+      aoMudar?.(atualizado);
+      definirGerado(atualizado);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirSalvando(false);
+    }
+  }
+
   async function confirmar() {
+    if (porLink) return confirmarPorLink();
     definirErro("");
     definirSalvando(true);
     try {
@@ -384,7 +453,11 @@ export default function ApadrinharCriancas({
           onClick={confirmar}
           carregando={salvando}
         >
-          {comoPagina ? "Apadrinhar e pagar" : "Apadrinhar e registrar pagamento"}
+          {porLink
+            ? "Gerar link de pagamento"
+            : comoPagina
+              ? "Apadrinhar e pagar"
+              : "Apadrinhar e registrar pagamento"}
         </Button>
       )}
     </div>
@@ -425,6 +498,41 @@ export default function ApadrinharCriancas({
      Continuar e o "onde estou" continuam a vista. */
   if (comoPagina && concluido) {
     return createPortal(telaFinal(), document.body);
+  }
+
+  if (gerado) {
+    const meio = meioDoLink();
+    const pe = (
+      <div className="passos__rodape">
+        <Button size={tamanho} variant="ghost" onClick={aoFechar}>
+          Fechar
+        </Button>
+      </div>
+    );
+    if (comoPagina) {
+      return createPortal(
+        <div className="apadrinhar-pagina">
+          <header className="apadrinhar-pagina__topo">
+            <div className="pagina__eyebrow">Apadrinhar com {padrinho.nome}</div>
+            <h1 className="pagina__titulo">Link de pagamento</h1>
+          </header>
+          <div className="apadrinhar-pagina__meio">{meio}</div>
+          <div className="apadrinhar-pagina__rodape">{pe}</div>
+        </div>,
+        document.body,
+      );
+    }
+    return (
+      <Modal
+        rotulo={`Apadrinhar com ${padrinho.nome.split(" ")[0]}:`}
+        titulo="Link de pagamento"
+        aoFechar={aoFechar}
+        tamanho="largo"
+        rodape={pe}
+      >
+        {meio}
+      </Modal>
+    );
   }
 
   if (comoPagina) {
@@ -511,6 +619,20 @@ export default function ApadrinharCriancas({
     return { atual, apadrinhamentos, criancas, zap };
   }
 
+  /** Depois de gerar o link: manda-lo ao padrinho e esperar. A tela confere
+   *  sozinha de tempos em tempos; quando o pagamento cai, vira o fim normal,
+   *  com o agradecimento. */
+  function meioDoLink() {
+    return (
+      <LinkDePagamento
+        link={gerado.ultimo_link}
+        padrinho={gerado}
+        aoMudar={linkPago}
+        vigiar
+      />
+    );
+  }
+
   /** O fim do fluxo: deu certo, e o agradecimento a um toque. */
   function meioFinal() {
     const { atual, apadrinhamentos, criancas, zap } = dadosFinais();
@@ -519,8 +641,10 @@ export default function ApadrinharCriancas({
       <>
         <Mensagem tipo="erro">{erro}</Mensagem>
         <p className="apadrinhar-final__texto">
-          <Visto t={16} /> {primeiroNome(atual.nome)} apadrinhou {criancas}. O pagamento já
-          está registrado.
+          <Visto t={16} /> {primeiroNome(atual.nome)} apadrinhou {criancas}.{" "}
+          {concluido.pagamento
+            ? "O pagamento no cartão foi aprovado e já está registrado."
+            : "O pagamento já está registrado."}
         </p>
 
         {/* Os dois gestos, na ordem, como dois passos grandes que chamam o
@@ -701,18 +825,20 @@ export default function ApadrinharCriancas({
         </div>
 
         <div className="linha-campos">
-          <Entrada
-            rotulo="Data"
-            tipo="date"
-            value={data}
-            onChange={(e) => definirData(e.target.value)}
-          />
+          {!porLink && (
+            <Entrada
+              rotulo="Data"
+              tipo="date"
+              value={data}
+              onChange={(e) => definirData(e.target.value)}
+            />
+          )}
           <Selecao
             rotulo="Forma"
             value={forma}
             onChange={(e) => definirForma(e.target.value)}
           >
-            {FORMAS.map((f) => (
+            {formas.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>
@@ -720,6 +846,15 @@ export default function ApadrinharCriancas({
           </Selecao>
         </div>
 
+        {porLink ? (
+          <p className="campo__dica" style={{ margin: 0 }}>
+            O sistema gera um link do Mercado Pago para o padrinho pagar no cartão. As
+            crianças ficam reservadas por {mercadoPago.minutos} minutos. Se ele não pagar
+            nesse prazo, elas voltam a ficar livres. Não precisa de comprovante: o
+            pagamento entra sozinho quando for aprovado.
+          </p>
+        ) : (
+          <>
         <label className={`arquivo ${arquivo ? "arquivo--cheio" : ""}`}>
           <span className="arquivo__rotulo">
             {arquivo && <Visto t={14} />}
@@ -745,52 +880,67 @@ export default function ApadrinharCriancas({
           onChange={(e) => definirObservacoes(e.target.value)}
           dica="O que este dinheiro tem de diferente. Opcional, e aparece na linha dele no Financeiro."
         />
+          </>
+        )}
       </div>
     );
   }
 
+  /* O resumo antes de gravar: o total em cima (e o numero que se confere com
+     o padrinho), as criancas numa lista simples, e embaixo so o que ainda nao
+     foi dito. Uma escala de letra so: rotulo pequeno, texto de leitura, e o
+     total como unico destaque. */
   function passoConfirmar() {
     return (
-      <>
-        <p className="campo__dica" style={{ marginTop: 0 }}>
-          Confira antes de gravar. As crianças e o pagamento entram juntos.
-        </p>
-
-        <div className="ficha__lista">
-          {escolhas.map((e) => (
-            <div key={`${e.crianca.id}:${e.tipo}`} className="ficha__linha">
-              <span className="ficha__linha-nome">
-                <span className="ficha__linha-codigo">{e.crianca.codigo}</span>
-                {e.crianca.nome}, {e.crianca.idade}
-              </span>
-              <span className="etiqueta etiqueta--neutra">{e.tipo}</span>
-              <span className="pagamento__preco">{dinheiro(e.valor)}</span>
-            </div>
-          ))}
+      <div className="resumo">
+        <div className="resumo__total">
+          <span className="resumo__rotulo">Total</span>
+          <span className="resumo__valor">{dinheiro(total)}</span>
+          <span className="resumo__detalhe">{resumoTipos(escolhas)}</span>
         </div>
 
-        <dl
-          className="ficha ficha--duas"
-          style={{ marginTop: "var(--space-5)" }}
-        >
-          <dt>Total</dt>
-          <dd>
-            <strong>{dinheiro(total)}</strong> · {resumoTipos(escolhas)}
-          </dd>
+        <ul className="resumo__criancas">
+          {escolhas.map((e) => (
+            <li key={`${e.crianca.id}:${e.tipo}`}>
+              <span className="resumo__codigo">{e.crianca.codigo}</span>
+              <span className="resumo__nome">
+                {e.crianca.nome}, {e.crianca.idade}
+              </span>
+              <span className="resumo__tipo">
+                {e.tipo} · {dinheiro(e.valor)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <dl className="resumo__dados">
           <dt>Pagamento</dt>
           <dd>
-            {forma} em {formatarData(data)}
+            {porLink ? "Cartão, pelo link do Mercado Pago" : `${forma} em ${formatarData(data)}`}
+            {/* A regra da reserva junto do pagamento a que ela pertence, e nao
+                solta no fim da tela. */}
+            {porLink && (
+              <span className="resumo__nota">
+                O link vale {mercadoPago.minutos} minutos. Sem pagamento nesse prazo, as
+                crianças voltam a ficar livres.
+              </span>
+            )}
           </dd>
-          <dt>Comprovante</dt>
-          <dd>{arquivo?.name}</dd>
-          {observacoes.trim() && (
+          {!porLink && (
+            <>
+              <dt>Comprovante</dt>
+              <dd>{arquivo?.name}</dd>
+            </>
+          )}
+          {!porLink && observacoes.trim() && (
             <>
               <dt>Observação</dt>
               <dd>{observacoes.trim()}</dd>
             </>
           )}
         </dl>
-      </>
+
+      </div>
     );
   }
 
@@ -849,8 +999,14 @@ export default function ApadrinharCriancas({
               <span className="ficha__linha-etiquetas">
                 {c?.desistiu_em && <EtiquetaDesistente />}
                 {completa && !c.desistiu_em && (
+                  /* Reservada por um link ainda nao e apadrinhada: diz que o
+                     pagamento esta para entrar, e nao que ja entrou. */
                   <span className="etiqueta etiqueta--ok">
-                    {TIPOS.every((t) => tomado(c, t)) ? "apadrinhada" : "cesta apadrinhada"}
+                    {TIPOS.some((t) => c[`promessa_${t}`])
+                      ? "aguardando pagamento"
+                      : TIPOS.every((t) => tomado(c, t))
+                        ? "apadrinhada"
+                        : "cesta apadrinhada"}
                   </span>
                 )}
                 {fora && (

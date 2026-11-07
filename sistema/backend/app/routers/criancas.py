@@ -63,7 +63,7 @@ from app.seguranca.contexto import ContextoAcesso
 from app.servicos.oracao import ave_marias_da_crianca
 from app.seguranca.dependencias import Contexto, exige_permissao, exige_qualquer
 from app.servicos.apadrinhamento import CONFIRMADO, confirmado
-from app.servicos import codigos, cuidados, dias, exclusao, importador, intercessao
+from app.servicos import cobrancas, codigos, cuidados, dias, exclusao, importador, intercessao
 from app.servicos.nomes import nome_proprio
 from app.servicos.upload import ler_limitado
 from app.servicos.log import registrar, valores
@@ -428,6 +428,9 @@ def listar(
     usuario, mesmo fora das atribuidas a ele, e o uso fica registrado em log.
     Listagens comuns nunca escapam do filtro.
     """
+    # A lista diz quem esta livre: um link de pagamento vencido precisa ter
+    # soltado as criancas dele antes.
+    cobrancas.expirar_vencidas(db)
     escapou = bool(codigo)
 
     if escapou:

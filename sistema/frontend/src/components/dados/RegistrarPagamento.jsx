@@ -67,7 +67,9 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
   const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
   const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
 
-  const abertos = padrinho.apadrinhamentos.filter((a) => !a.pago);
+  // A reservada pelo link do cartao fica de fora: o pagamento dela entra
+  // sozinho, pelo Mercado Pago.
+  const abertos = padrinho.apadrinhamentos.filter((a) => !a.pago && !a.aguardando_link);
   const aPagar = abertos.filter(meu);
   const doColega = abertos.length - aPagar.length;
 
@@ -359,7 +361,7 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
                     >
                       {p.conferido ? "Conferido" : "A conferir"}
                     </span>
-                    {!p.comprovante_arquivo && (
+                    {!p.comprovante_arquivo && !p.mercadopago_id && (
                       <span className="etiqueta etiqueta--espera">falta o comprovante</span>
                     )}
                   </span>
@@ -369,6 +371,11 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
                   </span>
                   {p.observacoes && (
                     <span className="vinculo-linha__detalhe">{p.observacoes}</span>
+                  )}
+                  {p.mercadopago_id && !p.observacoes && (
+                    <span className="vinculo-linha__detalhe">
+                      Pago pelo link do Mercado Pago, nº {p.mercadopago_id}
+                    </span>
                   )}
                   {/* O pagamento de outro comissario aparece, para quem olha
                       entender por que a crianca ja esta paga, mas o
@@ -380,7 +387,7 @@ export default function RegistrarPagamento({ padrinho, aoFechar, aoRegistrar }) 
                   )}
                 </div>
 
-                {p.meu !== false && (
+                {p.meu !== false && !p.mercadopago_id && (
                   <span className="ficha__linha-acoes">
                     {p.comprovante_arquivo && (
                       <BotaoIcone

@@ -15,7 +15,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.tipos import CriadoEm, Dinheiro, TipoApadrinhamento, valores
+from app.models.tipos import (
+    CriadoEm,
+    Dinheiro,
+    Momento,
+    MomentoOpcional,
+    TipoApadrinhamento,
+    valores,
+)
 
 
 class Padrinho(Base):
@@ -75,6 +82,7 @@ class Padrinho(Base):
         back_populates="padrinho"
     )
     pagamentos: Mapped[list["Pagamento"]] = relationship(back_populates="padrinho")
+    cobrancas: Mapped[list["CobrancaCartao"]] = relationship(back_populates="padrinho")
 
 
 class Pagamento(Base):
@@ -117,6 +125,12 @@ class Pagamento(Base):
     # o primeiro gravou em vez de registrar o dinheiro em dobro (ou, no
     # apadrinhar, responder "ja tem padrinho" para quem acabou de apadrinhar).
     chave_envio: Mapped[str | None] = mapped_column(String(64), unique=True)
+
+    # O numero do pagamento no Mercado Pago, quando o dinheiro entrou pelo link
+    # do cartao. Faz as vezes do comprovante: com ele a coordenacao acha a
+    # transacao no painel do Mercado Pago. Unico: o aviso do Mercado Pago chega
+    # mais de uma vez, e o mesmo pagamento nao pode entrar duas vezes no caixa.
+    mercadopago_id: Mapped[str | None] = mapped_column(String(40), unique=True)
 
     padrinho: Mapped[Padrinho] = relationship(back_populates="pagamentos")
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(
@@ -170,6 +184,12 @@ class Apadrinhamento(Base):
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
     vai_ao_evento: Mapped[bool | None] = mapped_column(Boolean)
+    # O link de pagamento que segura esta crianca enquanto o padrinho nao paga.
+    # Com ele preenchido e sem pagamento, o apadrinhamento e uma reserva com
+    # prazo, e nao a promessa antiga: vence sozinha (ver servicos/cobrancas.py).
+    cobranca_id: Mapped[int | None] = mapped_column(
+        ForeignKey("cobrancas_cartao.id", ondelete="SET NULL"), index=True
+    )
     criado_em: Mapped[CriadoEm]
 
     crianca: Mapped["Crianca"] = relationship(back_populates="apadrinhamentos")  # noqa: F821
@@ -182,9 +202,76 @@ class Apadrinhamento(Base):
     )
     padrinho: Mapped[Padrinho] = relationship(back_populates="apadrinhamentos")
     pagamento: Mapped[Pagamento | None] = relationship(back_populates="apadrinhamentos")
+    cobranca: Mapped["CobrancaCartao | None"] = relationship(back_populates="apadrinhamentos")
     envios: Mapped[list["EnvioCartao"]] = relationship(
         back_populates="apadrinhamento", cascade="all, delete-orphan"
     )
+
+
+class CobrancaCartao(Base):
+    """Um link de pagamento do Mercado Pago, para o padrinho pagar no cartao.
+
+    Nasce junto com os apadrinhamentos que ele cobra, ainda sem pagamento: as
+    criancas ficam reservadas para o padrinho ate `expira_em`. Quando o Mercado
+    Pago aprova, o sistema cria o Pagamento e liga as criancas a ele, sem
+    ninguem digitar nada. Vencido sem pagamento, as criancas voltam a ficar
+    livres.
+
+    Estados:
+      aguardando        o link esta valendo, as criancas reservadas
+      pago              o Mercado Pago aprovou; o Pagamento existe
+      expirado          venceu sem pagamento; as criancas foram liberadas
+      cancelado         alguem desistiu do link; as criancas foram liberadas
+      pago_apos_vencer  o pagamento chegou depois de as criancas serem
+                        liberadas: o dinheiro entrou, sem crianca, e a
+                        coordenacao decide o destino
+    """
+
+    __tablename__ = "cobrancas_cartao"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('aguardando', 'pago', 'expirado', 'cancelado', 'pago_apos_vencer')",
+            name="ck_cobrancas_cartao_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    padrinho_id: Mapped[int] = mapped_column(
+        ForeignKey("padrinhos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    valor: Mapped[Dinheiro] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="aguardando", server_default="aguardando"
+    )
+    # O que liga o pagamento do Mercado Pago a esta linha. Aleatoria, e nao o
+    # id: e o que viaja para fora, e nao precisa dizer quantas cobrancas existem.
+    referencia: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    preferencia_id: Mapped[str | None] = mapped_column(String(80))
+    link: Mapped[str | None] = mapped_column(String(500))
+    expira_em: Mapped[Momento]
+    # O ultimo estado que o Mercado Pago informou (pending, in_process,
+    # rejected...). So para quem olha entender o que esta acontecendo.
+    status_mercadopago: Mapped[str | None] = mapped_column(String(30))
+    pagamento_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pagamentos.id", ondelete="SET NULL")
+    )
+    chave_envio: Mapped[str | None] = mapped_column(String(64), unique=True)
+    criado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+    criado_em: Mapped[CriadoEm]
+    encerrada_em: Mapped[MomentoOpcional]
+    # Quando quem gerou o link viu o aviso de que ele foi pago. Vazio num link
+    # pago = o aviso ainda aparece na tela dele, onde ele estiver no sistema:
+    # o cartao demora, e ninguem fica parado na janela esperando.
+    avisado_em: Mapped[MomentoOpcional]
+
+    padrinho: Mapped[Padrinho] = relationship(back_populates="cobrancas")
+    pagamento: Mapped[Pagamento | None] = relationship()
+    criador: Mapped["Usuario | None"] = relationship(  # noqa: F821
+        foreign_keys=[criado_por]
+    )
+    apadrinhamentos: Mapped[list[Apadrinhamento]] = relationship(back_populates="cobranca")
 
 
 class EnvioCartao(Base):

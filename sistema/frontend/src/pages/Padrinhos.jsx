@@ -716,7 +716,9 @@ export default function Padrinhos() {
                               title={
                                 quitado
                                   ? "Todos os apadrinhamentos estão pagos"
-                                  : "Há promessa sem pagamento — ainda não conta como apadrinhamento"
+                                  : p.apadrinhamentos.some((a) => !a.pago && !a.aguardando_link)
+                                    ? "Há promessa sem pagamento — ainda não conta como apadrinhamento"
+                                    : "Há criança esperando o pagamento pelo link"
                               }
                             >
                               {p.apadrinhamentos.length}
@@ -742,7 +744,13 @@ export default function Padrinhos() {
                                   {a.crianca_primeiro_nome}
                                   <span
                                     className={`marcador ${a.pago ? "marcador--feito" : "marcador--parcial"}`}
-                                    title={`${a.tipo} · ${a.pago ? "confirmado" : "promessa, falta pagar"}`}
+                                    title={`${a.tipo} · ${
+                                      a.pago
+                                        ? "confirmado"
+                                        : a.aguardando_link
+                                          ? "aguardando o pagamento pelo link"
+                                          : "promessa, falta pagar"
+                                    }`}
                                   >
                                     {a.tipo === "cesta" ? "C" : "F"}
                                   </span>

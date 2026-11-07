@@ -76,6 +76,30 @@ class Config(BaseSettings):
     drive_pasta_id: str = ""
     drive_timeout_s: float = 60.0
 
+    # --- Mercado Pago (link de pagamento no cartao) ---
+    # Vazio = desligado: a opcao "Cartao (link)" nao aparece no apadrinhar e a
+    # rota responde dizendo o que falta. Passo a passo: docs/MERCADO_PAGO.md
+    mercadopago_access_token: str = ""
+    # "Assinatura secreta" dos Webhooks no painel do Mercado Pago. Com ela, um
+    # aviso com assinatura errada e recusado. Sem ela o aviso ainda e seguro:
+    # o sistema nunca acredita no corpo, so no que a API do Mercado Pago
+    # responde quando perguntada com o nosso token.
+    mercadopago_segredo_webhook: str = ""
+    # Por quanto tempo o link vale, em minutos. Enquanto vale, a crianca fica
+    # reservada para o padrinho; vencido sem pagamento, ela volta a ficar
+    # livre. Curto de proposito (decisao de 07/11/2026): o link e mandado com
+    # o padrinho na conversa, e uma reserva longa prendia a crianca que outro
+    # comissario podia estar oferecendo.
+    mercadopago_link_minutos: int = 30
+    # Teto de parcelas no cartao. 0 = o que estiver configurado na conta.
+    mercadopago_parcelas_max: int = 0
+    mercadopago_timeout_s: float = 20.0
+    # Endereco publico do sistema, sem barra no fim (https://acesso.natallumen.com).
+    # E para onde o Mercado Pago manda o aviso de pagamento. Vazio no seu
+    # computador: o Mercado Pago nao alcanca localhost, e o pagamento e
+    # conferido pelo botao "Conferir pagamento" (ou sozinho, pela tela).
+    url_publica: str = ""
+
     # --- Check-in ---
     # Liga o check-in em qualquer dia, para TODO perfil que faz check-in (o
     # monitor incluido): e para ver e ajustar a tela antes do evento. Liga-se
@@ -97,6 +121,10 @@ class Config(BaseSettings):
         """O check-in aberto em qualquer dia, para todos. Nunca na producao:
         la um toque fora do dia gravaria presenca de verdade."""
         return self.checkin_sempre_aberto and self.ambiente != "producao"
+
+    @property
+    def mercadopago_ligado(self) -> bool:
+        return bool(self.mercadopago_access_token.strip())
 
     @property
     def drive_ligado(self) -> bool:

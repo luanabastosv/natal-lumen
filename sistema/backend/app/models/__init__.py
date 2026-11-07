@@ -13,6 +13,7 @@ from app.models.acesso import (
 )
 from app.models.apadrinhamento import (
     Apadrinhamento,
+    CobrancaCartao,
     EnvioCartao,
     Padrinho,
     Pagamento,
@@ -46,6 +47,7 @@ __all__ = [
     "Apadrinhamento",
     "EnvioCartao",
     "Pagamento",
+    "CobrancaCartao",
     # logistica
     "Cartao",
     "Autorizacao",

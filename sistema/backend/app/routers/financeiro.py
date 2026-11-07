@@ -272,6 +272,7 @@ def _linha_do_pagamento(pagamento: Pagamento, responsavel: str | None) -> LinhaR
         conferido=pagamento.conferido,
         tem_comprovante=bool(pagamento.comprovante_arquivo),
         comprovante_drive_link=pagamento.comprovante_drive_link,
+        mercadopago_id=pagamento.mercadopago_id,
         responsavel=responsavel,
         sem_destino=not pagamento.apadrinhamentos,
         categorias=[
@@ -359,7 +360,11 @@ def listar_recebimentos(
         por_categoria[r.categoria] += r.valor
 
     a_conferir = sum((l.valor for l in linhas if not l.conferido), ZERO)
-    sem_comprovante = sum(1 for l in linhas if not l.tem_comprovante)
+    # O pago pelo link nao tem arquivo e nao falta nada nele.
+    def comprovado(l) -> bool:
+        return l.tem_comprovante or bool(l.mercadopago_id)
+
+    sem_comprovante = sum(1 for l in linhas if not comprovado(l))
     do_apadrinhamento = sum((p.valor for p in pagamentos), ZERO)
 
     if categoria is not None:
@@ -367,7 +372,7 @@ def listar_recebimentos(
     if conferido is not None:
         linhas = [l for l in linhas if l.conferido is conferido]
     if comprovante is not None:
-        linhas = [l for l in linhas if l.tem_comprovante is comprovante]
+        linhas = [l for l in linhas if comprovado(l) is comprovante]
 
     # Mais recente primeiro; empate resolvido pelo maior id, para a ordem nao
     # mudar entre dois pedidos iguais.

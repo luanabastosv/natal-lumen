@@ -78,6 +78,9 @@ class ApadrinhamentoResumo(BaseModel):
     # excluido do sistema depois (a FK e SET NULL).
     comissario_id: int | None = None
     comissario: str | None = None
+    # Reservada por um link de pagamento que ainda vale: nao e promessa, e
+    # vence sozinha. A ficha mostra "aguardando o link" em vez de "falta pagar".
+    aguardando_link: bool = False
     # Ultimo envio do cartao pelo WhatsApp: None = nunca tentou.
     cartao_status: str | None = None
     cartao_enviado_em: datetime | None = None
@@ -92,6 +95,59 @@ class EnvioCartaoOut(BaseModel):
     mensagem_id: str | None = None
     erro: str | None = None
     enviado_em: datetime
+
+
+class CobrancaOut(BaseModel):
+    """Um link de pagamento do Mercado Pago."""
+
+    id: int
+    padrinho_id: int
+    valor: Decimal
+    status: str
+    status_mercadopago: str | None = None
+    link: str | None
+    expira_em: datetime
+    criado_em: datetime
+    # Quem gerou: o comissario de base so confere e cancela os proprios.
+    criado_por_id: int | None = None
+    criado_por: str | None = None
+    pagamento_id: int | None = None
+    # As criancas que o link cobra (e segura enquanto vale).
+    criancas: list[str] = []
+
+
+class AgradecimentoPendente(BaseModel):
+    id: int
+    crianca_id: int
+    crianca_primeiro_nome: str
+
+
+class AvisoDeLinkPago(BaseModel):
+    """Um link que o padrinho pagou e quem o gerou ainda nao viu."""
+
+    cobranca_id: int
+    # "pago", ou "pago_apos_vencer" (o dinheiro entrou sem crianca).
+    status: str
+    valor: Decimal
+    padrinho_id: int
+    padrinho_nome: str
+    padrinho_whatsapp: str | None = None
+    # As criancas que o pagamento confirmou, para o agradecimento.
+    apadrinhamentos: list[AgradecimentoPendente] = []
+
+
+class MeusLinks(BaseModel):
+    # Quantos links meus ainda esperam pagamento.
+    abertos: int
+    pagos: list[AvisoDeLinkPago]
+
+
+class LinkDePagamentoIn(BaseModel):
+    """As criancas que o padrinho vai pagar pelo link. O valor e a soma do
+    preco de cada uma, como no apadrinhar."""
+
+    criancas: list["CriancaApadrinhada"] = Field(min_length=1)
+    chave_envio: str | None = Field(default=None, max_length=64)
 
 
 class PadrinhoOut(BaseModel):
@@ -117,6 +173,10 @@ class PadrinhoOut(BaseModel):
     # So na resposta do apadrinhar: o pagamento que acabou de nascer, para o
     # comprovante subir para ele em seguida.
     ultimo_pagamento_id: int | None = None
+    # Os links de pagamento ainda valendo.
+    links_abertos: list[CobrancaOut] = []
+    # So na resposta de gerar o link: o link que acabou de nascer.
+    ultimo_link: CobrancaOut | None = None
 
 
 class PaginaPadrinhos(BaseModel):
@@ -197,6 +257,9 @@ class PagamentoOut(BaseModel):
     comprovante_arquivo: str | None
     # Vazio = nao foi para o Drive (desligado, ou o envio falhou).
     comprovante_drive_link: str | None = None
+    # Pago pelo link: o numero da transacao no Mercado Pago faz as vezes do
+    # comprovante.
+    mercadopago_id: str | None = None
     apadrinhamentos: list[int]
     # Quem registrou, e se quem pergunta pode mexer no comprovante: o
     # comissario ve o pagamento do colega, mas nao abre nem troca o arquivo.
@@ -209,3 +272,6 @@ class PaginaPagamentos(BaseModel):
     pagina: int
     por_pagina: int
     itens: list[PagamentoOut]
+
+
+LinkDePagamentoIn.model_rebuild()
