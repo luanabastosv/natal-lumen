@@ -1261,7 +1261,6 @@ export default function Criancas() {
                             crianca={c}
                             vivencia={v}
                             usuarioId={usuario?.id}
-                            compacta={estreita}
                             aoErro={definirErro}
                             aoMudar={(intercessoes) =>
                               definirCriancas((atual) => ({

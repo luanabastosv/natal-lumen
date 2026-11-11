@@ -2,30 +2,31 @@ import { useState } from "react";
 import { desmarcarIntercessao, marcarIntercessao } from "../../services/intercessao.js";
 import { nomeCurto, primeiroNome } from "../../utils/nomes.js";
 
-// Quantas etiquetas cabem na celula antes do "+N". O resto fica na dica.
-const VISIVEIS = 2;
-
 function quando(iso) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
 /** Uma vivencia de intercessao (missa, adoracao, terco, jejum) numa crianca.
  *
- *  O checkbox e de quem esta na sessao: marcado = eu ja ofereci esta vivencia
- *  por ela. Ao lado, uma etiqueta com o nome de cada pessoa que marcou, a
- *  minha inclusive. Cada um desmarca so o que e seu.
+ *  Cada vivencia de uma crianca e de uma pessoa so: quem marcou primeiro.
+ *  Marcada, o checkbox aparece marcado para todo mundo, com o nome de quem
+ *  marcou ao lado; so essa pessoa desmarca. Para os outros fica travado.
  *
  *  `aoErro` recebe a frase do servidor quando a marcacao falha.
- *  `compacta` e o celular: so o checkbox e quantas pessoas marcaram.
  */
-export default function CelulaIntercessao({ crianca, vivencia, usuarioId, aoMudar, aoErro, compacta }) {
+export default function CelulaIntercessao({ crianca, vivencia, usuarioId, aoMudar, aoErro }) {
   const [salvando, definirSalvando] = useState(false);
 
-  const marcas = (crianca.intercessoes ?? []).filter((m) => m.tipo === vivencia.tipo);
-  const minha = marcas.some((m) => m.usuario_id === usuarioId);
-  const dica = marcas.map((m) => `${nomeCurto(m.nome) || "Alguém"} · ${quando(m.em)}`).join("\n");
+  const dono = (crianca.intercessoes ?? []).find((m) => m.tipo === vivencia.tipo);
+  const minha = dono?.usuario_id === usuarioId;
+  const deOutro = Boolean(dono) && !minha;
+  const nome = dono ? nomeCurto(dono.nome) || "Alguém" : "";
+  const dica = dono
+    ? `${deOutro ? `Marcada por ${nome}` : "Você marcou"} · ${quando(dono.em)}`
+    : undefined;
 
   async function alternar() {
+    if (deOutro) return;
     definirSalvando(true);
     try {
       const novas = minha
@@ -43,31 +44,29 @@ export default function CelulaIntercessao({ crianca, vivencia, usuarioId, aoMuda
 
   return (
     // O clique na linha abre a ficha no celular: aqui ele para.
-    <span className="intercessao" onClick={(e) => e.stopPropagation()} title={dica || undefined}>
+    <span
+      className={`intercessao${deOutro ? " intercessao--de-outro" : ""}`}
+      onClick={(e) => e.stopPropagation()}
+      title={dica}
+    >
       <input
         type="checkbox"
-        checked={minha}
-        disabled={salvando}
+        checked={Boolean(dono)}
+        disabled={salvando || deOutro}
         onChange={alternar}
-        aria-label={`${vivencia.rotulo} por ${crianca.nome}`}
+        aria-label={
+          deOutro
+            ? `${vivencia.rotulo} por ${crianca.nome}, marcada por ${nome}`
+            : `${vivencia.rotulo} por ${crianca.nome}`
+        }
       />
-      {compacta
-        ? marcas.length > 0 && <span className="intercessao__conta">{marcas.length}</span>
-        : (
-          <>
-            {marcas.slice(0, VISIVEIS).map((m, i) => (
-              <span
-                key={`${m.usuario_id}-${i}`}
-                className={`etiqueta ${m.usuario_id === usuarioId ? "etiqueta--ok" : "etiqueta--neutra"} intercessao__etiqueta`}
-              >
-                {primeiroNome(m.nome) || "Alguém"}
-              </span>
-            ))}
-            {marcas.length > VISIVEIS && (
-              <span className="intercessao__conta">+{marcas.length - VISIVEIS}</span>
-            )}
-          </>
-        )}
+      {dono && (
+        <span
+          className={`etiqueta ${minha ? "etiqueta--ok" : "etiqueta--neutra"} intercessao__etiqueta`}
+        >
+          {primeiroNome(dono.nome) || "Alguém"}
+        </span>
+      )}
     </span>
   );
 }

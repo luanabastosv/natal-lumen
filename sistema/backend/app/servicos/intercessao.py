@@ -1,7 +1,7 @@
 """As vivencias de intercessao marcadas nas criancas.
 
-Quem marcou e quem rezou: o checkbox da lista e da pessoa que esta na sessao,
-e as marcacoes dos outros aparecem como etiquetas com o nome. Ver o modelo
+Quem marcou e quem rezou: cada vivencia de uma crianca tem um dono so, e o
+nome dele aparece como etiqueta ao lado do checkbox. Ver o modelo
 `Intercessao` em models/oracao.py.
 """
 

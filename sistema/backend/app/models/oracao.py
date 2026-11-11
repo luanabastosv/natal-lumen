@@ -46,16 +46,14 @@ class Intercessao(Base):
 
     E a planilha manual da intercessao virando sistema: quem foi a Santa
     Missa, a Adoracao, fez Jejum ou rezou um misterio do Terco escolhe as
-    criancas e marca nelas. O checkbox e de quem marcou: cada pessoa marca
-    cada vivencia UMA vez por crianca (a chave unica), e desmarcar apaga so a
-    marcacao dela. As marcacoes dos outros aparecem como etiquetas com o nome.
+    criancas e marca nelas. Cada vivencia de uma crianca tem UM dono, quem
+    marcou primeiro (a chave unica): para os outros o checkbox aparece marcado
+    e travado, com o nome de quem marcou. So o dono desmarca.
     """
 
     __tablename__ = "intercessoes"
     __table_args__ = (
-        UniqueConstraint(
-            "crianca_id", "usuario_id", "tipo", name="uq_intercessoes_crianca_usuario_tipo"
-        ),
+        UniqueConstraint("crianca_id", "tipo", name="uq_intercessoes_crianca_tipo"),
         CheckConstraint("tipo IN " + str(valores(TipoIntercessao)), name="ck_intercessoes_tipo"),
     )
 

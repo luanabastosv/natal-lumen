@@ -8242,9 +8242,9 @@ button.checkin-lista__botao:not(:disabled):active {
 }
 
 /* ---------- Intercessao na lista de criancas ----------
-   O checkbox de quem esta na sessao e, ao lado, uma etiqueta por pessoa que
-   ja ofereceu aquela vivencia pela crianca. A minha leva o azul do sistema;
-   a dos outros, a neutra. */
+   Cada vivencia de uma crianca e de uma pessoa so. O checkbox e, ao lado, a
+   etiqueta de quem marcou: a minha leva o azul do sistema; a dos outros, a
+   neutra, e o checkbox fica travado. */
 .intercessao {
   display: inline-flex;
   align-items: center;
@@ -8261,6 +8261,10 @@ button.checkin-lista__botao:not(:disabled):active {
   cursor: pointer;
 }
 
+.intercessao--de-outro input {
+  cursor: not-allowed;
+}
+
 .intercessao__etiqueta {
   text-transform: none;
   letter-spacing: 0;
@@ -8270,12 +8274,6 @@ button.checkin-lista__botao:not(:disabled):active {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 72px;
-}
-
-.intercessao__conta {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-on-light-muted);
 }
 
 /* A intercessao embaixo do painel da coordenacao: um cartao de lista, com o

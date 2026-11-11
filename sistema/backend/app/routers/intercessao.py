@@ -42,23 +42,29 @@ def _da_crianca(db: Session, crianca_id: int) -> list[MarcaIntercessao]:
 def marcar(crianca_id: int, tipo: TipoIntercessao, db: BD, ctx: Interceder):
     """Marca a vivencia na crianca, em nome de quem esta na sessao.
 
-    Marcar de novo nao duplica: ON CONFLICT, para duas abas abertas (ou um
-    duplo clique) nao darem erro. Devolve as marcacoes da crianca ja em dia.
+    Cada vivencia de uma crianca e de uma pessoa so. Marcar de novo o que ja e
+    seu nao da erro (duas abas, duplo clique); o que outra pessoa ja marcou da
+    409, com o nome dela. Devolve as marcacoes da crianca ja em dia.
     """
     crianca = _crianca(db, ctx, crianca_id)
     db.execute(
         insert(Intercessao)
         .values(crianca_id=crianca.id, usuario_id=ctx.usuario.id, tipo=tipo.value)
-        .on_conflict_do_nothing(constraint="uq_intercessoes_crianca_usuario_tipo")
+        .on_conflict_do_nothing(constraint="uq_intercessoes_crianca_tipo")
     )
     db.commit()
-    return _da_crianca(db, crianca.id)
+    marcas = _da_crianca(db, crianca.id)
+    dono = next(m for m in marcas if m.tipo == tipo.value)
+    if dono.usuario_id != ctx.usuario.id:
+        quem = dono.nome or "outra pessoa"
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Essa já foi marcada por {quem}.")
+    return marcas
 
 
 @router.delete("/{crianca_id}/{tipo}", response_model=list[MarcaIntercessao])
 def desmarcar(crianca_id: int, tipo: TipoIntercessao, db: BD, ctx: Interceder):
-    """Tira a marcacao DESTA pessoa. A dos outros nao se mexe daqui: cada um
-    responde pelo que rezou."""
+    """Tira a marcacao, se for DESTA pessoa. A dos outros nao se mexe daqui:
+    cada um responde pelo que rezou."""
     crianca = _crianca(db, ctx, crianca_id)
     db.execute(
         delete(Intercessao).where(

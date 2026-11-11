@@ -2,8 +2,8 @@
 
   1. o perfil Intercessao ve a edicao inteira e recebe as marcacoes na lista;
      quem nao intercede (a coordenacao) recebe o campo nulo e nao marca;
-  2. cada pessoa marca cada vivencia uma vez por crianca, e desmarcar tira so
-     a marcacao dela;
+  2. cada vivencia de uma crianca e de uma pessoa so: quem marcou primeiro.
+     Os outros levam 409 ao marcar e nao conseguem desmarcar;
   3. o painel soma como a planilha: vivencias / 5, misterios / 15.
 
 Rodar com:  python -m tests.test_intercessao
@@ -161,12 +161,20 @@ def main() -> None:
         r = ca.post(f"/intercessao/{alvo.id}/missa")
         verifica("marcar de novo nao duplica", r.status_code == 200 and len(r.json()) == 1, r.text[:120])
         r = cb.post(f"/intercessao/{alvo.id}/missa")
-        verifica("a Bia marca a mesma vivencia: duas etiquetas",
-                 r.status_code == 200 and {m["nome"] for m in r.json()} == {ana.nome, bia.nome},
-                 r.text[:200])
+        verifica("a Bia nao marca a missa que ja e da Ana: 409 com o nome dela",
+                 r.status_code == 409 and ana.nome in r.json().get("detail", ""), r.text[:200])
+        r = cb.delete(f"/intercessao/{alvo.id}/missa")
+        verifica("e nem desmarca a da Ana",
+                 r.status_code == 200 and [m["nome"] for m in r.json()] == [ana.nome], r.text[:200])
+        r = cb.post(f"/intercessao/{alvo.id}/terco")
+        verifica("outra vivencia da mesma crianca a Bia marca",
+                 r.status_code == 200 and len(r.json()) == 2, r.text[:200])
+        cb.delete(f"/intercessao/{alvo.id}/terco")
         r = ca.delete(f"/intercessao/{alvo.id}/missa")
-        verifica("a Ana desmarca e so a dela sai",
-                 r.status_code == 200 and [m["nome"] for m in r.json()] == [bia.nome], r.text[:200])
+        verifica("a Ana desmarca a dela", r.status_code == 200 and r.json() == [], r.text[:200])
+        r = cb.post(f"/intercessao/{alvo.id}/missa")
+        verifica("e ai a Bia pode marcar", r.status_code == 200 and
+                 [m["nome"] for m in r.json()] == [bia.nome], r.text[:200])
         r = ca.post(f"/intercessao/{alvo.id}/novena")
         verifica("vivencia que nao existe e recusada", r.status_code == 422, str(r.status_code))
 
@@ -191,13 +199,13 @@ def main() -> None:
         verifica("crianca de outra edicao: 404", r.status_code == 404, str(r.status_code))
 
         print("\nO painel soma como a planilha")
-        # 5 missas e 15 misterios: 1 missa e 1 terco. 2 jejuns: 0,4 jejum.
+        # 5 missas e 5 misterios: 1 missa e 0,3 terco. 2 jejuns: 0,4 jejum.
         ca.delete(f"/intercessao/{alvo.id}/missa")
         cb.delete(f"/intercessao/{alvo.id}/missa")
         for c in criancas:
             ca.post(f"/intercessao/{c.id}/missa")
             ca.post(f"/intercessao/{c.id}/terco")
-            cb.post(f"/intercessao/{c.id}/terco")
+            cb.post(f"/intercessao/{c.id}/terco")  # 409: ja e da Ana
         for c in criancas[:3]:
             db.add(AveMaria(crianca_id=c.id, dia=date(2026, 11, 1)))
         db.commit()
@@ -215,7 +223,8 @@ def main() -> None:
         verifica("todas as 4 receberam intercessao", p.get("receberam") == 4 and p.get("faltam") == 0, str(p))
         verifica("5 missas marcadas = 1 missa", p.get("missas") == 1.0, str(p.get("missas")))
         verifica("5 adoracoes marcadas = 1 adoracao", p.get("adoracoes") == 1.0, str(p.get("adoracoes")))
-        verifica("10 misterios = 0,7 terco", p.get("tercos") == 0.7, str(p.get("tercos")))
+        verifica("5 misterios = 0,3 terco (a Bia nao somou por cima)",
+                 p.get("tercos") == 0.3, str(p.get("tercos")))
         verifica("2 jejuns marcados = 0,4 jejum", p.get("jejuns") == 0.4, str(p.get("jejuns")))
         verifica("e as ave-marias da edicao", p.get("ave_marias") == 3, str(p.get("ave_marias")))
 
