@@ -517,6 +517,7 @@ export default function Padrinhos() {
                 !emEdicao && (
                   <AvisoParecidos aoBloquear={aoBloquear}
                     campo="whatsapp"
+                    nome={campos.nome}
                     valor={campos.whatsapp}
                     edicaoId={edicaoAtiva}
                     aoEscolher={usarExistente}
@@ -527,6 +528,7 @@ export default function Padrinhos() {
                 !emEdicao && (
                   <AvisoParecidos aoBloquear={aoBloquear}
                     campo="email"
+                    nome={campos.nome}
                     valor={campos.email}
                     edicaoId={edicaoAtiva}
                     aoEscolher={usarExistente}

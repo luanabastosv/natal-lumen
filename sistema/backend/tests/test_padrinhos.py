@@ -208,10 +208,16 @@ def main() -> None:
         verifica("monitor NAO consulta padrinhos", r.status_code == 403, str(r.status_code))
 
         print("\nNao cadastra padrinho com dado igual ao de outro")
-        r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Outro Nome Qualquer",
+        r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Jose C. Doador",
                                         "whatsapp": "(85) 99999-0000"})
-        verifica("mesmo WhatsApp (com mascara) e recusado",
+        verifica("mesmo WhatsApp (com mascara) e nome parecido e recusado",
                  r.status_code == 409 and "WhatsApp" in r.text and "Jose Doador" in r.text, r.text[:160])
+        r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "Maria Doador",
+                                        "whatsapp": "(85) 99999-0000"})
+        verifica("mesmo WhatsApp de outra pessoa da familia cadastra",
+                 r.status_code == 201, r.text[:160])
+        if r.status_code == 201:
+            cc.delete(f"/padrinhos/{r.json()['id']}")
         r = ck.post("/padrinhos", json={"edicao_id": e1.id, "nome": "JOSÉ  doador",
                                         "whatsapp": "85911112222"})
         verifica("mesmo nome (acento, caixa, espaco) e recusado", r.status_code == 409, r.text[:160])
@@ -249,6 +255,16 @@ def main() -> None:
         r = ck.get("/padrinhos/parecidos",
                    params={"edicao_id": e1.id, "whatsapp": "85988887777", "email": "outro@x.org"})
         verifica("contato diferente nao acha ninguem", r.json() == [], r.text[:160])
+        r = ck.get("/padrinhos/parecidos",
+                   params={"edicao_id": e1.id, "whatsapp": "85999990000", "nome": "Jose Doador"})
+        verifica("WhatsApp igual com o mesmo nome trava",
+                 r.json() and r.json()[0]["igual"] is True, r.text[:160])
+        r = ck.get("/padrinhos/parecidos",
+                   params={"edicao_id": e1.id, "whatsapp": "85999990000", "nome": "Maria Doador"})
+        verifica("WhatsApp igual com outro nome so avisa",
+                 r.json() and r.json()[0]["igual"] is False, r.text[:160])
+        r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "nome": "Maria Doador"})
+        verifica("so o sobrenome igual nao e parecido", r.json() == [], r.text[:160])
         r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id, "whatsapp": "8599"})
         verifica("numero incompleto nao compara", r.json() == [], r.text[:160])
         r = ck.get("/padrinhos/parecidos", params={"edicao_id": e1.id})

@@ -53,13 +53,13 @@ export function dadosDoPadrinho(campos) {
   };
 }
 
-/** Tudo o que e obrigatorio esta preenchido: nome, WhatsApp com DDD, email
- *  com cara de email e as duas perguntas. So a observacao e opcional. */
+/** Tudo o que e obrigatorio esta preenchido: nome, WhatsApp com DDD e as
+ *  duas perguntas. Email e opcional, mas se vier tem de ter cara de email. */
 export function padrinhoCompleto(campos) {
   return Boolean(
     campos.nome.trim() &&
       numeroLimpo(campos.whatsapp) &&
-      EMAIL.test(campos.email.trim()) &&
+      (!campos.email.trim() || EMAIL.test(campos.email.trim())) &&
       campos.membro_ser_feliz &&
       campos.interesse_mensal,
   );

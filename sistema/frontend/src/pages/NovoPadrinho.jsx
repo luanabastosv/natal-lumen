@@ -98,6 +98,7 @@ export default function NovoPadrinho() {
           avisoWhatsapp={
             <AvisoParecidos aoBloquear={aoBloquear}
               campo="whatsapp"
+              nome={campos.nome}
               valor={campos.whatsapp}
               edicaoId={edicaoAtiva}
               aoEscolher={(p) => apadrinharPor(p.id)}
@@ -106,6 +107,7 @@ export default function NovoPadrinho() {
           avisoEmail={
             <AvisoParecidos aoBloquear={aoBloquear}
               campo="email"
+              nome={campos.nome}
               valor={campos.email}
               edicaoId={edicaoAtiva}
               aoEscolher={(p) => apadrinharPor(p.id)}

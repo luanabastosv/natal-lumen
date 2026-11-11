@@ -70,6 +70,20 @@ def mesmo_nome(a: str | None, b: str | None) -> bool:
     return bool(ka) and ka == kb
 
 
+def _mesmo_primeiro_nome(a: str, b: str) -> bool:
+    """O mesmo primeiro nome, aceitando o que o cadastro na pressa produz: a
+    inicial ("J. Silva"), letras trocadas de lugar ("Jsoe") e uma letra a mais
+    ou errada ("Mairia"). "Ana" e "Ane" ficam de fora: em nome curto, uma
+    letra ja e outro nome."""
+    if a == b:
+        return True
+    if len(a) == 1 or len(b) == 1:
+        return a[0] == b[0]
+    if sorted(a) == sorted(b):
+        return True
+    return SequenceMatcher(None, a, b).ratio() >= 0.75
+
+
 def parecenca(a: str | None, b: str | None) -> float:
     """De 0 a 1, o quanto dois nomes de pessoa parecem ser o mesmo.
 
@@ -77,13 +91,20 @@ def parecenca(a: str | None, b: str | None) -> float:
     outra grafia ("Jose" e "Jose", acento e caixa), com um nome do meio a
     mais ou a menos ("Jose Silva" e "Jose Carlos Silva"), ou com erro de
     digitacao ("Jose Slva"). Um nome so ("Maria") nunca conta como parecido:
-    seria parecido com metade da lista.
+    seria parecido com metade da lista. Nem dois nomes que so dividem os
+    sobrenomes: parente nao e o mesmo padrinho.
     """
     ka, kb = _chave(a), _chave(b)
     if len(ka) < 2 or len(kb) < 2:
         return 0.0
     if ka == kb:
         return 1.0
+    # Primeiro nome diferente e outra pessoa, por mais sobrenome que dividam:
+    # "Lena Pontes Santos" e "Tania Pontes dos Santos" sao da mesma familia,
+    # nao o mesmo padrinho. Comparar o nome inteiro de uma vez dava 0,86 a
+    # essas duas, porque os sobrenomes pesam mais que o nome.
+    if not _mesmo_primeiro_nome(ka[0], kb[0]):
+        return 0.0
     curto, longo = sorted((ka, kb), key=len)
     # O nome mais curto inteiro dentro do mais longo, com o mesmo primeiro e
     # o mesmo ultimo nome: e a mesma pessoa com o nome do meio omitido.

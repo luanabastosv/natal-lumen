@@ -26,9 +26,10 @@ export function CamposPadrinho({
         dica={avisoNome}
         obrigatorio
       />
-      {/* WhatsApp e email obrigatorios: e por eles que o agradecimento chega,
-          e um padrinho sem contato e um padrinho que ninguem consegue cobrar
-          nem agradecer. So a observacao e opcional. */}
+      {/* WhatsApp obrigatorio: e por ele que o agradecimento chega, e um
+          padrinho sem contato e um padrinho que ninguem consegue cobrar nem
+          agradecer. Email e observacao sao opcionais: muita gente nao tem ou
+          nao lembra o email na hora, e o cadastro nao pode parar por isso. */}
       <Entrada
         rotulo="WhatsApp"
         tipo="tel"
@@ -45,7 +46,6 @@ export function CamposPadrinho({
         value={campos.email}
         onChange={mudar("email")}
         dica={avisoEmail}
-        obrigatorio
       />
       <Entrada rotulo="Observações" value={campos.observacoes} onChange={mudar("observacoes")} />
       <Selecao
@@ -86,22 +86,43 @@ const PRONTO = {
   email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
 };
 
+/* Quando trava, o dado e o mesmo de um padrinho que ja existe. Quando so
+   avisa, a frase diz que da para seguir: o nome parecido pode ser outra
+   pessoa, e o contato igual pode ser o da familia. */
 const FRASE = {
-  nome: (p) => (
-    <>
-      <strong>{p.nome}</strong> já está cadastrado no sistema.
-    </>
-  ),
-  whatsapp: (p) => (
-    <>
-      Este WhatsApp já é de <strong>{p.nome}</strong>, cadastrado no sistema.
-    </>
-  ),
-  email: (p) => (
-    <>
-      Este email já é de <strong>{p.nome}</strong>, cadastrado no sistema.
-    </>
-  ),
+  nome: (p, trava) =>
+    trava ? (
+      <>
+        <strong>{p.nome}</strong> já está cadastrado no sistema.
+      </>
+    ) : (
+      <>
+        Parecido com <strong>{p.nome}</strong>, já cadastrado. Se não for a mesma pessoa,
+        pode seguir.
+      </>
+    ),
+  whatsapp: (p, trava) =>
+    trava ? (
+      <>
+        Este WhatsApp já é de <strong>{p.nome}</strong>, cadastrado no sistema.
+      </>
+    ) : (
+      <>
+        Este WhatsApp também é de <strong>{p.nome}</strong>. Se for alguém da família, pode
+        seguir.
+      </>
+    ),
+  email: (p, trava) =>
+    trava ? (
+      <>
+        Este email já é de <strong>{p.nome}</strong>, cadastrado no sistema.
+      </>
+    ) : (
+      <>
+        Este email também é de <strong>{p.nome}</strong>. Se for alguém da família, pode
+        seguir.
+      </>
+    ),
 };
 
 /** "Fulano ja esta cadastrado": o aviso de padrinho repetido, enquanto se
@@ -110,21 +131,27 @@ const FRASE = {
  *  O mesmo doador volta semanas depois, outro comissario o cadastra de novo,
  *  e ele vira dois padrinhos — com dois pagamentos e dois agradecimentos. O
  *  aviso aparece antes de salvar e oferece o caminho certo: apadrinhar pelo
- *  cadastro que ja existe. Nao impede salvar: homonimo existe, e o mesmo
- *  telefone as vezes e o da familia.
+ *  cadastro que ja existe. So trava o Salvar quando o servidor diz que e a
+ *  mesma pessoa (`igual`): o nome igual, ou o contato igual com nome
+ *  parecido. Nome que so divide sobrenome, ou contato da familia com outro
+ *  nome, so avisa.
+ *
+ *  `nome`: para o WhatsApp e o email, o nome que se esta digitando. E ele
+ *  que diz ao servidor se o contato igual e o mesmo padrinho ou um parente.
  *
  *  Pergunta ao servidor so depois de uma pausa na digitacao, e so quando o
  *  campo ja da para comparar (ver PRONTO). */
-export function AvisoParecidos({ campo = "nome", valor, edicaoId, aoEscolher, aoBloquear }) {
+export function AvisoParecidos({ campo = "nome", valor, nome, edicaoId, aoEscolher, aoBloquear }) {
   const [parecidos, definirParecidos] = useState([]);
   const termo = (valor ?? "").trim();
+  const quem = campo === "nome" ? "" : (nome ?? "").trim();
   const pronto = PRONTO[campo](termo);
 
   useEffect(() => {
     if (!edicaoId || !pronto) return undefined;
     let valido = true;
     const espera = setTimeout(() => {
-      padrinhosParecidos(edicaoId, { [campo]: termo })
+      padrinhosParecidos(edicaoId, { [campo]: termo, ...(quem && { nome: quem }) })
         .then((achados) => valido && definirParecidos(achados))
         // O aviso e uma ajuda: se a consulta falhar, o cadastro segue.
         .catch(() => valido && definirParecidos([]));
@@ -133,7 +160,7 @@ export function AvisoParecidos({ campo = "nome", valor, edicaoId, aoEscolher, ao
       valido = false;
       clearTimeout(espera);
     };
-  }, [edicaoId, campo, termo, pronto]);
+  }, [edicaoId, campo, termo, quem, pronto]);
 
   // Dado IGUAL ao de outro padrinho (e nao so parecido): o servidor recusa o
   // cadastro, entao o formulario trava o Salvar e diz por que.
@@ -150,7 +177,7 @@ export function AvisoParecidos({ campo = "nome", valor, edicaoId, aoEscolher, ao
   // bloco que empurra o formulario enquanto se digita.
   return (
     <span className={`aviso-parecidos ${trava ? "aviso-parecidos--trava" : ""}`}>
-      {FRASE[campo](p)}
+      {FRASE[campo](p, trava)}
       {trava && " Não dá para cadastrar outro: apadrinhe pela ficha dele."}{" "}
       <button type="button" className="aviso-parecidos__acao" onClick={() => aoEscolher(p)}>
         Ir para padrinho

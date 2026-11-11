@@ -368,28 +368,45 @@ ROTULO_DO_CAMPO = {"nome": "este nome", "whatsapp": "este WhatsApp", "email": "e
 
 def _repetido(
     db: Session, edicao_id: int, *, nome: str | None, whatsapp: str | None,
-    email: str | None, ignorar_id: int | None = None,
+    email: str | None, ignorar_id: int | None = None, nome_atual: str | None = None,
 ) -> tuple[Padrinho, str] | None:
-    """O padrinho da edicao que ja tem o mesmo nome, WhatsApp ou email.
+    """O padrinho da edicao que ja e este: o mesmo nome, ou o mesmo WhatsApp
+    ou email com um nome parecido.
 
-    Basta UM igual para ser o mesmo doador: dois cadastros viram dois
-    pagamentos, dois agradecimentos e duas cobrancas. O nome conta igual
-    quando sobra o mesmo depois de tirar acento, caixa e "da/de/dos" — nome
-    so parecido continua sendo so aviso, porque homonimo existe.
+    Dois cadastros do mesmo doador viram dois pagamentos, dois agradecimentos
+    e duas cobrancas. O nome conta igual quando sobra o mesmo depois de tirar
+    acento, caixa e "da/de/dos"; nome so parecido continua sendo so aviso,
+    porque homonimo existe.
+
+    Contato igual so recusa quando o nome tambem bate: familia divide o
+    WhatsApp e o email, e a filha que apadrinha com o telefone da mae e outro
+    padrinho. Com nome diferente, a tela so avisa de quem e o contato.
+
+    `nome` vazio (a edicao que nao muda o nome) compara o contato com o nome
+    que ja esta gravado, `nome_atual`.
     """
     candidatos = db.scalars(
         select(Padrinho).where(Padrinho.edicao_id == edicao_id, Padrinho.id != (ignorar_id or 0))
     ).all()
     telefone = _so_digitos(whatsapp)
     correio = (email or "").strip().lower()
+    quem = nome or nome_atual
     for p in candidatos:
+        if nome and mesmo_nome(nome, p.nome):
+            return p, "nome"
+        if not _mesma_pessoa(quem, p.nome):
+            continue
         if len(telefone) >= 10 and _so_digitos(p.whatsapp) == telefone:
             return p, "whatsapp"
         if correio and (p.email or "").strip().lower() == correio:
             return p, "email"
-        if nome and mesmo_nome(nome, p.nome):
-            return p, "nome"
     return None
+
+
+def _mesma_pessoa(nome: str | None, outro: str) -> bool:
+    """Com o mesmo contato, o nome que ainda faz dos dois a mesma pessoa.
+    Sem nome para comparar, vale o contato: e o lado seguro."""
+    return not nome or parecenca(nome, outro) >= PARECIDO
 
 
 def _recusar_repetido(achado: tuple[Padrinho, str] | None) -> None:
@@ -422,7 +439,9 @@ def padrinhos_parecidos(
 
     Tres pistas, cada uma pedida pelo seu campo: o nome parecido (acento, nome
     do meio e erro de digitacao, que um LIKE nao pega — por isso em Python), e
-    o MESMO WhatsApp ou o mesmo email, que sao iguais ou nao sao. Sao centenas
+    o MESMO WhatsApp ou o mesmo email, que sao iguais ou nao sao. Para o
+    contato, mande o nome junto: e ele que diz se o contato igual e o mesmo
+    padrinho (trava) ou alguem da familia (so aviso). Sao centenas
     de padrinhos por edicao, entao comparar tudo aqui sai barato.
     """
     if not (nome or whatsapp or email):
@@ -439,8 +458,8 @@ def padrinhos_parecidos(
         return PadrinhoParecido(
             id=p.id, nome=p.nome, whatsapp=p.whatsapp,
             criancas=len({a.crianca_id for a in p.apadrinhamentos}), motivo=motivo,
-            # Igual de verdade: o cadastro vai ser recusado.
-            igual=motivo != "nome" or mesmo_nome(nome, p.nome),
+            # Igual de verdade: o cadastro vai ser recusado (ver _repetido).
+            igual=mesmo_nome(nome, p.nome) if motivo == "nome" else _mesma_pessoa(nome, p.nome),
         )
 
     # Contato igual e prova mais forte que nome parecido: vem primeiro.
@@ -531,7 +550,7 @@ def editar_padrinho(padrinho_id: int, dados: PadrinhoEditar, db: BD, ctx: Editar
     _recusar_repetido(_repetido(
         db, padrinho.edicao_id, ignorar_id=padrinho.id,
         nome=mudancas.get("nome"), whatsapp=mudancas.get("whatsapp"),
-        email=mudancas.get("email"),
+        email=mudancas.get("email"), nome_atual=padrinho.nome,
     ))
     antes = valores(padrinho, mudancas)
     for campo, valor in mudancas.items():
