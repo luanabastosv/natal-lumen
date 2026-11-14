@@ -27,6 +27,12 @@ class Config(BaseSettings):
     # --- Base de dados ---
     database_url: str
 
+    # --- Estrelinha (conector MCP do Claude, ver docs/ESTRELINHA.md) ---
+    # Vazios = rota /estrelinha/mcp desligada (404). A URL e a da usuaria
+    # `estrelinha` do Postgres, que so le as views do schema estrelinha.
+    estrelinha_database_url: str = ""
+    estrelinha_token: str = ""
+
     # --- Arquivos enviados ---
     # Fica fora das pastas publicas do frontend: nada aqui e servido diretamente,
     # so por rota autenticada que confere permissao e edicao.

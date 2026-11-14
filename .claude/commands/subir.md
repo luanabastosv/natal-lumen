@@ -37,6 +37,7 @@ Escolha pelas pastas tocadas, e rode **sempre** `test_seguranca`:
 | `routers/usuarios.py`, `edicoes.py`, `cadastros` | `test_cadastros` |
 | `routers/auth.py`, sessões, permissões | `test_autenticacao` |
 | `models/`, migration nova | `test_esquema` |
+| `routers/estrelinha.py`, views do schema `estrelinha` | `test_estrelinha` |
 | **qualquer coisa no backend** | `test_seguranca` (sempre) |
 
 Cada um termina com `N verificacoes ok, 0 falha(s)`. **Qualquer falha: pare,

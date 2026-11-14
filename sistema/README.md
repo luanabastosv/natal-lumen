@@ -10,6 +10,7 @@ O site público (pasta `site/` na raiz) é um projeto separado e não faz parte 
 - Comprovante no Google Drive: [docs/COMPROVANTE_NO_DRIVE.md](docs/COMPROVANTE_NO_DRIVE.md)
 - Link de pagamento do Mercado Pago: [docs/MERCADO_PAGO.md](docs/MERCADO_PAGO.md)
 - Servidor único e testes locais: [docs/AMBIENTES.md](docs/AMBIENTES.md)
+- Estrelinha (perguntar ao Claude sobre os dados): [docs/ESTRELINHA.md](docs/ESTRELINHA.md)
 
 ## Estado
 
