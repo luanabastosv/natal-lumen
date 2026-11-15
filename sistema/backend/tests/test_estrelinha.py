@@ -1,4 +1,4 @@
-"""Estrelinha: o conector do Claude responde, e nao vaza nem altera nada.
+"""Estrelinha: o conector do Claude responde, nao ve credenciais e nao altera nada.
 
 Precisa da usuaria `estrelinha` criada (docs/ESTRELINHA.md) e de
 ESTRELINHA_DATABASE_URL e ESTRELINHA_TOKEN no .env.
@@ -107,9 +107,11 @@ def main() -> None:
         erro, estrutura = ferramenta(cliente, "ver_estrutura")
         colunas = {(l["view"], l["coluna"]) for l in estrutura}
         confere("ver_estrutura lista as views", not erro and ("criancas", "idade") in colunas)
-        confere("nome da crianca nao aparece", ("criancas", "nome") not in colunas)
-        confere("contato do padrinho nao aparece",
-                ("padrinhos", "whatsapp") not in colunas and ("padrinhos", "email") not in colunas)
+        confere("nome da crianca aparece", ("criancas", "nome") in colunas)
+        confere("contato do padrinho aparece", ("padrinhos", "whatsapp") in colunas)
+        confere("hash da senha nao aparece", ("usuarios", "senha_hash") not in colunas)
+        confere("tokens de acesso nao aparecem",
+                not any(v in ("tokens_acesso", "sessoes_revogadas") for v, _ in colunas))
 
         erro, linhas = ferramenta(cliente, "consultar", {"sql":
             f"select count(*) as n from criancas where edicao_id = {ed} and idade = 10"})
@@ -129,7 +131,8 @@ def main() -> None:
         print("Ataques")
         for d, sql in [
             ("ler tabela real de usuarios", "select * from public.usuarios"),
-            ("ler nome da crianca na tabela real", "select nome from public.criancas"),
+            ("ler o hash da senha na tabela real", "select senha_hash from public.usuarios"),
+            ("ler tokens de acesso", "select * from public.tokens_acesso"),
             ("insert", "insert into estrelinha.cidades (nome, uf) values ('x', 'CE')"),
             ("duas consultas", "select 1; delete from public.criancas"),
             ("delete escondido num WITH",

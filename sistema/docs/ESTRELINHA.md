@@ -14,32 +14,30 @@ Claude ──POST──▶ acesso.natallumen.com/acesso/api/estrelinha/mcp?key=T
 
 ## O que ela vê, e o que não vê
 
-Ela só enxerga as views do schema `estrelinha`, nunca as tabelas reais:
+Desde 15/11/2026 (migration `a3f9d27c6e18`), ela vê **todos os dados do
+evento**: crianças com nome, padrinhos com contato, observações, pagamentos,
+cartões, kits, usuários e o log. A decisão foi da coordenação, porque só
+quem já vê tudo no sistema usa a Estrelinha.
 
-| Vê | Não vê |
-| --- | --- |
-| edições, dias, instituições, grupos, ônibus e núcleo | usuários, senhas, sessões, log |
-| crianças: código, idade, sexo, dia, check-in, falta, desistência | **nome da criança**, observações |
-| padrinhos: nome, membro Ser Feliz, interesse mensal | **WhatsApp e e-mail**, observações |
-| apadrinhamentos, pagamentos (valor, data, forma, conferido) | comprovantes, id do Mercado Pago |
-| cobranças, envios e status dos cartões, kits | arquivos dos cartões, texto do OCR |
-| autorizações: só sim/não de necessidade e restrição | **qual** necessidade ou restrição |
-| compras e recebimentos | nome do doador |
+Ficam de fora só as credenciais: `usuarios.senha_hash`, tentativas de login e
+bloqueio, `tokens_acesso` e `sessoes_revogadas`.
 
-Para mostrar mais uma coluna, crie uma migration nova que recria a view.
+As views usam `select *`, mas o Postgres congela as colunas na criação da
+view. Coluna nova numa tabela só aparece para ela depois de uma migration que
+recrie as views (copie a `a3f9d27c6e18` e rode `recriar()`).
 
 ## Segurança, em camadas
 
 1. **Token:** sem `ESTRELINHA_TOKEN` no `.env`, a rota nem existe (404). Com
    ele, quem não manda o token certo leva 401. Para cortar o acesso de todo
    mundo, troque o token e reinicie a API.
-2. **Usuária própria:** `estrelinha` só tem `SELECT` nas views. Escrever ou ler
-   a tabela real dá `permission denied` no próprio Postgres.
+2. **Usuária própria:** `estrelinha` só tem `SELECT` nas views. Escrever, ou
+   ler a tabela real (onde está a senha), dá `permission denied` no Postgres.
 3. **Transação só de leitura**, 15 s no máximo por consulta e 500 linhas por
    resposta.
 
-`python -m tests.test_estrelinha` tenta ler `usuarios`, ler o nome da
-criança, inserir, apagar por `WITH`, mandar duas consultas e travar o banco —
+`python -m tests.test_estrelinha` tenta ler o hash da senha e os tokens,
+inserir, apagar por `WITH`, mandar duas consultas e travar o banco —
 tudo tem de ser barrado.
 
 ---
@@ -65,7 +63,7 @@ alter default privileges for role natal_lumen in schema estrelinha
   grant select on tables to estrelinha;
 ```
 
-Gere a senha com `python3 -c "import secrets; print(secrets.token_urlsafe(24))"`.
+Gere a senha com `openssl rand -hex 24` (o servidor não tem `python3`).
 
 ### 2. Colocar no `.env` do servidor
 
@@ -73,7 +71,7 @@ Em `/var/www/natal-lumen/sistema/backend/.env`:
 
 ```
 ESTRELINHA_DATABASE_URL=postgresql+psycopg://estrelinha:SENHA_FORTE_AQUI@localhost:5432/natal_lumen
-ESTRELINHA_TOKEN=<python3 -c "import secrets; print(secrets.token_urlsafe(32))">
+ESTRELINHA_TOKEN=<openssl rand -hex 32>
 ```
 
 ### 3. Publicar

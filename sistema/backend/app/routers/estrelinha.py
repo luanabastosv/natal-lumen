@@ -12,8 +12,8 @@ Seguranca, em camadas, e nenhuma depende do Claude se comportar:
      quem nao manda o token certo leva 401.
   2. USUARIA PROPRIA: as consultas usam ESTRELINHA_DATABASE_URL, da usuaria
      `estrelinha` do Postgres, que so tem SELECT nas views do schema
-     `estrelinha` (migration e7a4c19b5d20). Ela nao alcanca as tabelas reais,
-     entao nao ve contato, senha, comprovante nem nome de crianca.
+     `estrelinha` (migration a3f9d27c6e18). As views mostram todos os dados do
+     evento, menos senha e tokens de acesso.
   3. TRANSACAO SO DE LEITURA, com tempo maximo e limite de linhas.
 """
 
@@ -56,8 +56,10 @@ Como consultar:
   falta_em = faltou.
 - Prefira contagens e agrupamentos (count, group by). Mostre no maximo uma
   tabela curta. Se a consulta der erro, leia a mensagem, corrija e tente de novo.
-- Voce nao ve nomes de criancas nem contatos de padrinhos, e isso e de proposito.
-  Se pedirem, explique que esses dados ficam so no sistema.
+- Voce ve todos os dados do evento, inclusive nomes de criancas, contatos e
+  observacoes, porque so a coordenacao usa a Estrelinha. Mesmo assim, mostre
+  nomes e contatos so quando a pergunta pedir; para o resto, responda com numeros.
+- Senhas e tokens de acesso nao estao nas views, e isso e de proposito.
 """
 
 FERRAMENTAS = [
