@@ -506,9 +506,21 @@ def listar(
 
     panorama = _panorama(db, [c.id for c in itens])
 
+    minhas_cesta = minhas_festa = None
+    if not escapou and edicao_id is not None and ctx.so_proprias_criancas(edicao_id):
+        minhas_cesta = db.scalar(
+            select(func.count()).select_from(Crianca)
+            .where(condicao, Crianca.comissario_id == ctx.usuario.id)
+        ) or 0
+        minhas_festa = db.scalar(
+            select(func.count()).select_from(Crianca)
+            .where(condicao, Crianca.comissario_festa_id == ctx.usuario.id)
+        ) or 0
+
     return PaginaCriancas(
         total=total, pagina=pagina, por_pagina=por_pagina,
         com_checkin=com_checkin,
+        minhas_cesta=minhas_cesta, minhas_festa=minhas_festa,
         itens=[_saida(c, ctx, panorama.get(c.id)) for c in itens],
     )
 

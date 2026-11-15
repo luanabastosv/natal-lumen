@@ -171,6 +171,17 @@ export default function Criancas() {
   // Depois que a campanha da festa comeca, a festa tem responsavel proprio:
   // uma coluna a mais, e o lote ganha o seletor da festa.
   const veFesta = veCaptacao && Boolean(edicao?.festa_liberada);
+  // O comissario so ve a coluna do responsavel que e ele: quem recebeu so
+  // festas nao ve "Comissario C." (nem o grupo, que e o do comissario da
+  // cesta), e quem so tem cestas nao ve "Comissario F.". Se tem as duas,
+  // ve as duas. As contagens vem so para o comissario e seguem a aba (o
+  // filtro inteiro, nao a pagina). Sem nenhuma crianca, fica a da cesta.
+  const minhasCesta = criancas.minhas_cesta;
+  const minhasFesta = criancas.minhas_festa;
+  const ehComissarioComContagem = minhasCesta != null && minhasFesta != null;
+  const colunaCesta =
+    veCaptacao && (!ehComissarioComContagem || minhasCesta > 0 || minhasFesta === 0);
+  const colunaFesta = veFesta && (!ehComissarioComContagem || minhasFesta > 0);
   // Trocar SO o responsavel e um poder a parte: quem coordena a captacao
   // redistribui a lista entre o time sem poder criar nem renomear crianca.
   // Por isso a coluna do responsavel nao olha `podeEditar` como as outras.
@@ -304,8 +315,8 @@ export default function Criancas() {
     ...(intercessaoNoCelular ? [] : [estreita ? 74 : 84]),
     null,
     ...(outrasColunas ? [50, 46, 88, 130] : []),
-    ...(veCaptacao && !estreita ? [132, 90] : []),
-    ...(veFesta && !estreita ? [132] : []),
+    ...(colunaCesta && !estreita ? [132, 90] : []),
+    ...(colunaFesta && !estreita ? [132] : []),
     ...(veCaptacao ? [estreita ? 62 : 80] : []),
     ...(outrasColunas ? [64] : []),
     // "Aut.": o rotulo curto deixa a coluna do tamanho do marcador.
@@ -792,7 +803,7 @@ export default function Criancas() {
               valor: (c) => (c.dia_evento ? rotuloDia(c.dia_evento, c.dia_evento_descricao) : "sem dia"),
             },
             { id: "instituicao", rotulo: "Instituição", valor: (c) => c.instituicao },
-            ...(veCaptacao
+            ...(colunaCesta
               ? [
                   {
                     id: "comissario",
@@ -800,6 +811,10 @@ export default function Criancas() {
                     valor: (c) => c.comissario ?? "sem responsável",
                   },
                   { id: "grupo", rotulo: "Grupo", valor: (c) => c.comissario_grupo ?? "—" },
+                ]
+              : []),
+            ...(veCaptacao
+              ? [
                   {
                     id: "cesta",
                     rotulo: "Padrinho cesta",
@@ -844,7 +859,7 @@ export default function Criancas() {
               rotulo: "Dia",
               de: (c) => (c.dia_evento ? rotuloDia(c.dia_evento, c.dia_evento_descricao) : null),
             },
-            ...(veCaptacao
+            ...(colunaCesta
               ? [{ id: "comissario", rotulo: "Comissário", de: (c) => c.comissario ?? "Sem responsável" }]
               : []),
           ]}
@@ -964,7 +979,7 @@ export default function Criancas() {
                       <th>Instituição</th>
                     </>
                   )}
-                  {veCaptacao && !estreita && (
+                  {colunaCesta && !estreita && (
                     <>
                       <th title="Comissário responsável pela cesta desta criança. A instituição é atendida pelo time todo; aqui fica quem responde por ela.">
                         Comissário C.
@@ -974,7 +989,7 @@ export default function Criancas() {
                       </th>
                     </>
                   )}
-                  {veFesta && !estreita && (
+                  {colunaFesta && !estreita && (
                     <th title="Quem apadrinha a festa desta criança. Até a coordenação passar adiante, a festa fica com ela.">
                       Comissário F.
                     </th>
@@ -1131,7 +1146,7 @@ export default function Criancas() {
                       </td>
                       </>
                     )}
-                    {veCaptacao && !estreita && (
+                    {colunaCesta && !estreita && (
                       <>
                       <td>
                         {/* Responsavel por ESTA crianca. Nao muda quem alcanca o
@@ -1174,7 +1189,7 @@ export default function Criancas() {
                       </td>
                       </>
                     )}
-                    {veFesta && !estreita && (
+                    {colunaFesta && !estreita && (
                       <td>
                         {/* So leitura: a festa se distribui pelo lote, marcando
                             as criancas. */}

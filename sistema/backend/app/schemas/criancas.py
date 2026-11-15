@@ -127,6 +127,13 @@ class PaginaCriancas(BaseModel):
     # pagina: a planilha so mostra a coluna de check-in quando ha o que
     # mostrar, e ela nao pode aparecer e sumir conforme a pessoa pagina.
     com_checkin: int = 0
+    # So para o comissario (nulo para os outros perfis): quantas criancas do
+    # filtro atual (a aba, a busca), nao so desta pagina, sao dele pela cesta
+    # e quantas pela festa. A planilha so desenha a coluna do responsavel que
+    # de fato e ele: na aba em que ele so tem festas, some a coluna da cesta,
+    # e vice-versa; onde tem as duas, ficam as duas.
+    minhas_cesta: int | None = None
+    minhas_festa: int | None = None
 
 
 class LinhaImportada(BaseModel):
