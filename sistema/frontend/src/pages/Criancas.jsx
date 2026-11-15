@@ -115,6 +115,9 @@ export default function Criancas() {
 
   const [instituicoes, definirInstituicoes] = useState([]);
   const [abas, definirAbas] = useState([]);
+  // De que edicao sao as abas carregadas: distingue "ainda nao chegaram" de
+  // "chegaram vazias" (o comissario sem nenhuma instituicao atribuida).
+  const [abasDaEdicao, definirAbasDaEdicao] = useState(null);
   const [abaAtiva, definirAbaAtiva] = useState(TODAS);
   // A ficha da instituicao da aba aberta: cadastro, dia, nucleo e equipe.
   const [vendoInstituicao, definirVendoInstituicao] = useState(false);
@@ -248,6 +251,19 @@ export default function Criancas() {
     definirAbaAtiva(TODAS);
     definirPagina(1);
     definirMarcadas([]);
+    // As abas tambem: sem isto, quem nao tem a aba "Todas" cairia na
+    // primeira instituicao da edicao ANTERIOR.
+    definirAbas([]);
+    definirAbasDaEdicao(null);
+  }
+
+  // Comissario e monitor (os perfis presos as instituicoes atribuidas, que a
+  // sessao marca com a lista `instituicoes`) nao tem a aba "Todas": trabalham
+  // escola por escola, e a lista abre na primeira aba deles. A coordenacao,
+  // que ve a edicao inteira, continua com ela.
+  const semAbaTodas = Array.isArray(vinculoAtivo?.instituicoes);
+  if (semAbaTodas && abaAtiva === TODAS && abas.length > 0) {
+    definirAbaAtiva(abas[0].instituicao_id);
   }
 
   // As abas mudam quando a edicao muda.
@@ -258,6 +274,7 @@ export default function Criancas() {
       .then((resumo) => {
         if (!vivo) return;
         definirAbas(resumo);
+        definirAbasDaEdicao(edicaoAtiva);
       })
       .catch((e) => vivo && definirErro(e.message));
     return () => {
@@ -278,6 +295,16 @@ export default function Criancas() {
   }, [edicaoAtiva]);
 
   const buscar = useCallback(async () => {
+    // Sem a aba "Todas", espera as abas chegarem: buscar a edicao inteira
+    // agora seria uma busca jogada fora logo em seguida.
+    // Se chegaram vazias, nao ha o que buscar: a lista fica vazia.
+    if (semAbaTodas && abaAtiva === TODAS) {
+      if (abasDaEdicao === edicaoAtiva) {
+        definirCriancas({ itens: [], total: 0 });
+        definirCarregando(false);
+      }
+      return;
+    }
     try {
       definirCriancas(
         await listarCriancas({
@@ -295,7 +322,7 @@ export default function Criancas() {
     } finally {
       definirCarregando(false);
     }
-  }, [edicaoAtiva, abaAtiva, filtroComissario, termo, pagina]);
+  }, [edicaoAtiva, abaAtiva, filtroComissario, termo, pagina, semAbaTodas, abasDaEdicao]);
 
   useEffect(() => {
     // Buscar no servidor e justamente o que este efeito existe para fazer: a
@@ -606,20 +633,22 @@ export default function Criancas() {
           caberiam na largura da tela. */}
       {abas.length > 0 && (
         <FaixaDeAbas reiniciarEm={edicaoAtiva}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={abaAtiva === TODAS}
-            className={`aba ${abaAtiva === TODAS ? "aba--ativa" : ""}`}
-            onClick={() => {
-              definirAbaAtiva(TODAS);
-              definirPagina(1);
-              definirMarcadas([]);
-            }}
-          >
-            <span>Todas</span>
-            <span className="aba__contagem">{totalGeral} crianças</span>
-          </button>
+          {!semAbaTodas && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={abaAtiva === TODAS}
+              className={`aba ${abaAtiva === TODAS ? "aba--ativa" : ""}`}
+              onClick={() => {
+                definirAbaAtiva(TODAS);
+                definirPagina(1);
+                definirMarcadas([]);
+              }}
+            >
+              <span>Todas</span>
+              <span className="aba__contagem">{totalGeral} crianças</span>
+            </button>
+          )}
 
           {abas.map((a) => (
             <button
