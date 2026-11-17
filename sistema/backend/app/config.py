@@ -32,6 +32,16 @@ class Config(BaseSettings):
     # `estrelinha` do Postgres, que so le as views do schema estrelinha.
     estrelinha_database_url: str = ""
     estrelinha_token: str = ""
+    # Lojinha no Shopify, lida pela Estrelinha (so leitura). Vazios = a
+    # Estrelinha nem oferece as ferramentas da loja. SHOPIFY_LOJA e o
+    # subdominio, sem .myshopify.com. Id e segredo vem do app criado no
+    # Dev Dashboard do Shopify (passo a passo em docs/ESTRELINHA.md).
+    shopify_loja: str = ""
+    shopify_client_id: str = ""
+    shopify_client_secret: str = ""
+    # O Shopify aposenta versoes da API a cada ano: da para subir sem codigo.
+    shopify_versao_api: str = "2026-10"
+    shopify_timeout_s: float = 20.0
 
     # --- Arquivos enviados ---
     # Fica fora das pastas publicas do frontend: nada aqui e servido diretamente,
@@ -127,6 +137,14 @@ class Config(BaseSettings):
         """O check-in aberto em qualquer dia, para todos. Nunca na producao:
         la um toque fora do dia gravaria presenca de verdade."""
         return self.checkin_sempre_aberto and self.ambiente != "producao"
+
+    @property
+    def shopify_ligado(self) -> bool:
+        return bool(
+            self.shopify_loja.strip()
+            and self.shopify_client_id.strip()
+            and self.shopify_client_secret.strip()
+        )
 
     @property
     def mercadopago_ligado(self) -> bool:

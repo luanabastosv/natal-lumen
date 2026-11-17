@@ -5,11 +5,17 @@ API). Quem tem o link pergunta em português — "quantos apadrinhamentos a gent
 teve ontem?", "quantos padrinhos apadrinharam crianças de 10 anos?" — e o
 Claude escreve o SQL, consulta o banco **ao vivo** e responde.
 
+Ela também lê a **lojinha no Shopify** (vendas, pedidos, produtos e
+estoque), sem que a coordenação precise de conta no Shopify: as credenciais
+ficam só no servidor.
+
 ```
 Claude ──POST──▶ acesso.natallumen.com/acesso/api/estrelinha/mcp?key=TOKEN
                  └─ app/routers/estrelinha.py
-                    └─ usuária `estrelinha` do Postgres (só SELECT)
-                       └─ views do schema `estrelinha` (migration e7a4c19b5d20)
+                    ├─ usuária `estrelinha` do Postgres (só SELECT)
+                    │  └─ views do schema `estrelinha` (migration e7a4c19b5d20)
+                    └─ app/servicos/shopify.py  (ferramenta `consultar_loja`)
+                       └─ Admin API do Shopify, app com escopos só de leitura
 ```
 
 ## O que ela vê, e o que não vê
@@ -86,6 +92,75 @@ curl -s -X POST "https://acesso.natallumen.com/acesso/api/estrelinha/mcp?key=TOK
 ```
 
 Tem de voltar a lista com `ver_estrutura` e `consultar`.
+
+---
+
+## Ligar a lojinha do Shopify (uma vez)
+
+Sem as três linhas `SHOPIFY_*` no `.env`, a Estrelinha continua igual e
+nem oferece a ferramenta da loja.
+
+Desde 1º/01/2026 o Shopify não deixa mais criar app em *Configurações →
+Apps → Desenvolver apps*. O app agora nasce no **Dev Dashboard**, e o sistema
+troca o id e o segredo dele por um token de 24 h sozinho, sempre que precisa.
+
+### 1. Criar o app no Dev Dashboard
+
+1. No admin da loja, clique no nome da loja (canto de cima) → **Dev
+   Dashboard**. Ou abra https://dev.shopify.com/dashboard com a mesma conta
+   dona da loja. O app e a loja têm de estar na **mesma organização**.
+2. **Create app** → nome `Estrelinha`.
+3. Na versão do app, em **Access → Scopes**, marque só leitura:
+   `read_orders`, `read_products`, `read_reports` (e `read_inventory`, se
+   quiser estoque). Nada de `write_`.
+4. **Release** a versão.
+5. Em **Home** do app → **Install app** → escolha a loja do Natal Lumen →
+   **Install**.
+6. Em **Settings** do app, copie o **Client ID** e o **Client secret**.
+
+### 2. Colocar no `.env` do servidor
+
+Em `/var/www/natal-lumen/sistema/backend/.env`:
+
+```
+SHOPIFY_LOJA=SUBDOMINIO           # o xxx de xxx.myshopify.com
+SHOPIFY_CLIENT_ID=...
+SHOPIFY_CLIENT_SECRET=...
+```
+
+O subdomínio aparece em *Configurações → Domínios* (o endereço
+`.myshopify.com`), mesmo que a loja use domínio próprio.
+
+### 3. Reiniciar e conferir
+
+```bash
+sudo systemctl restart natal-lumen-api
+```
+
+O `tools/list` do curl da seção anterior passa a trazer também
+`consultar_loja`. No Claude, desconecte e conecte a Estrelinha de novo (ou
+abra uma conversa nova) para ela aparecer, e pergunte: "Estrelinha, quanto a
+lojinha vendeu nos últimos 7 dias?"
+
+### O que ela consegue, e os limites
+
+- **Totais e rankings** (faturamento, unidades por produto, vendas por dia)
+  vêm do **ShopifyQL**, que cobre todo o histórico.
+- **Pedidos um a um** só alcançam os **últimos 60 dias**: é o limite do
+  Shopify para apps sem `read_all_orders`, e o Dev Dashboard ainda não deixa
+  pedir esse escopo.
+- **Se aparecer `ACCESS_DENIED`** em pedidos ou no ShopifyQL, o Shopify está
+  segurando os *dados protegidos de clientes*. Em app da própria loja isso
+  costuma vir liberado, mas o Shopify bloqueia nos planos **Basic/Starter**.
+  Nesse caso, os produtos e o estoque continuam funcionando; para as vendas,
+  só subindo o plano.
+- **Só leitura, em duas camadas:** o app só tem escopos `read_`, e o
+  `shopify.consultar` recusa `mutation`/`subscription` antes de sair do
+  servidor. `python -m tests.test_estrelinha_loja` tenta mandar mutations
+  disfarçadas; tudo tem de ser barrado. Ele não fala com o Shopify de
+  verdade nem precisa do banco.
+- **Cortar o acesso à loja:** apague as linhas `SHOPIFY_*` e reinicie, ou
+  desinstale o app *Estrelinha* na loja.
 
 ---
 
