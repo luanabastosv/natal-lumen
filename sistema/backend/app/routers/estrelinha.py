@@ -15,6 +15,10 @@ Seguranca, em camadas, e nenhuma depende do Claude se comportar:
      `estrelinha` (migration a3f9d27c6e18). As views mostram todos os dados do
      evento, menos senha e tokens de acesso.
   3. TRANSACAO SO DE LEITURA, com tempo maximo e limite de linhas.
+
+A lojinha do Shopify entra pela ferramenta `consultar_loja` (app/servicos/
+shopify.py), que so aparece com as credenciais SHOPIFY_* no .env. Assim a
+coordenacao le as vendas da loja sem precisar de conta no Shopify.
 """
 
 import hmac
@@ -25,8 +29,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import create_engine
+from starlette.concurrency import run_in_threadpool
 
 from app.config import config
+from app.servicos import shopify
 
 router = APIRouter(prefix="/estrelinha", tags=["estrelinha"], include_in_schema=False)
 
@@ -62,6 +68,28 @@ Como consultar:
 - Senhas e tokens de acesso nao estao nas views, e isso e de proposito.
 """
 
+INSTRUCOES_LOJA = """
+A LOJINHA (Shopify):
+- Os produtos do Natal Lumen tambem sao vendidos numa loja no Shopify, fora do
+  banco do sistema. Para vendas, pedidos, produtos e estoque da loja, use
+  `consultar_loja` (GraphQL da Admin API do Shopify, so leitura). Nao procure
+  esses dados nas views do banco.
+- Para totais e rankings (faturamento, unidades por produto, vendas por dia),
+  prefira o ShopifyQL, que ja agrega e cobre todo o historico:
+    { shopifyqlQuery(query: "FROM sales SHOW net_sales, net_items_sold
+      GROUP BY product_title SINCE -30d ORDER BY net_sales DESC") {
+      tableData { columns { name dataType } rows } parseErrors } }
+  Datas no ShopifyQL: SINCE -7d, SINCE 2026-11-01 UNTIL today, TIMESERIES day.
+  Se vier parseErrors, corrija a consulta e tente de novo.
+- Para pedidos um a um use `orders(first: 50, query: "created_at:>=2026-11-01")`,
+  com `pageInfo` para paginar. A lista de pedidos so alcanca os ultimos 60 dias.
+- Valores vem como texto em `amount` + `currencyCode` (BRL). Some e formate
+  como R$. Horarios vem em UTC: converta para Fortaleza (UTC-3).
+- Se vier ACCESS_DENIED, diga que a loja nao liberou esse dado para a Estrelinha
+  e qual campo foi; nao insista com o mesmo campo.
+- Dados de clientes (nome, email, endereco) so quando a pergunta pedir.
+"""
+
 FERRAMENTAS = [
     {
         "name": "ver_estrutura",
@@ -88,6 +116,33 @@ FERRAMENTAS = [
         "annotations": {"readOnlyHint": True},
     },
 ]
+
+FERRAMENTA_LOJA = {
+    "name": "consultar_loja",
+    "description": (
+        "Le a lojinha do Natal Lumen no Shopify: vendas, pedidos, produtos e "
+        "estoque, ao vivo. Recebe UMA consulta GraphQL da Admin API do Shopify "
+        "(somente query; mutation e recusada). Para totais e rankings de vendas, "
+        "use shopifyqlQuery. Retorna data e, se houver, errors do Shopify."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "graphql": {"type": "string", "description": "Consulta GraphQL (query)"},
+            "variaveis": {"type": "object", "description": "Variaveis da consulta, se usar"},
+        },
+        "required": ["graphql"],
+    },
+    "annotations": {"readOnlyHint": True, "openWorldHint": True},
+}
+
+
+def _ferramentas() -> list[dict[str, Any]]:
+    return FERRAMENTAS + ([FERRAMENTA_LOJA] if shopify.configurado() else [])
+
+
+def _instrucoes() -> str:
+    return INSTRUCOES + (INSTRUCOES_LOJA if shopify.configurado() else "")
 
 
 @lru_cache
@@ -142,6 +197,12 @@ def _chamar_ferramenta(nome: str, argumentos: dict[str, Any]) -> dict[str, Any]:
             return _texto(_ver_estrutura())
         if nome == "consultar":
             return _texto(_consultar(str(argumentos.get("sql", ""))))
+        if nome == "consultar_loja" and shopify.configurado():
+            variaveis = argumentos.get("variaveis")
+            return _texto(shopify.consultar(
+                str(argumentos.get("graphql", "")),
+                variaveis if isinstance(variaveis, dict) else None,
+            ))
     except Exception as erro:  # o Claude le o erro e corrige a consulta
         return _texto({"erro": str(erro).strip()}, erro=True)
     return _texto({"erro": f"Ferramenta desconhecida: {nome}"}, erro=True)
@@ -159,12 +220,12 @@ def _responder(mensagem: dict[str, Any]) -> dict[str, Any] | None:
             "protocolVersion": params.get("protocolVersion") or VERSAO_PADRAO,
             "capabilities": {"tools": {}},
             "serverInfo": {"name": "estrelinha", "title": "Estrelinha ⭐", "version": "1.0.0"},
-            "instructions": INSTRUCOES,
+            "instructions": _instrucoes(),
         }
     elif metodo == "ping":
         resultado = {}
     elif metodo == "tools/list":
-        resultado = {"tools": FERRAMENTAS}
+        resultado = {"tools": _ferramentas()}
     elif metodo == "tools/call":
         resultado = _chamar_ferramenta(params.get("name", ""), params.get("arguments") or {})
     else:
@@ -198,15 +259,19 @@ async def mcp(request: Request):
             {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON invalido"}},
             status_code=400,
         )
+    # As ferramentas esperam o banco ou o Shopify: fora do loop de eventos,
+    # para uma consulta lenta nao segurar o resto da API.
     if isinstance(corpo, list):
-        respostas = [r for m in corpo if isinstance(m, dict) and (r := _responder(m))]
+        respostas = [
+            r for m in corpo if isinstance(m, dict) and (r := await run_in_threadpool(_responder, m))
+        ]
         return JSONResponse(respostas) if respostas else Response(status_code=202)
     if not isinstance(corpo, dict):
         return JSONResponse(
             {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Pedido invalido"}},
             status_code=400,
         )
-    resposta = _responder(corpo)
+    resposta = await run_in_threadpool(_responder, corpo)
     return JSONResponse(resposta) if resposta else Response(status_code=202)
 
 
