@@ -1010,12 +1010,12 @@ textarea.campo__controle {
    vira reticencias, e o endereco inteiro aparece ao parar o mouse em cima.
    So no monitor: no celular a coluna fica como estava. */
 .tabela--instituicoes.tabela--larga td:first-child {
-  width: 280px;
-  max-width: 280px;
+  width: 420px;
+  max-width: 420px;
 }
 
 .tabela__nota--uma-linha {
-  max-width: 280px;
+  max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
