@@ -30,6 +30,17 @@ export const criarDia = (edicaoId, dados) => api.post(`/edicoes/${edicaoId}/dias
 export const apagarDia = (edicaoId, diaId) =>
   api.delete(`/edicoes/${edicaoId}/dias/${diaId}`);
 
+/** Os monitores atribuidos a instituicao nesta edicao: as opcoes do monitor
+ * responsavel. */
+export const listarMonitoresDaInstituicao = (edicaoId, instituicaoId) =>
+  api.get(`/edicoes/${edicaoId}/instituicoes/${instituicaoId}/monitores`);
+
+/** `usuarioId` null tira o monitor responsavel. */
+export const definirMonitorResponsavel = (edicaoId, instituicaoId, usuarioId) =>
+  api.put(`/edicoes/${edicaoId}/instituicoes/${instituicaoId}/monitor-responsavel`, {
+    usuario_id: usuarioId,
+  });
+
 /** O dia e da instituicao: definir aqui move todas as criancas dela.
  *
  * `onibus` indefinido deixa o transporte como esta — so quem manda o numero

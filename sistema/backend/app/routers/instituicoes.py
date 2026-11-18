@@ -57,6 +57,9 @@ def _saida(inst: Instituicao, extra: dict | None = None) -> InstituicaoOut:
         dia_evento_descricao=extra.get("dia_evento_descricao"),
         onibus=extra.get("onibus", 0),
         criancas=extra.get("criancas", 0),
+        monitor_responsavel_id=extra.get("monitor_responsavel_id"),
+        monitor_responsavel=extra.get("monitor_responsavel"),
+        monitor_responsavel_whatsapp=extra.get("monitor_responsavel_whatsapp"),
         codigos_atualizados=extra.get("codigos_atualizados", 0),
     )
 
@@ -153,6 +156,27 @@ def listar(
             .group_by(Crianca.instituicao_id)
         ).all():
             extras.setdefault(inst_id, {})["criancas"] = quantas
+
+        # O monitor responsavel e o telefone pessoal de um voluntario: so para
+        # quem gerencia os cadastros da edicao, e nao para toda a equipe que
+        # le a lista de instituicoes.
+        if ctx.alcanca_edicao(edicao_id, "gerenciar_cadastros"):
+            for inst_id, usuario_id, nome, whatsapp in db.execute(
+                select(
+                    UsuarioInstituicao.instituicao_id, Usuario.id, Usuario.nome, Usuario.whatsapp
+                )
+                .join(UsuarioEdicao, UsuarioEdicao.id == UsuarioInstituicao.usuario_edicao_id)
+                .join(Usuario, Usuario.id == UsuarioEdicao.usuario_id)
+                .where(
+                    UsuarioEdicao.edicao_id == edicao_id,
+                    UsuarioEdicao.ativo.is_(True),
+                    Usuario.ativo.is_(True),
+                    UsuarioInstituicao.responsavel.is_(True),
+                )
+            ).all():
+                extras.setdefault(inst_id, {})["monitor_responsavel_id"] = usuario_id
+                extras[inst_id]["monitor_responsavel"] = nome
+                extras[inst_id]["monitor_responsavel_whatsapp"] = whatsapp
 
     return [_saida(i, extras.get(i.id)) for i in instituicoes]
 

@@ -987,9 +987,10 @@ textarea.campo__controle {
   color: var(--text-on-light-muted);
 }
 
-/* Endereco embaixo do nome da instituicao, na lista. A titulo informativo:
-   menor, italico e apagado, sem o negrito da primeira coluna. */
-.instituicao__endereco {
+/* A segunda linha de uma celula da lista de instituicoes: o endereco embaixo
+   do nome, o telefone embaixo do responsavel. A titulo informativo: menor,
+   italico e apagado, sem o negrito da primeira coluna. */
+.tabela__nota {
   margin-top: 2px;
   font-size: 11px;
   font-style: italic;

@@ -17,7 +17,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models import Crianca, DiaEvento, Edicao, Instituicao
+from app.models import (
+    Crianca,
+    DiaEvento,
+    Edicao,
+    Instituicao,
+    Perfil,
+    Usuario,
+    UsuarioEdicao,
+    UsuarioInstituicao,
+)
 from app.schemas.cadastros import (
     CampanhaFestaIn,
     DependenciasOut,
@@ -28,6 +37,8 @@ from app.schemas.cadastros import (
     EdicaoEditar,
     EdicaoIn,
     EdicaoOut,
+    MonitorDaInstituicao,
+    MonitorResponsavelIn,
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import Contexto, exige_admin_geral, exige_permissao
@@ -369,6 +380,115 @@ def definir_dia_da_instituicao(
         onibus=onibus,
         criancas_atualizadas=quantas,
     )
+
+
+PERFIL_MONITOR = "Monitoria"
+
+
+def _instituicao_da_edicao(
+    db: Session, ctx: ContextoAcesso, edicao_id: int, instituicao_id: int
+) -> Instituicao:
+    """A instituicao, conferindo que quem pede gerencia a edicao e que ela e da
+    cidade da edicao."""
+    edicao = _buscar_edicao(db, ctx, edicao_id)
+    if not ctx.alcanca_edicao(edicao_id, "gerenciar_cadastros"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Voce nao gerencia os cadastros desta edicao."
+        )
+    instituicao = db.get(Instituicao, instituicao_id)
+    if instituicao is None or instituicao.cidade_id != edicao.cidade_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Instituicao nao encontrada.")
+    return instituicao
+
+
+def _atribuicoes_de_monitor(db: Session, edicao_id: int, instituicao_id: int):
+    """(atribuicao, usuario) dos monitores ativos atribuidos a instituicao."""
+    return db.execute(
+        select(UsuarioInstituicao, Usuario)
+        .join(UsuarioEdicao, UsuarioEdicao.id == UsuarioInstituicao.usuario_edicao_id)
+        .join(Usuario, Usuario.id == UsuarioEdicao.usuario_id)
+        .join(Perfil, Perfil.id == UsuarioEdicao.perfil_id)
+        .where(
+            UsuarioEdicao.edicao_id == edicao_id,
+            UsuarioEdicao.ativo.is_(True),
+            Usuario.ativo.is_(True),
+            UsuarioInstituicao.instituicao_id == instituicao_id,
+            Perfil.nome.startswith(PERFIL_MONITOR),
+        )
+        .order_by(Usuario.nome)
+    ).all()
+
+
+@router.get(
+    "/{edicao_id}/instituicoes/{instituicao_id}/monitores",
+    response_model=list[MonitorDaInstituicao],
+)
+def monitores_da_instituicao(
+    edicao_id: int,
+    instituicao_id: int,
+    db: BD,
+    ctx: Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_cadastros"))],
+):
+    """Os monitores atribuidos a instituicao nesta edicao: as opcoes do monitor
+    responsavel. Vazia enquanto ninguem da monitoria foi atribuido a ela."""
+    _instituicao_da_edicao(db, ctx, edicao_id, instituicao_id)
+    return [
+        MonitorDaInstituicao(
+            usuario_id=u.id, nome=u.nome, whatsapp=u.whatsapp, responsavel=a.responsavel
+        )
+        for a, u in _atribuicoes_de_monitor(db, edicao_id, instituicao_id)
+    ]
+
+
+@router.put(
+    "/{edicao_id}/instituicoes/{instituicao_id}/monitor-responsavel",
+    response_model=list[MonitorDaInstituicao],
+)
+def definir_monitor_responsavel(
+    edicao_id: int,
+    instituicao_id: int,
+    dados: MonitorResponsavelIn,
+    db: BD,
+    ctx: Annotated[ContextoAcesso, Depends(exige_permissao("gerenciar_cadastros"))],
+):
+    """Escolhe, entre os monitores atribuidos, o responsavel pela instituicao.
+
+    So um por instituicao: marcar um desmarca os outros. Quem nao esta
+    atribuido a ela nao pode ser escolhido — a responsabilidade e de quem ja
+    responde pela instituicao na monitoria.
+    """
+    _instituicao_da_edicao(db, ctx, edicao_id, instituicao_id)
+    atribuicoes = _atribuicoes_de_monitor(db, edicao_id, instituicao_id)
+
+    if dados.usuario_id is not None and not any(
+        u.id == dados.usuario_id for _, u in atribuicoes
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Esta pessoa nao e monitora desta instituicao nesta edicao.",
+        )
+
+    antes = next((u.id for a, u in atribuicoes if a.responsavel), None)
+    for a, u in atribuicoes:
+        a.responsavel = u.id == dados.usuario_id
+
+    registrar(
+        db, "monitor_responsavel", usuario_id=ctx.usuario.id,
+        tabela="usuario_instituicao",
+        detalhes={
+            "edicao_id": edicao_id,
+            "instituicao_id": instituicao_id,
+            "antes": antes,
+            "depois": dados.usuario_id,
+        },
+    )
+    db.commit()
+    return [
+        MonitorDaInstituicao(
+            usuario_id=u.id, nome=u.nome, whatsapp=u.whatsapp, responsavel=a.responsavel
+        )
+        for a, u in atribuicoes
+    ]
 
 
 @router.delete("/{edicao_id}/dias/{dia_id}", status_code=status.HTTP_204_NO_CONTENT)

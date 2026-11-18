@@ -176,6 +176,17 @@ class UsuarioInstituicao(Base):
         Boolean, nullable=False, default=True, server_default=text("true")
     )
 
+    # O monitor responsavel pela instituicao nesta edicao: entre os monitores
+    # atribuidos a ela, o que a coordenacao escolhe na ficha da instituicao. Mora
+    # na atribuicao, e nao no cadastro da instituicao, porque so pode ser
+    # responsavel quem esta atribuido — e tirar a instituicao do monitor tira a
+    # responsabilidade junto, sem sobrar um responsavel que nao responde mais
+    # por ela. Um so por instituicao e edicao: garantido em
+    # /edicoes/{id}/instituicoes/{id}/monitor-responsavel, que desmarca os outros.
+    responsavel: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+
     usuario_edicao: Mapped[UsuarioEdicao] = relationship(back_populates="instituicoes")
     instituicao: Mapped["Instituicao"] = relationship()  # noqa: F821
 

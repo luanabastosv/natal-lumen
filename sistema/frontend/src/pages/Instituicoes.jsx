@@ -13,12 +13,15 @@ import {
   apagarInstituicao,
   criarInstituicao,
   definirDiaDaInstituicao,
+  definirMonitorResponsavel,
   dependenciasDaInstituicao,
   editarInstituicao,
   listarCidades,
   listarDias,
   listarInstituicoes,
+  listarMonitoresDaInstituicao,
 } from "../services/cadastros.js";
+import { doisNomes } from "../utils/nomes.js";
 import EtiquetaDia from "../components/core/EtiquetaDia.jsx";
 import { rotuloDia } from "../utils/dinheiro.js";
 import { useNotificar } from "../contexts/useNotificar.js";
@@ -41,7 +44,20 @@ const VAZIO = {
   responsavel: "",
   telefone: "",
   endereco: "",
+  monitor_id: "",
 };
+
+/* Nome em cima, telefone embaixo, em letra miuda: o mesmo desenho do
+   endereco embaixo do nome da instituicao. */
+function PessoaNaCelula({ nome, telefone }) {
+  if (!nome) return "—";
+  return (
+    <>
+      {nome}
+      {telefone && <div className="tabela__nota">{telefone}</div>}
+    </>
+  );
+}
 
 export default function Instituicoes() {
   // O dia do evento e por edicao, e a edicao vem da lateral: e a mesma para o
@@ -70,6 +86,9 @@ export default function Instituicoes() {
   const [emEdicao, definirEmEdicao] = useState(null);
   const [campos, definirCampos] = useState(VAZIO);
   const [salvando, definirSalvando] = useState(false);
+  // Os monitores atribuidos a instituicao em edicao: as opcoes do monitor
+  // responsavel. Null enquanto carregam.
+  const [monitores, definirMonitores] = useState([]);
   const cidadeDoFormulario = emEdicao?.cidade_id ?? campos.cidade_id;
   const cidadeBateComEdicao =
     !edicaoSelecionada ||
@@ -132,9 +151,26 @@ export default function Instituicoes() {
       responsavel: inst.responsavel ?? "",
       telefone: inst.telefone ?? "",
       endereco: inst.endereco ?? "",
+      monitor_id: inst.monitor_responsavel_id ?? "",
     });
     definirFormularioAberto(true);
     definirErro("");
+
+    // O monitor e da edicao, como o dia: sem edicao da mesma cidade, nao ha
+    // quem escolher.
+    definirMonitores(null);
+    const daCidade =
+      !edicaoSelecionada || String(inst.cidade_id) === String(edicaoSelecionada.cidade_id);
+    if (!edicaoAtiva || !daCidade) {
+      definirMonitores([]);
+      return;
+    }
+    listarMonitoresDaInstituicao(Number(edicaoAtiva), inst.id)
+      .then(definirMonitores)
+      .catch((e) => {
+        definirMonitores([]);
+        definirErro(e.message);
+      });
   }
 
   function mudar(campo, valor) {
@@ -173,6 +209,20 @@ export default function Instituicoes() {
           salva.id,
           campos.dia_evento_id ? Number(campos.dia_evento_id) : null,
           Number(campos.onibus) || 0,
+        );
+      }
+
+      // O monitor responsavel tambem e por edicao e mora na atribuicao do
+      // monitor: outra chamada, mesmo formulario.
+      if (
+        emEdicao &&
+        edicaoAtiva &&
+        String(campos.monitor_id ?? "") !== String(emEdicao.monitor_responsavel_id ?? "")
+      ) {
+        await definirMonitorResponsavel(
+          Number(edicaoAtiva),
+          emEdicao.id,
+          campos.monitor_id ? Number(campos.monitor_id) : null,
         );
       }
 
@@ -368,6 +418,34 @@ export default function Instituicoes() {
               onChange={(e) => mudar("endereco", e.target.value)}
             />
 
+            {/* As opcoes sao so os monitores ja atribuidos a esta instituicao
+                (em Usuarios). Sem nenhum, nao ha o que escolher. */}
+            <Selecao
+              rotulo={`Monitor responsável${edicaoSelecionada ? ` · ${edicaoSelecionada.nome}` : ""}`}
+              value={campos.monitor_id}
+              onChange={(e) => mudar("monitor_id", e.target.value)}
+              disabled={!emEdicao || !monitores || monitores.length === 0}
+              dica={(() => {
+                if (!emEdicao) return "Salve a instituição e atribua monitores a ela em Usuários para escolher o responsável.";
+                if (!monitores) return "Carregando os monitores...";
+                if (monitores.length === 0)
+                  return "Nenhum monitor atribuído a esta instituição nesta edição. Atribua em Usuários.";
+                const escolhido = monitores.find((m) => String(m.usuario_id) === String(campos.monitor_id));
+                if (escolhido)
+                  return `${doisNomes(escolhido.nome)} · ${escolhido.whatsapp || "sem telefone cadastrado"}`;
+                return "Só aparecem os monitores atribuídos a esta instituição.";
+              })()}
+            >
+              <option value="">
+                {monitores && monitores.length === 0 ? "Nenhum monitor atribuído" : "Sem monitor responsável"}
+              </option>
+              {(monitores ?? []).map((m) => (
+                <option key={m.usuario_id} value={m.usuario_id}>
+                  {doisNomes(m.nome)}
+                </option>
+              ))}
+            </Selecao>
+
             <div className="barra-acoes barra-acoes--fim">
               <Button variant="secondary" type="submit" carregando={salvando} disabled={!campos.nome.trim()}>
                 {salvando ? "Salvando..." : "Salvar"}
@@ -413,8 +491,8 @@ export default function Instituicoes() {
                 <th>Crianças</th>
                 {!estreita && (
                   <>
-                    <th>Responsável</th>
-                    <th>Telefone</th>
+                    <th>Responsável Inst.</th>
+                    <th>Monitor Resp.</th>
                     <th>Situação</th>
                   </>
                 )}
@@ -437,7 +515,7 @@ export default function Instituicoes() {
                     {/* So informativo, e so no monitor: o endereco vem miudo e
                         apagado, para a lista continuar sendo lida pelo nome. No
                         celular a linha fica como estava. */}
-                    {!estreita && i.endereco && <div className="instituicao__endereco">{i.endereco}</div>}
+                    {!estreita && i.endereco && <div className="tabela__nota">{i.endereco}</div>}
                   </td>
                   {!estreita && (
                     <>
@@ -462,8 +540,15 @@ export default function Instituicoes() {
                   <td>{i.criancas}</td>
                   {!estreita && (
                     <>
-                      <td>{i.responsavel ?? "—"}</td>
-                      <td>{i.telefone ?? "—"}</td>
+                      <td>
+                        <PessoaNaCelula nome={i.responsavel} telefone={i.telefone} />
+                      </td>
+                      <td>
+                        <PessoaNaCelula
+                          nome={i.monitor_responsavel && doisNomes(i.monitor_responsavel)}
+                          telefone={i.monitor_responsavel_whatsapp}
+                        />
+                      </td>
                       <td>
                         <span className={`etiqueta ${i.ativo ? "etiqueta--ok" : "etiqueta--neutra"}`}>
                           {i.ativo ? "Ativa" : "Inativa"}

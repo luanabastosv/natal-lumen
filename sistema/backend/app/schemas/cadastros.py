@@ -88,6 +88,20 @@ class DiaDaInstituicaoOut(BaseModel):
     criancas_atualizadas: int
 
 
+class MonitorDaInstituicao(BaseModel):
+    """Um monitor atribuido a instituicao: as opcoes do monitor responsavel."""
+
+    usuario_id: int
+    nome: str
+    whatsapp: str | None
+    responsavel: bool
+
+
+class MonitorResponsavelIn(BaseModel):
+    # None tira o monitor responsavel da instituicao.
+    usuario_id: int | None = None
+
+
 class InstituicaoIn(BaseModel):
     cidade_id: int
     nome: str = Field(min_length=2, max_length=180)
@@ -127,6 +141,11 @@ class InstituicaoOut(BaseModel):
     # transporte combinado, e o numero e zero.
     onibus: int = 0
     criancas: int = 0
+    # O monitor responsavel nesta edicao, com o contato dele. So vem para quem
+    # gerencia os cadastros da edicao: e o telefone pessoal de um voluntario.
+    monitor_responsavel_id: int | None = None
+    monitor_responsavel: str | None = None
+    monitor_responsavel_whatsapp: str | None = None
     # Quantos codigos de criancas mudaram de prefixo junto com a sigla. So a
     # edicao preenche; a tela usa para avisar que a planilha mudou.
     codigos_atualizados: int = 0

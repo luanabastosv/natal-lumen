@@ -349,6 +349,47 @@ def main() -> None:
         r = cc.patch(f"/usuarios/{admin.id}", json={"nome": "tentando"})
         verifica("coordenacao NAO mexe em conta de admin", r.status_code == 403, str(r.status_code))
 
+        print("\nMonitor responsavel da instituicao")
+        base_a = f"/edicoes/{ed_for['id']}/instituicoes/{inst_a['id']}"
+        base_b = f"/edicoes/{ed_for['id']}/instituicoes/{inst_b['id']}"
+        r = cc.get(f"{base_a}/monitores")
+        opcoes = r.json() if r.status_code == 200 else []
+        verifica("as opcoes sao os monitores atribuidos a instituicao",
+                 [o["nome"].lower() for o in opcoes] == [f"{MARCA} Monitor".lower()], r.text[:140])
+        verifica("ninguem nasce responsavel", not any(o["responsavel"] for o in opcoes))
+
+        r = cc.get(f"{base_b}/monitores")
+        verifica("instituicao sem monitor nao tem opcao (comissario nao conta)",
+                 r.status_code == 200 and r.json() == [], r.text[:140])
+
+        if comissario:
+            r = cc.put(f"{base_b}/monitor-responsavel", json={"usuario_id": comissario["id"]})
+            verifica("recusa responsavel que nao e monitor da instituicao",
+                     r.status_code == 422, str(r.status_code))
+
+        if criado:
+            monitor_id = criado["usuario"]["id"]
+            r = cc.put(f"{base_b}/monitor-responsavel", json={"usuario_id": monitor_id})
+            verifica("recusa monitor de OUTRA instituicao", r.status_code == 422, str(r.status_code))
+
+            r = cc.put(f"{base_a}/monitor-responsavel", json={"usuario_id": monitor_id})
+            verifica("coordenacao escolhe o monitor responsavel",
+                     r.status_code == 200 and r.json()[0]["responsavel"] is True, r.text[:140])
+
+            r = cc.get("/instituicoes", params={"edicao_id": ed_for["id"]})
+            linha = next((i for i in r.json() if i["id"] == inst_a["id"]), {})
+            verifica("a lista traz o monitor responsavel",
+                     (linha.get("monitor_responsavel") or "").lower() == f"{MARCA} Monitor".lower(), str(linha)[:160])
+
+            r = cc.put(f"/edicoes/{ed_cau['id']}/instituicoes/{inst_a['id']}/monitor-responsavel",
+                       json={"usuario_id": monitor_id})
+            verifica("coordenacao NAO mexe na edicao de outra cidade",
+                     r.status_code in (403, 404), str(r.status_code))
+
+            r = cc.put(f"{base_a}/monitor-responsavel", json={"usuario_id": None})
+            verifica("tira o monitor responsavel",
+                     r.status_code == 200 and not r.json()[0]["responsavel"], r.text[:140])
+
         print("\nLink de acesso e bloqueio")
         if comissario:
             r = cc.post(f"/usuarios/{comissario['id']}/link-de-acesso")
