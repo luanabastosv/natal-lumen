@@ -9,6 +9,8 @@ import EmptyState from "../components/feedback/EmptyState.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import Modal from "../components/feedback/Modal.jsx";
 import FichaSimples from "../components/dados/FichaSimples.jsx";
+import ImprimirLista from "../components/dados/ImprimirLista.jsx";
+import { Imprimir } from "../components/core/icones.jsx";
 import {
   apagarInstituicao,
   criarInstituicao,
@@ -53,7 +55,7 @@ function PessoaNaCelula({ nome, telefone }) {
   if (!nome) return "—";
   return (
     <>
-      {nome}
+      <span className="tabela__pessoa">{nome}</span>
       {telefone && <div className="tabela__nota">{telefone}</div>}
     </>
   );
@@ -81,6 +83,7 @@ export default function Instituicoes() {
   // procura nela — e o resto vai para uma janela, a um toque.
   const estreita = useTelaEstreita();
   const [detalhe, definirDetalhe] = useState(null);
+  const [imprimindo, definirImprimindo] = useState(false);
 
   const [formularioAberto, definirFormularioAberto] = useState(false);
   const [emEdicao, definirEmEdicao] = useState(null);
@@ -303,7 +306,18 @@ export default function Instituicoes() {
           </p>
         </div>
 
+        {/* Imprimir no alto, so o icone: o mesmo lugar e o mesmo botao das
+            outras telas que imprimem. */}
         <div className="pagina__acoes">
+          <Button
+            size="sm"
+            variant="ghost"
+            soIcone
+            titulo="Imprimir lista"
+            iconLeft={<Imprimir t={15} />}
+            onClick={() => definirImprimindo(true)}
+            disabled={instituicoes.length === 0}
+          />
           <Button onClick={abrirNova} disabled={cidades.length === 0}>
             Nova instituição
           </Button>
@@ -616,6 +630,71 @@ export default function Instituicoes() {
                 </span>
               ),
             },
+          ]}
+        />
+      )}
+
+      {imprimindo && (
+        <ImprimirLista
+          titulo="Instituições"
+          subtitulo={edicaoSelecionada?.nome ?? "Instituições"}
+          aoFechar={() => definirImprimindo(false)}
+          // A tela ja tem a lista inteira: nao ha paginacao aqui.
+          buscarTudo={async () => instituicoes}
+          colunas={[
+            { id: "nome", rotulo: "Instituição", valor: (i) => i.nome },
+            { id: "sigla", rotulo: "Sigla", valor: (i) => i.sigla ?? "" },
+            { id: "endereco", rotulo: "Endereço", valor: (i) => i.endereco ?? "" },
+            {
+              id: "dia",
+              rotulo: "Dia do evento",
+              valor: (i) => (i.dia_evento ? rotuloDia(i.dia_evento, i.dia_evento_descricao) : ""),
+            },
+            { id: "onibus", rotulo: "Qtde. ônibus", valor: (i) => i.onibus || "" },
+            { id: "criancas", rotulo: "Crianças", valor: (i) => i.criancas },
+            { id: "responsavel", rotulo: "Responsável Inst.", valor: (i) => i.responsavel ?? "" },
+            { id: "telefone", rotulo: "Telefone Inst.", valor: (i) => i.telefone ?? "" },
+            {
+              id: "monitor",
+              rotulo: "Monitor Resp.",
+              valor: (i) => (i.monitor_responsavel ? doisNomes(i.monitor_responsavel) : ""),
+            },
+            {
+              id: "telefone_monitor",
+              rotulo: "Telefone Monitor",
+              valor: (i) => i.monitor_responsavel_whatsapp ?? "",
+            },
+            { id: "situacao", rotulo: "Situação", valor: (i) => (i.ativo ? "Ativa" : "Inativa") },
+          ]}
+          /* Deitada: com os dois contatos sao muitas colunas de texto. */
+          sugestao={{
+            colunas: [
+              "nome",
+              "sigla",
+              "endereco",
+              "dia",
+              "onibus",
+              "criancas",
+              "responsavel",
+              "telefone",
+              "monitor",
+              "telefone_monitor",
+            ],
+            orientacao: "paisagem",
+            ordenarPor: "nome",
+          }}
+          agrupamentos={[
+            {
+              id: "dia",
+              rotulo: "Dia do evento",
+              de: (i) => (i.dia_evento ? rotuloDia(i.dia_evento, i.dia_evento_descricao) : null),
+            },
+            { id: "situacao", rotulo: "Situação", de: (i) => (i.ativo ? "Ativas" : "Inativas") },
+          ]}
+          ordenacoes={[
+            { id: "nome", rotulo: "Nome", de: (i) => i.nome },
+            { id: "sigla", rotulo: "Sigla", de: (i) => i.sigla },
+            { id: "dia", rotulo: "Dia do evento", de: (i) => i.dia_evento },
           ]}
         />
       )}

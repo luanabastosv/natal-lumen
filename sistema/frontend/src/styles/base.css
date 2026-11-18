@@ -1005,6 +1005,21 @@ textarea.campo__controle {
   vertical-align: middle;
 }
 
+/* O nome com o endereco embaixo tomava a largura que faltava as colunas de
+   contato. Mais estreita, o endereco quebra em duas linhas, que e o que se
+   espera de um texto so informativo. */
+/* So no monitor: no celular a coluna fica como estava. */
+.tabela--instituicoes.tabela--larga td:first-child {
+  width: 200px;
+  max-width: 200px;
+}
+
+/* O nome do responsavel e do monitor, um ponto abaixo do resto da linha: no
+   tamanho cheio pesava mais que o nome da instituicao, que e o que se le. */
+.tabela__pessoa {
+  font-size: 13px;
+}
+
 /* ---------- Lista de instituicoes marcaveis ---------- */
 .marcaveis {
   display: flex;
