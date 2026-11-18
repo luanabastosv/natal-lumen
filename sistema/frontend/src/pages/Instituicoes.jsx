@@ -394,7 +394,7 @@ export default function Instituicoes() {
           {/* Sem `tabela--larga` no celular: e a largura minima de 680px dela
               que fazia a lista rolar de lado. Sem colunas demais, a tabela de
               layout automatico cabe na tela e nao rola mais. */}
-          <table className={`tabela ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
+          <table className={`tabela tabela--instituicoes ${estreita ? "tabela--compacta" : "tabela--larga"}`}>
             {!estreita && (
               <caption className="tabela-dica">
                 Arraste a lista para o lado para ver todas as colunas.
@@ -432,7 +432,13 @@ export default function Instituicoes() {
                      que as acoes continuam acessiveis. */
                   onClick={estreita ? () => definirDetalhe(i) : undefined}
                 >
-                  <td>{i.nome}</td>
+                  <td>
+                    {i.nome}
+                    {/* So informativo, e so no monitor: o endereco vem miudo e
+                        apagado, para a lista continuar sendo lida pelo nome. No
+                        celular a linha fica como estava. */}
+                    {!estreita && i.endereco && <div className="instituicao__endereco">{i.endereco}</div>}
+                  </td>
                   {!estreita && (
                     <>
                       <td>
