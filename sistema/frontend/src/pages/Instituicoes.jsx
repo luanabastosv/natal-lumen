@@ -318,7 +318,7 @@ export default function Instituicoes() {
             onClick={() => definirImprimindo(true)}
             disabled={instituicoes.length === 0}
           />
-          <Button onClick={abrirNova} disabled={cidades.length === 0}>
+          <Button size="sm" onClick={abrirNova} disabled={cidades.length === 0}>
             Nova instituição
           </Button>
         </div>
@@ -529,7 +529,11 @@ export default function Instituicoes() {
                     {/* So informativo, e so no monitor: o endereco vem miudo e
                         apagado, para a lista continuar sendo lida pelo nome. No
                         celular a linha fica como estava. */}
-                    {!estreita && i.endereco && <div className="tabela__nota">{i.endereco}</div>}
+                    {!estreita && i.endereco && (
+                      <div className="tabela__nota tabela__nota--uma-linha" title={i.endereco}>
+                        {i.endereco}
+                      </div>
+                    )}
                   </td>
                   {!estreita && (
                     <>

@@ -1006,12 +1006,19 @@ textarea.campo__controle {
 }
 
 /* O nome com o endereco embaixo tomava a largura que faltava as colunas de
-   contato. Mais estreita, o endereco quebra em duas linhas, que e o que se
-   espera de um texto so informativo. */
-/* So no monitor: no celular a coluna fica como estava. */
+   contato. A coluna tem um teto, e o endereco cabe numa linha so: o que passa
+   vira reticencias, e o endereco inteiro aparece ao parar o mouse em cima.
+   So no monitor: no celular a coluna fica como estava. */
 .tabela--instituicoes.tabela--larga td:first-child {
-  width: 200px;
-  max-width: 200px;
+  width: 280px;
+  max-width: 280px;
+}
+
+.tabela__nota--uma-linha {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* O nome do responsavel e do monitor, um ponto abaixo do resto da linha: no
