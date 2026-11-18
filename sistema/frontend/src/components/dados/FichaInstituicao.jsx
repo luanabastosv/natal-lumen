@@ -76,7 +76,7 @@ export default function FichaInstituicao({ instituicaoId, edicaoId, aoFechar }) 
             </dd>
             <dt>Dia do evento</dt>
             <dd>{f.dia_evento ? rotuloDia(f.dia_evento, f.dia_evento_descricao) : "sem dia"}</dd>
-            <dt>Ônibus</dt>
+            <dt>Qtde. ônibus</dt>
             <dd>{f.onibus}</dd>
             <dt>Núcleo</dt>
             <dd>{f.nucleo ? `Núcleo ${f.nucleo}` : "ainda não definido"}</dd>

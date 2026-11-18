@@ -338,7 +338,7 @@ export default function Instituicoes() {
             {/* Anda junto com o dia: onibus e o transporte PARA aquele dia, e
                 sem dia marcado nao ha o que combinar. */}
             <Entrada
-              rotulo="Ônibus"
+              rotulo="Qtde. ônibus"
               tipo="number"
               min={0}
               max={99}
@@ -407,7 +407,7 @@ export default function Instituicoes() {
                   <>
                     <th>Sigla</th>
                     <th>Dia do evento</th>
-                    <th>Ônibus</th>
+                    <th>Qtde. ônibus</th>
                   </>
                 )}
                 <th>Crianças</th>
@@ -519,7 +519,7 @@ export default function Instituicoes() {
                 <span className="dia-vazio">sem dia</span>
               ),
             },
-            { rotulo: "Ônibus", valor: detalhe.onibus || null },
+            { rotulo: "Qtde. ônibus", valor: detalhe.onibus || null },
             { rotulo: "Crianças", valor: detalhe.criancas },
             { rotulo: "Responsável", valor: detalhe.responsavel },
             { rotulo: "Telefone", valor: detalhe.telefone },
