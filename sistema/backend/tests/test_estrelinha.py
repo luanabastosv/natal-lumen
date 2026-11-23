@@ -6,6 +6,7 @@ ESTRELINHA_DATABASE_URL e ESTRELINHA_TOKEN no .env.
 Rodar com:  python -m tests.test_estrelinha
 """
 
+import base64
 import json
 from datetime import date
 from io import BytesIO
@@ -142,7 +143,12 @@ def main() -> None:
                 str(dados))
         confere("uma arte e uma previa", len(dados["artes"]) == 1 and len(res["content"]) == 2
                 and res["content"][1]["type"] == "image")
-        caminho = dados["artes"][0]["link"].split(config.root_path, 1)[-1]
+        prev = Image.open(BytesIO(base64.b64decode(res["content"][1]["data"])))
+        confere("a imagem devolvida e a arte inteira", prev.size == (1080, 1350), str(prev.size))
+        link = dados["artes"][0]["link"]
+        confere("link completo, com o endereco", link.startswith("http://testserver" + config.root_path)
+                or link.startswith(config.url_publica or "-"), link)
+        caminho = link.split(config.root_path, 1)[-1]
         png = cliente.get(caminho)
         tam = Image.open(BytesIO(png.content)).size if png.status_code == 200 else None
         confere("link publico abre o PNG do feed sem token", png.status_code == 200 and tam == (1080, 1350),

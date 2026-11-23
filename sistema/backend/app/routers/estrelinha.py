@@ -30,6 +30,7 @@ para o Instagram. Ver a nota em app/servicos/sorrisometro.py.
 import base64
 import hmac
 import json
+from contextvars import ContextVar
 from functools import lru_cache
 from io import BytesIO
 from typing import Any
@@ -80,8 +81,11 @@ SORRISOMETRO (arte de progresso para o Instagram):
   apadrinhamentos de cesta e de festa ao vivo (criancas ativas, sem desistentes)
   sobre um total fixo de 1500, e desenha feed (1080x1350) e stories (1080x1920),
   em fundo azul e amarelo. Sem pedido especifico, gere as quatro.
-- Responda com os numeros (cesta e festa) e os links das artes, um por linha,
-  dizendo formato e fundo de cada um. Os links sao publicos e valem 60 dias.
+- A ferramenta devolve cada arte inteira como imagem (1080 px), na ordem da
+  lista `artes`. Se voce consegue enviar arquivos para a pessoa, envie as
+  imagens como arquivo. Sempre responda tambem com os numeros (cesta e festa) e
+  os links dos PNGs, um por linha, dizendo formato e fundo de cada um. Os links
+  sao publicos e valem 60 dias.
 - So mude o total se a pessoa pedir outro numero.
 """
 
@@ -245,9 +249,15 @@ from ed
 """
 
 
+# Endereco de quem chamou (https://acesso.natallumen.com), para o link sair
+# completo mesmo sem URL_PUBLICA no .env. Preenchido em mcp(), a cada pedido.
+_endereco: ContextVar[str] = ContextVar("endereco", default="")
+
+
 def _url_publica(nome: str) -> str:
     caminho = f"{config.root_path}/estrelinha/sorrisometro/{nome}"
-    return f"{config.url_publica.rstrip('/')}{caminho}" if config.url_publica else caminho
+    base = config.url_publica.rstrip("/") or _endereco.get()
+    return f"{base}{caminho}"
 
 
 def _gerar_sorrisometro(argumentos: dict[str, Any]) -> dict[str, Any]:
@@ -278,8 +288,10 @@ def _gerar_sorrisometro(argumentos: dict[str, Any]) -> dict[str, Any]:
             img = sorrisometro.desenhar(int(n["cesta"]), int(n["festa"]), total, f, b)
             nome = sorrisometro.salvar(img, f, b)
             artes.append({"formato": f, "fundo": b, "link": _url_publica(nome)})
+            # A arte inteira (1080 px), em JPEG para a resposta nao pesar: o
+            # Claude consegue entregar como arquivo, e o PNG fica no link.
             buf = BytesIO()
-            img.convert("RGB").resize((img.width // 3, img.height // 3)).save(buf, "JPEG", quality=80)
+            img.convert("RGB").save(buf, "JPEG", quality=92)
             previas.append({"type": "image", "mimeType": "image/jpeg",
                             "data": base64.b64encode(buf.getvalue()).decode()})
     dados = {
@@ -359,6 +371,9 @@ def _confere_token(request: Request) -> None:
 @router.post("/mcp")
 async def mcp(request: Request):
     _confere_token(request)
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    esquema = "http" if host.startswith(("localhost", "127.0.0.1", "testserver")) else "https"
+    _endereco.set(f"{esquema}://{host.split(',')[0].strip()}" if host else "")
     try:
         corpo = await request.json()
     except ValueError:
