@@ -6314,6 +6314,19 @@ button.checkin-lista__botao:not(:disabled):active {
   margin-bottom: var(--space-5);
 }
 
+/* No celular o rotulo da coluna quebra linha em vez de empurrar a tabela
+   para fora do cartao (o `th` nasce `nowrap`). O JSX ja encurta os rotulos
+   nessa largura; isto e a rede para uma tela ainda mais estreita. */
+@media (max-width: 720px) {
+  .cartao--cuidados .tabela th {
+    white-space: normal;
+  }
+
+  .cartao--cuidados .cartao__numero {
+    white-space: nowrap;
+  }
+}
+
 .cartao__numero {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
