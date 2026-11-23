@@ -246,7 +246,8 @@ FORMATOS = tuple(LAYOUTS)
 FUNDOS = ("azul", "amarelo")
 
 
-def desenhar(cesta: int, festa: int, total: int, formato: str, fundo: str) -> Image.Image:
+def desenhar(cesta: int, festa: int, total: int, formato: str, fundo: str, escala: int = 1) -> Image.Image:
+    """A arte pronta. escala=1 sai em 1080 de largura; escala=2, em 2160 (alta)."""
     if formato not in LAYOUTS or fundo not in FUNDOS:
         raise ValueError(f"Formato ({', '.join(FORMATOS)}) ou fundo ({', '.join(FUNDOS)}) invalido.")
     if total <= 0:
@@ -279,7 +280,10 @@ def desenhar(cesta: int, festa: int, total: int, formato: str, fundo: str) -> Im
     colar(G, k, ox + G_X0 * k, oy + G_Y0 * k)
 
     colar(Image.open(f"{ASSETS}/estrela.png").convert("RGBA"), e["k"], e["x"], e["y"])
-    return canvas.convert("RGB").resize(L["tam"], Image.LANCZOS)
+    final = canvas.convert("RGB")
+    if escala == R:
+        return final
+    return final.resize((L["tam"][0] * escala, L["tam"][1] * escala), Image.LANCZOS)
 
 
 # ---------- arquivos publicados ----------
@@ -309,7 +313,7 @@ def limpar_antigos(dias: int = DIAS_GUARDADOS) -> None:
 
 
 def salvar(img: Image.Image, formato: str, fundo: str) -> str:
-    """Grava a arte e devolve o nome do arquivo."""
+    """Grava a arte (PNG, sem perda) e devolve o nome do arquivo."""
     hoje = datetime.now(ZoneInfo("America/Fortaleza")).strftime("%Y-%m-%d")
     nome = f"{hoje}-{formato}-{fundo}-{secrets.token_urlsafe(12)}.png"
     img.save(pasta() / nome, optimize=True)

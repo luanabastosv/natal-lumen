@@ -8,7 +8,7 @@ Rodar com:  python -m tests.test_estrelinha
 
 import base64
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from io import BytesIO
 
 from fastapi.testclient import TestClient
@@ -18,7 +18,7 @@ from sqlalchemy import delete, select
 from app.config import config
 from app.database import SessionLocal
 from app.main import app
-from app.models import Apadrinhamento, Cidade, Crianca, DiaEvento, Edicao, Instituicao, Padrinho
+from app.models import Apadrinhamento, Cidade, Crianca, DiaEvento, Edicao, Instituicao, Padrinho, Pagamento
 
 MARCA = "ZZ_ESTRELA"
 URL = "/estrelinha/mcp"
@@ -133,13 +133,29 @@ def main() -> None:
         confere("aceita ::date, %, fuso e ; no fim", not erro and linhas == [{"n": 1}], str(linhas))
 
         print("Sorrisometro")
-        db.add(Apadrinhamento(crianca_id=criancas[1].id, padrinho_id=padrinho.id, tipo="festa", valor=60))
+        # Mesma regra do painel: so conta o que foi pago, inclusive de crianca
+        # que desistiu depois. cesta = C0 (paga) + C2 (paga, desistiu) = 2;
+        # festa = C1 (paga) = 1; a cesta prometida de C1 nao entra.
+        pag = Pagamento(padrinho_id=padrinho.id, valor=300, data=date(2026, 11, 20))
+        db.add(pag)
+        db.flush()
+        for a in db.scalars(select(Apadrinhamento).where(Apadrinhamento.crianca_id == criancas[0].id)):
+            a.pagamento_id = pag.id
+        db.add_all([
+            Apadrinhamento(crianca_id=criancas[1].id, padrinho_id=padrinho.id, tipo="festa", valor=60,
+                           pagamento_id=pag.id),
+            Apadrinhamento(crianca_id=criancas[1].id, padrinho_id=padrinho.id, tipo="cesta", valor=120),
+            Apadrinhamento(crianca_id=criancas[2].id, padrinho_id=padrinho.id, tipo="cesta", valor=120,
+                           pagamento_id=pag.id),
+        ])
+        criancas[2].desistiu_em = datetime(2026, 11, 21, tzinfo=timezone.utc)
         db.commit()
         r = rpc(cliente, "tools/call", {"name": "gerar_sorrisometro",
                                         "arguments": {"edicao_id": ed, "formato": "feed", "fundo": "azul"}})
         res = r.json()["result"]
         dados = json.loads(res["content"][0]["text"])
-        confere("conta 1 de cesta e 1 de festa", not res["isError"] and (dados["cesta"], dados["festa"]) == (1, 1),
+        confere("conta como o painel: 2 de cesta e 1 de festa",
+                not res["isError"] and (dados["cesta"], dados["festa"]) == (2, 1),
                 str(dados))
         confere("uma arte e uma previa", len(dados["artes"]) == 1 and len(res["content"]) == 2
                 and res["content"][1]["type"] == "image")
@@ -151,16 +167,18 @@ def main() -> None:
         caminho = link.split(config.root_path, 1)[-1]
         png = cliente.get(caminho)
         tam = Image.open(BytesIO(png.content)).size if png.status_code == 200 else None
-        confere("link publico abre o PNG do feed sem token", png.status_code == 200 and tam == (1080, 1350),
+        confere("link publico abre o PNG do feed em alta, sem token", png.status_code == 200 and tam == (2160, 2700),
                 f"{png.status_code} {tam}")
         erro, dados = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": ed})
-        confere("sem formato nem fundo gera as quatro", not erro and len(dados["artes"]) == 4)
+        confere("sem formato nem fundo pede para perguntar", erro and "Pergunte" in dados["erro"])
+        erro, dados = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": ed, "formato": "todos", "fundo": "todos"})
+        confere("todos e todos geram as quatro", not erro and len(dados["artes"]) == 4)
         stories = [a for a in dados["artes"] if a["formato"] == "stories"][0]["link"]
         png = cliente.get(stories.split(config.root_path, 1)[-1])
-        confere("stories sai em 1080x1920", Image.open(BytesIO(png.content)).size == (1080, 1920))
-        erro, _ = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": ed, "formato": "quadrado"})
+        confere("stories sai em 2160x3840 no link", Image.open(BytesIO(png.content)).size == (2160, 3840))
+        erro, _ = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": ed, "formato": "quadrado", "fundo": "azul"})
         confere("formato invalido e recusado", erro)
-        erro, _ = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": "1 or 1=1"})
+        erro, _ = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": "1 or 1=1", "formato": "feed", "fundo": "azul"})
         confere("edicao_id que nao e numero e recusado", erro)
         for nome in ("..%2F..%2F.env", "x.png", "2026-11-23-feed-azul-AAAAAAAAAAAAAAAA.png"):
             confere(f"rota publica nao serve {nome}",

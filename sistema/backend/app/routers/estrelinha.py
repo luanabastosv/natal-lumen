@@ -37,6 +37,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse, Response
+from PIL import Image
 from sqlalchemy import create_engine
 from starlette.concurrency import run_in_threadpool
 
@@ -77,15 +78,20 @@ Como consultar:
 - Senhas e tokens de acesso nao estao nas views, e isso e de proposito.
 
 SORRISOMETRO (arte de progresso para o Instagram):
-- Quando pedirem o sorrisometro, use `gerar_sorrisometro`. Ela mesma conta os
-  apadrinhamentos de cesta e de festa ao vivo (criancas ativas, sem desistentes)
-  sobre um total fixo de 1500, e desenha feed (1080x1350) e stories (1080x1920),
-  em fundo azul e amarelo. Sem pedido especifico, gere as quatro.
+- Quando pedirem o sorrisometro, ANTES de gerar pergunte, numa mensagem so:
+  o formato (feed, stories ou os dois) e o fundo (azul, amarelo ou os dois).
+  Se tiver botoes de resposta rapida, use. So pule a pergunta se a pessoa ja
+  disse as duas coisas no pedido.
+- Depois use `gerar_sorrisometro`. Ela mesma conta os apadrinhamentos de cesta
+  e de festa ao vivo, pela mesma regra do painel do sistema (os pagos, inclusive
+  de criancas que desistiram depois), sobre um total fixo de 1500, e desenha
+  feed (1080x1350) e/ou stories (1080x1920).
 - A ferramenta devolve cada arte inteira como imagem (1080 px), na ordem da
   lista `artes`. Se voce consegue enviar arquivos para a pessoa, envie as
   imagens como arquivo. Sempre responda tambem com os numeros (cesta e festa) e
-  os links dos PNGs, um por linha, dizendo formato e fundo de cada um. Os links
-  sao publicos e valem 60 dias.
+  os links, um por linha, dizendo formato e fundo de cada um. O link e o PNG em
+  alta resolucao (2160 px, sem perda), o melhor para postar; e publico e vale
+  60 dias.
 - So mude o total se a pessoa pedir outro numero.
 """
 
@@ -142,18 +148,22 @@ FERRAMENTA_SORRISOMETRO = {
     "name": "gerar_sorrisometro",
     "description": (
         "Gera a arte do sorrisometro (progresso dos apadrinhamentos de cesta e de "
-        "festa) com os numeros ao vivo, em feed e/ou stories e fundo azul e/ou "
-        "amarelo. Devolve as contagens, os links publicos dos PNGs e uma previa. "
-        "Sem edicao_id, usa a edicao de Fortaleza do ano corrente."
+        "festa) com os numeros ao vivo. Pergunte antes a pessoa o formato (feed, "
+        "stories ou os dois = todos) e o fundo (azul, amarelo ou os dois = todos). "
+        "Devolve as contagens, cada arte como imagem e o link do PNG em alta "
+        "resolucao. Sem edicao_id, usa a edicao de Fortaleza do ano corrente."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
-            "formato": {"type": "string", "enum": ["feed", "stories", "todos"], "default": "todos"},
-            "fundo": {"type": "string", "enum": ["azul", "amarelo", "todos"], "default": "todos"},
+            "formato": {"type": "string", "enum": ["feed", "stories", "todos"],
+                        "description": "Escolhido pela pessoa; todos = feed e stories"},
+            "fundo": {"type": "string", "enum": ["azul", "amarelo", "todos"],
+                      "description": "Escolhido pela pessoa; todos = azul e amarelo"},
             "total": {"type": "integer", "description": "Meta do topo da arte (padrao 1500)", "default": 1500},
             "edicao_id": {"type": "integer", "description": "Edicao a contar (opcional)"},
         },
+        "required": ["formato", "fundo"],
     },
     "annotations": {"readOnlyHint": True},
 }
@@ -227,24 +237,22 @@ def _consultar(sql: str) -> list[dict[str, Any]]:
     return _rodar(sql)
 
 
+# Mesma regra do painel (routers/painel.py), para o sorrisometro bater com o
+# que a coordenacao ve no sistema: apadrinhamentos PAGOS (com pagamento_id) das
+# criancas da edicao, inclusive das que desistiram depois de ter padrinho.
 CONTAGEM_SORRISOMETRO = """
 with ed as (
   select e.id, e.nome, e.ano from edicoes e
   where {filtro}
   order by (e.nome ilike '%fortaleza%') desc, e.ativa desc, e.id desc
   limit 1
-),
-c as (
-  select c.id,
-    exists(select 1 from apadrinhamentos a where a.crianca_id = c.id and a.tipo = 'cesta') as tem_cesta,
-    exists(select 1 from apadrinhamentos a where a.crianca_id = c.id and a.tipo = 'festa') as tem_festa
-  from criancas c join ed on ed.id = c.edicao_id
-  where c.desistiu_em is null
 )
 select ed.id as edicao_id, ed.nome as edicao,
-  (select count(*) from c) as criancas,
-  (select count(*) from c where tem_cesta) as cesta,
-  (select count(*) from c where tem_festa) as festa
+  (select count(*) from criancas c where c.edicao_id = ed.id and c.desistiu_em is null) as criancas,
+  (select count(*) from apadrinhamentos a join criancas c on c.id = a.crianca_id
+    where c.edicao_id = ed.id and a.tipo = 'cesta' and a.pagamento_id is not null) as cesta,
+  (select count(*) from apadrinhamentos a join criancas c on c.id = a.crianca_id
+    where c.edicao_id = ed.id and a.tipo = 'festa' and a.pagamento_id is not null) as festa
 from ed
 """
 
@@ -261,8 +269,11 @@ def _url_publica(nome: str) -> str:
 
 
 def _gerar_sorrisometro(argumentos: dict[str, Any]) -> dict[str, Any]:
-    formato = str(argumentos.get("formato") or "todos")
-    fundo = str(argumentos.get("fundo") or "todos")
+    formato = str(argumentos.get("formato") or "")
+    fundo = str(argumentos.get("fundo") or "")
+    if not formato or not fundo:
+        raise ValueError("Pergunte a pessoa o formato (feed, stories ou todos) e o fundo "
+                         "(azul, amarelo ou todos) antes de gerar.")
     total = int(argumentos.get("total") or 1500)
     formatos = sorrisometro.FORMATOS if formato == "todos" else (formato,)
     fundos = sorrisometro.FUNDOS if fundo == "todos" else (fundo,)
@@ -285,13 +296,14 @@ def _gerar_sorrisometro(argumentos: dict[str, Any]) -> dict[str, Any]:
     artes, previas = [], []
     for f in formatos:
         for b in fundos:
-            img = sorrisometro.desenhar(int(n["cesta"]), int(n["festa"]), total, f, b)
-            nome = sorrisometro.salvar(img, f, b)
+            alta = sorrisometro.desenhar(int(n["cesta"]), int(n["festa"]), total, f, b, escala=2)
+            nome = sorrisometro.salvar(alta, f, b)
+            img = alta.resize((alta.width // 2, alta.height // 2), Image.LANCZOS)
             artes.append({"formato": f, "fundo": b, "link": _url_publica(nome)})
-            # A arte inteira (1080 px), em JPEG para a resposta nao pesar: o
-            # Claude consegue entregar como arquivo, e o PNG fica no link.
+            # Na resposta vai a arte inteira em 1080 px, em JPEG quase sem perda
+            # (a resposta nao pode pesar varios MB); o PNG em 2160 fica no link.
             buf = BytesIO()
-            img.convert("RGB").save(buf, "JPEG", quality=92)
+            img.save(buf, "JPEG", quality=95, subsampling=0)  # 4:4:4: texto sem borrão de cor
             previas.append({"type": "image", "mimeType": "image/jpeg",
                             "data": base64.b64encode(buf.getvalue()).decode()})
     dados = {
