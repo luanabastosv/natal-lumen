@@ -49,14 +49,14 @@ LAYOUTS = {
     # título: k=540/2290 para o "1500" (centro em x=2290 na arte) ficar alinhado com o termômetro
     "feed": dict(tam=(1080, 1350),
                  titulo=dict(k=0.2358, x=0, y=10),
-                 estrela=dict(k=0.21, x=745, y=1010),
+                 estrela=dict(k=0.21, y=1010),
                  barra=dict(k=0.2, topo=395, cx=540),
                  limite=1255, texto=1.25),
     "stories": dict(tam=(1080, 1920),
                     titulo=dict(k=0.2358, x=0, y=150),
-                    estrela=dict(k=0.30, x=640, y=1500),
-                    barra=dict(k=0.2412, topo=560, cx=540),
-                    limite=1600, texto=1.25),
+                    estrela=dict(k=0.25, y=1545),
+                    barra=dict(k=0.2412, topo=540, cx=540),
+                    limite=1580, texto=1.1),
 }
 
 
@@ -279,7 +279,17 @@ def desenhar(cesta: int, festa: int, total: int, formato: str, fundo: str, escal
               min(limite_ref, topo_estrela_ref - 60), meta, L.get("texto", 1.0))
     colar(G, k, ox + G_X0 * k, oy + G_Y0 * k)
 
-    colar(Image.open(f"{ASSETS}/estrela.png").convert("RGBA"), e["k"], e["x"], e["y"])
+    # A Estrela fica a mesma distancia da borda direita que o texto da festa
+    # fica da esquerda, para a arte nao pender para um lado. A margem sai do
+    # rotulo da festa (o elemento mais a esquerda do termometro).
+    rot = Image.open(f"{ASSETS}/rotulo_festa.png")
+    tz = L.get("texto", 1.0)
+    cols = np.where(np.array(rot).max(0) > 40)[0]
+    esq_rot_ref = 1612 - (rot.width - cols.min()) / S * tz      # borda esquerda do texto, na arte
+    margem = ox + esq_rot_ref * k
+    est = Image.open(f"{ASSETS}/estrela.png").convert("RGBA")
+    larg_est = est.width / S * e["k"]
+    colar(est, e["k"], L["tam"][0] - margem - larg_est, e["y"])
     final = canvas.convert("RGB")
     if escala == R:
         return final
