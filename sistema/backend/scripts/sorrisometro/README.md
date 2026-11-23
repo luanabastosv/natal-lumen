@@ -9,7 +9,9 @@ com o PNG do Canva salvo como `ref.png` e com `scipy` instalado:
    `assets/base.png`, os rótulos e as máscaras das faixas (`assets/faixa_*.png`
    saem de um flood fill dentro de cada faixa; veja o comentário no script).
 2. `extrair_camadas.py`: separa título, termômetro e Estrela do fundo azul e
-   grava tudo em `assets2/`, na metade do tamanho.
+   grava tudo em `assets2/`, na resolução cheia.
+3. `apertar_rotulos.py`: aproxima as letras dos rótulos, para o texto caber
+   maior ao lado do termômetro.
 
 Depois, copie o conteúdo de `assets2/` para `app/recursos/sorrisometro/` e
 rode `python -m tests.test_estrelinha`.

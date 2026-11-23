@@ -29,6 +29,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from app.config import config
 
+
 AQUI = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(AQUI, "..", "recursos", "sorrisometro")
 
@@ -49,14 +50,14 @@ LAYOUTS = {
     # título: k=540/2290 para o "1500" (centro em x=2290 na arte) ficar alinhado com o termômetro
     "feed": dict(tam=(1080, 1350),
                  titulo=dict(k=0.2358, x=0, y=10),
-                 estrela=dict(k=0.21, y=1010),
-                 barra=dict(k=0.2, topo=395, cx=540),
-                 limite=1255, texto=1.25),
+                 estrela=dict(k=0.25, x=785, y=1065),
+                 barra=dict(k=0.19, topo=370, cx=540),
+                 limite=1255, texto=1.6, numero=1.9),
     "stories": dict(tam=(1080, 1920),
                     titulo=dict(k=0.2358, x=0, y=150),
                     estrela=dict(k=0.25, y=1545),
                     barra=dict(k=0.2412, topo=540, cx=540),
-                    limite=1580, texto=1.1),
+                    limite=1580, texto=1.42, numero=1.75),
 }
 
 
@@ -128,7 +129,7 @@ def preencher_listras(rgb, m, y_top, S):
 
 # ---------- grupo: barra + marcadores + números (espaço S) ----------
 
-def grupo(cesta, festa, total, cor_txt, limite_ref, limite_cesta_ref, meta, tz=1.0):
+def grupo(cesta, festa, total, cor_txt, limite_ref, limite_cesta_ref, meta, tz=1.0, tzn=1.0):
     S = meta["S"]
     sx = lambda v: (v - G_X0) * S
     sy = lambda v: (v - G_Y0) * S
@@ -155,7 +156,7 @@ def grupo(cesta, festa, total, cor_txt, limite_ref, limite_cesta_ref, meta, tz=1
     d = ImageDraw.Draw(G)
     t = ImageFont.truetype(f"{ASSETS}/GochiHand-Regular.ttf", 200)
     bb = d.textbbox((0, 0), "0123456789", font=t)
-    fonte = ImageFont.truetype(f"{ASSETS}/GochiHand-Regular.ttf", round(200 * NUM_ALTURA * tz * S / (bb[3] - bb[1])))
+    fonte = ImageFont.truetype(f"{ASSETS}/GochiHand-Regular.ttf", round(200 * NUM_ALTURA * tzn * S / (bb[3] - bb[1])))
     alt = d.textbbox((0, 0), "0123456789", font=fonte)
     fmt = lambda n: f"{n:,}".replace(",", ".")
 
@@ -179,7 +180,9 @@ def grupo(cesta, festa, total, cor_txt, limite_ref, limite_cesta_ref, meta, tz=1
         h = alt[3] - alt[1]
         topo = sy(y_centro) - h / 2
         px = sx(x) - tb[0] if alinhar == "esq" else sx(x) - (tb[2] - tb[0]) - tb[0]
-        d.text((px, topo - alt[1]), txt, font=fonte, fill=cor_txt)
+        # Gochi Hand so tem um peso: o negrito sai de um contorno da mesma cor
+        d.text((px, topo - alt[1]), txt, font=fonte, fill=cor_txt,
+               stroke_width=max(1, round(fonte.size * 0.022)), stroke_fill=cor_txt)
         return G_Y0 + topo / S, G_Y0 + (topo + h) / S   # em coords da arte
 
     def rotulo(nome, x, y_ref, dir_=None):
@@ -192,26 +195,25 @@ def grupo(cesta, festa, total, cor_txt, limite_ref, limite_cesta_ref, meta, tz=1
         lay.putalpha(a)
         G.alpha_composite(lay, (round(sx(x)), round(sy(y_ref))))
 
-    ROT_H = 243 * tz  # altura útil do rótulo (arte original)
-    NH = NUM_ALTURA * tz
+    ROT_H = 236 * tz
+    NH = NUM_ALTURA * tzn
+
+    # O traco aponta sempre para o meio do numero, e o texto fica sempre logo
+    # abaixo dele. Por isso a Estrela do feed fica no canto, cortada pela borda.
 
     # FESTA (esquerda)
-    linha(1708, MEIO_X, y_festa)
-    yn, yr = y_festa - 5, y_festa + 132 * tz
-    if yr + ROT_H + 20 > limite_ref:          # não cabe embaixo: bloco sobe para cima do traço
-        yr = y_festa - 60 - ROT_H
-        yn = yr - 30 * tz - NH / 2
-    numero(fmt(festa), yn, 1594, "dir")
-    rotulo("festa", 470, yr, dir_=1612)
+    linha(1750, MEIO_X, y_festa)
+    yn = y_festa
+    yr = yn + NH / 2 + 45 * tz
+    numero(fmt(festa), yn, 1630, "dir")
+    rotulo("festa", 0, yr, dir_=1680)
 
-    # CESTA (direita): número em cima, rótulo embaixo
-    linha(MEIO_X, 2840, y_cesta)
-    yn, yr = y_cesta + 4, y_cesta + 140 * tz
-    if yr + ROT_H + 20 > limite_cesta_ref:   # esbarraria na Estrela ou no rodapé
-        yr = y_cesta - 60 - ROT_H
-        yn = yr - 30 * tz - NH / 2
-    numero(fmt(cesta), yn, 2991, "esq")
-    rotulo("cesta", 2950, yr)
+    # CESTA (direita)
+    linha(MEIO_X, 2815, y_cesta)
+    yn = y_cesta
+    yr = yn + NH / 2 + 45 * tz
+    numero(fmt(cesta), yn, 2935, "esq")
+    rotulo("cesta", 2895, yr)
     return G
 
 
@@ -276,7 +278,7 @@ def desenhar(cesta: int, festa: int, total: int, formato: str, fundo: str, escal
     e = L["estrela"]
     topo_estrela_ref = (e["y"] - oy) / k
     G = grupo(cesta, festa, total, COR_TEXTO[fundo], limite_ref,
-              min(limite_ref, topo_estrela_ref - 60), meta, L.get("texto", 1.0))
+              min(limite_ref, topo_estrela_ref - 60), meta, L.get("texto", 1.0), L.get("numero", 1.0))
     colar(G, k, ox + G_X0 * k, oy + G_Y0 * k)
 
     # A Estrela fica a mesma distancia da borda direita que o texto da festa
@@ -285,11 +287,11 @@ def desenhar(cesta: int, festa: int, total: int, formato: str, fundo: str, escal
     rot = Image.open(f"{ASSETS}/rotulo_festa.png")
     tz = L.get("texto", 1.0)
     cols = np.where(np.array(rot).max(0) > 40)[0]
-    esq_rot_ref = 1612 - (rot.width - cols.min()) / S * tz      # borda esquerda do texto, na arte
+    esq_rot_ref = 1680 - (rot.width - cols.min()) / S * tz      # borda esquerda do texto, na arte
     margem = ox + esq_rot_ref * k
     est = Image.open(f"{ASSETS}/estrela.png").convert("RGBA")
     larg_est = est.width / S * e["k"]
-    colar(est, e["k"], L["tam"][0] - margem - larg_est, e["y"])
+    colar(est, e["k"], e.get("x", L["tam"][0] - margem - larg_est), e["y"])
     final = canvas.convert("RGB")
     if escala == R:
         return final

@@ -1,11 +1,11 @@
 """Separa os elementos da arte do Canva do fundo azul (rodar uma vez).
-Saída em assets2/, na escala S=0.5 da arte original (4563 px de largura)."""
+Saída em assets2/, na escala S=1.0 (resolucao cheia) da arte original (4563 px de largura)."""
 import json
 import numpy as np
 from PIL import Image, ImageFilter
 from scipy import ndimage
 
-S = 0.5
+S = 1.0
 BG = np.array([43, 43, 182], np.float32)
 
 a = np.array(Image.open("assets/base.png").convert("RGB")).astype(np.float32)
