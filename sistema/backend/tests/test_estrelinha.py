@@ -8,8 +8,10 @@ Rodar com:  python -m tests.test_estrelinha
 
 import json
 from datetime import date
+from io import BytesIO
 
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlalchemy import delete, select
 
 from app.config import config
@@ -101,7 +103,8 @@ def main() -> None:
                              json={"jsonrpc": "2.0", "method": "notifications/initialized"})
         confere("notificacao recebe 202 sem corpo", notif.status_code == 202)
         nomes = [t["name"] for t in rpc(cliente, "tools/list").json()["result"]["tools"]]
-        confere("tools/list tem ver_estrutura e consultar", nomes == ["ver_estrutura", "consultar"])
+        confere("tools/list tem ver_estrutura, consultar e gerar_sorrisometro",
+                nomes == ["ver_estrutura", "consultar", "gerar_sorrisometro"], str(nomes))
 
         print("Respostas")
         erro, estrutura = ferramenta(cliente, "ver_estrutura")
@@ -127,6 +130,35 @@ def main() -> None:
                   <= (now() at time zone 'America/Fortaleza')::date
               and c.codigo like 'C%';"""})
         confere("aceita ::date, %, fuso e ; no fim", not erro and linhas == [{"n": 1}], str(linhas))
+
+        print("Sorrisometro")
+        db.add(Apadrinhamento(crianca_id=criancas[1].id, padrinho_id=padrinho.id, tipo="festa", valor=60))
+        db.commit()
+        r = rpc(cliente, "tools/call", {"name": "gerar_sorrisometro",
+                                        "arguments": {"edicao_id": ed, "formato": "feed", "fundo": "azul"}})
+        res = r.json()["result"]
+        dados = json.loads(res["content"][0]["text"])
+        confere("conta 1 de cesta e 1 de festa", not res["isError"] and (dados["cesta"], dados["festa"]) == (1, 1),
+                str(dados))
+        confere("uma arte e uma previa", len(dados["artes"]) == 1 and len(res["content"]) == 2
+                and res["content"][1]["type"] == "image")
+        caminho = dados["artes"][0]["link"].split(config.root_path, 1)[-1]
+        png = cliente.get(caminho)
+        tam = Image.open(BytesIO(png.content)).size if png.status_code == 200 else None
+        confere("link publico abre o PNG do feed sem token", png.status_code == 200 and tam == (1080, 1350),
+                f"{png.status_code} {tam}")
+        erro, dados = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": ed})
+        confere("sem formato nem fundo gera as quatro", not erro and len(dados["artes"]) == 4)
+        stories = [a for a in dados["artes"] if a["formato"] == "stories"][0]["link"]
+        png = cliente.get(stories.split(config.root_path, 1)[-1])
+        confere("stories sai em 1080x1920", Image.open(BytesIO(png.content)).size == (1080, 1920))
+        erro, _ = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": ed, "formato": "quadrado"})
+        confere("formato invalido e recusado", erro)
+        erro, _ = ferramenta(cliente, "gerar_sorrisometro", {"edicao_id": "1 or 1=1"})
+        confere("edicao_id que nao e numero e recusado", erro)
+        for nome in ("..%2F..%2F.env", "x.png", "2026-11-23-feed-azul-AAAAAAAAAAAAAAAA.png"):
+            confere(f"rota publica nao serve {nome}",
+                    cliente.get(f"/estrelinha/sorrisometro/{nome}").status_code == 404)
 
         print("Ataques")
         for d, sql in [

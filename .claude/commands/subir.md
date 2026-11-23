@@ -37,7 +37,7 @@ Escolha pelas pastas tocadas, e rode **sempre** `test_seguranca`:
 | `routers/usuarios.py`, `edicoes.py`, `cadastros` | `test_cadastros` |
 | `routers/auth.py`, sessões, permissões | `test_autenticacao` |
 | `models/`, migration nova | `test_esquema` |
-| `routers/estrelinha.py`, views do schema `estrelinha` | `test_estrelinha` |
+| `routers/estrelinha.py`, views do schema `estrelinha`, `servicos/sorrisometro.py` | `test_estrelinha` e `test_estrelinha_loja` |
 | `servicos/shopify.py`, ferramenta da loja na Estrelinha | `test_estrelinha_loja` |
 | **qualquer coisa no backend** | `test_seguranca` (sempre) |
 

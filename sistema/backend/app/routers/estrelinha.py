@@ -19,20 +19,28 @@ Seguranca, em camadas, e nenhuma depende do Claude se comportar:
 A lojinha do Shopify entra pela ferramenta `consultar_loja` (app/servicos/
 shopify.py), que so aparece com as credenciais SHOPIFY_* no .env. Assim a
 coordenacao le as vendas da loja sem precisar de conta no Shopify.
+
+O sorrisometro entra pela ferramenta `gerar_sorrisometro` (app/servicos/
+sorrisometro.py): conta os apadrinhamentos de cesta e de festa pela mesma
+usuaria so de leitura, desenha a arte de feed e de stories e devolve os links.
+Os PNGs saem por GET /estrelinha/sorrisometro/{nome}, sem token: o link vai
+para o Instagram. Ver a nota em app/servicos/sorrisometro.py.
 """
 
+import base64
 import hmac
 import json
 from functools import lru_cache
+from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import create_engine
 from starlette.concurrency import run_in_threadpool
 
 from app.config import config
-from app.servicos import shopify
+from app.servicos import shopify, sorrisometro
 
 router = APIRouter(prefix="/estrelinha", tags=["estrelinha"], include_in_schema=False)
 
@@ -66,6 +74,15 @@ Como consultar:
   observacoes, porque so a coordenacao usa a Estrelinha. Mesmo assim, mostre
   nomes e contatos so quando a pergunta pedir; para o resto, responda com numeros.
 - Senhas e tokens de acesso nao estao nas views, e isso e de proposito.
+
+SORRISOMETRO (arte de progresso para o Instagram):
+- Quando pedirem o sorrisometro, use `gerar_sorrisometro`. Ela mesma conta os
+  apadrinhamentos de cesta e de festa ao vivo (criancas ativas, sem desistentes)
+  sobre um total fixo de 1500, e desenha feed (1080x1350) e stories (1080x1920),
+  em fundo azul e amarelo. Sem pedido especifico, gere as quatro.
+- Responda com os numeros (cesta e festa) e os links das artes, um por linha,
+  dizendo formato e fundo de cada um. Os links sao publicos e valem 60 dias.
+- So mude o total se a pessoa pedir outro numero.
 """
 
 INSTRUCOES_LOJA = """
@@ -117,6 +134,26 @@ FERRAMENTAS = [
     },
 ]
 
+FERRAMENTA_SORRISOMETRO = {
+    "name": "gerar_sorrisometro",
+    "description": (
+        "Gera a arte do sorrisometro (progresso dos apadrinhamentos de cesta e de "
+        "festa) com os numeros ao vivo, em feed e/ou stories e fundo azul e/ou "
+        "amarelo. Devolve as contagens, os links publicos dos PNGs e uma previa. "
+        "Sem edicao_id, usa a edicao de Fortaleza do ano corrente."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "formato": {"type": "string", "enum": ["feed", "stories", "todos"], "default": "todos"},
+            "fundo": {"type": "string", "enum": ["azul", "amarelo", "todos"], "default": "todos"},
+            "total": {"type": "integer", "description": "Meta do topo da arte (padrao 1500)", "default": 1500},
+            "edicao_id": {"type": "integer", "description": "Edicao a contar (opcional)"},
+        },
+    },
+    "annotations": {"readOnlyHint": True},
+}
+
 FERRAMENTA_LOJA = {
     "name": "consultar_loja",
     "description": (
@@ -138,7 +175,7 @@ FERRAMENTA_LOJA = {
 
 
 def _ferramentas() -> list[dict[str, Any]]:
-    return FERRAMENTAS + ([FERRAMENTA_LOJA] if shopify.configurado() else [])
+    return FERRAMENTAS + [FERRAMENTA_SORRISOMETRO] + ([FERRAMENTA_LOJA] if shopify.configurado() else [])
 
 
 def _instrucoes() -> str:
@@ -186,6 +223,74 @@ def _consultar(sql: str) -> list[dict[str, Any]]:
     return _rodar(sql)
 
 
+CONTAGEM_SORRISOMETRO = """
+with ed as (
+  select e.id, e.nome, e.ano from edicoes e
+  where {filtro}
+  order by (e.nome ilike '%fortaleza%') desc, e.ativa desc, e.id desc
+  limit 1
+),
+c as (
+  select c.id,
+    exists(select 1 from apadrinhamentos a where a.crianca_id = c.id and a.tipo = 'cesta') as tem_cesta,
+    exists(select 1 from apadrinhamentos a where a.crianca_id = c.id and a.tipo = 'festa') as tem_festa
+  from criancas c join ed on ed.id = c.edicao_id
+  where c.desistiu_em is null
+)
+select ed.id as edicao_id, ed.nome as edicao,
+  (select count(*) from c) as criancas,
+  (select count(*) from c where tem_cesta) as cesta,
+  (select count(*) from c where tem_festa) as festa
+from ed
+"""
+
+
+def _url_publica(nome: str) -> str:
+    caminho = f"{config.root_path}/estrelinha/sorrisometro/{nome}"
+    return f"{config.url_publica.rstrip('/')}{caminho}" if config.url_publica else caminho
+
+
+def _gerar_sorrisometro(argumentos: dict[str, Any]) -> dict[str, Any]:
+    formato = str(argumentos.get("formato") or "todos")
+    fundo = str(argumentos.get("fundo") or "todos")
+    total = int(argumentos.get("total") or 1500)
+    formatos = sorrisometro.FORMATOS if formato == "todos" else (formato,)
+    fundos = sorrisometro.FUNDOS if fundo == "todos" else (fundo,)
+    if any(f not in sorrisometro.FORMATOS for f in formatos) or any(b not in sorrisometro.FUNDOS for b in fundos):
+        raise ValueError("formato: feed, stories ou todos; fundo: azul, amarelo ou todos.")
+    if not 0 < total <= 100000:
+        raise ValueError("O total precisa estar entre 1 e 100000.")
+
+    edicao_id = argumentos.get("edicao_id")
+    filtro = (
+        f"e.id = {int(edicao_id)}" if edicao_id is not None
+        else "e.ano = extract(year from now() at time zone 'America/Fortaleza')::int"
+    )
+    linhas = _rodar(CONTAGEM_SORRISOMETRO.format(filtro=filtro))
+    if not linhas:
+        raise ValueError("Nao achei a edicao. Passe edicao_id (veja a view edicoes).")
+    n = linhas[0]
+
+    sorrisometro.limpar_antigos()
+    artes, previas = [], []
+    for f in formatos:
+        for b in fundos:
+            img = sorrisometro.desenhar(int(n["cesta"]), int(n["festa"]), total, f, b)
+            nome = sorrisometro.salvar(img, f, b)
+            artes.append({"formato": f, "fundo": b, "link": _url_publica(nome)})
+            buf = BytesIO()
+            img.convert("RGB").resize((img.width // 3, img.height // 3)).save(buf, "JPEG", quality=80)
+            previas.append({"type": "image", "mimeType": "image/jpeg",
+                            "data": base64.b64encode(buf.getvalue()).decode()})
+    dados = {
+        "edicao": n["edicao"], "edicao_id": n["edicao_id"], "total_da_arte": total,
+        "cesta": n["cesta"], "festa": n["festa"], "criancas_ativas": n["criancas"],
+        "artes": artes,
+    }
+    corpo = json.dumps(dados, ensure_ascii=False, default=str)
+    return {"content": [{"type": "text", "text": corpo}, *previas], "isError": False}
+
+
 def _texto(dados: Any, erro: bool = False) -> dict[str, Any]:
     corpo = json.dumps(dados, ensure_ascii=False, default=str)
     return {"content": [{"type": "text", "text": corpo}], "isError": erro}
@@ -197,6 +302,8 @@ def _chamar_ferramenta(nome: str, argumentos: dict[str, Any]) -> dict[str, Any]:
             return _texto(_ver_estrutura())
         if nome == "consultar":
             return _texto(_consultar(str(argumentos.get("sql", ""))))
+        if nome == "gerar_sorrisometro":
+            return _gerar_sorrisometro(argumentos)
         if nome == "consultar_loja" and shopify.configurado():
             variaveis = argumentos.get("variaveis")
             return _texto(shopify.consultar(
@@ -280,6 +387,22 @@ def mcp_sem_stream(request: Request):
     """Sem SSE: o MCP manda responder 405 a quem tenta abrir o stream por GET."""
     _confere_token(request)
     return Response(status_code=405, headers={"Allow": "POST"})
+
+
+@router.get("/sorrisometro/{nome}")
+def sorrisometro_publicado(nome: str):
+    """A arte gerada pela Estrelinha, sem token (o link vai para o Instagram).
+
+    Com a Estrelinha desligada, nao existe. So serve nomes no formato do
+    sorrisometro, de dentro da pasta dele.
+    """
+    if not config.estrelinha_token or not config.estrelinha_database_url:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    arquivo = sorrisometro.caminho_publicado(nome)
+    if arquivo is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return FileResponse(arquivo, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.delete("/mcp")

@@ -112,8 +112,8 @@ def main() -> None:
         print("Com credenciais da loja")
         ligar_loja(True)
         nomes = [t["name"] for t in rpc(cliente, "tools/list")["tools"]]
-        confere("tools/list tem as tres ferramentas",
-                nomes == ["ver_estrutura", "consultar", "consultar_loja"], str(nomes))
+        confere("tools/list tem as quatro ferramentas",
+                nomes == ["ver_estrutura", "consultar", "gerar_sorrisometro", "consultar_loja"], str(nomes))
         ini = rpc(cliente, "initialize", {"protocolVersion": "2025-06-18"})
         confere("instrucoes ensinam o ShopifyQL",
                 "LOJINHA" in ini["instructions"] and "shopifyqlQuery" in ini["instructions"])

@@ -164,6 +164,32 @@ lojinha vendeu nos últimos 7 dias?"
 
 ---
 
+## Sorrisômetro
+
+A Estrelinha também desenha o **sorrisômetro**, a arte de progresso dos
+apadrinhamentos para o Instagram. Basta pedir: "Estrelinha, gera o
+sorrisômetro".
+
+- **Ferramenta:** `gerar_sorrisometro`. Ela conta, ao vivo, as crianças ativas
+  (sem desistentes) com apadrinhamento de **cesta** e de **festa** e desenha a
+  arte sobre o total do topo, **1500** (dá para pedir outro).
+- **Formatos:** feed (1080×1350) e stories (1080×1920), cada um em fundo
+  **azul** e **amarelo**. Sem pedido específico, saem as quatro.
+- **Edição:** sem `edicao_id`, a de Fortaleza do ano corrente.
+- **Entrega:** os links dos PNGs, mais uma prévia na conversa. Os links abrem
+  **sem token**, em `/acesso/api/estrelinha/sorrisometro/<nome>.png`, para ir
+  direto ao Instagram ou ao Metricool. Isso é seguro porque a arte só tem duas
+  contagens, o nome tem 96 bits aleatórios e a rota só serve arquivos dessa
+  pasta, no formato do sorrisômetro. Os arquivos ficam em
+  `ARQUIVOS_DIR/sorrisometro/` e são apagados depois de 60 dias.
+- **Precisa de `URL_PUBLICA`** no `.env` (a mesma do Mercado Pago), para o
+  link sair completo.
+- **A arte:** os elementos recortados da arte do Canva ficam em
+  `app/recursos/sorrisometro/`, e o desenho em `app/servicos/sorrisometro.py`.
+  Para trocar a arte no ano que vem, veja `scripts/sorrisometro/README.md`.
+
+---
+
 ## Usar no Claude
 
 1. No Claude, abra **Configurações → Conectores → Adicionar conector
