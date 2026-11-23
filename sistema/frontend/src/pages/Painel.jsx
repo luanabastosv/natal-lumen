@@ -650,8 +650,8 @@ export default function Painel() {
                       <thead>
                         <tr>
                           <th>Dia</th>
-                          <th>Necessidade especial</th>
-                          <th>Alergia / restrição</th>
+                          <th>{estreita ? "Necessidade" : "Necessidade especial"}</th>
+                          <th>{estreita ? "Alergia" : "Alergia / restrição"}</th>
                         </tr>
                       </thead>
                       <tbody>
