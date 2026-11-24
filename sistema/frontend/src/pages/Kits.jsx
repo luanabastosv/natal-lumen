@@ -60,6 +60,13 @@ export default function Kits() {
   const [erro, definirErro] = useState("");
 
   const estreita = useTelaEstreita();
+  // O degrau do meio: notebook, ou janela pela metade da tela. A planilha
+  // inteira so cabe com uns 1500px; abaixo disso as colunas fixas comiam a do
+  // nome, que sumia por baixo de "Idade". Aqui idade, sexo e instituicao
+  // descem para baixo do nome (como no celular), o status so aparece quando a
+  // crianca desistiu, e montagem e conferencia continuam com coluna propria.
+  const media = useTelaEstreita("(max-width: 1499px)") && !estreita;
+  const enxuta = estreita || media;
 
   const buscar = useCallback(async () => {
     try {
@@ -525,31 +532,31 @@ export default function Kits() {
             <colgroup>
               <col style={{ width: estreita ? 74 : 92 }} />
               <col />
-              {!estreita && (
+              {!enxuta && (
                 <>
                   <col style={{ width: 64 }} />
                   <col style={{ width: 58 }} />
                 </>
               )}
-              {!estreita && abaAtiva === TODAS && <col style={{ width: 220 }} />}
-              {!estreita && <col style={{ width: 116 }} />}
+              {!enxuta && abaAtiva === TODAS && <col style={{ width: 220 }} />}
+              {!enxuta && <col style={{ width: 116 }} />}
               {/* Larga o bastante para a etiqueta "Presente" inteira: com 78
                   ela cortava em reticencias. */}
               {!estreita && <col style={{ width: 104 }} />}
-              {!estreita && <col style={{ width: 160 }} />}
-              {!estreita && <col style={{ width: 160 }} />}
+              {!estreita && <col style={{ width: media ? 140 : 160 }} />}
+              {!estreita && <col style={{ width: media ? 140 : 160 }} />}
               {estreita && <col style={{ width: 48 }} />}
             </colgroup>
             <thead>
               <tr>
                 {coluna("codigo", "Código")}
                 {coluna("nome", "Criança")}
-                {!estreita && coluna("idade", "Idade")}
-                {!estreita && coluna("sexo", "Sexo")}
+                {!enxuta && coluna("idade", "Idade")}
+                {!enxuta && coluna("sexo", "Sexo")}
                 {/* Dentro de uma aba de instituicao a coluna seria a mesma
                     palavra em todas as linhas — a aba ja diz qual escola e. */}
-                {!estreita && abaAtiva === TODAS && coluna("instituicao", "Instituição")}
-                {!estreita && <th>Status</th>}
+                {!enxuta && abaAtiva === TODAS && coluna("instituicao", "Instituição")}
+                {!enxuta && <th>Status</th>}
                 {/* Se a crianca ja chegou ao evento: no dia, e o que diz se o
                     kit montado saiu da pilha ou ainda espera alguem. */}
                 {!estreita && <th>Check-in</th>}
@@ -570,7 +577,7 @@ export default function Kits() {
                   <td>{k.crianca_codigo}</td>
                   <td>
                     {k.crianca_nome}
-                    {estreita && (
+                    {enxuta && (
                       <>
                         <br />
                         {/* No celular a linha fica so com o que se le na
@@ -581,13 +588,21 @@ export default function Kits() {
                           {k.idade} anos · {k.sexo}
                           {abaAtiva === TODAS && ` · ${k.instituicao}`}
                         </span>
+                        {/* Sem a coluna de status, a desistente se diz aqui;
+                            a confirmada nao precisa de etiqueta. */}
+                        {media && k.desistiu_em && (
+                          <>
+                            {" "}
+                            <EtiquetaDesistente />
+                          </>
+                        )}
                       </>
                     )}
                   </td>
-                  {!estreita && <td>{k.idade}</td>}
-                  {!estreita && <td>{k.sexo}</td>}
-                  {!estreita && abaAtiva === TODAS && <td>{k.instituicao}</td>}
-                  {!estreita && (
+                  {!enxuta && <td>{k.idade}</td>}
+                  {!enxuta && <td>{k.sexo}</td>}
+                  {!enxuta && abaAtiva === TODAS && <td>{k.instituicao}</td>}
+                  {!enxuta && (
                     <td className="tabela__status">
                       <EtiquetaStatus desistiu={Boolean(k.desistiu_em)} />
                     </td>
