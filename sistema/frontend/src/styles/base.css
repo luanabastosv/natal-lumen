@@ -4690,8 +4690,18 @@ button.celula:hover {
   margin-top: var(--space-5);
 }
 
+/* Cada card ocupa duas linhas da grade (rotulo e corpo) e as herda dela
+   (`subgrid`): assim o rotulo de todos os cards de uma fileira tem a mesma
+   altura. No celular "Apadrinhamento · festa" quebra em duas linhas e
+   "Completas" nao; sem isto o numero e a barra de um ficavam mais baixos que
+   os do outro. */
 .metrica {
   display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  /* A coluna e a largura do card, nunca a da palavra mais longa: numa tela
+     de 320px "APADRINHAMENTO" e mais larga que o card, e a barra ia junto. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   align-content: start;
   background: var(--surface-card);
@@ -4712,7 +4722,14 @@ button.celula:hover {
   border-color: var(--navy-500);
 }
 
+.metrica__corpo {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
 .metrica__rotulo {
+  align-self: start;
   font-family: var(--font-condensed);
   font-size: var(--size-caption);
   line-height: 1.2;

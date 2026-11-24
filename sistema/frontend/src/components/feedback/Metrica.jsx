@@ -29,23 +29,27 @@ export default function Metrica({ rotulo, valor, de, nota, tom = "neutro", desta
         {rotulo}
         {etiqueta && <span className="etiqueta etiqueta--neutra metrica__etiqueta">{etiqueta}</span>}
       </span>
-      <span className="metrica__valor">
-        {valor}
-        {de != null && <span className="metrica__de">/{de}</span>}
-      </span>
-      {parte !== null && (
-        <div
-          className="metrica__trilho"
-          role="img"
-          aria-label={`${rotulo}: ${valor} de ${de}`}
-        >
+      {/* O resto do card num bloco so, abaixo do rotulo: e o que deixa a
+          grade alinhar os rotulos da fileira (ver `.metricas` no CSS). */}
+      <div className="metrica__corpo">
+        <span className="metrica__valor">
+          {valor}
+          {de != null && <span className="metrica__de">/{de}</span>}
+        </span>
+        {parte !== null && (
           <div
-            className={`metrica__parte ${TONS[tom] ?? ""}`.trim()}
-            style={{ width: `${parte}%` }}
-          />
-        </div>
-      )}
-      {nota && <span className="metrica__nota">{nota}</span>}
+            className="metrica__trilho"
+            role="img"
+            aria-label={`${rotulo}: ${valor} de ${de}`}
+          >
+            <div
+              className={`metrica__parte ${TONS[tom] ?? ""}`.trim()}
+              style={{ width: `${parte}%` }}
+            />
+          </div>
+        )}
+        {nota && <span className="metrica__nota">{nota}</span>}
+      </div>
     </div>
   );
 }
