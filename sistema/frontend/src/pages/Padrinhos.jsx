@@ -203,11 +203,11 @@ export default function Padrinhos() {
     definirPendentes((atual) => atual.map((p) => (p.id === atualizado.id ? atualizado : p)));
   }
 
-  // A crianca que desistiu: por enquanto so a coordenacao (e a
-  // administracao geral) troca e avisa; a coordenacao dos comissarios entra
-  // depois que a troca for testada. Para os outros a secao nem existe (e o
-  // servidor confere de novo).
-  const coordena = podeEditar && podeEnviarCartoes;
+  // A crianca que desistiu: a coordenacao, a coordenacao dos comissarios
+  // (desde 24/11/2026) e a administracao geral trocam e avisam — quem edita
+  // padrinhos sem ficar preso as proprias criancas. Para o comissario de base
+  // a secao nem existe (e o servidor confere de novo: `_coordena`).
+  const coordena = podeEditar && !soMeusPadrinhos;
   const buscarPendentes = useCallback(async () => {
     if (!coordena || !edicaoAtiva) return;
     try {

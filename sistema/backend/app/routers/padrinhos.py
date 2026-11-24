@@ -1104,18 +1104,24 @@ def enviar_agradecimento(apadrinhamento_id: int, db: BD, ctx: Editar):
 # ---------------------------------------------------------------- desistencia
 
 SO_COORDENACAO_TROCA = (
-    "So a coordenacao passa o apadrinhamento de uma crianca desistente para outra."
+    "So a coordenacao (geral ou dos comissarios) passa o apadrinhamento de uma "
+    "crianca desistente para outra."
 )
 
 
 def _coordena(ctx: ContextoAcesso, edicao_id: int) -> bool:
-    """Coordenacao geral da edicao, ou administracao geral.
+    """Quem edita padrinhos na edicao sem ficar preso as proprias criancas.
 
-    Por enquanto (23/11/2026) a coordenacao dos comissarios fica de fora: a
-    coordenacao testa a troca antes de liberar para ela. Para liberar, volte a
-    conferir `editar_padrinhos` sem `so_proprias_criancas`.
+    A coordenacao geral, a coordenacao dos comissarios (liberada em
+    24/11/2026, depois de a troca ser testada pela coordenacao) e a
+    administracao geral. O comissario de base fica de fora: a troca mexe no
+    apadrinhamento captado por qualquer um do time.
     """
-    return ctx.e_coordenacao_geral(edicao_id)
+    if ctx.admin_geral:
+        return True
+    return ctx.alcanca_edicao(edicao_id, "editar_padrinhos") and not ctx.so_proprias_criancas(
+        edicao_id
+    )
 
 
 def _pendentes(edicao_id: int | None):

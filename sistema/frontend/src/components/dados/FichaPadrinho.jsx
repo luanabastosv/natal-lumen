@@ -22,7 +22,6 @@ import { primeiroNome } from "../../utils/nomes.js";
 import { linkWhatsapp } from "../../utils/whatsapp.js";
 import useTelaEstreita from "../../hooks/useTelaEstreita.js";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
-import { PERFIL_COORDENACAO } from "./perfis.js";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
 // Ate quantos agradecimentos o "baixar todos" entrega soltos; acima, num ZIP.
@@ -64,10 +63,10 @@ export default function FichaPadrinho({
   const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
   const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
   // A crianca que desistiu: passar o apadrinhamento para outra e avisar o
-  // padrinho e, por enquanto, so da coordenacao (e da administracao geral).
-  // A coordenacao dos comissarios entra depois que a troca for testada.
-  const coordena =
-    podeEditar && (Boolean(usuario?.admin_geral) || vinculoAtivo?.perfil === PERFIL_COORDENACAO);
+  // padrinho e de quem edita padrinhos sem ficar preso as proprias criancas —
+  // a coordenacao, a coordenacao dos comissarios (desde 24/11/2026) e a
+  // administracao geral. O servidor confere de novo (`_coordena`).
+  const coordena = podeEditar && (Boolean(usuario?.admin_geral) || !soMinhas);
   const [trocando, definirTrocando] = useState(null);
   const [avisando, definirAvisando] = useState(null);
 

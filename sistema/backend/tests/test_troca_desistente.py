@@ -2,8 +2,8 @@
 
 Quando uma crianca apadrinhada (e paga) desiste, a coordenacao passa o mesmo
 apadrinhamento para outra crianca, e depois avisa o padrinho. Tres coisas a
-provar: so a coordenacao troca e avisa (por enquanto); a troca nao mexe no dinheiro; e a
-desistente fica livre, sem padrinho, se voltar.
+provar: so a coordenacao (geral ou dos comissarios) troca e avisa; a troca
+nao mexe no dinheiro; e a desistente fica livre, sem padrinho, se voltar.
 
 Rodar com:  python -m tests.test_troca_desistente
 """
@@ -164,10 +164,10 @@ def main() -> None:
                  lista and lista[0]["apadrinhamentos"][0]["pendencia"] == "trocar"
                  and lista[0]["pendencias"] == 1, r.text[:300])
         r = cap.get("/padrinhos/pendencias", params={"edicao_id": ed.id})
-        # Por enquanto (23/11/2026) so a coordenacao: a dos comissarios entra
-        # depois que a troca for testada.
-        verifica("a coordenacao dos comissarios ainda nao ve",
-                 r.status_code == 200 and r.json() == [], r.text[:160])
+        # Liberada para a coordenacao dos comissarios em 24/11/2026.
+        verifica("a coordenacao dos comissarios tambem ve",
+                 r.status_code == 200 and [p["id"] for p in r.json()] == [padrinho["id"]],
+                 r.text[:200])
         r = ck.get("/padrinhos/pendencias", params={"edicao_id": ed.id})
         verifica("o comissario de base recebe a lista vazia",
                  r.status_code == 200 and r.json() == [], r.text[:160])
@@ -180,10 +180,9 @@ def main() -> None:
         print("\nQuem pode trocar")
         r = ck.post(f"/apadrinhamentos/{apad['id']}/trocar-crianca", json={"crianca_id": bia.id})
         verifica("o comissario de base NAO troca", r.status_code == 403, r.text[:160])
-        r = cap.post(f"/apadrinhamentos/{apad['id']}/trocar-crianca", json={"crianca_id": bia.id})
-        verifica("a coordenacao dos comissarios ainda NAO troca", r.status_code == 403, r.text[:160])
-        r = cap.post(f"/apadrinhamentos/{apad['id']}/troca-avisada")
-        verifica("nem marca o aviso", r.status_code == 403, r.text[:160])
+        r = cap.post(f"/apadrinhamentos/{apad['id']}/trocar-crianca", json={"crianca_id": ana.id})
+        verifica("a coordenacao dos comissarios chega a troca (barrada so por ser a mesma crianca)",
+                 r.status_code == 422, r.text[:160])
         r = cc.post(f"/apadrinhamentos/{apad['id']}/trocar-crianca", json={"crianca_id": ana.id})
         verifica("nao troca para a propria crianca", r.status_code == 422, r.text[:160])
         r = cc.post(f"/apadrinhamentos/{apad['id']}/trocar-crianca", json={"crianca_id": cris.id})
@@ -226,8 +225,8 @@ def main() -> None:
         print("\nO aviso ao padrinho")
         r = ck.post(f"/apadrinhamentos/{apad['id']}/troca-avisada")
         verifica("o comissario de base NAO marca o aviso", r.status_code == 403, r.text[:160])
-        r = cc.post(f"/apadrinhamentos/{apad['id']}/troca-avisada")
-        verifica("a coordenacao marca o aviso", r.status_code == 200, r.text[:160])
+        r = cap.post(f"/apadrinhamentos/{apad['id']}/troca-avisada")
+        verifica("a coordenacao dos comissarios marca o aviso", r.status_code == 200, r.text[:160])
         resumo = r.json()["apadrinhamentos"][0] if r.status_code == 200 else {}
         verifica("e a pendencia some",
                  resumo.get("pendencia") is None and resumo.get("troca_avisada_em"), str(resumo)[:200])

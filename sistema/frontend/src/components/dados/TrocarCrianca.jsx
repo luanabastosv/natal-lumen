@@ -12,7 +12,7 @@ const TIPOS = { cesta: "cesta", festa: "festa" };
  *
  * E o mesmo apadrinhamento que muda de crianca: o pagamento, o valor e o
  * comissario que captou ficam. A desistente fica livre. So a coordenacao
- * (por enquanto) chega aqui; o servidor confere de novo.
+ * (geral ou dos comissarios) chega aqui; o servidor confere de novo.
  *
  * A busca e por nome ou codigo na edicao inteira, como no apadrinhar de quem
  * coordena. Quem nao pode receber (ja tem padrinho daquele tipo, desistiu,
