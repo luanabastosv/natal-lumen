@@ -192,7 +192,27 @@ class Apadrinhamento(Base):
     )
     criado_em: Mapped[CriadoEm]
 
-    crianca: Mapped["Crianca"] = relationship(back_populates="apadrinhamentos")  # noqa: F821
+    # A crianca a que este apadrinhamento era ligado antes de ela desistir.
+    # Quando uma crianca apadrinhada desiste, a coordenacao passa o
+    # apadrinhamento (o mesmo pagamento, o mesmo valor) para outra crianca, e
+    # a desistente fica livre: se voltar, volta sem padrinho. Guardado aqui, e
+    # nao so no log, porque a ficha do padrinho mostra a troca e e por ela que
+    # se sabe que o padrinho ainda precisa ser avisado.
+    trocado_de_id: Mapped[int | None] = mapped_column(
+        ForeignKey("criancas.id", ondelete="SET NULL")
+    )
+    trocado_em: Mapped[MomentoOpcional]
+    # Quando a mensagem da troca foi aberta para o padrinho (o WhatsApp de quem
+    # coordena, com o agradecimento da crianca nova). Vazio com `trocado_em`
+    # preenchido = o padrinho ainda nao sabe da troca: e pendencia.
+    troca_avisada_em: Mapped[MomentoOpcional]
+
+    crianca: Mapped["Crianca"] = relationship(  # noqa: F821
+        back_populates="apadrinhamentos", foreign_keys=[crianca_id]
+    )
+    trocado_de: Mapped["Crianca | None"] = relationship(  # noqa: F821
+        foreign_keys=[trocado_de_id]
+    )
     # Sem back_populates: ninguem pergunta a um usuario a lista de
     # apadrinhamentos que ele registrou, e o caminho existe so para a ficha
     # mostrar o nome. `foreign_keys` e obrigatorio porque a tabela tem outras

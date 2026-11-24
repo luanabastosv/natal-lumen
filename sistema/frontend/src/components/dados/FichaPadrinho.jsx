@@ -8,18 +8,21 @@ import Modal from "../feedback/Modal.jsx";
 import ApadrinharCriancas from "./ApadrinharCriancas.jsx";
 import LinkDePagamento from "./LinkDePagamento.jsx";
 import RegistrarPagamento from "./RegistrarPagamento.jsx";
+import TrocarCrianca from "./TrocarCrianca.jsx";
 import { useSessao } from "../../contexts/useSessao.js";
 import {
   apagarApadrinhamento,
   baixarAgradecimento,
   baixarTodosAgradecimentos,
   detalharPadrinho,
+  marcarTrocaAvisada,
 } from "../../services/padrinhos.js";
 import { dinheiro, formatarDataHora } from "../../utils/dinheiro.js";
 import { primeiroNome } from "../../utils/nomes.js";
 import { linkWhatsapp } from "../../utils/whatsapp.js";
 import useTelaEstreita from "../../hooks/useTelaEstreita.js";
 import EtiquetaDesistente from "../core/EtiquetaDesistente.jsx";
+import { PERFIL_COORDENACAO } from "./perfis.js";
 
 const TIPOS = { cesta: "Cesta", festa: "Festa" };
 // Ate quantos agradecimentos o "baixar todos" entrega soltos; acima, num ZIP.
@@ -60,6 +63,13 @@ export default function FichaPadrinho({
   // livre. Quem coordena passa por cima. O servidor confere de novo.
   const soMinhas = Boolean(vinculoAtivo?.so_criancas_atribuidas);
   const meu = (a) => !soMinhas || a.comissario_id === usuario?.id;
+  // A crianca que desistiu: passar o apadrinhamento para outra e avisar o
+  // padrinho e, por enquanto, so da coordenacao (e da administracao geral).
+  // A coordenacao dos comissarios entra depois que a troca for testada.
+  const coordena =
+    podeEditar && (Boolean(usuario?.admin_geral) || vinculoAtivo?.perfil === PERFIL_COORDENACAO);
+  const [trocando, definirTrocando] = useState(null);
+  const [avisando, definirAvisando] = useState(null);
 
   /* As duas perguntas da captacao, so para ler. Responder e no cadastro
      ("Editar informacoes", no menu da linha), que exige Sim ou Nao — a ficha
@@ -125,7 +135,9 @@ export default function FichaPadrinho({
   // mesma crianca sao o mesmo agradecimento. E a mesma conta que o servidor
   // faz no ZIP.
   const agradecimentosProntos = new Set(
-    padrinho.apadrinhamentos.filter((a) => a.pago && meu(a)).map((a) => a.crianca_id),
+    padrinho.apadrinhamentos
+      .filter((a) => a.pago && meu(a) && !a.crianca_desistiu_em)
+      .map((a) => a.crianca_id),
   ).size;
 
   // A contagem vive no rotulo da aba: e o que diz se vale a pena entrar nela.
@@ -197,7 +209,9 @@ export default function FichaPadrinho({
       } else {
         const porCrianca = new Map();
         for (const a of padrinho.apadrinhamentos) {
-          if (a.pago && meu(a) && !porCrianca.has(a.crianca_id)) porCrianca.set(a.crianca_id, a);
+          if (a.pago && meu(a) && !a.crianca_desistiu_em && !porCrianca.has(a.crianca_id)) {
+            porCrianca.set(a.crianca_id, a);
+          }
         }
         for (const a of porCrianca.values()) {
           await baixarAgradecimento(a.id);
@@ -232,6 +246,33 @@ export default function FichaPadrinho({
       `Segue o nosso agradecimento.`;
     const link = linkWhatsapp(padrinho.whatsapp, texto);
     if (link) window.open(link, "_blank", "noopener");
+  }
+
+  /** Avisa o padrinho da troca: abre a conversa com a mensagem pronta, marca
+   *  o aviso e baixa o agradecimento da crianca nova, para anexar.
+   *
+   *  A conversa abre primeiro, ainda no clique: depois de um `await` o
+   *  navegador barra o `window.open` como pop-up. */
+  async function avisarTroca(apadrinhamento) {
+    const texto =
+      `Oi, ${padrinho.nome.split(" ")[0]}! Passando para te avisar que ` +
+      `${apadrinhamento.trocado_de_primeiro_nome} não vai mais poder participar do ` +
+      `Natal Lumen. Para o seu carinho continuar chegando a uma criança, o seu ` +
+      `apadrinhamento passou para ${apadrinhamento.crianca_primeiro_nome}. ` +
+      // Sem "dele"/"dela": a frase serve para menino e para menina.
+      `Segue o novo agradecimento. Muito obrigado!`;
+    const link = linkWhatsapp(padrinho.whatsapp, texto);
+    if (link) window.open(link, "_blank", "noopener");
+    definirErro("");
+    definirAvisando(apadrinhamento.id);
+    try {
+      aoMudar?.(await marcarTrocaAvisada(apadrinhamento.id));
+      await baixarAgradecimento(apadrinhamento.id);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirAvisando(null);
+    }
   }
 
   /* O passo a passo de apadrinhar TROCA de lugar com a ficha, e nao abre por
@@ -446,6 +487,37 @@ export default function FichaPadrinho({
                             coordenacao percebe e decide o que fazer com ele. */}
                         {a.crianca_desistiu_em && <EtiquetaDesistente className="etiqueta--ao-lado" />}
                       </span>
+                      {/* De onde veio: sem isto a crianca nova parecia um
+                          apadrinhamento a mais, e o pagamento, de outra. */}
+                      {a.trocado_de_codigo && (
+                        <span className="ficha__linha-troca">
+                          No lugar de {a.trocado_de_codigo} {a.trocado_de_nome}, que desistiu
+                          {a.troca_avisada_em
+                            ? ` · padrinho avisado em ${formatarDataHora(a.troca_avisada_em)}`
+                            : " · padrinho ainda não avisado"}
+                        </span>
+                      )}
+                      {/* Avisado uma vez, o botao sai: o "avisado em" da
+                          linha de cima ja diz que foi feito. */}
+                      {coordena && a.pendencia === "avisar" && (
+                        <span className="ficha__linha-pendencia">
+                          <Button
+                            size="sm"
+                            variant="suave"
+                            iconLeft={<Enviar t={14} />}
+                            onClick={() => avisarTroca(a)}
+                            carregando={avisando === a.id}
+                            disabled={!zap}
+                            titulo={
+                              zap
+                                ? "Abre a conversa no WhatsApp com a mensagem da troca e baixa o agradecimento da criança nova"
+                                : "Este padrinho não tem WhatsApp válido cadastrado"
+                            }
+                          >
+                            Avisar o padrinho da troca
+                          </Button>
+                        </span>
+                      )}
                     </div>
 
                     {/* Tres acoes repetidas por crianca: escritas, uma ficha de vinte
@@ -456,7 +528,25 @@ export default function FichaPadrinho({
                           que agradecer, e o servidor recusa (409). Sem o botao,
                           ninguem clica para receber um erro. O envio pelo
                           WhatsApp segue a mesma regra, pelo mesmo motivo. */}
-                      {a.pago && meu(a) && (
+                      {/* Crianca desistente com pagamento: a unica saida e
+                          vincular uma nova crianca (acima). Agradecer quem nao
+                          vai nao faz sentido, e desfazer deixaria o pagamento
+                          sem destino. */}
+                      {/* Na desistente paga, o lugar dos icones e deste
+                          botao: e a unica coisa a fazer com ela. */}
+                      {coordena && a.pendencia === "trocar" && (
+                        <Button
+                          size="sm"
+                          variant="suave"
+                          onClick={() => definirTrocando(a)}
+                          titulo="Vincular nova criança"
+                        >
+                          {/* No celular so "Vincular": o rotulo inteiro
+                              cortava o nome e a etiqueta de desistente. */}
+                          {estreita ? "Vincular" : "Vincular nova criança"}
+                        </Button>
+                      )}
+                      {a.pago && meu(a) && !a.crianca_desistiu_em && (
                         <>
                           <BotaoIcone
                             titulo={`Baixar o agradecimento de ${a.crianca_primeiro_nome}`}
@@ -486,7 +576,7 @@ export default function FichaPadrinho({
                           acima: desfazer so ela deixaria o link cobrando o
                           valor cheio. */}
                       {((podeEditar && !a.pago && !a.aguardando_link && meu(a)) ||
-                        (podeExcluir && !a.aguardando_link)) && (
+                        (podeExcluir && !a.aguardando_link && !(a.pago && a.crianca_desistiu_em))) && (
                         <BotaoIcone
                           perigo
                           titulo={
@@ -517,6 +607,18 @@ export default function FichaPadrinho({
           />
         )}
       </div>
+
+      {trocando && (
+        <TrocarCrianca
+          apadrinhamento={trocando}
+          padrinho={padrinho}
+          aoFechar={() => definirTrocando(null)}
+          aoTrocar={(atualizado) => {
+            definirTrocando(null);
+            aoMudar?.(atualizado);
+          }}
+        />
+      )}
 
       {/* Por cima da ficha, e nao no lugar dela: a pessoa decide sem perder de
           vista de qual padrinho e a lista. */}

@@ -84,6 +84,23 @@ class ApadrinhamentoResumo(BaseModel):
     # Ultimo envio do cartao pelo WhatsApp: None = nunca tentou.
     cartao_status: str | None = None
     cartao_enviado_em: datetime | None = None
+    # A troca da crianca desistente: de quem o apadrinhamento veio, quando, e
+    # quando o padrinho foi avisado. Tudo vazio = nunca foi trocado.
+    trocado_de_codigo: str | None = None
+    trocado_de_nome: str | None = None
+    trocado_de_primeiro_nome: str | None = None
+    trocado_em: datetime | None = None
+    troca_avisada_em: datetime | None = None
+    # O que falta fazer com este apadrinhamento, para a lista de pendencias:
+    #   "trocar"  a crianca desistiu e o apadrinhamento segue preso a ela;
+    #   "avisar"  ja foi trocado, mas o padrinho ainda nao recebeu a mensagem.
+    pendencia: str | None = None
+
+
+class TrocarCriancaIn(BaseModel):
+    """A crianca que recebe o apadrinhamento da desistente."""
+
+    crianca_id: int
 
 
 class EnvioCartaoOut(BaseModel):
@@ -177,6 +194,9 @@ class PadrinhoOut(BaseModel):
     links_abertos: list[CobrancaOut] = []
     # So na resposta de gerar o link: o link que acabou de nascer.
     ultimo_link: CobrancaOut | None = None
+    # Quantos apadrinhamentos deste padrinho tem pendencia (ver
+    # ApadrinhamentoResumo.pendencia).
+    pendencias: int = 0
 
 
 class PaginaPadrinhos(BaseModel):

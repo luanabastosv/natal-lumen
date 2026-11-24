@@ -295,7 +295,7 @@ class Crianca(Base):
         foreign_keys=[comissario_festa_id]
     )
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(  # noqa: F821
-        back_populates="crianca"
+        back_populates="crianca", foreign_keys="Apadrinhamento.crianca_id"
     )
     cartoes: Mapped[list["Cartao"]] = relationship(back_populates="crianca")  # noqa: F821
     kit: Mapped["Kit | None"] = relationship(back_populates="crianca")  # noqa: F821

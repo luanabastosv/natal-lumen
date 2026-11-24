@@ -14,6 +14,7 @@ as criancas da propria lista.
 
 import io
 import zipfile
+from datetime import UTC, datetime
 from decimal import Decimal
 
 DOIS_DECIMAIS = Decimal("0.01")
@@ -53,6 +54,7 @@ from app.schemas.padrinhos import (
     PagamentoEditar,
     PagamentoIn,
     PagamentoOut,
+    TrocarCriancaIn,
 )
 from app.servicos.apadrinhamento import confirmado
 from app.seguranca.contexto import ContextoAcesso
@@ -159,14 +161,24 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
     combinado = Decimal("0")
     pago = Decimal("0")
 
+    pendencias = 0
     for a in padrinho.apadrinhamentos:
         quitado = a.pagamento_id is not None
         # O mais recente manda: uma falha seguida de reenvio bem-sucedido
-        # tem de aparecer como enviado.
-        ultimo = max(a.envios, key=lambda e: e.criado_em, default=None)
+        # tem de aparecer como enviado. Depois de uma troca de crianca, so
+        # contam os envios da crianca nova: o "enviado" de antes era o
+        # agradecimento da que desistiu.
+        envios = [
+            e for e in a.envios if a.trocado_em is None or e.criado_em >= a.trocado_em
+        ]
+        ultimo = max(envios, key=lambda e: e.criado_em, default=None)
         combinado += a.valor
         if quitado:
             pago += a.valor
+        pendencia = _pendencia(a)
+        if pendencia:
+            pendencias += 1
+        antes = a.trocado_de
         resumos.append(
             ApadrinhamentoResumo(
                 id=a.id,
@@ -185,6 +197,12 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
                 comissario=a.comissario.nome if a.comissario else None,
                 cartao_status=ultimo.status if ultimo else None,
                 cartao_enviado_em=ultimo.criado_em if ultimo else None,
+                trocado_de_codigo=antes.codigo if antes else None,
+                trocado_de_nome=antes.nome if antes else None,
+                trocado_de_primeiro_nome=antes.primeiro_nome if antes else None,
+                trocado_em=a.trocado_em,
+                troca_avisada_em=a.troca_avisada_em,
+                pendencia=pendencia,
             )
         )
 
@@ -211,7 +229,23 @@ def _saida(padrinho: Padrinho) -> PadrinhoOut:
         links_abertos=[
             saida_cobranca(c) for c in padrinho.cobrancas if c.status == "aguardando"
         ],
+        pendencias=pendencias,
     )
+
+
+def _pendencia(a: Apadrinhamento) -> str | None:
+    """O que falta fazer com este apadrinhamento depois de uma desistencia.
+
+    "trocar": a crianca desistiu e o pagamento segue preso a quem nao vai. So
+    o que ja foi pago: promessa e link sem pagamento nao seguram dinheiro, e se
+    desfazem como qualquer outro.
+    "avisar": ja passou para outra crianca, e o padrinho ainda nao sabe.
+    """
+    if a.crianca.desistiu_em is not None and a.pagamento_id is not None:
+        return "trocar"
+    if a.trocado_em is not None and a.troca_avisada_em is None:
+        return "avisar"
+    return None
 
 
 def saida_cobranca(cobranca: CobrancaCartao) -> CobrancaOut:
@@ -276,6 +310,7 @@ def _carregar(db: Session, padrinho_id: int, ctx: ContextoAcesso, permissao: str
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.trocado_de),
             selectinload(Padrinho.cobrancas).joinedload(CobrancaCartao.criador),
             selectinload(Padrinho.cobrancas)
             .selectinload(CobrancaCartao.apadrinhamentos)
@@ -332,6 +367,7 @@ def listar_padrinhos(
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
             selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
             selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.trocado_de),
             selectinload(Padrinho.cobrancas).joinedload(CobrancaCartao.criador),
             selectinload(Padrinho.cobrancas)
             .selectinload(CobrancaCartao.apadrinhamentos)
@@ -521,6 +557,37 @@ def criar_padrinho(dados: PadrinhoIn, db: BD, ctx: Editar):
     )
     db.commit()
     return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
+
+
+# Antes de /padrinhos/{padrinho_id}: senao "pendencias" casava como id.
+@router.get("/padrinhos/pendencias", response_model=list[PadrinhoOut])
+def padrinhos_com_pendencias(edicao_id: int, db: BD, ctx: Ver):
+    """Os padrinhos com crianca desistente para trocar, ou com troca a avisar.
+
+    E a lista do topo da tela de padrinhos, e so de quem resolve: a
+    coordenacao (ver `_coordena`). Para os outros volta vazia, sem erro: a
+    tela deles simplesmente nao tem a secao.
+    """
+    if not _coordena(ctx, edicao_id):
+        return []
+    itens = db.scalars(
+        select(Padrinho)
+        .where(_filtro_padrinhos(ctx, "ver_padrinhos"), _pendentes(edicao_id))
+        .options(
+            joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
+            joinedload(Padrinho.criador),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.crianca),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.comissario),
+            selectinload(Padrinho.apadrinhamentos).selectinload(Apadrinhamento.envios),
+            selectinload(Padrinho.apadrinhamentos).joinedload(Apadrinhamento.trocado_de),
+            selectinload(Padrinho.cobrancas).joinedload(CobrancaCartao.criador),
+            selectinload(Padrinho.cobrancas)
+            .selectinload(CobrancaCartao.apadrinhamentos)
+            .joinedload(Apadrinhamento.crianca),
+        )
+        .order_by(Padrinho.nome)
+    ).unique().all()
+    return [_saida(p) for p in itens]
 
 
 @router.get("/padrinhos/{padrinho_id}", response_model=PadrinhoOut)
@@ -909,7 +976,12 @@ def agradecimentos_do_padrinho(padrinho_id: int, db: BD, ctx: Ver):
     apadrinhamentos = db.scalars(
         select(Apadrinhamento)
         .join(Crianca, Crianca.id == Apadrinhamento.crianca_id)
-        .where(Apadrinhamento.padrinho_id == padrinho.id, Apadrinhamento.pagamento_id.is_not(None))
+        .where(
+            Apadrinhamento.padrinho_id == padrinho.id,
+            Apadrinhamento.pagamento_id.is_not(None),
+            # Quem desistiu nao vai: nao ha agradecimento a mandar por ela.
+            Crianca.desistiu_em.is_(None),
+        )
         .options(
             joinedload(Apadrinhamento.crianca).joinedload(Crianca.instituicao),
             joinedload(Apadrinhamento.crianca).joinedload(Crianca.dia_evento),
@@ -1029,6 +1101,133 @@ def enviar_agradecimento(apadrinhamento_id: int, db: BD, ctx: Editar):
     )
 
 
+# ---------------------------------------------------------------- desistencia
+
+SO_COORDENACAO_TROCA = (
+    "So a coordenacao passa o apadrinhamento de uma crianca desistente para outra."
+)
+
+
+def _coordena(ctx: ContextoAcesso, edicao_id: int) -> bool:
+    """Coordenacao geral da edicao, ou administracao geral.
+
+    Por enquanto (23/11/2026) a coordenacao dos comissarios fica de fora: a
+    coordenacao testa a troca antes de liberar para ela. Para liberar, volte a
+    conferir `editar_padrinhos` sem `so_proprias_criancas`.
+    """
+    return ctx.e_coordenacao_geral(edicao_id)
+
+
+def _pendentes(edicao_id: int | None):
+    """Condicao SQL dos padrinhos com pendencia de desistencia (ver `_pendencia`)."""
+    desistente_pago = (
+        select(Apadrinhamento.padrinho_id)
+        .join(Crianca, Crianca.id == Apadrinhamento.crianca_id)
+        .where(Crianca.desistiu_em.is_not(None), Apadrinhamento.pagamento_id.is_not(None))
+    )
+    sem_aviso = select(Apadrinhamento.padrinho_id).where(
+        Apadrinhamento.trocado_em.is_not(None), Apadrinhamento.troca_avisada_em.is_(None)
+    )
+    condicao = or_(Padrinho.id.in_(desistente_pago), Padrinho.id.in_(sem_aviso))
+    if edicao_id is not None:
+        condicao = condicao & (Padrinho.edicao_id == edicao_id)
+    return condicao
+
+
+@router.post("/apadrinhamentos/{apadrinhamento_id}/trocar-crianca", response_model=PadrinhoOut)
+def trocar_crianca(apadrinhamento_id: int, dados: TrocarCriancaIn, db: BD, ctx: Editar):
+    """Passa o apadrinhamento de uma crianca desistente para outra.
+
+    E o mesmo apadrinhamento, e nao um novo: o pagamento, o valor, o tipo e o
+    comissario que captou continuam os mesmos. Ninguem paga de novo e o caixa
+    nao muda. A desistente fica sem padrinho; se ela voltar, volta livre.
+
+    A troca deixa a pendencia "avisar": o padrinho precisa saber que a crianca
+    dele mudou, e receber o agradecimento da nova.
+    """
+    apadrinhamento = db.get(Apadrinhamento, apadrinhamento_id)
+    if apadrinhamento is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Apadrinhamento nao encontrado.")
+    padrinho = _carregar(db, apadrinhamento.padrinho_id, ctx, "editar_padrinhos")
+    antiga = apadrinhamento.crianca
+
+    if not _coordena(ctx, antiga.edicao_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, SO_COORDENACAO_TROCA)
+    if antiga.desistiu_em is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{antiga.codigo} nao desistiu: so o apadrinhamento de uma crianca "
+            "desistente passa para outra.",
+        )
+    if apadrinhamento.pagamento_id is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Este apadrinhamento ainda nao tem pagamento. Sem dinheiro preso, "
+            "basta desfaze-lo e apadrinhar a outra crianca.",
+        )
+    if dados.crianca_id == antiga.id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Escolha outra crianca.")
+
+    nova = _crianca_para_apadrinhar(db, ctx, dados.crianca_id, apadrinhamento.tipo)
+
+    apadrinhamento.crianca_id = nova.id
+    apadrinhamento.trocado_de_id = antiga.id
+    apadrinhamento.trocado_em = datetime.now(UTC)
+    apadrinhamento.troca_avisada_em = None
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{nova.codigo} ja tem padrinho de {apadrinhamento.tipo}. Nada foi trocado.",
+        )
+
+    registrar(
+        db, "apadrinhamento_trocado", usuario_id=ctx.usuario.id,
+        tabela="apadrinhamentos", registro_id=apadrinhamento.id,
+        detalhes={
+            "padrinho_id": padrinho.id, "tipo": apadrinhamento.tipo,
+            "de": {"crianca_id": antiga.id, "codigo": antiga.codigo},
+            "para": {"crianca_id": nova.id, "codigo": nova.codigo},
+            "pagamento_id": apadrinhamento.pagamento_id,
+        },
+    )
+    db.commit()
+    db.expire_all()
+    return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
+
+
+@router.post("/apadrinhamentos/{apadrinhamento_id}/troca-avisada", response_model=PadrinhoOut)
+def troca_avisada(apadrinhamento_id: int, db: BD, ctx: Editar):
+    """Marca que o padrinho foi avisado da troca de crianca.
+
+    A tela chama ao abrir a conversa do WhatsApp com a mensagem pronta: o
+    envio e feito a mao, do telefone de quem coordena, e o sistema nao tem como
+    saber se a mensagem saiu. Abrir a conversa e o que se registra.
+    """
+    apadrinhamento = db.get(Apadrinhamento, apadrinhamento_id)
+    if apadrinhamento is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Apadrinhamento nao encontrado.")
+    padrinho = _carregar(db, apadrinhamento.padrinho_id, ctx, "editar_padrinhos")
+    if not _coordena(ctx, apadrinhamento.crianca.edicao_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, SO_COORDENACAO_TROCA)
+    if apadrinhamento.trocado_em is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Este apadrinhamento nao passou por troca de crianca."
+        )
+    if apadrinhamento.troca_avisada_em is None:
+        apadrinhamento.troca_avisada_em = datetime.now(UTC)
+        registrar(
+            db, "troca_avisada", usuario_id=ctx.usuario.id,
+            tabela="apadrinhamentos", registro_id=apadrinhamento.id,
+            detalhes={"padrinho_id": padrinho.id},
+        )
+        db.commit()
+        db.expire_all()
+    return _saida(_carregar(db, padrinho.id, ctx, "editar_padrinhos"))
+
+
 @router.patch("/apadrinhamentos/{apadrinhamento_id}", response_model=PadrinhoOut)
 def editar_apadrinhamento(
     apadrinhamento_id: int, dados: ApadrinhamentoEditar, db: BD, ctx: Editar
@@ -1070,6 +1269,16 @@ def apagar_apadrinhamento(apadrinhamento_id: int, db: BD, ctx: Editar):
 
     if not _e_meu(ctx, db, apadrinhamento):
         raise HTTPException(status.HTTP_403_FORBIDDEN, DO_COLEGA)
+
+    # Crianca desistente com pagamento nao se desfaz: o dinheiro ficaria sem
+    # destino. O caminho e vincular uma nova crianca (trocar-crianca).
+    crianca = db.get(Crianca, apadrinhamento.crianca_id)
+    if apadrinhamento.pagamento_id is not None and crianca.desistiu_em is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{crianca.codigo} desistiu e este apadrinhamento ja foi pago: em vez de "
+            "desfazer, vincule uma nova crianca, com o mesmo pagamento.",
+        )
 
     # Apadrinhamento pago so a coordenacao desfaz. Quem capta corrige o que
     # acabou de digitar; desfazer o que ja virou dinheiro e outra coisa.

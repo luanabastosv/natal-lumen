@@ -8751,3 +8751,217 @@ button.checkin-lista__botao:not(:disabled):active {
 .link-aberto__tipo::before {
   content: "· ";
 }
+
+/* ---------- Crianca apadrinhada que desistiu ----------
+   Na ficha do padrinho: a linha "no lugar de", e os botoes de passar para
+   outra crianca e de avisar o padrinho, embaixo do nome. */
+.ficha__linha-troca {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-on-light-muted);
+}
+
+.ficha__linha-pendencia {
+  display: inline-block;
+  margin-top: var(--space-2);
+  margin-right: var(--space-2);
+}
+
+/* A busca da crianca que recebe o apadrinhamento. */
+.troca__lista {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.troca__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-2);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-on-light-primary);
+}
+
+.troca__item:not(:disabled):hover {
+  background: var(--navy-50);
+}
+
+.troca__item--marcada {
+  background: var(--navy-100);
+  box-shadow: inset 0 0 0 2px var(--navy-500);
+}
+
+.troca__item:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.troca__nome {
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.troca__detalhe {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-on-light-muted);
+}
+
+/* Abaixo dos filtros da tela de padrinhos: quem tem crianca desistente para
+   trocar ou troca para avisar. Uma linha so, com a contagem; abre para a
+   lista. So a coordenacao e a coordenacao dos comissarios veem. */
+/* No vermelho claro dos alertas do sistema (o mesmo da mensagem de erro), e
+   nao em azul: e trabalho parado com dinheiro preso, e precisa saltar da
+   tela. Quem chama a atencao e o icone; a caixa tem a borda fina de todas,
+   sem faixa lateral. Nada de amarelo. */
+.pendencias {
+  margin: 0 0 var(--space-4);
+  background: #fdecec;
+  border: var(--stroke-hairline) solid #e8b4b4;
+  border-radius: var(--radius-md);
+}
+
+.pendencias__icone {
+  display: inline-flex;
+  color: #c0392b;
+}
+
+.pendencias__cabeca {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pendencias__cabeca:hover {
+  background: #fadcdc;
+}
+
+.pendencias__titulo {
+  font-size: 14px;
+  font-weight: 700;
+  color: #8f2c2c;
+}
+
+.pendencias__badge {
+  min-width: 22px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--white);
+  background: #c0392b;
+  border-radius: var(--radius-pill);
+}
+
+.pendencias__seta {
+  display: inline-flex;
+  margin-left: auto;
+  color: #8f2c2c;
+  transform: rotate(90deg);
+  transition: transform 0.15s;
+}
+
+.pendencias--aberta .pendencias__seta {
+  transform: rotate(-90deg);
+}
+
+/* Aberta, a lista continua no vermelho, um tom mais clarinho que a faixa do
+   titulo: a caixa inteira le como um aviso so. */
+.pendencias--aberta .pendencias__lista {
+  padding: 0 var(--space-4) var(--space-2);
+  background: #fef6f6;
+  border-top: 1px solid #e8b4b4;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.pendencias__lista .pendencias__item {
+  border-bottom-color: #f3d4d4;
+}
+
+/* Os textos de dentro no vermelho da caixa, e nao no azul do resto da tela:
+   o nome no tom do titulo, a frase um pouco mais clara. #9e4a4a sobre o
+   fundo clarinho da 5,6:1; o #8f2c2c, 7,7:1. */
+.pendencias__lista .pendencias__nome,
+.pendencias__lista .pendencias__abrir {
+  color: #8f2c2c;
+}
+
+.pendencias__lista .pendencias__o-que {
+  color: #9e4a4a;
+}
+
+.pendencias__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pendencias__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) 0;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+
+.pendencias__item:hover .pendencias__nome {
+  text-decoration: underline;
+}
+
+.pendencias__texto {
+  min-width: 0;
+}
+
+.pendencias__nome {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy-700);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pendencias__o-que {
+  display: block;
+  font-size: 12px;
+  color: var(--text-on-light-secondary);
+}
+
+.pendencias__abrir {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy-700);
+}

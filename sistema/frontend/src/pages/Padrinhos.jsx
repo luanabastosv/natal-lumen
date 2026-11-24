@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
-import { Enviar, Imprimir } from "../components/core/icones.jsx";
+import { Atencao, ChevronDireita, Enviar, Imprimir } from "../components/core/icones.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import { AvisoParecidos, CamposPadrinho } from "../components/dados/CamposPadrinho.jsx";
@@ -32,6 +32,7 @@ import {
   detalharPadrinho,
   editarPadrinho,
   listarPadrinhos,
+  padrinhosComPendencias,
 } from "../services/padrinhos.js";
 import { listarComissarios } from "../services/criancas.js";
 import { rotuloDoPerfil } from "../components/dados/perfis.js";
@@ -87,7 +88,16 @@ export default function Padrinhos() {
   // entao uma mudanca feita dentro da janela aparece nos dois lugares de uma
   // vez, sem duas copias do mesmo padrinho podendo divergir.
   const [fichaAbertaId, definirFichaAbertaId] = useState(null);
-  const fichaAberta = padrinhos.itens.find((p) => p.id === fichaAbertaId) ?? null;
+  // Os padrinhos com crianca desistente (ver o cartao do topo). A ficha pode
+  // abrir de la, de um padrinho que nao esta nesta pagina da lista.
+  const [pendentes, definirPendentes] = useState([]);
+  // Fechada ao abrir a tela: e um aviso, e quem quiser resolver abre.
+  const [pendenciasAbertas, definirPendenciasAbertas] = useState(false);
+  const totalPendencias = pendentes.reduce((s, p) => s + (p.pendencias ?? 0), 0);
+  const fichaAberta =
+    padrinhos.itens.find((p) => p.id === fichaAbertaId) ??
+    pendentes.find((p) => p.id === fichaAbertaId) ??
+    null;
 
   function abrirFicha(id) {
     definirFichaAbertaId(id);
@@ -187,6 +197,50 @@ export default function Padrinhos() {
       ...atual,
       itens: atual.itens.map((p) => (p.id === atualizado.id ? atualizado : p)),
     }));
+    // Nas pendencias o padrinho e trocado tambem, e sai quando nao tem mais
+    // nada a resolver. Sai so ao fechar a ficha: sumir com ela aberta
+    // fecharia a janela no meio do trabalho.
+    definirPendentes((atual) => atual.map((p) => (p.id === atualizado.id ? atualizado : p)));
+  }
+
+  // A crianca que desistiu: por enquanto so a coordenacao (e a
+  // administracao geral) troca e avisa; a coordenacao dos comissarios entra
+  // depois que a troca for testada. Para os outros a secao nem existe (e o
+  // servidor confere de novo).
+  const coordena = podeEditar && podeEnviarCartoes;
+  const buscarPendentes = useCallback(async () => {
+    if (!coordena || !edicaoAtiva) return;
+    try {
+      definirPendentes(await padrinhosComPendencias(edicaoAtiva));
+    } catch {
+      definirPendentes([]);
+    }
+  }, [coordena, edicaoAtiva]);
+
+  useEffect(() => {
+    // Mesma razao do efeito da lista: os dados chegam do servidor.
+    // eslint-disable-next-line react/set-state-in-effect
+    buscarPendentes();
+  }, [buscarPendentes]);
+
+  /** O que falta no padrinho, numa frase, para a linha das pendencias. */
+  function oQueFalta(p) {
+    const trocar = p.apadrinhamentos.filter((a) => a.pendencia === "trocar");
+    const avisar = p.apadrinhamentos.filter((a) => a.pendencia === "avisar");
+    const partes = [];
+    if (trocar.length) {
+      partes.push(
+        trocar.map((a) => `${a.crianca_codigo} ${a.crianca_primeiro_nome}`).join(", ") +
+          (trocar.length === 1 ? " desistiu: vincular nova criança" : " desistiram: vincular novas crianças"),
+      );
+    }
+    if (avisar.length) {
+      partes.push(
+        "avisar o padrinho da troca para " +
+          avisar.map((a) => `${a.crianca_codigo} ${a.crianca_primeiro_nome}`).join(", "),
+      );
+    }
+    return partes.join(" · ");
   }
 
   /** Salva uma celula e atualiza aquela linha, sem recarregar a tabela. */
@@ -498,6 +552,47 @@ export default function Padrinhos() {
         )}
       </form>
 
+      {/* Crianca apadrinhada que desistiu: o pagamento fica preso a quem nao
+          vai ate alguem passar para outra crianca e avisar o padrinho. Uma
+          linha so, abaixo dos filtros, com a contagem: aberta, a lista
+          empurrava a planilha para baixo de quem so veio procurar alguem. */}
+      {coordena && pendentes.length > 0 && (
+        <section className={`pendencias ${pendenciasAbertas ? "pendencias--aberta" : ""}`}>
+          <button
+            type="button"
+            className="pendencias__cabeca"
+            aria-expanded={pendenciasAbertas}
+            onClick={() => definirPendenciasAbertas((v) => !v)}
+          >
+            <span className="pendencias__icone">
+              <Atencao t={18} />
+            </span>
+            <span className="pendencias__titulo">Padrinhos com pendências</span>
+            <span className="pendencias__badge" aria-label={`${totalPendencias} pendências`}>
+              {totalPendencias}
+            </span>
+            <span className="pendencias__seta" aria-hidden="true">
+              <ChevronDireita t={16} />
+            </span>
+          </button>
+          {pendenciasAbertas && (
+            <ul className="pendencias__lista">
+              {pendentes.map((p) => (
+                <li key={p.id}>
+                  <button type="button" className="pendencias__item" onClick={() => abrirFicha(p.id)}>
+                    <span className="pendencias__texto">
+                      <span className="pendencias__nome">{p.nome}</span>
+                      <span className="pendencias__o-que">{oQueFalta(p)}</span>
+                    </span>
+                    <span className="pendencias__abrir">Resolver →</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {formAberto && (
         <Modal
           titulo={emEdicao ? "Editar informações" : "Novo padrinho"}
@@ -580,7 +675,11 @@ export default function Padrinhos() {
       {fichaAberta && (
         <FichaPadrinho
           padrinho={fichaAberta}
-          aoFechar={() => definirFichaAbertaId(null)}
+          aoFechar={() => {
+            definirFichaAbertaId(null);
+            // Ao fechar, a lista do topo se refaz: quem foi resolvido sai.
+            buscarPendentes();
+          }}
           podeEditar={podeEditar}
           podePagar={podePagar}
           podeExcluir={podeExcluir}

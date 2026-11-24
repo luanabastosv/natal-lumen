@@ -88,3 +88,18 @@ export const meusLinks = () => api.get("/cobrancas/minhas");
 
 /** Vi o aviso deste link pago: ele nao aparece mais. */
 export const marcarLinkAvisado = (id) => api.post(`/cobrancas/${id}/avisado`);
+
+/* ---------- Crianca apadrinhada que desistiu ---------- */
+
+/** Padrinhos com crianca desistente para trocar, ou troca a avisar. So a
+ *  coordenacao e a coordenacao dos comissarios recebem alguem; para os
+ *  outros a lista vem vazia. */
+export const padrinhosComPendencias = (edicaoId) =>
+  comFiltros("/padrinhos/pendencias", { edicao_id: edicaoId });
+/** Passa o apadrinhamento da desistente para outra crianca, com o mesmo
+ *  pagamento. Devolve o padrinho atualizado. */
+export const trocarCrianca = (apadrinhamentoId, criancaId) =>
+  api.post(`/apadrinhamentos/${apadrinhamentoId}/trocar-crianca`, { crianca_id: criancaId });
+/** Registra que a mensagem da troca foi aberta para o padrinho. */
+export const marcarTrocaAvisada = (apadrinhamentoId) =>
+  api.post(`/apadrinhamentos/${apadrinhamentoId}/troca-avisada`);

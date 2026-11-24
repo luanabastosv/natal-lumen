@@ -386,3 +386,15 @@ export function Oracao({ t }) {
     </Svg>
   );
 }
+
+/** Atencao: o triangulo com o ponto de exclamacao. Abre a linha dos
+ *  padrinhos com pendencias, na tela de padrinhos. */
+export function Atencao({ t }) {
+  return (
+    <Svg t={t}>
+      <path d="M10.3 3.9 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </Svg>
+  );
+}
