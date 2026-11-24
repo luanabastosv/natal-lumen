@@ -478,9 +478,23 @@ export default function Painel() {
                     nota={
                       /* Para o comissario a instituicao nao e a informacao:
                          ele quer saber quantas ja estao resolvidas. */
-                      soMinhas
-                        ? plural(r.criancas - r.completas, "a completar", "a completar")
-                        : plural(r.instituicoes, "instituição", "instituições")
+                      <>
+                        {soMinhas
+                          ? plural(r.criancas - r.completas, "a completar", "a completar")
+                          : plural(r.instituicoes, "instituição", "instituições")}
+                        {/* As desistentes seguem no total; aqui so se diz
+                            quantas sao, porque a intercessao e a monitoria
+                            contam so quem vai. Linha propria e com
+                            "criancas" escrito: colado nas instituicoes, lia
+                            como se elas tivessem desistido. */}
+                        {r.desistentes > 0 && (
+                          <span className="metrica__nota-linha">
+                            {r.desistentes === 1
+                              ? "1 criança desistiu"
+                              : `${r.desistentes} crianças desistiram`}
+                          </span>
+                        )}
+                      </>
                     }
                   />
                   <Metrica

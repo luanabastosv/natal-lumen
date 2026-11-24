@@ -25,6 +25,9 @@ class ResumoEdicao(BaseModel):
     ano: int
 
     criancas: int
+    # Quantas das `criancas` desistiram. Elas seguem no total; o numero vem a
+    # parte para o painel dizer quantas sao.
+    desistentes: int = 0
     instituicoes: int
 
     # Cada crianca precisa de um padrinho de cesta e um de festa. Por isso os
