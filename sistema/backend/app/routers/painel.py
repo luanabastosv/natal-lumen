@@ -124,6 +124,12 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     criancas_visiveis = select(Crianca.id).where(alcance)
 
     criancas = db.scalar(select(func.count()).select_from(Crianca).where(alcance)) or 0
+    # As desistentes continuam no total (a lista da edicao e uma so), mas o
+    # painel diz quantas sao: a intercessao, a monitoria e os cuidados contam
+    # so quem vai, e sem isto os dois totais pareciam nao bater.
+    desistentes = db.scalar(
+        select(func.count()).select_from(Crianca).where(alcance, Crianca.desistiu_em.is_not(None))
+    ) or 0
     instituicoes = db.scalar(
         select(func.count(func.distinct(Crianca.instituicao_id))).where(alcance)
     ) or 0
@@ -192,6 +198,7 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
         cidade=edicao.cidade.nome,
         ano=edicao.ano,
         criancas=criancas,
+        desistentes=desistentes,
         instituicoes=instituicoes,
         cesta_feitos=por_tipo.get(CESTA, 0),
         festa_feitos=festa_feitos,

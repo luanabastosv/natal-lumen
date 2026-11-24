@@ -4761,6 +4761,12 @@ button.celula:hover {
   color: var(--text-on-light-muted);
 }
 
+/* Uma segunda informacao na nota, que nao e do mesmo assunto da primeira
+   (as desistentes, embaixo das instituicoes): linha propria. */
+.metrica__nota-linha {
+  display: block;
+}
+
 /* ---------- Anel: medidor em arco --------------------------------------- */
 .anel {
   display: grid;

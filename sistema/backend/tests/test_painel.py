@@ -261,6 +261,17 @@ def main() -> None:
                                      "checkin_feitos", "compras_total"}),
                  str(sorted(resumo)))
 
+        print("\nDesistentes: seguem no total, contadas a parte")
+        verifica("sem desistente, desistentes e 0",
+                 resumo.get("desistentes") == 0, str(resumo.get("desistentes")))
+        criancas_b[1].desistiu_em = datetime.now(UTC); db.commit()
+        resumo_d = cc.get(f"/painel/{edicao.id}").json().get("resumo", {})
+        verifica("com a B2 desistente, o total continua 5",
+                 resumo_d.get("criancas") == 5, str(resumo_d.get("criancas")))
+        verifica("e o painel diz que 1 desistiu",
+                 resumo_d.get("desistentes") == 1, str(resumo_d.get("desistentes")))
+        criancas_b[1].desistiu_em = None; db.commit()
+
         print("\nQuebra por instituicao")
         por_inst = {l["instituicao"]: l for l in rel.get("por_instituicao", [])}
         verifica("quebra pelas 2 instituicoes", len(por_inst) == 2, str(list(por_inst)))
