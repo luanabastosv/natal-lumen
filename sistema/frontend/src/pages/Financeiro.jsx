@@ -21,6 +21,7 @@ import {
   apagarRecebimento,
   apagarSaida,
   baixarComprovanteDoRecebimento,
+  copiarVendasDaLojinha,
   criarSaida,
   listarRecebimentos,
   listarSaidas,
@@ -42,6 +43,7 @@ const ETIQUETA_ORIGEM = {
   apadrinhamento: "sem destino",
   doacao: "doação",
   outros: "outros",
+  lojinha: "lojinha",
 };
 
 /** As etiquetas do tipo da linha, cada uma na cor da sua barra no grafico.
@@ -50,7 +52,9 @@ const ETIQUETA_ORIGEM = {
  *  duas tem as duas etiquetas, e e assim que ele conta no "De onde veio" —
  *  partido, cesta de um lado e festa do outro. */
 function EtiquetaOrigem({ linha }) {
-  const doPagamento = linha.fonte === "pagamento";
+  // No pagamento e na venda da lojinha a descricao e o que foi comprado
+  // ("2 cestas + 1 festa", "Blusa NL26 (2)"): fica na dica da etiqueta.
+  const comDescricao = linha.fonte === "pagamento" || linha.categoria === "lojinha";
   const categorias = linha.categorias?.length ? linha.categorias : [linha.categoria];
 
   return categorias.map((categoria) => {
@@ -59,7 +63,7 @@ function EtiquetaOrigem({ linha }) {
       <span
         key={categoria}
         className={`etiqueta etiqueta--origem origem--${categoria}`}
-        title={doPagamento ? `${rotulo}: ${linha.descricao}` : rotulo}
+        title={comDescricao ? `${rotulo}: ${linha.descricao}` : rotulo}
       >
         {ETIQUETA_ORIGEM[categoria] ?? categoria}
       </span>
@@ -254,6 +258,11 @@ export default function Financeiro() {
   const [alvo, definirAlvo] = useState(null);
   const [subindo, definirSubindo] = useState("");
 
+  // A lojinha do Shopify: nulo ate a primeira resposta; `ligada` falso quando
+  // o servidor nao tem as credenciais (e o botao de atualizar nem aparece).
+  const [lojinha, definirLojinha] = useState(null);
+  const [atualizandoLojinha, definirAtualizandoLojinha] = useState(false);
+
   const chave = (linha) => `${linha.fonte}-${linha.id}`;
 
   const buscar = useCallback(async () => {
@@ -282,6 +291,50 @@ export default function Financeiro() {
     // eslint-disable-next-line react/set-state-in-effect
     if (edicaoAtiva) buscar();
   }, [edicaoAtiva, buscar]);
+
+  // As vendas da lojinha chegam por copia, e nao ao vivo: ao abrir a tela o
+  // servidor copia o que for novo (no maximo a cada cinco minutos) e, se algo
+  // mudou, a lista e pedida de novo. Falha do Shopify nao vira erro na tela:
+  // o caixa segue com o que ja estava copiado.
+  useEffect(() => {
+    if (!podeRecebimentos) return;
+    let vivo = true;
+    copiarVendasDaLojinha()
+      .then((r) => {
+        if (!vivo) return;
+        definirLojinha(r);
+        if (r.mudou) buscar();
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+    // So na abertura: trocar filtro ou edicao nao precisa ir ao Shopify.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [podeRecebimentos]);
+
+  async function atualizarLojinha() {
+    definirErro("");
+    definirAtualizandoLojinha(true);
+    try {
+      const r = await copiarVendasDaLojinha(true);
+      definirLojinha(r);
+      if (r.erro) {
+        definirErro(r.erro);
+      } else {
+        notificar(
+          r.novos
+            ? `${r.novos} venda(s) nova(s) da lojinha.`
+            : "A lojinha já estava em dia.",
+        );
+        if (r.mudou) buscar();
+      }
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirAtualizandoLojinha(false);
+    }
+  }
 
   function trocarAba(nova) {
     definirAba(nova);
@@ -456,6 +509,8 @@ export default function Financeiro() {
             </span>
           ) : l.mercadopago_id ? (
             <span title="Pago pelo link do Mercado Pago">Mercado Pago nº {l.mercadopago_id}</span>
+          ) : l.shopify_pedido_numero ? (
+            <span title="Venda da lojinha no Shopify">Pedido {l.shopify_pedido_numero}</span>
           ) : (
             <span className="etiqueta etiqueta--espera">Falta</span>
           ),
@@ -678,6 +733,16 @@ export default function Financeiro() {
                   )}
                 </>
               )}
+              {aba === RECEBIMENTOS && lojinha?.ligada && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={atualizarLojinha}
+                  carregando={atualizandoLojinha}
+                >
+                  Atualizar lojinha
+                </Button>
+              )}
               {/* O botao fica na faixa, ao lado dos filtros, e nao no topo da
                   pagina: e a acao da lista aberta, e muda com a aba. Um botao
                   cheio por tela — os dois nunca aparecem juntos. */}
@@ -855,6 +920,13 @@ export default function Financeiro() {
                                     >
                                       Mercado Pago
                                     </span>
+                                  ) : l.shopify_pedido_numero ? (
+                                    <span
+                                      className="celula--vazia"
+                                      title={`Venda da lojinha no Shopify, pedido ${l.shopify_pedido_numero}`}
+                                    >
+                                      Pedido {l.shopify_pedido_numero}
+                                    </span>
                                   ) : (
                                     <span className="etiqueta etiqueta--espera">
                                       {subindo === chave(l) ? "Subindo..." : "Falta"}
@@ -868,32 +940,39 @@ export default function Financeiro() {
                               </>
                             )}
                             <td className="tabela__acoes" onClick={(e) => e.stopPropagation()}>
-                              <MenuAcoes
-                                titulo={`Ações de ${l.descricao}`}
-                                itens={[
-                                  estreita && {
-                                    rotulo: "Ver detalhes",
-                                    aoEscolher: () => definirDetalhe(detalheDoRecebimento(l)),
-                                  },
-                                  {
-                                    rotulo: l.tem_comprovante
-                                      ? "Trocar comprovante"
-                                      : "Subir comprovante",
-                                    disabled: subindo === chave(l),
-                                    aoEscolher: () => pedirArquivo(l),
-                                  },
-                                  {
-                                    rotulo: "Remover",
-                                    perigo: true,
-                                    // Pagamento de padrinho pergunta antes:
-                                    // ele leva os apadrinhamentos junto.
-                                    aoEscolher: () =>
-                                      l.fonte === "pagamento"
-                                        ? definirARemover(l)
-                                        : removerLinha(l),
-                                  },
-                                ]}
-                              />
+                              {/* Na tela larga a venda da lojinha nao tem
+                                  acao nenhuma: sem menu vazio. */}
+                              {(estreita || l.categoria !== "lojinha") && (
+                                <MenuAcoes
+                                  titulo={`Ações de ${l.descricao}`}
+                                  itens={[
+                                    estreita && {
+                                      rotulo: "Ver detalhes",
+                                      aoEscolher: () => definirDetalhe(detalheDoRecebimento(l)),
+                                    },
+                                    // A venda da lojinha segue o pedido no
+                                    // Shopify: o numero dele e o comprovante,
+                                    // e ela sai sozinha se for cancelada la.
+                                    l.categoria !== "lojinha" && {
+                                      rotulo: l.tem_comprovante
+                                        ? "Trocar comprovante"
+                                        : "Subir comprovante",
+                                      disabled: subindo === chave(l),
+                                      aoEscolher: () => pedirArquivo(l),
+                                    },
+                                    l.categoria !== "lojinha" && {
+                                      rotulo: "Remover",
+                                      perigo: true,
+                                      // Pagamento de padrinho pergunta antes:
+                                      // ele leva os apadrinhamentos junto.
+                                      aoEscolher: () =>
+                                        l.fonte === "pagamento"
+                                          ? definirARemover(l)
+                                          : removerLinha(l),
+                                    },
+                                  ]}
+                                />
+                              )}
                             </td>
                           </tr>
                         ))}

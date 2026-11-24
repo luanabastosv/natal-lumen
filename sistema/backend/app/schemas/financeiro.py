@@ -139,6 +139,9 @@ class LinhaRecebimento(BaseModel):
     comprovante_drive_link: str | None
     # Pago pelo link do Mercado Pago: o numero da transacao e o comprovante.
     mercadopago_id: str | None = None
+    # Venda da lojinha: o numero do pedido no Shopify (#1549) e o comprovante.
+    # A linha nao se edita nem se remove aqui: ela segue o pedido na loja.
+    shopify_pedido_numero: str | None = None
     # Pagamento que nao quita apadrinhamento nenhum (o apadrinhamento foi
     # desfeito e o dinheiro ficou). A categoria dele e o "apadrinhamento" sem
     # tipo.
@@ -173,3 +176,20 @@ class PaginaRecebimentos(BaseModel):
     # Os dois numeros que pedem acao, e nao so somam.
     a_conferir: Decimal
     sem_comprovante: int
+
+
+class CopiaDaLojinha(BaseModel):
+    """O que a copia das vendas da lojinha fez agora.
+
+    `ligada` falso: o servidor nao tem as credenciais do Shopify. `copiou`
+    falso com `erro` vazio: a ultima copia foi ha pouco, e esta nem rodou.
+    """
+
+    ligada: bool
+    copiou: bool
+    novos: int
+    atualizados: int
+    removidos: int
+    sem_edicao: int
+    erro: str | None
+    mudou: bool

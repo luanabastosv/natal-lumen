@@ -164,6 +164,25 @@ lojinha vendeu nos últimos 7 dias?"
 
 ---
 
+### As vendas no financeiro
+
+As mesmas credenciais ligam a lojinha na aba **Financeiro → Recebimentos**.
+Cada pedido pago vira um recebimento com a etiqueta **lojinha**, pelo valor que
+o cliente pagou (com frete, sem o que foi estornado). Fica de fora o pedido de
+teste, o cancelado e o Pix que expirou. A cópia roda quando a tela abre (no
+máximo a cada 5 minutos) e pelo botão **Atualizar lojinha**.
+
+- A venda conta para a edição do **ano da campanha**: de julho a junho do ano
+  seguinte. A venda de janeiro de 2026 é da campanha de 2025. Com duas edições
+  no mesmo ano, o pedido fica de fora, porque não dá para saber de qual cidade
+  foi.
+- A linha não se edita nem se remove no sistema, só se confere e se anota.
+  Cancelou ou estornou no Shopify, a linha some ou muda de valor sozinha (e
+  volta a ficar sem conferir).
+- Como o Shopify só entrega os últimos 60 dias, as vendas ficam copiadas no
+  banco. As que já passaram disso antes da primeira cópia não entram.
+- Código: `app/servicos/lojinha.py`; teste: `python -m tests.test_lojinha`.
+
 ## Sorrisômetro
 
 A Estrelinha também desenha o **sorrisômetro**, a arte de progresso dos

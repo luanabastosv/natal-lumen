@@ -1507,6 +1507,9 @@ textarea.campo__controle {
 .origem--apadrinhamento { --cor-origem: #9085e9; --cor-origem-fundo: #ebe8fb; }
 .origem--doacao { --cor-origem: #1baf7a; --cor-origem-fundo: #daf2e9; }
 .origem--outros { --cor-origem: #eb6834; --cor-origem-fundo: #fce4da; }
+/* Lojinha: o rosa da paleta categorica, validado contra as cinco acima (pior
+   par deltaE 9,5, com o laranja de "outros", em tritanopia). */
+.origem--lojinha { --cor-origem: #e87ba4; --cor-origem-fundo: #fbe5ee; }
 
 /* O tipo do recebimento na lista. O pontinho e a cor da barra do grafico, para
    a linha casar com ela de relance; o fundo e so um tom dela. */

@@ -25,6 +25,12 @@ export const apagarSaida = (id) => api.delete(`/compras/${id}`);
  *  `fonte` — e e por ela que a tela sabe em qual rota as acoes batem. */
 export const listarRecebimentos = (filtros) => comFiltros("/recebimentos", filtros);
 
+/** Traz para os recebimentos as vendas pagas da lojinha no Shopify. Sem
+ *  `forcar`, o servidor so copia se a ultima copia tiver mais de cinco
+ *  minutos: a tela chama toda vez que abre. */
+export const copiarVendasDaLojinha = (forcar = false) =>
+  api.post(`/recebimentos/lojinha${forcar ? "?forcar=true" : ""}`);
+
 export const criarRecebimento = (dados) => api.post("/recebimentos", dados);
 export const editarRecebimento = (id, dados) => api.patch(`/recebimentos/${id}`, dados);
 export const apagarRecebimento = (id) => api.delete(`/recebimentos/${id}`);
@@ -72,6 +78,8 @@ export const ROTULO_CATEGORIA = {
   apadrinhamento: "Apadrinhamento sem destino",
   doacao: "Doação",
   outros: "Outros",
+  // Venda paga da lojinha no Shopify, copiada sozinha. Ninguem a escolhe.
+  lojinha: "Lojinha",
 };
 
 /** As duas que alguem escolhe ao registrar um recebimento.

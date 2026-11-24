@@ -19,7 +19,9 @@ tabelas:
                   a linha e o proprio pagamento, lido de lado, e a categoria
                   dela e DERIVADA do que ele quita (so cesta, so festa, ou os
                   dois). Assim a categoria nunca pode divergir do que foi pago.
-    recebimentos  o que chega solto: doacao ou outros.
+    recebimentos  o que chega solto: doacao ou outros. E a venda da lojinha
+                  no Shopify, copiada sozinha do pedido pago (categoria
+                  'lojinha', ver servicos/lojinha.py).
 
 As duas somas e as duas contagens que a tela mostra saem de uma passada em
 memoria sobre as duas listas inteiras, e nao de um GROUP BY: a categoria do
@@ -38,11 +40,12 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.database import get_db
 from app.models import Compra, Edicao, Padrinho, Pagamento, Recebimento, Usuario
-from app.models.tipos import CategoriaRecebimento, TipoApadrinhamento
+from app.models.tipos import CATEGORIA_LOJINHA, CategoriaRecebimento, TipoApadrinhamento
 from app.schemas.financeiro import (
     CompraEditar,
     CompraIn,
     CompraOut,
+    CopiaDaLojinha,
     LinhaRecebimento,
     PaginaCompras,
     PaginaRecebimentos,
@@ -52,7 +55,7 @@ from app.schemas.financeiro import (
 )
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_permissao
-from app.servicos import comprovantes
+from app.servicos import comprovantes, lojinha
 from app.servicos.log import registrar, valores
 
 router = APIRouter(tags=["financeiro"])
@@ -296,7 +299,9 @@ def _linha_do_recebimento(r: Recebimento, responsavel: str | None) -> LinhaReceb
         conferido=r.conferido,
         tem_comprovante=bool(r.comprovante_arquivo),
         comprovante_drive_link=r.comprovante_drive_link,
-        responsavel=responsavel,
+        shopify_pedido_numero=r.shopify_pedido_numero,
+        # Ninguem lancou a venda da lojinha: ela veio do Shopify.
+        responsavel=responsavel or ("Lojinha" if r.shopify_pedido_id else None),
         categorias=[r.categoria],
     )
 
@@ -360,9 +365,10 @@ def listar_recebimentos(
         por_categoria[r.categoria] += r.valor
 
     a_conferir = sum((l.valor for l in linhas if not l.conferido), ZERO)
-    # O pago pelo link nao tem arquivo e nao falta nada nele.
+    # O pago pelo link e a venda da lojinha nao tem arquivo, e nao falta nada
+    # neles: o numero da transacao ou do pedido e o comprovante.
     def comprovado(l) -> bool:
-        return l.tem_comprovante or bool(l.mercadopago_id)
+        return l.tem_comprovante or bool(l.mercadopago_id) or bool(l.shopify_pedido_numero)
 
     sem_comprovante = sum(1 for l in linhas if not comprovado(l))
     do_apadrinhamento = sum((p.valor for p in pagamentos), ZERO)
@@ -391,6 +397,31 @@ def listar_recebimentos(
         a_conferir=a_conferir.quantize(DOIS_DECIMAIS),
         sem_comprovante=sem_comprovante,
     )
+
+
+@router.post("/recebimentos/lojinha", response_model=CopiaDaLojinha)
+def copiar_vendas_da_lojinha(db: BD, ctx: Entradas, forcar: bool = False):
+    """Traz para os recebimentos as vendas pagas da lojinha no Shopify.
+
+    A tela chama ao abrir (e a copia so roda se a ultima tiver mais de cinco
+    minutos) e pelo botao de atualizar, com `forcar`. Copia para todas as
+    edicoes, e nao so para a de quem chamou: a venda e uma so, e a regra de
+    qual edicao ela e mora em servicos/lojinha.py, nao em quem abriu a tela.
+    """
+    r = lojinha.copiar(db, forcar=forcar)
+    return CopiaDaLojinha(
+        ligada=r.ligada, copiou=r.copiou, novos=r.novos, atualizados=r.atualizados,
+        removidos=r.removidos, sem_edicao=r.sem_edicao, erro=r.erro, mudou=r.mudou,
+    )
+
+
+def _nao_mexe_na_lojinha(recebimento: Recebimento, o_que: str) -> None:
+    if recebimento.categoria == CATEGORIA_LOJINHA:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"A venda da lojinha nao se {o_que} aqui: ela segue o pedido no Shopify. "
+            "Cancelado ou estornado la, ela sai daqui sozinha.",
+        )
 
 
 @router.post(
@@ -440,6 +471,10 @@ def editar_recebimento(
     recebimento = _carregar_recebimento(db, recebimento_id, ctx)
 
     mudancas = dados.model_dump(exclude_unset=True)
+    # Na venda da lojinha so a conferencia e a observacao sao da coordenacao;
+    # o resto vem do pedido, e a proxima copia desfaria a edicao.
+    if set(mudancas) - {"conferido", "observacoes"}:
+        _nao_mexe_na_lojinha(recebimento, "edita")
     antes = valores(recebimento, mudancas)
     for campo, valor in mudancas.items():
         setattr(
@@ -466,6 +501,7 @@ def editar_recebimento(
 @router.delete("/recebimentos/{recebimento_id}", status_code=status.HTTP_204_NO_CONTENT)
 def apagar_recebimento(recebimento_id: int, db: BD, ctx: Entradas):
     recebimento = _carregar_recebimento(db, recebimento_id, ctx)
+    _nao_mexe_na_lojinha(recebimento, "remove")
 
     registrar(
         db, "recebimento_apagado", usuario_id=ctx.usuario.id,
@@ -499,6 +535,7 @@ def subir_comprovante_do_recebimento(
     dinheiro nao pode falhar por causa de um arquivo grande demais.
     """
     recebimento = _carregar_recebimento(db, recebimento_id, ctx)
+    _nao_mexe_na_lojinha(recebimento, "comprova com arquivo")
     edicao = _edicao_do_recebimento(db, recebimento.edicao_id)
 
     anterior = comprovantes.guardar(

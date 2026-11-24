@@ -11,7 +11,9 @@ O dinheiro que entra tem DUAS origens, e so uma delas mora aqui:
                      financeiro — seria a mesma verdade escrita em dois lugares.
     esporadico       `recebimentos`, esta tabela: a doacao que chega solta, o
                      patrocinio, a rifa. Nao tem crianca nem padrinho do outro
-                     lado, e por isso nao caberia em `pagamentos`.
+                     lado, e por isso nao caberia em `pagamentos`. A venda da
+                     lojinha no Shopify tambem mora aqui, copiada do pedido
+                     pago, com `shopify_pedido_id` preenchido.
 
 A tela soma as duas; a base guarda cada uma onde ela nasce.
 """
@@ -26,12 +28,19 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.models.tipos import CategoriaRecebimento, CriadoEm, Dinheiro, valores
+from app.models.tipos import (
+    CATEGORIA_LOJINHA,
+    CategoriaRecebimento,
+    CriadoEm,
+    Dinheiro,
+    valores,
+)
 
 
 class Compra(Base):
@@ -86,9 +95,10 @@ class Recebimento(Base):
     __table_args__ = (
         CheckConstraint("valor > 0", name="ck_recebimentos_valor"),
         CheckConstraint(
-            "categoria IN " + str(valores(CategoriaRecebimento)),
+            "categoria IN " + str(valores(CategoriaRecebimento) + (CATEGORIA_LOJINHA,)),
             name="ck_recebimentos_categoria",
         ),
+        UniqueConstraint("shopify_pedido_id", name="uq_recebimentos_shopify_pedido_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -119,6 +129,13 @@ class Recebimento(Base):
     conferido: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+
+    # Venda da lojinha: o id do pedido no Shopify (gid://shopify/Order/...) e
+    # o numero que a loja mostra (#1549). O id e o que impede o mesmo pedido de
+    # entrar duas vezes; o numero e o comprovante, como o id do Mercado Pago
+    # no pagamento do padrinho. Vazios em todo recebimento lancado a mao.
+    shopify_pedido_id: Mapped[str | None] = mapped_column(String(60))
+    shopify_pedido_numero: Mapped[str | None] = mapped_column(String(30))
 
     registrado_por: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")

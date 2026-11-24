@@ -51,6 +51,13 @@ class CategoriaRecebimento(StrEnum):
     OUTROS = "outros"
 
 
+# A venda da lojinha no Shopify tambem e gravada em `recebimentos`, mas
+# ninguem a escolhe: ela chega sozinha, copiada do pedido pago
+# (servicos/lojinha.py). Por isso fica fora de CategoriaRecebimento, que e o
+# que o formulario oferece, e entra so no CHECK da coluna.
+CATEGORIA_LOJINHA = "lojinha"
+
+
 class TipoToken(StrEnum):
     PRIMEIRO_ACESSO = "primeiro_acesso"
     REDEFINIR_SENHA = "redefinir_senha"
