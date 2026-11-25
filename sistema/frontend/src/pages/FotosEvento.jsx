@@ -52,6 +52,18 @@ export default function FotosEvento() {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [falas, digitando, passo]);
 
+  // E quando a lista encolhe (o teclado abriu), a ultima fala continua a
+  // vista: sem isto, a pergunta ficava escondida atras da caixa de resposta.
+  useEffect(() => {
+    const el = falasRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const obs = new ResizeObserver(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [fase]);
+
   // O codigo pode ser de um QR antigo ou digitado errado.
   useEffect(() => {
     conferirQrCode(codigo)
@@ -205,7 +217,7 @@ export default function FotosEvento() {
             <p className="fotos__edicao">{edicao ? `- ${edicao} -` : "\u00a0"}</p>
           </div>
           <button type="button" className="fotos__cta fotos__cta--entrada" onClick={comecar}>
-            Quero acessar minhas fotos
+            Acessar minhas fotos
           </button>
         </section>
       </div>
@@ -321,9 +333,13 @@ export default function FotosEvento() {
                 </svg>
               </button>
             </form>
-            <p className="fotos__nota">
-              {passo === "celular" ? "Seus dados ficam só com o Natal Lumen." : ""}
-            </p>
+            {/* Com o teclado aberto cada linha conta: a nota so ocupa espaco
+                quando tem o que dizer. */}
+            {(passo === "celular" || !teclado) && (
+              <p className="fotos__nota">
+                {passo === "celular" ? "Seus dados ficam só com o Natal Lumen." : ""}
+              </p>
+            )}
           </>
         )}
         {fase === "fim" && link && (

@@ -30,7 +30,7 @@ body.fotos-corpo {
 }
 
 .fotos__mascote {
-  width: min(62vw, 240px);
+  width: min(46vw, 180px);
 }
 
 .fotos__mascote--pula,
@@ -186,6 +186,33 @@ body.fotos-corpo {
   width: clamp(56px, 16vh, 120px);
   height: auto;
   transition: width 0.25s ease;
+}
+
+/* Teclado aberto: a tela visivel cai pela metade. A barra, as falas e a
+   caixa apertam o espaco entre si para a pergunta caber junto da caixa. */
+.fotos__chat--teclado {
+  padding-top: 10px;
+}
+
+.fotos__chat--teclado .fotos__progresso {
+  padding: 0 0 4px;
+}
+
+.fotos__chat--teclado .fotos__progresso-texto {
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.fotos__chat--teclado .fotos__falas {
+  padding: 8px 0 10px;
+}
+
+.fotos__chat--teclado .fotos__base {
+  padding-bottom: 8px;
+}
+
+.fotos__chat--teclado .fotos__nota {
+  margin-top: 6px;
 }
 
 /* Teclado aberto: a Estrelinha encolhe. */
@@ -407,7 +434,7 @@ body.fotos-corpo {
   }
 
   .fotos__mascote {
-    width: 260px;
+    width: 200px;
   }
 
   .fotos__marca {
