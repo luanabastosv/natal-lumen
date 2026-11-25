@@ -25,8 +25,8 @@ class ResumoEdicao(BaseModel):
     ano: int
 
     criancas: int
-    # Quantas das `criancas` desistiram. Elas seguem no total; o numero vem a
-    # parte para o painel dizer quantas sao.
+    # Sem as desistentes: elas ficam fora de toda conta do painel. Este numero
+    # so diz quantas ficaram de fora.
     desistentes: int = 0
     instituicoes: int
 

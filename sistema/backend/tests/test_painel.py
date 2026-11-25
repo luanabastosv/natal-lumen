@@ -261,16 +261,26 @@ def main() -> None:
                                      "checkin_feitos", "compras_total"}),
                  str(sorted(resumo)))
 
-        print("\nDesistentes: seguem no total, contadas a parte")
+        print("\nDesistentes: fora de todas as contas, so contadas a parte")
         verifica("sem desistente, desistentes e 0",
                  resumo.get("desistentes") == 0, str(resumo.get("desistentes")))
-        criancas_b[1].desistiu_em = datetime.now(UTC); db.commit()
-        resumo_d = cc.get(f"/painel/{edicao.id}").json().get("resumo", {})
-        verifica("com a B2 desistente, o total continua 5",
-                 resumo_d.get("criancas") == 5, str(resumo_d.get("criancas")))
-        verifica("e o painel diz que 1 desistiu",
+        # A B1 tem cesta paga: nem assim ela conta, desistente nao entra em nada.
+        criancas_b[0].desistiu_em = datetime.now(UTC); db.commit()
+        rel_d = cc.get(f"/painel/{edicao.id}").json()
+        resumo_d = rel_d.get("resumo", {})
+        verifica("com a B1 desistente, o total cai para 4",
+                 resumo_d.get("criancas") == 4, str(resumo_d.get("criancas")))
+        verifica("e a cesta paga dela sai da conta (3 -> 2)",
+                 resumo_d.get("cesta_feitos") == 2, str(resumo_d.get("cesta_feitos")))
+        verifica("e o painel diz que 1 ficou de fora",
                  resumo_d.get("desistentes") == 1, str(resumo_d.get("desistentes")))
-        criancas_b[1].desistiu_em = None; db.commit()
+        inst_b_d = {l["instituicao"]: l for l in rel_d.get("por_instituicao", [])}.get(
+            f"{MARCA} Escola B", {})
+        verifica("na quebra, a Escola B fica com 1 crianca e 0 cesta",
+                 inst_b_d.get("criancas") == 1 and inst_b_d.get("cesta") == 0, str(inst_b_d))
+        idades_d = sum(f["masculino"] + f["feminino"] for f in rel_d.get("por_idade", []))
+        verifica("e a distribuicao por idade soma 4", idades_d == 4, str(idades_d))
+        criancas_b[0].desistiu_em = None; db.commit()
 
         print("\nQuebra por instituicao")
         por_inst = {l["instituicao"]: l for l in rel.get("por_instituicao", [])}

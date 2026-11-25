@@ -52,8 +52,8 @@ export default function PainelIntercessao({ edicaoId, secao = false }) {
   if (secao) {
     const pct = p.criancas > 0 ? ` (${Math.round((p.receberam / p.criancas) * 100)}%)` : "";
     const linhas = [
-      // Sem as desistentes: o total com elas fica no topo do painel.
-      ["Crianças (sem desistentes)", p.criancas],
+      // Sem as desistentes, como todas as contas do painel.
+      ["Crianças", p.criancas],
       ["Receberam intercessão", `${p.receberam}${pct}`],
       ["Ainda não receberam", p.faltam],
       ["Crianças intercedidas na missa", `${p.marcacoes_missa} · ${decimal(p.missas)} ${p.missas === 1 ? "missa" : "missas"}`],

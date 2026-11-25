@@ -548,15 +548,19 @@ def resumo_instituicoes(db: BD, ctx: Ver, edicao_id: int):
     com_cartao = (
         select(Cartao.crianca_id).where(Cartao.crianca_id == Crianca.id).exists()
     )
+    vai = Crianca.desistiu_em.is_(None)
 
     linhas = db.execute(
         select(
             Crianca.instituicao_id,
             Instituicao.nome,
             func.count(Crianca.id),
-            func.count(case((~com_padrinho, Crianca.id))),
-            func.count(case((~com_cartao, Crianca.id))),
-            func.count(case((Crianca.comissario_id.is_(None), Crianca.id))),
+            # O que falta e de quem vai: a desistente nao precisa de padrinho,
+            # cartao nem comissario. Ela segue no total da aba, que e o
+            # tamanho da lista logo abaixo, onde ela aparece riscada.
+            func.count(case((~com_padrinho & vai, Crianca.id))),
+            func.count(case((~com_cartao & vai, Crianca.id))),
+            func.count(case((Crianca.comissario_id.is_(None) & vai, Crianca.id))),
         )
         .join(Instituicao, Instituicao.id == Crianca.instituicao_id)
         .where(alcance)

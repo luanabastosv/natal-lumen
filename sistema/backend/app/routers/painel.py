@@ -120,15 +120,20 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     # numeros dessas instituicoes.
     # Sem as criancas que o comissario alcanca so pela festa: os numeros dele
     # sao os da lista de cesta, e a festa dele e contada a parte, abaixo.
-    alcance = ctx.filtro_criancas(permissao, com_festa=False) & (Crianca.edicao_id == edicao_id)
+    alcance_com_desistentes = (
+        ctx.filtro_criancas(permissao, com_festa=False) & (Crianca.edicao_id == edicao_id)
+    )
+    # A desistente nao entra em conta nenhuma do painel: nem no total, nem nos
+    # apadrinhamentos, nem nas quebras. Ela continua riscada nas listas, mas
+    # aqui so se diz quantas ficaram de fora.
+    alcance = alcance_com_desistentes & Crianca.desistiu_em.is_(None)
     criancas_visiveis = select(Crianca.id).where(alcance)
 
     criancas = db.scalar(select(func.count()).select_from(Crianca).where(alcance)) or 0
-    # As desistentes continuam no total (a lista da edicao e uma so), mas o
-    # painel diz quantas sao: a intercessao, a monitoria e os cuidados contam
-    # so quem vai, e sem isto os dois totais pareciam nao bater.
     desistentes = db.scalar(
-        select(func.count()).select_from(Crianca).where(alcance, Crianca.desistiu_em.is_not(None))
+        select(func.count())
+        .select_from(Crianca)
+        .where(alcance_com_desistentes, Crianca.desistiu_em.is_not(None))
     ) or 0
     instituicoes = db.scalar(
         select(func.count(func.distinct(Crianca.instituicao_id))).where(alcance)
@@ -176,8 +181,10 @@ def relatorio(edicao_id: int, db: BD, ctx: Painel):
     if so_minhas_criancas and edicao.festa_liberada_em is None:
         festa_criancas = festa_feitos = 0
     elif so_minhas_criancas:
-        da_festa = (Crianca.edicao_id == edicao_id) & (
-            Crianca.comissario_festa_id == ctx.usuario.id
+        da_festa = (
+            (Crianca.edicao_id == edicao_id)
+            & (Crianca.comissario_festa_id == ctx.usuario.id)
+            & Crianca.desistiu_em.is_(None)
         )
         festa_criancas = db.scalar(
             select(func.count()).select_from(Crianca).where(da_festa)
@@ -328,7 +335,11 @@ def _com_a_festa_do_comissario(
                 func.count(Crianca.id),
                 func.count(case((Crianca.id.in_(festa_ok), Crianca.id))),
             )
-            .where(Crianca.edicao_id == edicao_id, Crianca.comissario_festa_id == usuario_id)
+            .where(
+                Crianca.edicao_id == edicao_id,
+                Crianca.comissario_festa_id == usuario_id,
+                Crianca.desistiu_em.is_(None),
+            )
             .group_by(Crianca.instituicao_id)
         ).all()
     }

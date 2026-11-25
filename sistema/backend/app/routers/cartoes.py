@@ -257,7 +257,13 @@ def pastas(db: BD, ctx: Ver, edicao_id: int):
     se sobe a primeira pilha. Uma pasta que so aparecesse depois do primeiro
     cartao nao teria como receber o primeiro cartao.
     """
-    alcance = ctx.filtro_criancas("ver_criancas") & (Crianca.edicao_id == edicao_id)
+    # Sem as desistentes: o cartao e a autorizacao delas nao sao mais trabalho
+    # a cobrar, e a barra contaria quem nao vai.
+    alcance = (
+        ctx.filtro_criancas("ver_criancas")
+        & (Crianca.edicao_id == edicao_id)
+        & Crianca.desistiu_em.is_(None)
+    )
 
     linhas = db.execute(
         select(
