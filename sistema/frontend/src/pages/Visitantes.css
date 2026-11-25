@@ -18,19 +18,12 @@
   color: var(--text-on-light-secondary);
 }
 
-.visitantes__dias {
-  display: grid;
-  gap: var(--space-5);
-}
-
-.visitantes__dia {
+.visitantes__bloco {
   display: grid;
   grid-template-columns: 148px minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
-  padding: var(--space-4);
-  border: 1.5px solid var(--border-light);
-  border-radius: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .visitantes__qr {
@@ -38,12 +31,6 @@
   height: 148px;
   border-radius: 10px;
   background: var(--white);
-}
-
-.visitantes__dia-texto h3 {
-  margin: 0 0 2px;
-  font-size: 18px;
-  color: var(--text-on-light-primary);
 }
 
 .visitantes__endereco {
@@ -73,7 +60,7 @@
 }
 
 @media (max-width: 600px) {
-  .visitantes__dia {
+  .visitantes__bloco {
     grid-template-columns: minmax(0, 1fr);
     justify-items: start;
   }

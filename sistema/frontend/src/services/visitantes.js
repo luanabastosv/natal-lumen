@@ -2,8 +2,8 @@ import { api } from "./api.js";
 
 /* ---------- A pagina do QR Code (sem sessao) ---------- */
 
-/** O dia do QR Code. 404 quando o codigo nao existe. */
-export const buscarDiaPublico = (codigo) =>
+/** Confere o QR Code. 404 quando o codigo nao existe. */
+export const conferirQrCode = (codigo) =>
   api.get(`/visitantes/publico/${encodeURIComponent(codigo)}`);
 
 /** Grava o visitante e devolve `{ link_fotos }` (nulo se a galeria nao esta pronta). */
@@ -12,17 +12,18 @@ export const cadastrarVisitante = (codigo, dados) =>
 
 /* ---------- O painel (so a coordenacao geral) ---------- */
 
-/** Os dias da edicao, com o QR Code e o link das fotos, e os visitantes. */
+/** O QR Code da edicao, o link das fotos e os visitantes. */
 export const listarVisitantes = (edicaoId) => api.get(`/visitantes?edicao_id=${edicaoId}`);
 
-export const salvarLinkFotos = (diaId, link) =>
-  api.put(`/visitantes/dias/${diaId}/link`, { link_fotos: link || null });
+export const salvarLinkFotos = (edicaoId, link) =>
+  api.put(`/visitantes/link?edicao_id=${edicaoId}`, { link_fotos: link || null });
 
 export const baixarPlanilhaVisitantes = (edicaoId) =>
   api.baixar(`/visitantes/planilha?edicao_id=${edicaoId}`);
 
-export const baixarQrCode = (diaId, formato) =>
-  api.baixar(`/visitantes/dias/${diaId}/qrcode?formato=${formato}`);
+export const baixarQrCode = (edicaoId, formato) =>
+  api.baixar(`/visitantes/qrcode?edicao_id=${edicaoId}&formato=${formato}`);
 
 /** O endereco da imagem do QR, para o <img> da tela. */
-export const imagemQrCode = (diaId) => `/acesso/api/visitantes/dias/${diaId}/qrcode?formato=png`;
+export const imagemQrCode = (edicaoId) =>
+  `/acesso/api/visitantes/qrcode?edicao_id=${edicaoId}&formato=png`;

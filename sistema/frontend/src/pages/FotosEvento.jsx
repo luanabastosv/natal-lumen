@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useParams } from "react-router-dom";
-import { buscarDiaPublico, cadastrarVisitante } from "../services/visitantes.js";
+import { cadastrarVisitante, conferirQrCode } from "../services/visitantes.js";
 import "./FotosEvento.css";
 
 const MASCOTE = "/acesso/images/mascote-festa.png";
@@ -44,7 +44,7 @@ export default function FotosEvento() {
 
   // O codigo pode ser de um QR antigo ou digitado errado.
   useEffect(() => {
-    buscarDiaPublico(codigo).catch((e) => {
+    conferirQrCode(codigo).catch((e) => {
       if (e.status === 404) definirFase("invalido");
     });
   }, [codigo]);
