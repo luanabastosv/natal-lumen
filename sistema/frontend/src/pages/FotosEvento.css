@@ -1,0 +1,284 @@
+/* A pagina do QR Code da pulseira. Fora do layout do sistema: tela inteira
+   navy, uma coluna de celular, a Estrelinha conversando. */
+
+body.fotos-corpo {
+  background: var(--navy-700);
+  overflow: hidden;
+}
+
+.fotos {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 20px;
+  background: var(--navy-700);
+  color: var(--white);
+  font-family: var(--font-body);
+}
+
+.fotos__inicio {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 40px 0;
+}
+
+.fotos__mascote {
+  width: min(62vw, 240px);
+}
+
+.fotos__mascote--pula,
+.fotos__estrela {
+  animation: fotos-pula 2.6s ease-in-out infinite;
+}
+
+@keyframes fotos-pula {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-10px) rotate(3deg); }
+}
+
+.fotos__marca {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 12vw, 52px);
+  line-height: 1.05;
+  margin: 8px 0 28px;
+  color: var(--white);
+}
+
+.fotos__aviso {
+  font-size: 18px;
+  line-height: 1.4;
+  max-width: 300px;
+  margin: 16px 0 0;
+}
+
+.fotos__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--navy-700);
+  font: 700 17px var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.fotos__cta:active {
+  transform: scale(0.97);
+}
+
+.fotos__cta:focus-visible,
+.fotos__enviar:focus-visible {
+  outline: 3px solid var(--amarelo-500);
+  outline-offset: 3px;
+}
+
+.fotos__cta--largo {
+  width: 100%;
+  animation: fotos-entra 0.3s ease-out both;
+}
+
+/* ---------- a conversa ---------- */
+.fotos__chat {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--fotos-vh, 100dvh);
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 18px 20px 0;
+  overflow: hidden;
+  background: var(--navy-700);
+  color: var(--white);
+  font-family: var(--font-body);
+}
+
+.fotos__palco {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.fotos__estrela {
+  width: clamp(56px, 16vh, 120px);
+  height: auto;
+  transition: width 0.25s ease;
+}
+
+/* Teclado aberto: a Estrelinha encolhe e a fala desce para perto da caixa. */
+.fotos__chat--teclado .fotos__palco {
+  justify-content: flex-end;
+  padding-bottom: 14px;
+  gap: 10px;
+}
+
+.fotos__chat--teclado .fotos__estrela {
+  width: 52px;
+}
+
+.fotos__falas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.fotos__balao {
+  align-self: flex-start;
+  max-width: 92%;
+  padding: 13px 17px;
+  border-radius: 22px 22px 22px 6px;
+  background: var(--white);
+  color: var(--navy-700);
+  font-size: clamp(17px, 2.6vh, 20px);
+  line-height: 1.35;
+  animation: fotos-entra 0.25s ease-out both;
+}
+
+@keyframes fotos-entra {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.fotos__balao--digitando {
+  display: inline-flex;
+  gap: 4px;
+  padding: 17px 18px;
+}
+
+.fotos__balao--digitando i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--navy-200);
+  animation: fotos-pontos 1s infinite;
+}
+
+.fotos__balao--digitando i:nth-child(2) { animation-delay: 0.15s; }
+.fotos__balao--digitando i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes fotos-pontos {
+  0%, 60%, 100% { opacity: 0.35; }
+  30% { opacity: 1; }
+}
+
+.fotos__base {
+  flex: none;
+  padding: 0 0 calc(14px + env(safe-area-inset-bottom));
+}
+
+.fotos__passos {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 0 10px;
+}
+
+.fotos__passos i {
+  width: 30px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fotos__passos i:first-child,
+.fotos__passos i.feito {
+  background: var(--amarelo-500);
+}
+
+.fotos__campo {
+  display: flex;
+  gap: 8px;
+  animation: fotos-entra 0.3s ease-out both;
+}
+
+.fotos__campo--oculto {
+  display: none;
+}
+
+.fotos__campo input[hidden] {
+  display: none;
+}
+
+.fotos__campo input {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 20px;
+  font: 400 16px var(--font-body);
+  color: var(--navy-700);
+  background: var(--white);
+}
+
+.fotos__campo input:focus {
+  outline: 3px solid var(--amarelo-500);
+  outline-offset: 2px;
+}
+
+/* Sem foco (o iPhone nao abre o teclado sozinho): a caixa chama o toque. */
+.fotos__campo input:not(:focus) {
+  animation: fotos-chama 1.6s ease-in-out infinite;
+}
+
+@keyframes fotos-chama {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 195, 0, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(255, 195, 0, 0.55); }
+}
+
+.fotos__enviar {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--amarelo-500);
+  color: var(--navy-700);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.fotos__enviar svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fotos__nota {
+  min-height: 1.2em;
+  margin: 8px 4px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--navy-200);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fotos *,
+  .fotos__chat * {
+    animation: none !important;
+  }
+}

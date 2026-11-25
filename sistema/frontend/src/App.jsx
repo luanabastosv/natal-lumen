@@ -23,6 +23,8 @@ import Programacao from "./pages/Programacao.jsx";
 import Instituicoes from "./pages/Instituicoes.jsx";
 import Painel from "./pages/Painel.jsx";
 import Usuarios from "./pages/Usuarios.jsx";
+import FotosEvento from "./pages/FotosEvento.jsx";
+import Visitantes from "./pages/Visitantes.jsx";
 import RotaProtegida from "./routes/RotaProtegida.jsx";
 
 // Telas ja construidas. O resto do menu ainda mostra "em construcao".
@@ -38,6 +40,7 @@ const PRONTAS = {
   "/instituicoes": <Instituicoes />,
   "/cidades-edicoes": <CidadesEdicoes />,
   "/programacao": <Programacao />,
+  "/visitantes": <Visitantes />,
 };
 
 const SECOES = ROTAS.filter((i) => i.para !== "/painel");
@@ -53,6 +56,9 @@ export default function App() {
             <Route path="/entrar" element={<Login />} />
             <Route path="/definir-senha" element={<DefinirSenha />} />
             <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+            {/* O QR Code da pulseira do evento: e o visitante quem abre, no
+                celular, sem conta no sistema. */}
+            <Route path="/f/:codigo" element={<FotosEvento />} />
 
             {/* Dentro da sessao */}
             <Route

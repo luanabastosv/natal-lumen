@@ -31,6 +31,7 @@ from app.models.operacao import (
     InstituicaoDia,
     Programacao,
 )
+from app.models.visitantes import Visitante
 
 __all__ = [
     # operacao
@@ -52,6 +53,8 @@ __all__ = [
     "Cartao",
     "Autorizacao",
     "Kit",
+    # visitantes
+    "Visitante",
     # oracao
     "AveMaria",
     "Intercessao",

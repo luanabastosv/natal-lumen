@@ -39,6 +39,7 @@ Escolha pelas pastas tocadas, e rode **sempre** `test_seguranca`:
 | `models/`, migration nova | `test_esquema` |
 | `routers/estrelinha.py`, views do schema `estrelinha`, `servicos/sorrisometro.py` | `test_estrelinha` e `test_estrelinha_loja` |
 | `servicos/shopify.py`, ferramenta da loja na Estrelinha | `test_estrelinha_loja` |
+| `routers/visitantes.py`, `models/visitantes.py` | `test_visitantes` |
 | **qualquer coisa no backend** | `test_seguranca` (sempre) |
 
 Cada um termina com `N verificacoes ok, 0 falha(s)`. **Qualquer falha: pare,

@@ -11,6 +11,7 @@ import {
   MenuPainel,
   MenuProgramacao,
   MenuUsuarios,
+  MenuVisitantes,
 } from "../core/icones.jsx";
 
 /** Itens do menu e a permissao que cada um exige.
@@ -75,6 +76,14 @@ export const ITENS_MENU = [
     permissao: "gerenciar_cadastros",
     Icone: MenuInstituicoes,
   },
+  // Quem leu o QR Code da pulseira para ver as fotos. So a coordenacao geral:
+  // e contato de gente de fora. O backend confere de novo.
+  {
+    para: "/visitantes",
+    rotulo: "Visitantes do evento",
+    soCoordenacaoGeral: true,
+    Icone: MenuVisitantes,
+  },
 ];
 
 /** Cidades e edicoes: so a administracao geral. Mora no grupo Configuracoes,
@@ -105,6 +114,7 @@ export const ESTRUTURA_MENU = [
   // Pagina propria, e nao item de Configuracoes: e o quadro do dia do evento,
   // consultado e impresso, nao um cadastro.
   { para: "/programacao" },
+  { para: "/visitantes" },
   {
     grupo: "Configurações",
     Icone: Configuracoes,

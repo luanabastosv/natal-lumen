@@ -1,0 +1,88 @@
+/* Visitantes do evento: a planilha e a janela dos QR Codes. */
+
+.visitantes__tabela td {
+  vertical-align: middle;
+}
+
+.visitantes__nome {
+  font-weight: 700;
+}
+
+.visitantes__fixo {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.visitantes__explica {
+  margin: 0 0 var(--space-5);
+  color: var(--text-on-light-secondary);
+}
+
+.visitantes__dias {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.visitantes__dia {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+  padding: var(--space-4);
+  border: 1.5px solid var(--border-light);
+  border-radius: 16px;
+}
+
+.visitantes__qr {
+  width: 148px;
+  height: 148px;
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.visitantes__dia-texto h3 {
+  margin: 0 0 2px;
+  font-size: 18px;
+  color: var(--text-on-light-primary);
+}
+
+.visitantes__endereco {
+  display: block;
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+  color: var(--text-on-light-secondary);
+  overflow-wrap: anywhere;
+}
+
+.visitantes__botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.visitantes__link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.visitantes__link .botao {
+  margin-top: 26px;
+}
+
+@media (max-width: 600px) {
+  .visitantes__dia {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .visitantes__link {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .visitantes__link .botao {
+    margin-top: 0;
+  }
+}

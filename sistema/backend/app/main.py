@@ -36,6 +36,7 @@ from app.routers import (
     perfis,
     programacao,
     usuarios,
+    visitantes,
 )
 
 @asynccontextmanager
@@ -88,6 +89,7 @@ for router in (
     perfis.router,
     programacao.router,
     usuarios.router,
+    visitantes.router,
 ):
     app.include_router(router)
 

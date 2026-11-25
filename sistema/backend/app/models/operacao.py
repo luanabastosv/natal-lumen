@@ -82,6 +82,7 @@ class DiaEvento(Base):
     """Uma edicao pode ter varios dias; cada crianca vai a apenas um."""
 
     __tablename__ = "dias_evento"
+    __table_args__ = (UniqueConstraint("codigo_fotos", name="uq_dias_evento_codigo_fotos"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     edicao_id: Mapped[int] = mapped_column(
@@ -89,6 +90,13 @@ class DiaEvento(Base):
     )
     data: Mapped[date] = mapped_column(Date, nullable=False)
     descricao: Mapped[str | None] = mapped_column(String(160))
+
+    # Fotos do dia para os visitantes (ver routers/visitantes.py). O codigo
+    # vai no QR Code da pulseira ("26-sab") e nasce na primeira vez que a
+    # coordenacao abre os QR Codes; o link e o da galeria, que muda sem
+    # mudar o QR.
+    codigo_fotos: Mapped[str | None] = mapped_column(String(20))
+    link_fotos: Mapped[str | None] = mapped_column(String(500))
 
     edicao: Mapped[Edicao] = relationship(back_populates="dias")
     criancas: Mapped[list["Crianca"]] = relationship(back_populates="dia_evento")

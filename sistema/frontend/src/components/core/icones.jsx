@@ -352,6 +352,18 @@ export function MenuCuidados({ t }) {
   );
 }
 
+/** Visitantes do evento: duas pessoas, como quem chega junto a festa. */
+export function MenuVisitantes({ t }) {
+  return (
+    <Svg t={t}>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+      <circle cx="17" cy="9" r="2.4" />
+      <path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5" />
+    </Svg>
+  );
+}
+
 /** Recolher/abrir a lateral: a barra com a seta. */
 export function MenuRecolher({ t, aberto = true }) {
   return (
