@@ -90,6 +90,12 @@ body.fotos-corpo {
   animation: fotos-entra 0.3s ease-out both;
 }
 
+.fotos__rapido {
+  margin: 14px 0 0;
+  font-size: 15px;
+  color: var(--navy-200);
+}
+
 /* ---------- a conversa ---------- */
 .fotos__chat {
   position: fixed;
@@ -106,6 +112,40 @@ body.fotos-corpo {
   background: var(--navy-700);
   color: var(--white);
   font-family: var(--font-body);
+}
+
+.fotos__progresso {
+  flex: none;
+  padding: 4px 0 8px;
+}
+
+.fotos__progresso-texto {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fotos__progresso-texto span:last-child {
+  color: var(--navy-200);
+  font-variant-numeric: tabular-nums;
+}
+
+.fotos__progresso-trilho {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+/* Uma fresta de amarelo ja no comeco: a barra existe e vai andar. */
+.fotos__progresso-barra {
+  height: 100%;
+  min-width: 10px;
+  border-radius: 999px;
+  background: var(--amarelo-500);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .fotos__palco {
@@ -125,7 +165,41 @@ body.fotos-corpo {
 }
 
 /* Teclado aberto: a Estrelinha encolhe e a fala desce para perto da caixa. */
-.fotos__chat--teclado .fotos__palco {
+.fotos__chat--teclado .fotos__progresso {
+  flex: none;
+  padding: 4px 0 8px;
+}
+
+.fotos__progresso-texto {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fotos__progresso-texto span:last-child {
+  color: var(--navy-200);
+  font-variant-numeric: tabular-nums;
+}
+
+.fotos__progresso-trilho {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+/* Uma fresta de amarelo ja no comeco: a barra existe e vai andar. */
+.fotos__progresso-barra {
+  height: 100%;
+  min-width: 10px;
+  border-radius: 999px;
+  background: var(--amarelo-500);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fotos__palco {
   justify-content: flex-end;
   padding-bottom: 14px;
   gap: 10px;
@@ -183,25 +257,6 @@ body.fotos-corpo {
 .fotos__base {
   flex: none;
   padding: 0 0 calc(14px + env(safe-area-inset-bottom));
-}
-
-.fotos__passos {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  padding: 4px 0 10px;
-}
-
-.fotos__passos i {
-  width: 30px;
-  height: 4px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.fotos__passos i:first-child,
-.fotos__passos i.feito {
-  background: var(--amarelo-500);
 }
 
 .fotos__campo {

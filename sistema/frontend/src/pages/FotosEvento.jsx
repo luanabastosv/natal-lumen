@@ -156,6 +156,17 @@ export default function FotosEvento() {
     definirFase("fim");
   }
 
+  // A barra anda a cada resposta aceita: 0 no nome, 1 no celular, 2 no fim.
+  const respondidas = fase === "fim" ? 2 : passo === "celular" ? 1 : 0;
+  const rotuloProgresso =
+    fase === "fim"
+      ? "Prontinho!"
+      : passo === "celular"
+        ? "Pergunta 2 de 2 · última!"
+        : passo === "nome"
+          ? "Pergunta 1 de 2"
+          : "São só 2 perguntas";
+
   if (fase === "invalido") {
     return (
       <div className="fotos">
@@ -178,6 +189,7 @@ export default function FotosEvento() {
           <button type="button" className="fotos__cta" onClick={comecar}>
             Quero acessar minhas fotos
           </button>
+          <p className="fotos__rapido">São só 2 perguntas rapidinhas.</p>
         </section>
       </div>
     );
@@ -185,6 +197,24 @@ export default function FotosEvento() {
 
   return (
     <div className={`fotos__chat ${teclado ? "fotos__chat--teclado" : ""}`} ref={telaRef}>
+      {/* No topo, para continuar a vista com o teclado aberto: quem sabe que
+          sao so duas perguntas responde ate o fim. */}
+      <div
+        className="fotos__progresso"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={2}
+        aria-valuenow={respondidas}
+        aria-label="Perguntas respondidas"
+      >
+        <div className="fotos__progresso-texto">
+          <span>{rotuloProgresso}</span>
+          <span>{respondidas}/2</span>
+        </div>
+        <div className="fotos__progresso-trilho">
+          <div className="fotos__progresso-barra" style={{ width: `${(respondidas / 2) * 100}%` }} />
+        </div>
+      </div>
       <div className="fotos__palco">
         <img src={MASCOTE} alt="Estrelinha" className="fotos__estrela" />
         <div className="fotos__falas" aria-live="polite">
@@ -206,10 +236,6 @@ export default function FotosEvento() {
       <div className="fotos__base">
         {fase === "conversa" && (
           <>
-            <div className="fotos__passos" aria-hidden="true">
-              <i className={passo === "celular" ? "feito" : ""} />
-              <i />
-            </div>
             <form
               className={`fotos__campo ${passo ? "" : "fotos__campo--oculto"}`}
               onSubmit={enviar}
