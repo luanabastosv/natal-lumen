@@ -20,6 +20,7 @@ troca das fotos.
 import io
 import re
 from typing import Annotated
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import qrcode
@@ -28,14 +29,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.config import config
 from app.database import get_db
-from app.models import Edicao, Visitante
+from app.models import Apadrinhamento, Crianca, Edicao, Visitante
+from app.models.tipos import TipoApadrinhamento
 from app.seguranca.dependencias import Contexto
+from app.servicos.apadrinhamento import CONFIRMADO
 from app.servicos.log import registrar
 
 router = APIRouter(prefix="/visitantes", tags=["visitantes"])
@@ -73,6 +76,24 @@ class CadastroVisitante(BaseModel):
 
 class FotosLiberadas(BaseModel):
     link_fotos: str | None
+
+
+class CadastroFeito(FotosLiberadas):
+    """O que a Estrelinha precisa para fechar a conversa.
+
+    Antes das fotos ela lembra quantos apadrinhamentos ainda faltam e oferece
+    o WhatsApp da coordenacao. `faltam` 0 ou `whatsapp_ajuda` nulo: ela pula o
+    convite e entrega as fotos.
+    """
+
+    faltam: int
+    whatsapp_ajuda: str | None
+
+
+MENSAGEM_AJUDA = (
+    "Oi! Vim pelo QR Code das fotos do Natal Lumen e quero ajudar a "
+    "apadrinhar uma criança."
+)
 
 
 class VisitanteOut(BaseModel):
@@ -152,6 +173,37 @@ def _edicao_do_painel(db: Session, ctx, edicao_id: int) -> Edicao:
     return edicao
 
 
+def _faltam_apadrinhar(db: Session, edicao: Edicao) -> int:
+    """O "faltam" do painel para a edicao inteira: as cestas que faltam,
+    mais as festas que faltam quando a festa ja esta aberta.
+
+    Conta vagas, nao criancas (a crianca sem os dois soma 2). Mesma regra do
+    painel: sem as desistentes, e so o apadrinhamento pago conta.
+    """
+    ativas = select(Crianca.id).where(
+        Crianca.edicao_id == edicao.id, Crianca.desistiu_em.is_(None)
+    )
+    criancas = db.scalar(select(func.count()).select_from(ativas.subquery())) or 0
+    feitos = dict(
+        db.execute(
+            select(Apadrinhamento.tipo, func.count())
+            .where(Apadrinhamento.crianca_id.in_(ativas), CONFIRMADO)
+            .group_by(Apadrinhamento.tipo)
+        ).all()
+    )
+    faltam = criancas - feitos.get(TipoApadrinhamento.CESTA.value, 0)
+    if edicao.festa_liberada_em is not None:
+        faltam += criancas - feitos.get(TipoApadrinhamento.FESTA.value, 0)
+    return max(faltam, 0)
+
+
+def _whatsapp_ajuda() -> str | None:
+    numero = re.sub(r"\D", "", config.whatsapp_coordenacao)
+    if not numero:
+        return None
+    return f"https://wa.me/{numero}?text={quote(MENSAGEM_AJUDA)}"
+
+
 # ------------------------------------------------------------------ publico
 @router.get("/publico/{codigo}", response_model=EdicaoPublica)
 def edicao_publica(codigo: str, db: BD):
@@ -162,7 +214,7 @@ def edicao_publica(codigo: str, db: BD):
     return EdicaoPublica(edicao=_edicao_por_codigo(db, codigo).nome)
 
 
-@router.post("/publico/{codigo}", response_model=FotosLiberadas)
+@router.post("/publico/{codigo}", response_model=CadastroFeito)
 def cadastrar(codigo: str, dados: CadastroVisitante, db: BD):
     """Grava o visitante e devolve o link das fotos (ou nulo, se a galeria
     ainda nao estiver pronta).
@@ -179,7 +231,11 @@ def cadastrar(codigo: str, dados: CadastroVisitante, db: BD):
         )
     )
     db.commit()
-    return FotosLiberadas(link_fotos=edicao.link_fotos)
+    return CadastroFeito(
+        link_fotos=edicao.link_fotos,
+        faltam=_faltam_apadrinhar(db, edicao),
+        whatsapp_ajuda=_whatsapp_ajuda(),
+    )
 
 
 # ------------------------------------------------------------------ painel

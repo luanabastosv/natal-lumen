@@ -83,6 +83,12 @@ class Config(BaseSettings):
     whatsapp_versao_api: str = "v21.0"
     whatsapp_timeout_s: float = 30.0
 
+    # O WhatsApp do Apadrinhamento On-line, so digitos com DDI. E para onde o
+    # "Quero ajudar mais!" da pagina das fotos leva o visitante. E o numero
+    # publico da campanha, por isso ja vem aqui; WHATSAPP_COORDENACAO no .env
+    # troca. Vazio = a pagina pula o convite e entrega as fotos direto.
+    whatsapp_coordenacao: str = "558591722385"
+
     # --- Google Drive (comprovantes de pagamento) ---
     # Caminho do JSON da conta de servico, ou o JSON inteiro colado aqui.
     drive_credenciais: str = ""

@@ -31,7 +31,7 @@ function mascararCelular(valor) {
  */
 export default function FotosEvento() {
   const { codigo } = useParams();
-  const [fase, definirFase] = useState("inicio"); // inicio | conversa | fim | invalido
+  const [fase, definirFase] = useState("inicio"); // inicio | conversa | escolha | fim | invalido
   const [falas, definirFalas] = useState([]);
   const [digitando, definirDigitando] = useState(false);
   const [passo, definirPasso] = useState(null); // null | nome | celular
@@ -40,6 +40,9 @@ export default function FotosEvento() {
   const [link, definirLink] = useState(undefined);
   const [teclado, definirTeclado] = useState(false);
   const [edicao, definirEdicao] = useState("");
+  // As duas respostas aceitas: a barra fica cheia dai em diante.
+  const [enviado, definirEnviado] = useState(false);
+  const [ajuda, definirAjuda] = useState(null); // link do WhatsApp da coordenacao
   const ocupada = useRef(true);
   const nomeRef = useRef(null);
   const celRef = useRef(null);
@@ -157,33 +160,67 @@ export default function FotosEvento() {
     ocupada.current = true;
     celRef.current?.blur();
     definirPasso(null);
+    definirEnviado(true);
     responde(celular);
     let resposta;
     try {
       resposta = await cadastrarVisitante(codigo, { nome, celular });
     } catch {
       await fala("Ops, a internet falhou aqui. Tenta enviar de novo?");
+      definirEnviado(false);
       definirPasso("celular");
       ocupada.current = false;
       return;
     }
     definirLink(resposta.link_fotos);
     const primeiro = nome.trim().split(/\s+/)[0];
-    if (resposta.link_fotos) {
-      await fala(`Prontinho, ${primeiro}! Obrigada por ter vindo ao Natal Lumen.`, "Suas fotos estão aqui:");
+    await fala(`Prontinho, ${primeiro}! Obrigada por ter vindo ao Natal Lumen.`);
+
+    // Antes das fotos, o convite: quanto ainda falta e o WhatsApp da
+    // coordenacao. Sem numero configurado (ou sem nada faltando), pula.
+    if (resposta.faltam > 0 && resposta.whatsapp_ajuda) {
+      definirAjuda(resposta.whatsapp_ajuda);
+      const n = resposta.faltam.toLocaleString("pt-BR");
+      await fala(
+        `Ainda estamos precisando de ${n} apadrinhamentos para que todas as crianças sejam alcançadas pelo Natal Lumen!`,
+        "Quer ajudar a gente a chegar lá?",
+      );
+      definirFase("escolha");
+      return;
+    }
+    await entregaFotos(resposta.link_fotos, "Suas fotos estão aqui:");
+  }
+
+  async function entregaFotos(linkFotos, chamada) {
+    if (linkFotos) {
+      await fala(chamada);
     } else {
       await fala(
-        `Prontinho, ${primeiro}! Obrigada por ter vindo ao Natal Lumen.`,
         "As fotos ainda estão sendo preparadas. Volta por este mesmo QR Code daqui a uns dias que elas vão estar aqui.",
       );
     }
     definirFase("fim");
   }
 
+  // "Quero ajudar mais!" e um link de verdade (abre o WhatsApp numa aba
+  // nova); a conversa segue aqui e entrega as fotos do mesmo jeito.
+  async function querAjudar() {
+    definirFase("fim-pendente");
+    responde("Quero ajudar mais!");
+    await fala("Que lindo! 💛 Abri o WhatsApp do Apadrinhamento On-line pra você, é só mandar a mensagem.");
+    await entregaFotos(link, "E aqui estão as suas fotos:");
+  }
+
+  async function querFotos() {
+    definirFase("fim-pendente");
+    responde("Quero acessar as fotos");
+    await entregaFotos(link, "Suas fotos estão aqui:");
+  }
+
   // A barra anda a cada resposta aceita: 0 no nome, 1 no celular, 2 no fim.
-  const respondidas = fase === "fim" ? 2 : passo === "celular" ? 1 : 0;
+  const respondidas = enviado ? 2 : passo === "celular" ? 1 : 0;
   const rotuloProgresso =
-    fase === "fim"
+    enviado
       ? "Prontinho!"
       : passo === "celular"
         ? "Pergunta 2 de 2 · última!"
@@ -341,6 +378,26 @@ export default function FotosEvento() {
               </p>
             )}
           </>
+        )}
+        {fase === "escolha" && (
+          <div className="fotos__escolha">
+            <a
+              className="fotos__cta fotos__cta--largo"
+              href={ajuda}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={querAjudar}
+            >
+              Quero ajudar mais!
+            </a>
+            <button
+              type="button"
+              className="fotos__cta fotos__cta--largo fotos__cta--contorno"
+              onClick={querFotos}
+            >
+              Quero acessar as fotos
+            </button>
+          </div>
         )}
         {fase === "fim" && link && (
           <a className="fotos__cta fotos__cta--largo" href={link} rel="noopener">

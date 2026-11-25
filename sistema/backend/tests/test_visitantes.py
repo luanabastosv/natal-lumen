@@ -6,10 +6,14 @@
      nao estiver pronta;
   3. a planilha, o QR Code e o link sao so da coordenacao geral: o monitor e
      quem nao esta logado levam 403/401; a coordenacao de outra edicao, 403;
-  4. um QR Code por edicao (os dois dias): o de 2027 nao abre 2026.
+  4. um QR Code por edicao (os dois dias): o de 2027 nao abre 2026;
+  5. o convite antes das fotos: o "faltam" do painel (sem desistentes, so o
+     pago, festa so quando aberta) e o link do WhatsApp da coordenacao.
 
 Rodar com:  python -m tests.test_visitantes
 """
+
+from datetime import UTC, date, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
@@ -18,10 +22,14 @@ from app.config import config
 from app.database import SessionLocal
 from app.main import app
 from app.models import (
+    Apadrinhamento,
     Cidade,
+    Crianca,
     Edicao,
     Instituicao,
     LogAtividade,
+    Padrinho,
+    Pagamento,
     Perfil,
     TokenAcesso,
     Usuario,
@@ -60,6 +68,12 @@ def limpar(db, log_inicial: int = 0) -> None:
         eds = list(db.scalars(select(Edicao.id).where(Edicao.cidade_id.in_(cids))).all())
         if eds:
             db.execute(delete(Visitante).where(Visitante.edicao_id.in_(eds)))
+            cris = select(Crianca.id).where(Crianca.edicao_id.in_(eds))
+            pads = select(Padrinho.id).where(Padrinho.edicao_id.in_(eds))
+            db.execute(delete(Apadrinhamento).where(Apadrinhamento.crianca_id.in_(cris)))
+            db.execute(delete(Pagamento).where(Pagamento.padrinho_id.in_(pads)))
+            db.execute(delete(Padrinho).where(Padrinho.edicao_id.in_(eds)))
+            db.execute(delete(Crianca).where(Crianca.edicao_id.in_(eds)))
             vs = list(db.scalars(select(UsuarioEdicao.id).where(UsuarioEdicao.edicao_id.in_(eds))).all())
             if vs:
                 db.execute(delete(UsuarioInstituicao).where(UsuarioInstituicao.usuario_edicao_id.in_(vs)))
@@ -165,6 +179,44 @@ def main() -> None:
                       json={"nome": "Robert'); DROP TABLE visitantes;--", "celular": "85911112222"})
         n = db.scalar(select(func.count()).where(Visitante.edicao_id == edicao.id))
         verifica("texto malicioso no nome e so texto", r.status_code == 200 and n == 2, str(n))
+
+        print("\nO convite para apadrinhar, antes das fotos")
+        # C1 cesta e festa pagas; C2 so cesta paga; C3 cesta prometida (nao
+        # conta); C4 desistiu (fora da conta, mesmo sem padrinho).
+        cs = [Crianca(edicao_id=edicao.id, instituicao_id=inst.id, codigo=f"V{i}",
+                      nome=f"Crianca V{i} Sobrenome", idade=8, sexo="F") for i in range(1, 5)]
+        cs[3].desistiu_em = datetime.now(UTC)
+        db.add_all(cs); db.flush()
+        pad = Padrinho(edicao_id=edicao.id, nome=f"{MARCA} Doador"); db.add(pad); db.flush()
+        pag = Pagamento(padrinho_id=pad.id, valor=300, data=date(2026, 11, 1)); db.add(pag); db.flush()
+        db.add_all([
+            Apadrinhamento(crianca_id=cs[0].id, padrinho_id=pad.id, tipo="cesta", valor=120, pagamento_id=pag.id),
+            Apadrinhamento(crianca_id=cs[0].id, padrinho_id=pad.id, tipo="festa", valor=60, pagamento_id=pag.id),
+            Apadrinhamento(crianca_id=cs[1].id, padrinho_id=pad.id, tipo="cesta", valor=120, pagamento_id=pag.id),
+            Apadrinhamento(crianca_id=cs[2].id, padrinho_id=pad.id, tipo="cesta", valor=120),
+        ])
+        db.commit()
+
+        whatsapp_antes = config.whatsapp_coordenacao
+        try:
+            config.whatsapp_coordenacao = ""
+            r = anon.post(f"/visitantes/publico/{cod}", json={"nome": "Ana Souza", "celular": "85955556666"})
+            verifica("festa fechada: faltam so as cestas (3 ativas - 2 pagas = 1)",
+                     r.json().get("faltam") == 1, r.text)
+            verifica("sem o WhatsApp configurado, o convite nao tem link",
+                     r.json().get("whatsapp_ajuda") is None, r.text)
+
+            edicao.festa_liberada_em = datetime.now(UTC); db.commit()
+            config.whatsapp_coordenacao = "+55 (85) 99999-0000"
+            r = anon.post(f"/visitantes/publico/{cod}", json={"nome": "Ana Souza", "celular": "85955556666"})
+            verifica("festa aberta: soma as festas que faltam (1 + 3 - 1 = 3)",
+                     r.json().get("faltam") == 3, r.text)
+            link = r.json().get("whatsapp_ajuda") or ""
+            verifica("o link abre o WhatsApp da coordenacao, so com digitos",
+                     link.startswith("https://wa.me/5585999990000?text="), link)
+        finally:
+            config.whatsapp_coordenacao = whatsapp_antes
+        db.execute(delete(Visitante).where(Visitante.celular == "85955556666")); db.commit()
 
         print("\nO link das fotos")
         r = cc.put("/visitantes/link", params={"edicao_id": edicao.id}, json={"link_fotos": "http://fotos.exemplo.com"})
