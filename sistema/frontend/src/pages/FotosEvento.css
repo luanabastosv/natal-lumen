@@ -90,10 +90,37 @@ body.fotos-corpo {
   animation: fotos-entra 0.3s ease-out both;
 }
 
-.fotos__rapido {
-  margin: 14px 0 0;
-  font-size: 15px;
+/* A Estrelinha e a marca juntas; o botao separado por um respiro, mas o
+   conjunto todo no meio da tela (no rodape ficava longe demais). */
+.fotos__inicio--entrada {
+  gap: clamp(48px, 10vh, 88px);
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+.fotos__vitrine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.fotos__inicio--entrada .fotos__marca {
+  margin: 0;
+}
+
+.fotos__edicao {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--navy-200);
+}
+
+.fotos__cta--entrada {
+  flex: none;
+  width: 100%;
+  max-width: 360px;
 }
 
 /* ---------- a conversa ---------- */
@@ -153,9 +180,6 @@ body.fotos-corpo {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 14px;
 }
 
 .fotos__estrela {
@@ -164,56 +188,86 @@ body.fotos-corpo {
   transition: width 0.25s ease;
 }
 
-/* Teclado aberto: a Estrelinha encolhe e a fala desce para perto da caixa. */
-.fotos__chat--teclado .fotos__progresso {
-  flex: none;
-  padding: 4px 0 8px;
-}
-
-.fotos__progresso-texto {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.fotos__progresso-texto span:last-child {
-  color: var(--navy-200);
-  font-variant-numeric: tabular-nums;
-}
-
-.fotos__progresso-trilho {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  overflow: hidden;
-}
-
-/* Uma fresta de amarelo ja no comeco: a barra existe e vai andar. */
-.fotos__progresso-barra {
-  height: 100%;
-  min-width: 10px;
-  border-radius: 999px;
-  background: var(--amarelo-500);
-  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.fotos__palco {
-  justify-content: flex-end;
-  padding-bottom: 14px;
-  gap: 10px;
-}
-
+/* Teclado aberto: a Estrelinha encolhe. */
 .fotos__chat--teclado .fotos__estrela {
   width: 52px;
 }
 
+/* O chat: rola por dentro quando enche. A conversa fica encostada embaixo,
+   perto da caixa de resposta (margin-top: auto na Estrelinha, e nao
+   justify-content: flex-end, que deixaria o comeco inalcancavel ao rolar). */
 .fotos__falas {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: 100%;
+  padding: 12px 0 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* As falas antigas somem suave sob a barra, em vez de cortar seco. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
+}
+
+.fotos__falas::-webkit-scrollbar {
+  display: none;
+}
+
+.fotos__falas > :first-child {
+  margin-top: auto;
+}
+
+/* Uma fala da Estrelinha: a foto (ou a vaga dela) e o balao, como um
+   contato num chat. */
+.fotos__linha {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  /* O balao dela nao encosta na borda direita: la e o lado da pessoa. */
+  padding-right: 8%;
+}
+
+.fotos__balao-grupo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.fotos__autora {
+  margin: 4px 0 4px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy-200);
+}
+
+.fotos__avatar,
+.fotos__avatar-vaga {
+  flex: none;
+  width: 38px;
+  height: 38px;
+}
+
+.fotos__avatar {
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--white);
+  animation: fotos-entra 0.25s ease-out both;
+}
+
+/* Dentro do grupo o balao usa a largura toda da linha (o 92% de um pai que
+   encolhe para caber o conteudo quebrava frases curtas). */
+.fotos__balao-grupo .fotos__balao {
+  max-width: 100%;
+}
+
+/* A estrela recortada so para o avatar, ja com a folga em volta. */
+.fotos__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .fotos__balao {
@@ -226,6 +280,14 @@ body.fotos-corpo {
   font-size: clamp(17px, 2.6vh, 20px);
   line-height: 1.35;
   animation: fotos-entra 0.25s ease-out both;
+}
+
+/* A resposta da pessoa, do outro lado, sem competir com a Estrelinha. */
+.fotos__balao--pessoa {
+  align-self: flex-end;
+  border-radius: 22px 22px 6px 22px;
+  background: var(--navy-500);
+  color: var(--white);
 }
 
 @keyframes fotos-entra {
@@ -329,6 +391,90 @@ body.fotos-corpo {
   text-align: center;
   font-size: 13px;
   color: var(--navy-200);
+}
+
+/* ---------- desktop ----------
+   A mesma conversa, mas num bloco do tamanho da conversa, no meio da tela:
+   a barra, a Estrelinha, as falas e a caixa juntas, sem nada grudado no
+   topo ou no rodape da janela. */
+@media (min-width: 768px) and (min-height: 560px) and (hover: hover) {
+  .fotos__inicio {
+    gap: 8px;
+  }
+
+  .fotos__inicio--entrada {
+    gap: 72px;
+  }
+
+  .fotos__mascote {
+    width: 260px;
+  }
+
+  .fotos__marca {
+    font-size: 60px;
+  }
+
+  .fotos__cta {
+    min-height: 58px;
+    padding: 0 40px;
+    font-size: 18px;
+  }
+
+  .fotos__cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  .fotos__chat {
+    /* top fica no inline (visualViewport, 0 no desktop); bottom + margin auto
+       centralizam o bloco na vertical. */
+    bottom: 0;
+    width: calc(100% - 64px);
+    max-width: 600px;
+    height: min(640px, calc(100vh - 96px));
+    margin: auto;
+    padding: 28px 36px 24px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+  }
+
+  /* No bloco do computador a conversa curta fica no meio; quando enche,
+     rola como no celular. */
+  .fotos__falas {
+    gap: 10px;
+    padding: 16px 0 20px;
+  }
+
+  .fotos__avatar,
+  .fotos__avatar-vaga {
+    width: 44px;
+    height: 44px;
+  }
+
+  .fotos__falas > :last-child {
+    margin-bottom: auto;
+  }
+
+  .fotos__estrela,
+  .fotos__chat--teclado .fotos__estrela {
+    width: 120px;
+  }
+
+  .fotos__balao {
+    max-width: 440px;
+    font-size: 19px;
+  }
+
+
+  .fotos__enviar:hover {
+    filter: brightness(1.06);
+  }
+
+
+  .fotos__nota {
+    margin-top: 10px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

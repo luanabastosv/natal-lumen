@@ -4,7 +4,8 @@ import { useParams } from "react-router-dom";
 import { cadastrarVisitante, conferirQrCode } from "../services/visitantes.js";
 import "./FotosEvento.css";
 
-const MASCOTE = "/acesso/images/mascote-festa.png";
+const MASCOTE = "/acesso/images/estrelinha.png";
+const AVATAR = "/acesso/images/estrelinha-avatar.png";
 const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function mascararCelular(valor) {
@@ -17,9 +18,10 @@ function mascararCelular(valor) {
 /** A pagina do QR Code da pulseira: a Estrelinha pede nome e celular e
  *  entrega o link das fotos do dia.
  *
- * Fora da sessao — quem abre e o visitante, no celular. Uma tela so, sem
- * rolagem: a fala atual da Estrelinha e, quando ela pergunta, a caixa de
- * resposta. A altura acompanha a area visivel (visualViewport), para a
+ * Fora da sessao — quem abre e o visitante, no celular. Uma tela so, como
+ * um chat: as falas da Estrelinha e as respostas da pessoa ficam todas na
+ * tela (nada some antes de dar tempo de ler), e a lista rola sozinha para a
+ * ultima. Embaixo, quando ela pergunta, a caixa de resposta. A altura acompanha a area visivel (visualViewport), para a
  * pergunta continuar a vista com o teclado aberto.
  *
  * O teclado: a caixa aparece com a pergunta do nome e ganha o foco (no
@@ -37,16 +39,26 @@ export default function FotosEvento() {
   const [celular, definirCelular] = useState("");
   const [link, definirLink] = useState(undefined);
   const [teclado, definirTeclado] = useState(false);
+  const [edicao, definirEdicao] = useState("");
   const ocupada = useRef(true);
   const nomeRef = useRef(null);
   const celRef = useRef(null);
   const telaRef = useRef(null);
+  const falasRef = useRef(null);
+
+  // Toda fala nova (ou os tres pontinhos) leva a lista ate o fim.
+  useEffect(() => {
+    const el = falasRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [falas, digitando, passo]);
 
   // O codigo pode ser de um QR antigo ou digitado errado.
   useEffect(() => {
-    conferirQrCode(codigo).catch((e) => {
-      if (e.status === 404) definirFase("invalido");
-    });
+    conferirQrCode(codigo)
+      .then((r) => definirEdicao(r.edicao))
+      .catch((e) => {
+        if (e.status === 404) definirFase("invalido");
+      });
   }, [codigo]);
 
   // A tela do tamanho da area visivel: com o teclado aberto, ela encolhe.
@@ -76,22 +88,21 @@ export default function FotosEvento() {
       definirDigitando(true);
       await dorme(Math.min(450 + t.length * 18, 1300));
       definirDigitando(false);
-      definirFalas((f) => [...f, t]);
+      definirFalas((f) => [...f, { de: "estrela", texto: t }]);
       await dorme(220);
     }
   }
 
-  async function limpa() {
-    definirFalas([]);
-    await dorme(180);
+  // A resposta da pessoa entra no chat como o balao dela, do outro lado.
+  function responde(texto) {
+    definirFalas((f) => [...f, { de: "pessoa", texto }]);
   }
 
   async function comecar() {
     definirFase("conversa");
     await fala("Oi! Eu sou a Estrelinha.", "Pra liberar suas fotos, só preciso de duas coisinhas.");
-    await dorme(700);
-    await limpa();
-    await fala("Qual é o seu nome?");
+    await dorme(400);
+    await fala("Qual é o seu nome completo?");
     flushSync(() => definirPasso("nome"));
     ocupada.current = false;
     nomeRef.current?.focus({ preventScroll: true });
@@ -103,10 +114,11 @@ export default function FotosEvento() {
 
     if (passo === "nome") {
       const v = nome.trim().replace(/\s+/g, " ");
-      if (v.length < 2) {
+      // Nome completo: ao menos nome e sobrenome.
+      if (v.split(" ").filter((p) => p.length >= 2).length < 2) {
         ocupada.current = true;
-        await limpa();
-        await fala("Me diz seu nome pra eu te chamar direitinho?");
+        if (v) responde(v);
+        await fala("Me passa seu nome completo, com sobrenome?");
         ocupada.current = false;
         return;
       }
@@ -115,7 +127,7 @@ export default function FotosEvento() {
       flushSync(() => definirPasso("celular"));
       celRef.current?.focus({ preventScroll: true });
       ocupada.current = true;
-      await limpa();
+      responde(v);
       await fala(`Prazer, ${v.split(" ")[0]}!`, "Agora me passa seu celular com DDD?");
       ocupada.current = false;
       return;
@@ -124,7 +136,7 @@ export default function FotosEvento() {
     const digitos = celular.replace(/\D/g, "");
     if (digitos.length !== 10 && digitos.length !== 11) {
       ocupada.current = true;
-      await limpa();
+      responde(celular);
       await fala("Confere o número com o DDD pra mim?");
       ocupada.current = false;
       return;
@@ -133,7 +145,7 @@ export default function FotosEvento() {
     ocupada.current = true;
     celRef.current?.blur();
     definirPasso(null);
-    await limpa();
+    responde(celular);
     let resposta;
     try {
       resposta = await cadastrarVisitante(codigo, { nome, celular });
@@ -183,13 +195,18 @@ export default function FotosEvento() {
   if (fase === "inicio") {
     return (
       <div className="fotos">
-        <section className="fotos__inicio">
-          <img src={MASCOTE} alt="" className="fotos__mascote fotos__mascote--pula" />
-          <h1 className="fotos__marca">natal lumen</h1>
-          <button type="button" className="fotos__cta" onClick={comecar}>
+        <section className="fotos__inicio fotos__inicio--entrada">
+          {/* A Estrelinha e a marca juntas no meio; o botao separado, embaixo. */}
+          <div className="fotos__vitrine">
+            <img src={MASCOTE} alt="" className="fotos__mascote fotos__mascote--pula" />
+            <h1 className="fotos__marca">natal lumen</h1>
+            {/* O nome da edicao do QR Code (ex.: Fortaleza 2026). A linha
+                existe antes de a resposta chegar, para nada pular. */}
+            <p className="fotos__edicao">{edicao ? `- ${edicao} -` : "\u00a0"}</p>
+          </div>
+          <button type="button" className="fotos__cta fotos__cta--entrada" onClick={comecar}>
             Quero acessar minhas fotos
           </button>
-          <p className="fotos__rapido">São só 2 perguntas rapidinhas.</p>
         </section>
       </div>
     );
@@ -216,18 +233,45 @@ export default function FotosEvento() {
         </div>
       </div>
       <div className="fotos__palco">
-        <img src={MASCOTE} alt="Estrelinha" className="fotos__estrela" />
-        <div className="fotos__falas" aria-live="polite">
-          {falas.map((t, i) => (
-            <div key={`${i}-${t}`} className="fotos__balao">
-              {t}
-            </div>
-          ))}
+        <div className="fotos__falas" aria-live="polite" ref={falasRef}>
+          {falas.map((f, i) => {
+            if (f.de === "pessoa") {
+              return (
+                <div key={i} className="fotos__balao fotos__balao--pessoa">
+                  {f.texto}
+                </div>
+              );
+            }
+            // Como num chat: o nome em cima da primeira fala de cada sequencia
+            // e a foto ao lado da ultima (que pode ser os tres pontinhos).
+            const primeira = falas[i - 1]?.de !== "estrela";
+            const ultima = falas[i + 1] ? falas[i + 1].de !== "estrela" : !digitando;
+            return (
+              <div key={i} className="fotos__linha">
+                {ultima ? <Avatar /> : <span className="fotos__avatar-vaga" />}
+                <div className="fotos__balao-grupo">
+                  {primeira && <span className="fotos__autora">Estrelinha</span>}
+                  <div className="fotos__balao">{f.texto}</div>
+                </div>
+              </div>
+            );
+          })}
           {digitando && (
-            <div className="fotos__balao fotos__balao--digitando" aria-label="Estrelinha digitando">
-              <i />
-              <i />
-              <i />
+            <div className="fotos__linha">
+              <Avatar />
+              <div className="fotos__balao-grupo">
+                {falas[falas.length - 1]?.de !== "estrela" && (
+                  <span className="fotos__autora">Estrelinha</span>
+                )}
+                <div
+                  className="fotos__balao fotos__balao--digitando"
+                  aria-label="Estrelinha digitando"
+                >
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -243,12 +287,12 @@ export default function FotosEvento() {
               <input
                 ref={nomeRef}
                 hidden={passo !== "nome"}
-                aria-label="Seu nome"
+                aria-label="Seu nome completo"
                 type="text"
                 autoComplete="name"
                 autoCapitalize="words"
                 enterKeyHint="next"
-                placeholder="Seu nome"
+                placeholder="Seu nome completo"
                 maxLength={160}
                 value={nome}
                 onChange={(e) => definirNome(e.target.value)}
@@ -289,5 +333,14 @@ export default function FotosEvento() {
         )}
       </div>
     </div>
+  );
+}
+
+/** A foto da Estrelinha no chat, como a de um contato. */
+function Avatar() {
+  return (
+    <span className="fotos__avatar">
+      <img src={AVATAR} alt="" />
+    </span>
   );
 }
