@@ -136,9 +136,8 @@ body.fotos-corpo {
 }
 
 .fotos__cta--entrada {
+  /* Do tamanho do texto: de ponta a ponta, na entrada, pesava. */
   flex: none;
-  width: 100%;
-  max-width: 360px;
 }
 
 /* ---------- a conversa ---------- */
