@@ -137,3 +137,45 @@
   min-width: 0;
   flex: 1;
 }
+
+/* A lista de envio do agradecimento. */
+.emlote__envios {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.emlote__envio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--stroke-hairline) solid var(--border-light);
+}
+
+.emlote__envio:last-child {
+  border-bottom: 0;
+}
+
+.emlote__envio-texto {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  justify-items: start;
+}
+
+.emlote__envio-criancas {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.emlote__envio-acoes {
+  flex: none;
+}
+
+.emlote__envio .etiqueta svg {
+  vertical-align: -1px;
+}

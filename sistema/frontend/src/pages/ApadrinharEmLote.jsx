@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
-import { Atencao, Baixar } from "../components/core/icones.jsx";
+import { Atencao, Baixar, Conversa } from "../components/core/icones.jsx";
+import EnvioDoLote from "../components/dados/EnvioDoLote.jsx";
 import Carregando from "../components/feedback/Carregando.jsx";
 import Mensagem from "../components/feedback/Mensagem.jsx";
 import { useNotificar } from "../contexts/useNotificar.js";
@@ -11,6 +12,7 @@ import { useSessao } from "../contexts/useSessao.js";
 import useTelaEstreita from "../hooks/useTelaEstreita.js";
 import {
   baixarAgradecimentosDoLote,
+  detalharLote,
   gravarLote,
   instituicoesComVagas,
   lerPlanilhaDoLote,
@@ -87,6 +89,7 @@ export default function ApadrinharEmLote() {
   const [lote, definirLote] = useState(null);
   const [lotes, definirLotes] = useState([]);
   const [baixando, definirBaixando] = useState(null);
+  const [abrindo, definirAbrindo] = useState(null);
 
   const carregarResumo = useCallback(async () => {
     if (!edicaoAtiva) return;
@@ -235,6 +238,21 @@ export default function ApadrinharEmLote() {
       definirErro(e.message);
     } finally {
       definirBaixando(null);
+    }
+  }
+
+  /** Volta a um lote ja gravado: a lista de envio e o ZIP dele. */
+  async function abrir(id) {
+    definirErro("");
+    definirAbrindo(id);
+    try {
+      definirLote(await detalharLote(id));
+      definirEtapa("pronto");
+      window.scrollTo(0, 0);
+    } catch (e) {
+      definirErro(e.message);
+    } finally {
+      definirAbrindo(null);
     }
   }
 
@@ -394,11 +412,11 @@ export default function ApadrinharEmLote() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      iconLeft={<Baixar t={14} />}
-                      carregando={baixando === l.id}
-                      onClick={() => baixar(l.id)}
+                      iconLeft={<Conversa t={14} />}
+                      carregando={abrindo === l.id}
+                      onClick={() => abrir(l.id)}
                     >
-                      Agradecimentos
+                      Abrir e enviar
                     </Button>
                   </li>
                 ))}
@@ -513,15 +531,15 @@ export default function ApadrinharEmLote() {
       {etapa === "pronto" && lote && (
         <>
           <div className="painel">
-            <h2 className="painel__titulo">Lote gravado: {lote.nome}</h2>
+            <h2 className="painel__titulo">Lote: {lote.nome}</h2>
             <p className="emlote__numeros">
               <strong>{lote.padrinhos}</strong> padrinho(s) ·{" "}
               <strong>{lote.apadrinhamentos}</strong> criança(s) ·{" "}
               <strong>{dinheiro(lote.total)}</strong>
             </p>
             <p className="campo__dica">
-              Cada arquivo do ZIP começa pelo nome completo do padrinho, para cada pessoa achar o
-              seu no grupo. O ZIP também fica na página do lote, para baixar de novo.
+              Para mandar tudo de uma vez no grupo, baixe o ZIP: cada arquivo começa pelo nome
+              completo do padrinho. Para mandar a cada um, use a lista abaixo.
             </p>
             <div className="barra-acoes barra-acoes--fim">
               <Button
@@ -532,37 +550,12 @@ export default function ApadrinharEmLote() {
                 Baixar os agradecimentos
               </Button>
               <Button variant="ghost" onClick={recomecar}>
-                Fazer outro lote
+                Voltar aos lotes
               </Button>
             </div>
           </div>
 
-          <table className={`tabela emlote__tabela ${estreita ? "emlote__tabela--estreita" : ""}`}>
-            <thead>
-              <tr>
-                <th className="emlote__col-padrinho">Padrinho</th>
-                <th>Criança</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lote.linhas.map((l) => (
-                <tr key={l.apadrinhamento_id}>
-                  <td className="emlote__col-padrinho">
-                    <div className="emlote__nome">{l.padrinho}</div>
-                    <div className="campo__dica">{l.whatsapp || "sem telefone"}</div>
-                  </td>
-                  <td>
-                    <div className="emlote__nome">
-                      {l.crianca_codigo} · {l.crianca}
-                    </div>
-                    <div className="campo__dica">
-                      {l.instituicao} · {l.tipo}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <EnvioDoLote lote={lote} aoAtualizar={definirLote} />
         </>
       )}
     </div>

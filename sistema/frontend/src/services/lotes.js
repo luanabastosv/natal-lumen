@@ -34,3 +34,7 @@ export function gravarLote(dados, comprovante) {
 export const listarLotes = (edicaoId) => api.get(`/lotes?edicao_id=${edicaoId}`);
 export const detalharLote = (id) => api.get(`/lotes/${id}`);
 export const baixarAgradecimentosDoLote = (id) => api.baixar(`/lotes/${id}/agradecimentos`);
+
+/** Marca que o agradecimento destas criancas foi mandado. Devolve o lote. */
+export const marcarEnviados = (id, apadrinhamentoIds) =>
+  api.post(`/lotes/${id}/enviados`, { apadrinhamento_ids: apadrinhamentoIds });

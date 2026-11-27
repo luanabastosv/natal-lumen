@@ -13,6 +13,7 @@ confirma.
     3. POST /lotes/ler-planilha     as pessoas do grupo, com os avisos
     4. POST /lotes                  grava tudo, ou nada
     5. GET  /lotes/{id}/agradecimentos   o ZIP do grupo, quantas vezes precisar
+    6. POST /lotes/{id}/enviados         marca quem ja recebeu o agradecimento
 
 Quem escolhe a crianca de cada pessoa e a administracao, nunca o sistema
 sozinho. A tela SUGERE uma por linha, na ordem do codigo, e a pessoa troca o
@@ -37,13 +38,14 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import config
 from app.database import get_db
 from app.models import (
     Apadrinhamento,
     Crianca,
+    EnvioCartao,
     Edicao,
     Instituicao,
     LoteApadrinhamento,
@@ -61,7 +63,7 @@ from app.routers.padrinhos import (
 from app.schemas.padrinhos import FormaDePagamento
 from app.seguranca.contexto import ContextoAcesso
 from app.seguranca.dependencias import exige_admin_geral
-from app.servicos import arquivos, cobrancas, drive, lotes
+from app.servicos import arquivos, cobrancas, drive, lotes, whatsapp
 from app.servicos.comprovantes import EXTENSOES
 from app.servicos.log import registrar
 from app.servicos.nomes import mesmo_nome, nome_proprio
@@ -595,9 +597,24 @@ def _apadrinhamentos_do_lote(db: Session, lote_id: int):
             joinedload(Apadrinhamento.crianca).joinedload(Crianca.instituicao),
             joinedload(Apadrinhamento.crianca).joinedload(Crianca.dia_evento),
             joinedload(Apadrinhamento.padrinho).joinedload(Padrinho.edicao).joinedload(Edicao.cidade),
+            selectinload(Apadrinhamento.envios),
         )
         .order_by(Padrinho.nome, Apadrinhamento.id)
     ).all()
+
+
+def _enviado_em(a: Apadrinhamento):
+    """Quando o agradecimento desta crianca saiu pela ultima vez, ou None.
+
+    A mesma regra da ficha do padrinho (routers/padrinhos.py): o envio mais
+    recente manda, e depois de uma troca de crianca so conta o que saiu
+    depois dela.
+    """
+    envios = [
+        e for e in a.envios
+        if e.status == "enviado" and (a.trocado_em is None or e.criado_em >= a.trocado_em)
+    ]
+    return max((e.criado_em for e in envios), default=None)
 
 
 def _resumo(db: Session, lote: LoteApadrinhamento, com_linhas: bool = True) -> dict:
@@ -622,6 +639,7 @@ def _resumo(db: Session, lote: LoteApadrinhamento, com_linhas: bool = True) -> d
                 "instituicao": a.crianca.instituicao.nome,
                 "tipo": a.tipo,
                 "desistiu": a.crianca.desistiu_em is not None,
+                "enviado_em": _enviado_em(a),
             }
             for a in itens
         ]
@@ -685,3 +703,49 @@ def agradecimentos_do_lote(lote_id: int, db: BD, ctx: Admin):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{nome_zip}"'},
     )
+
+
+class EnviadosIn(BaseModel):
+    apadrinhamento_ids: list[int] = Field(min_length=1, max_length=50)
+
+
+@router.post("/{lote_id}/enviados")
+def marcar_enviados(lote_id: int, dados: EnviadosIn, db: BD, ctx: Admin):
+    """Registra que o agradecimento destas criancas foi mandado ao padrinho.
+
+    O envio pela Cloud API esta desligado desde 08/10/2026: quem manda e a
+    pessoa, pela propria conversa do WhatsApp, com a imagem anexada. A tela
+    abre a conversa e marca aqui, para a lista do lote dizer quem ja recebeu
+    e quem falta — sem isso, com quarenta padrinhos, alguem fica sem ou
+    recebe duas vezes.
+
+    Vai para a mesma tabela dos envios pela API (sem `mensagem_id`, que e o
+    que a Meta devolve): assim a ficha de cada padrinho tambem mostra o
+    agradecimento como enviado, sem uma segunda fonte para a mesma pergunta.
+    """
+    lote = db.get(LoteApadrinhamento, lote_id)
+    if lote is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lote nao encontrado.")
+
+    do_lote = {a.id: a for a in _apadrinhamentos_do_lote(db, lote.id)}
+    for aid in dados.apadrinhamento_ids:
+        a = do_lote.get(aid)
+        if a is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Esse apadrinhamento nao e deste lote.")
+        telefone = whatsapp.telefone_e164(a.padrinho.whatsapp) or (a.padrinho.whatsapp or "")[:20]
+        envio = EnvioCartao(
+            apadrinhamento_id=a.id,
+            telefone=telefone or "-",
+            status="enviado",
+            enviado_por=ctx.usuario.id,
+        )
+        db.add(envio)
+        db.flush()
+        registrar(
+            db, "agradecimento_enviado_a_mao", usuario_id=ctx.usuario.id,
+            tabela="apadrinhamentos", registro_id=a.id,
+            detalhes={"lote_id": lote.id, "envio_id": envio.id},
+        )
+    db.commit()
+    db.expire_all()
+    return _resumo(db, lote)

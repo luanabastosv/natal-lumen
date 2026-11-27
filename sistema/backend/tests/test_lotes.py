@@ -254,6 +254,22 @@ def main() -> None:
         verifica("o lote aparece na lista", [l["id"] for l in r.json()] == [lote["id"]], r.text[:200])
         r = ca.get(f"/lotes/{lote['id']}")
         verifica("o detalhe traz as quatro linhas", len(r.json()["linhas"]) == 4)
+        verifica("ninguem recebeu ainda", all(l["enviado_em"] is None for l in r.json()["linhas"]))
+
+        print("\nEnvio do agradecimento")
+        jose_ids = [l["apadrinhamento_id"] for l in r.json()["linhas"] if l["padrinho"] == "Jose Carlos Silva"]
+        r = cc.post(f"/lotes/{lote['id']}/enviados", json={"apadrinhamento_ids": jose_ids})
+        verifica("coordenacao NAO marca envio do lote", r.status_code == 403, str(r.status_code))
+        r = ca.post(f"/lotes/{lote['id']}/enviados", json={"apadrinhamento_ids": jose_ids})
+        verifica("marca o envio das duas criancas do Jose", r.status_code == 200, r.text[:200])
+        enviados = {l["padrinho"] for l in r.json()["linhas"] if l["enviado_em"]}
+        verifica("so o Jose aparece como enviado", enviados == {"Jose Carlos Silva"}, str(enviados))
+        r = ca.get(f"/padrinhos/{jose.padrinho_id}")
+        verifica("a ficha do padrinho tambem mostra enviado",
+                 r.status_code == 200
+                 and {a["cartao_status"] for a in r.json()["apadrinhamentos"]} == {"enviado"}, r.text[:200])
+        r = ca.post(f"/lotes/{lote['id']}/enviados", json={"apadrinhamento_ids": [999999]})
+        verifica("apadrinhamento de fora do lote e recusado", r.status_code == 404, str(r.status_code))
     finally:
         limpar(db, log_inicial)
         db.close()
