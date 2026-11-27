@@ -183,6 +183,12 @@ def main() -> None:
         verifica("avisa quem aparece duas vezes", any("2 vezes" in a for a in linhas[0]["avisos"]), str(linhas[0]))
         verifica("nome curto e erro", linhas[4]["erros"] == ["nome muito curto"], str(linhas[4]))
 
+        numerados = planilha(("Padrinho Fraternos 1", "85988712107"), ("Padrinho Fraternos 2", "85999987788"))
+        r = ca.post("/lotes/ler-planilha", data={"edicao_id": ed.id},
+                    files={"arquivo": ("grupo.xlsx", numerados, "application/octet-stream")})
+        verifica("'Fraternos 1' e 'Fraternos 2' sao duas pessoas",
+                 all(not l["avisos"] for l in r.json()["linhas"]), r.text[:300])
+
         csv = "Nome,Telefone\nA. Uchoa,(85) 99921-0691\nVinícius Magalhães,(85) 98877-7223\n".encode()
         r = ca.post("/lotes/ler-planilha", data={"edicao_id": ed.id},
                     files={"arquivo": ("grupo.csv", csv, "text/csv")})

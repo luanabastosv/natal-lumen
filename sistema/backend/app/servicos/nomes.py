@@ -64,10 +64,26 @@ def _chave(nome: str | None) -> list[str]:
     return [p for p in LETRAS.findall(sem_acento.lower()) if p not in LIGADORES]
 
 
+NUMEROS = re.compile(r"\d+")
+
+
+def _numeros(nome: str | None) -> list[str]:
+    """Os numeros do nome, sem zero a esquerda: "Padrinho Fraternos 07" -> ["7"].
+
+    A chave do nome so olha letras, e por ela "Padrinho Fraternos 1" e
+    "Padrinho Fraternos 2" eram o mesmo nome: o lote do grupo Fraternos
+    (27/11/2026) juntou quinze pessoas num padrinho so. Numero diferente e
+    outra pessoa.
+    """
+    return [n.lstrip("0") or "0" for n in NUMEROS.findall(nome or "")]
+
+
 def mesmo_nome(a: str | None, b: str | None) -> bool:
-    """O mesmo nome depois de tirar acento, caixa, espacos e "da/de/dos"."""
+    """O mesmo nome depois de tirar acento, caixa, espacos e "da/de/dos".
+
+    Os numeros do nome tambem tem de bater (ver `_numeros`)."""
     ka, kb = _chave(a), _chave(b)
-    return bool(ka) and ka == kb
+    return bool(ka) and ka == kb and _numeros(a) == _numeros(b)
 
 
 def _mesmo_primeiro_nome(a: str, b: str) -> bool:
@@ -96,6 +112,9 @@ def parecenca(a: str | None, b: str | None) -> float:
     """
     ka, kb = _chave(a), _chave(b)
     if len(ka) < 2 or len(kb) < 2:
+        return 0.0
+    # "Padrinho Fraternos 1" e "Padrinho Fraternos 2": outra pessoa.
+    if _numeros(a) != _numeros(b):
         return 0.0
     if ka == kb:
         return 1.0
