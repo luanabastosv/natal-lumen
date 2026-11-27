@@ -36,7 +36,7 @@ export default function RotaProtegida({
     return (
       <EmptyState
         titulo="Seção da administração geral"
-        corpo="Cidades e edições são criadas pela administração geral do projeto."
+        corpo="Esta parte do sistema é só da administração geral do projeto."
       />
     );
   }

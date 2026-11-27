@@ -132,7 +132,14 @@ class Pagamento(Base):
     # mais de uma vez, e o mesmo pagamento nao pode entrar duas vezes no caixa.
     mercadopago_id: Mapped[str | None] = mapped_column(String(40), unique=True)
 
+    # O lote de onde este pagamento saiu, quando um grupo apadrinhou junto
+    # (ver LoteApadrinhamento). Nulo para tudo o que foi registrado um a um.
+    lote_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lotes_apadrinhamento.id", ondelete="SET NULL"), index=True
+    )
+
     padrinho: Mapped[Padrinho] = relationship(back_populates="pagamentos")
+    lote: Mapped["LoteApadrinhamento | None"] = relationship(back_populates="pagamentos")
     apadrinhamentos: Mapped[list["Apadrinhamento"]] = relationship(
         back_populates="pagamento"
     )
@@ -226,6 +233,35 @@ class Apadrinhamento(Base):
     envios: Mapped[list["EnvioCartao"]] = relationship(
         back_populates="apadrinhamento", cascade="all, delete-orphan"
     )
+
+
+class LoteApadrinhamento(Base):
+    """Um grupo que apadrinhou junto: uma planilha de padrinhos, um comprovante.
+
+    O grupo junta o dinheiro e faz UMA transferencia, mas cada pessoa do grupo
+    e um padrinho de verdade, com a sua crianca e o seu agradecimento. O lote
+    guarda o que liga os pagamentos dessa planilha, para o ZIP de
+    agradecimentos do grupo poder ser baixado de novo quando for preciso.
+
+    So a administracao geral cria lote (routers/lotes.py).
+    """
+
+    __tablename__ = "lotes_apadrinhamento"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    edicao_id: Mapped[int] = mapped_column(
+        ForeignKey("edicoes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # O nome do grupo, como a coordenacao chama ("Grupo Elyon").
+    nome: Mapped[str] = mapped_column(String(160), nullable=False)
+    criado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+    criado_em: Mapped[CriadoEm]
+    # Ver `chave_envio` em Pagamento.
+    chave_envio: Mapped[str | None] = mapped_column(String(64), unique=True)
+
+    pagamentos: Mapped[list[Pagamento]] = relationship(back_populates="lote")
 
 
 class CobrancaCartao(Base):

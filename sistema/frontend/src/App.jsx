@@ -11,6 +11,7 @@ import NaoEncontrada from "./pages/NaoEncontrada.jsx";
 import Cartoes from "./pages/Cartoes.jsx";
 import Checkin from "./pages/Checkin.jsx";
 import Apadrinhar from "./pages/Apadrinhar.jsx";
+import ApadrinharEmLote from "./pages/ApadrinharEmLote.jsx";
 import EnvioCartoes from "./pages/EnvioCartoes.jsx";
 import Financeiro from "./pages/Financeiro.jsx";
 import Kits from "./pages/Kits.jsx";
@@ -97,6 +98,17 @@ export default function App() {
                 element={
                   <RotaProtegida permissao="enviar_cartoes">
                     <EnvioCartoes />
+                  </RotaProtegida>
+                }
+              />
+
+              {/* Um grupo que apadrinhou junto: so a administracao geral. O
+                  backend confere de novo em todas as rotas de /lotes. */}
+              <Route
+                path="/padrinhos/lote"
+                element={
+                  <RotaProtegida apenasAdmin>
+                    <ApadrinharEmLote />
                   </RotaProtegida>
                 }
               />

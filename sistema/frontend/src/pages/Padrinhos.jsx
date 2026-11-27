@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Rabisco from "../components/core/Rabisco.jsx";
 import Button from "../components/core/Button.jsx";
 import MenuAcoes from "../components/core/MenuAcoes.jsx";
-import { Atencao, ChevronDireita, Enviar, Imprimir } from "../components/core/icones.jsx";
+import { Atencao, ChevronDireita, Enviar, Importar, Imprimir } from "../components/core/icones.jsx";
 import { Entrada, Selecao } from "../components/core/Campo.jsx";
 import CelulaEditavel from "../components/dados/CelulaEditavel.jsx";
 import { AvisoParecidos, CamposPadrinho } from "../components/dados/CamposPadrinho.jsx";
@@ -525,7 +525,7 @@ export default function Padrinhos() {
         {/* Na ponta oposta da linha: o CTA da pagina fica longe dos campos de
             busca, sem roubar uma linha so para ele. No celular ela nao existe:
             o envio e so no computador, e o Novo padrinho desce para a base. */}
-        {!estreita && (podeEditar || podeEnviarCartoes) && (
+        {!estreita && (podeEditar || podeEnviarCartoes || usuario?.admin_geral) && (
           <div className="barra-acoes__ponta">
             {/* So no computador: o envio dos lembretes e trabalho de mesa,
                 com a lista de padrinhos e cartoes inteira na frente. */}
@@ -541,6 +541,19 @@ export default function Padrinhos() {
                 titulo={envioDeCartoesLigado ? undefined : "Desativado por enquanto"}
               >
                 Ir para envio de cartões
+              </Button>
+            )}
+            {/* Um grupo que apadrinhou junto. So a administracao geral, e so
+                no computador: e conferencia de dezenas de linhas. */}
+            {usuario?.admin_geral && (
+              <Button
+                size="sm"
+                variant="ghost"
+                iconLeft={<Importar t={14} />}
+                onClick={() => navegar("/padrinhos/lote")}
+                disabled={!edicaoAtiva}
+              >
+                Apadrinhar em lote
               </Button>
             )}
             {podeEditar && (
